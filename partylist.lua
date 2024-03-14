@@ -70,13 +70,19 @@ function Gauge:Update(max, cur, shield)
     self.cur = cur
     self.shield = shield
 
-    local bar_rel = cur / max
-    local shield_rel = (cur + shield) / max
-    local overshield_rel
-    if shield_rel > 1 then
-        overshield_rel = shield_rel - 1
-        shield_rel = 1
+    local bar_rel, shield_rel, overshield_rel
+    if max > 0 then
+        bar_rel = cur / max
+        shield_rel = (cur + shield) / max
+        if shield_rel > 1 then
+            overshield_rel = shield_rel - 1
+            shield_rel = 1
+        else
+            overshield_rel = 0
+        end
     else
+        bar_rel = 0
+        shield_rel = 0
         overshield_rel = 0
     end
 
@@ -459,12 +465,14 @@ function PartyList:New()
     end
 
     f.events = {}
-    f.events["PLAYER_ENTERING_WORLD"] = f.OnPlayerEnteringWorld
-    f.events["PARTY_LEADER_CHANGED"] = f.OnPartyChange
-    f.events["GROUP_ROSTER_UPDATE"] = f.OnPartyChange
     f.events["ACTIVE_PLAYER_SPECIALIZATION_CHANGED"] = f.OnPartyChange
+    f.events["GROUP_ROSTER_UPDATE"] = f.OnPartyChange
+    f.events["PARTY_LEADER_CHANGED"] = f.OnPartyChange
+    f.events["PLAYER_ENTERING_WORLD"] = f.OnPlayerEnteringWorld
     f.events["UNIT_ABSORB_AMOUNT_CHANGED"] = f.OnMemberUpdate
     f.events["UNIT_AURA"] = f.OnMemberUpdate
+    f.events["UNIT_ENTERED_VEHICLE"] = f.OnPartyChange
+    f.events["UNIT_EXITED_VEHICLE"] = f.OnPartyChange
     f.events["UNIT_HEALTH"] = f.OnMemberUpdate
     f.events["UNIT_LEVEL"] = f.OnMemberUpdateName
     f.events["UNIT_MAXHEALTH"] = f.OnMemberUpdate
@@ -499,15 +507,18 @@ function PartyList:SetParty()
     self.party = {}
     self.ally_map = {}
 
-    local tokens = {"player", "party1", "party2", "party3", "party4"}
+    local tokens = {"player", "vehicle", "party1", "party2", "party3", "party4"}
     for _, token in ipairs(tokens) do
-        if UnitGUID(token) then
+        local id = UnitGUID(token)
+        if id then
             if old_party[token] then
                 self.party[token] = old_party[token]
                 self.party[token]:Refresh()
                 old_party[token] = nil
             else
-                self.party[token] = Member:New(f, token)
+                local npc_id = nil
+                if token == "vehicle" then npc_id = id end
+                self.party[token] = Member:New(f, token, npc_id)
             end
             self.party[token]:SetYPosition(f, y)
             y = y - 40
