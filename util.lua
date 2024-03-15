@@ -34,4 +34,5 @@ end
 function WoWXIV.DestroyFrame(frame)
     frame:SetParent(nil)
     frame:Hide()
+    frame:UnregisterAllEvents()
 end
