@@ -4,19 +4,13 @@ function WoWXIV_SlashCmd_Init()
         if not arg or arg == "" then
             WoWXIV_OpenConfig()
         elseif arg == "ally" then
+            WoWXIV_PartyList_ClearAllies(id)
             local id = UnitGUID("target")
-            if id then
-                WoWXIV_PartyList_AddAlly(id)
-            else
-                print("No target selected!")
-            end
-        elseif arg == "noally" then
-                WoWXIV_PartyList_ClearAllies(id)
+            if id then WoWXIV_PartyList_AddAlly(id) end
         else
             print("Usage:")
             print("   /wowxiv - open addon settings window")
-            print("   /wowxiv ally - mark current target as an ally for party list")
-            print("   /wowxiv noally - clear all allies from party list")
+            print("   /wowxiv ally - mark current target as an ally for party list (clear ally if no target)")
         end
     end
 end
