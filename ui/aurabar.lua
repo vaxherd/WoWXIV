@@ -78,7 +78,11 @@ end
 
 function Aura:UpdateTooltip()
     if GameTooltip:IsForbidden() then return end
-    GameTooltip:SetUnitAura(self.unit, self.aura_index, self.aura_index_filter)
+    if self.unit then
+        GameTooltip:SetUnitAura(self.unit, self.aura_index, self.aura_index_filter)
+    else
+        GameTooltip:Hide()
+    end
 end
 
 function Aura:UpdateTimeLeft()
