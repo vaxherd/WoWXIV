@@ -5,13 +5,8 @@ WoWXIV.BuffBar = {}
 
 -- Create the player buff/debuff bars, and hide the default UI's buff frame.
 function WoWXIV.BuffBar.Create()
-    -- Logic borrowed from ElvUI (UF:DisableBlizzard_HideFrame())
-    BuffFrame:UnregisterAllEvents()
-    BuffFrame:Hide()
-    hooksecurefunc(BuffFrame, "Show", BuffFrame.Hide)
-    hooksecurefunc(BuffFrame, "SetShown", function(frame, shown)
-        if shown then frame:Hide() end
-    end)
+    WoWXIV.HideBlizzardFrame(BuffFrame)
+    WoWXIV.HideBlizzardFrame(DebuffFrame)
 
     local f = WoWXIV.CreateEventFrame("WoWXIV_BuffBar", UIParent)
     WoWXIV.BuffBar.frame = f
