@@ -1,4 +1,7 @@
---------------------------------------------------------------------------
+local WoWXIV = WoWXIV
+WoWXIV.PartyList = {}
+
+------------------------------------------------------------------------
 
 local Gauge = {}
 Gauge.__index = Gauge
@@ -401,7 +404,7 @@ function Member:Update(updateLabel)
 end
 
 function Member:Delete()
-    WoWXIV_DestroyFrame(self.frame)
+    WoWXIV.DestroyFrame(self.frame)
 end
 
 ---------------------------------------------------------------------------
@@ -447,11 +450,6 @@ function PartyList:New()
     new.bg_c:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     new.bg_c:SetTexCoord(0, 1, 4/256.0, 7/256.0)
 
-    function f:OnPlayerEnteringWorld()
-        f.owner:SetParty()
-        f:Show()
-    end
-
     function f:OnPartyChange()
         f.owner:SetParty()
     end
@@ -468,7 +466,6 @@ function PartyList:New()
     f.events["ACTIVE_PLAYER_SPECIALIZATION_CHANGED"] = f.OnPartyChange
     f.events["GROUP_ROSTER_UPDATE"] = f.OnPartyChange
     f.events["PARTY_LEADER_CHANGED"] = f.OnPartyChange
-    f.events["PLAYER_ENTERING_WORLD"] = f.OnPlayerEnteringWorld
     f.events["UNIT_ABSORB_AMOUNT_CHANGED"] = f.OnMemberUpdate
     f.events["UNIT_AURA"] = f.OnMemberUpdate
     f.events["UNIT_ENTERED_VEHICLE"] = f.OnPartyChange
@@ -496,6 +493,8 @@ function PartyList:New()
 
     C_Timer.After(1, function() new:RefreshAllies() end)
 
+    new:SetParty()
+    f:Show()
     return new
 end
 
@@ -616,20 +615,18 @@ end
 
 ---------------------------------------------------------------------------
 
-WoWXIV_partylist = nil
-
 -- Create the global party list instance.
-function WoWXIV_PartyList_Create()
-    WoWXIV_partylist = PartyList:New()
+function WoWXIV.PartyList.Create()
+    WoWXIV.PartyList.list = PartyList:New()
 end
 
--- Mark the given unit (must be a GUID) as an ally to be shown in the party
--- list.  The character will be removed from the party list when it despawns.
-function WoWXIV_PartyList_AddAlly(unit_id)
-    WoWXIV_partylist:AddAlly(unit_id)
+-- Mark the given unit (must be a GUID) as an ally to be shown in the
+-- party list.
+function WoWXIV.PartyList.AddAlly(unit_id)
+    WoWXIV.PartyList.list:AddAlly(unit_id)
 end
 
--- Remove all allies from the party list
-function WoWXIV_PartyList_ClearAllies()
-    WoWXIV_partylist:ClearAllies()
+-- Remove all allies from the party list.
+function WoWXIV.PartyList.ClearAllies()
+    WoWXIV.PartyList.list:ClearAllies()
 end

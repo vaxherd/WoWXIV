@@ -1,3 +1,7 @@
+local WoWXIV = WoWXIV
+
+------------------------------------------------------------------------
+
 -- Create a basic frame suitable for receiving events.  Any received
 -- event will be passed to a same-named method on the frame, with the
 -- "event" argument (giving the event name) omitted.  This function can
@@ -8,7 +12,7 @@
 --     name: Global name to assign to the frame.  May be omitted or nil to
 --         create an anonymous frame.
 --     parent: Parent frame.  May be omitted or nil for a detached frame.
-function WoWXIV_CreateEventFrame(name, parent)
+function WoWXIV.CreateEventFrame(name, parent)
     local f = CreateFrame("Frame", name, parent)
     f:SetScript("OnEvent", function(self, event, ...)
         if self[event] then
@@ -27,7 +31,7 @@ end
 --
 -- Parameters:
 --     frame: Frame to destroy.
-function WoWXIV_DestroyFrame(frame)
+function WoWXIV.DestroyFrame(frame)
     frame:SetParent(nil)
     frame:Hide()
 end
