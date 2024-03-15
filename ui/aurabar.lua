@@ -52,7 +52,7 @@ function Aura:New(parent)
     new.stack_label:SetText("")
 
     new.timer = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    new.timer:SetPoint("BOTTOM", f, "BOTTOM", 0, 2)
+    new.timer:SetPoint("BOTTOM", f, "BOTTOM", 0, 3)
     new.timer:SetTextScale(1)
     new.timer:SetText("")
 
