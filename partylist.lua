@@ -122,169 +122,6 @@ end
 
 --------------------------------------------------------------------------
 
-local Aura = {}
-Aura.__index = Aura
-
-function Aura:New(parent, origin_x, origin_y)
-    local new = {}
-    setmetatable(new, self)
-    new.__index = self
-
-    new.parent = parent
-    new.unit = nil
-    new.aura_index = nil
-    new.aura_index_filter = nil
-    new.icon_id = nil
-    new.is_helpful = nil
-    new.stacks = nil
-    new.time_str = nil
-    new.expires = nil
-
-    local f = CreateFrame("Frame", nil, parent)
-    new.frame = f
-    f:Hide()
-    f:SetWidth(24)
-    f:SetHeight(40)
-    f:SetPoint("TOPLEFT", parent, "TOPLEFT", origin_x, origin_y)
-    f:SetScript("OnEnter", function() new:OnEnter() end)
-    f:SetScript("OnLeave", function() new:OnLeave() end)
-
-    new.icon = f:CreateTexture(nil, "ARTWORK")
-    new.icon:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -4)
-    new.icon:SetWidth(24)
-    new.icon:SetHeight(24)
-
-    new.border = f:CreateTexture(nil, "OVERLAY")
-    new.border:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -3)
-    new.border:SetWidth(22)
-    new.border:SetHeight(26)
-    new.border:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    new.border:SetTexCoord(99/256.0, 121/256.0, 14/256.0, 40/256.0)
-
-    new.stack_label = f:CreateFontString(nil, "OVERLAY", "NumberFont_Shadow_Med")
-    new.stack_label:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -2)
-    new.stack_label:SetTextScale(1)
-    new.stack_label:SetText("")
-
-    new.timer = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    new.timer:SetPoint("BOTTOM", f, "BOTTOM", 0, 2)
-    new.timer:SetTextScale(1)
-    new.timer:SetText("")
-
-    return new
-end
-
-function Aura:SetPoint(anchor, x, y)
-    self.frame:SetPoint(anchor, new.parent, anchor, x, y)
-end
-
-function Aura:OnEnter()
-    if GameTooltip:IsForbidden() then return end
-    if not self.frame:IsVisible() then return end
-    GameTooltip:SetOwner(self.frame, "ANCHOR_BOTTOMRIGHT")
-    self:UpdateTooltip()
-    GameTooltip:Show()
-end
-
-function Aura:OnLeave()
-    if GameTooltip:IsForbidden() then return end
-    GameTooltip:Hide()
-end
-
-function Aura:UpdateTooltip()
-    if GameTooltip:IsForbidden() then return end
-    GameTooltip:SetUnitAura(self.unit, self.aura_index, self.aura_index_filter)
-end
-
-function Aura:UpdateTimeLeft()
-    local time_str
-    local time_left
-    if self.expires then
-        time_left = self.expires - GetTime()
-    else
-        time_left = 0
-    end
-    local time_rounded = math.floor(time_left + 0.5)
-    if time_left < 0.5 then
-        time_str = nil
-    elseif time_rounded < 60 then
-        time_str = time_rounded
-    elseif time_rounded < 3600 then
-        time_str = math.floor(time_rounded/60) .. "m"
-    else
-        time_str = math.floor(time_rounded/3600) .. "h"
-    end
-    if time_str ~= self.time_str then
-        self.timer:SetText(time_str)
-        self.time_str = time_str
-        if GameTooltip:GetOwner() == self.frame and GameTooltip:IsShown() then
-            self:UpdateTooltip()
-        end
-    end
-end
-
--- Use unit = nil (or omitted) to hide the icon.
-function Aura:Update(unit, aura_index, aura_index_filter, aura_data)
-    if not unit then
-        if self.unit then
-            self.frame:Hide()
-            self.unit = nil
-            self.icon_id = nil
-            self.is_helpful = nil
-            self.stacks = nil
-            self.stack_label:SetText("")
-            self.time_left = nil
-            self.timer:SetText("")
-        end
-        return
-    end
-
-    self.unit = unit
-    self.aura_index = aura_index
-    self.aura_index_filter = aura_index_filter
-
-    local icon_id = aura_data.icon
-    local is_helpful = aura_data.isHelpful
-    local stacks = aura_data.applications
-    local expires = aura_data.expirationTime
-
-    if icon_id ~= self.icon_id or is_helpful ~= self.is_helpful then
-        if is_helpful then
-            self.icon:SetMask("Interface\\Addons\\WowXIV\\textures\\buff-mask.png")
-            self.border:SetTexCoord(99/256.0, 121/256.0, 14/256.0, 40/256.0)
-        else
-            self.icon:SetMask("Interface\\Addons\\WowXIV\\textures\\debuff-mask.png")
-            self.border:SetTexCoord(99/256.0, 121/256.0, 40/256.0, 14/256.0)
-        end
-        self.icon:SetTexture(icon_id)  -- Must come _after_ SetMask()!
-        if not self.icon_id then
-            self.frame:Show()
-        end
-        self.icon_id = icon_id
-        self.is_helpful = is_helpful
-    end
-
-    if stacks ~= self.stacks then
-        if stacks > 0 then
-            self.stack_label:SetText(stacks)
-        else
-            self.stack_label:SetText("")
-        end
-        self.stacks = stacks
-    end
-
-    if expires > 0 then
-        self.expires = expires
-    else
-        self.expires = nil
-    end
-    self:UpdateTimeLeft()
-
-    self:UpdateTooltip()
-end
-
---------------------------------------------------------------------------
-
 local Member = {}
 Member.__index = Member
 
@@ -324,24 +161,11 @@ function Member:New(parent, unit, npc_guid)
     new.mp = Gauge:New(f)
     new.mp.frame:SetPoint("TOPLEFT", f, "TOPLEFT", 136, -12)
 
-    new.auras = {}
-    for i = 1, 9 do
-        new.auras[i] = Aura:New(f, 240+(i-1)*24, 0)
-    end
-
-    f:SetScript("OnUpdate", function(self) new:OnUpdate() end)
+    new.buffbar = WoWXIV.UI.AuraBar:New(unit, "ALL", "LEFT", 9, f, 240, 0)
 
     new:Refresh()
     new:Update()
     return new
-end
-
-function Member:OnUpdate()
-    for _, aura in ipairs(self.auras) do
-        if aura.time_str ~= "" then
-            aura:UpdateTimeLeft()
-        end
-    end
 end
 
 function Member:SetYPosition(parent, y)
@@ -352,6 +176,8 @@ end
 function Member:SetMissing(missing)
     self.missing = missing
     if self.missing then
+        if self.buffbar then self.buffbar:Delete() end
+        self.buffbar = nil
         self.frame:SetAlpha(0.5)
     else
         self.frame:SetAlpha(1.0)
@@ -361,6 +187,8 @@ end
 function Member:Refresh(new_unit)  -- optional new unit token
     if new_unit then
         self.unit = new_unit
+        if self.buffbar then self.buffbar:Delete() end
+        self.buffbar = WoWXIV.UI.AuraBar:New(unit, "ALL", "LEFT", 9, f, 240, 0)
     end
 
     self.name:SetText("Lv"..UnitLevel(self.unit)
@@ -413,39 +241,6 @@ function Member:Update(updateLabel)
     if updateLabel then
         self.name:SetText("Lv"..UnitLevel(self.unit)
                           .." "..UnitName(self.unit))
-    end
-
-    local aura_list = {}
-    for i = 1, 9 do
-        local data = C_UnitAuras.GetAuraDataByIndex(self.unit, i, "HARMFUL")
-        if not data then break end
-        table.insert(aura_list, {i, "HARMFUL", data})
-    end
-    for i = 1, 9 do
-        local data = C_UnitAuras.GetAuraDataByIndex(self.unit, i, "HELPFUL")
-        if not data then break end
-        table.insert(aura_list, {i, "HELPFUL", data})
-    end
-    table.sort(aura_list, function(a,b)
-        if a[3].isHelpful ~= b[3].isHelpful then
-            return not a[3].isHelpful
-        elseif (a[3].expirationTime ~= 0) ~= (b[3].expirationTime ~= 0) then
-            return a[3].expirationTime ~= 0
-        elseif a[3].expirationTime ~= 0 then
-            return a[3].expirationTime < b[3].expirationTime
-        else
-            return a[3].spellId < b[3].spellId
-        end
-    end)
-    for i = 1, 9 do
-        if aura_list[i] then
-            self.auras[i]:Update(self.unit,
-                                 aura_list[i][1],
-                                 aura_list[i][2],
-                                 aura_list[i][3])
-        else
-            self.auras[i]:Update(nil)
-        end
     end
 end
 

@@ -8,9 +8,12 @@
 # (files are loaded/executed in the order listed in this file)
 WoWXIV.lua
 
+buffbar.lua
 config.lua
 gamepad.lua
 hatelist.lua
 partylist.lua
 slashcmd.lua
+ui/aurabar.lua
 util.lua
+
