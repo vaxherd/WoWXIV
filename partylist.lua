@@ -15,8 +15,8 @@ function Gauge:New(parent)
     new.cur = 1
     new.shield = 0
 
-    new.frame = CreateFrame("Frame", nil, parent)
-    local f = new.frame
+    local f = CreateFrame("Frame", nil, parent)
+    new.frame = f
     f:SetWidth(96)
     f:SetHeight(30)
 
@@ -130,18 +130,24 @@ function Aura:New(parent, origin_x, origin_y)
     setmetatable(new, self)
     new.__index = self
 
+    new.parent = parent
+    new.unit = nil
+    new.aura_index = nil
+    new.aura_index_filter = nil
     new.icon_id = nil
     new.is_helpful = nil
     new.stacks = nil
     new.time_str = nil
     new.expires = nil
 
-    new.frame = CreateFrame("Frame", nil, parent)
-    local f = new.frame
+    local f = CreateFrame("Frame", nil, parent)
+    new.frame = f
     f:Hide()
     f:SetWidth(24)
     f:SetHeight(40)
     f:SetPoint("TOPLEFT", parent, "TOPLEFT", origin_x, origin_y)
+    f:SetScript("OnEnter", function() new:OnEnter() end)
+    f:SetScript("OnLeave", function() new:OnLeave() end)
 
     new.icon = f:CreateTexture(nil, "ARTWORK")
     new.icon:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -4)
@@ -160,12 +166,34 @@ function Aura:New(parent, origin_x, origin_y)
     new.stack_label:SetTextScale(1)
     new.stack_label:SetText("")
 
-    new.timer = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    new.timer = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     new.timer:SetPoint("BOTTOM", f, "BOTTOM", 0, 2)
-    new.timer:SetTextScale(0.9)
+    new.timer:SetTextScale(1)
     new.timer:SetText("")
 
     return new
+end
+
+function Aura:SetPoint(anchor, x, y)
+    self.frame:SetPoint(anchor, new.parent, anchor, x, y)
+end
+
+function Aura:OnEnter()
+    if GameTooltip:IsForbidden() then return end
+    if not self.frame:IsVisible() then return end
+    GameTooltip:SetOwner(self.frame, "ANCHOR_BOTTOMRIGHT")
+    self:UpdateTooltip()
+    GameTooltip:Show()
+end
+
+function Aura:OnLeave()
+    if GameTooltip:IsForbidden() then return end
+    GameTooltip:Hide()
+end
+
+function Aura:UpdateTooltip()
+    if GameTooltip:IsForbidden() then return end
+    GameTooltip:SetUnitAura(self.unit, self.aura_index, self.aura_index_filter)
 end
 
 function Aura:UpdateTimeLeft()
@@ -189,14 +217,18 @@ function Aura:UpdateTimeLeft()
     if time_str ~= self.time_str then
         self.timer:SetText(time_str)
         self.time_str = time_str
+        if GameTooltip:GetOwner() == self.frame and GameTooltip:IsShown() then
+            self:UpdateTooltip()
+        end
     end
 end
 
--- Use icon_id = nil (or omitted) to hide the icon.
-function Aura:Update(icon_id, is_helpful, stacks, expires)
-    if not icon_id then
-        if self.icon_id then
+-- Use unit = nil (or omitted) to hide the icon.
+function Aura:Update(unit, aura_index, aura_index_filter, aura_data)
+    if not unit then
+        if self.unit then
             self.frame:Hide()
+            self.unit = nil
             self.icon_id = nil
             self.is_helpful = nil
             self.stacks = nil
@@ -206,6 +238,15 @@ function Aura:Update(icon_id, is_helpful, stacks, expires)
         end
         return
     end
+
+    self.unit = unit
+    self.aura_index = aura_index
+    self.aura_index_filter = aura_index_filter
+
+    local icon_id = aura_data.icon
+    local is_helpful = aura_data.isHelpful
+    local stacks = aura_data.applications
+    local expires = aura_data.expirationTime
 
     if icon_id ~= self.icon_id or is_helpful ~= self.is_helpful then
         if is_helpful then
@@ -238,6 +279,8 @@ function Aura:Update(icon_id, is_helpful, stacks, expires)
         self.expires = nil
     end
     self:UpdateTimeLeft()
+
+    self:UpdateTooltip()
 end
 
 --------------------------------------------------------------------------
@@ -254,8 +297,8 @@ function Member:New(parent, unit, npc_guid)
     new.npc_id = npc_guid
     new.missing = false
 
-    new.frame = CreateFrame("Frame", nil, parent)
-    local f = new.frame
+    local f = CreateFrame("Frame", nil, parent)
+    new.frame = f
     f:SetWidth(256)
     f:SetHeight(40)
 
@@ -376,27 +419,30 @@ function Member:Update(updateLabel)
     for i = 1, 9 do
         local data = C_UnitAuras.GetAuraDataByIndex(self.unit, i, "HARMFUL")
         if not data then break end
-        table.insert(aura_list, data)
+        table.insert(aura_list, {i, "HARMFUL", data})
     end
     for i = 1, 9 do
         local data = C_UnitAuras.GetAuraDataByIndex(self.unit, i, "HELPFUL")
         if not data then break end
-        table.insert(aura_list, data)
+        table.insert(aura_list, {i, "HELPFUL", data})
     end
     table.sort(aura_list, function(a,b)
-        if a.isHelpful ~= b.isHelpful then
-            return not a.isHelpful
-        elseif (a.expirationTime ~= 0) ~= (b.expirationTime ~= 0) then
-            return a.expirationTime ~= 0
-        elseif a.expirationTime ~= 0 then
-            return a.expirationTime < b.expirationTime
+        if a[3].isHelpful ~= b[3].isHelpful then
+            return not a[3].isHelpful
+        elseif (a[3].expirationTime ~= 0) ~= (b[3].expirationTime ~= 0) then
+            return a[3].expirationTime ~= 0
+        elseif a[3].expirationTime ~= 0 then
+            return a[3].expirationTime < b[3].expirationTime
         else
-            return a.spellId < b.spellId
+            return a[3].spellId < b[3].spellId
         end
     end)
     for i = 1, 9 do
         if aura_list[i] then
-            self.auras[i]:Update(aura_list[i].icon, aura_list[i].isHelpful, aura_list[i].applications, aura_list[i].expirationTime)
+            self.auras[i]:Update(self.unit,
+                                 aura_list[i][1],
+                                 aura_list[i][2],
+                                 aura_list[i][3])
         else
             self.auras[i]:Update(nil)
         end
@@ -424,8 +470,8 @@ function PartyList:New()
     -- We could use our CreateEventFrame helper, but most events we're
     -- interested in will follow the same code path, so we write our
     -- own OnEvent handler to be concise.
-    new.frame = CreateFrame("Frame", "WoWXIV_PartyList", UIParent)
-    local f = new.frame
+    local f = CreateFrame("Frame", "WoWXIV_PartyList", UIParent)
+    new.frame = f
     f.owner = new
     f:Hide()
     f:SetPoint("TOPLEFT", 30, -24)

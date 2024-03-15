@@ -17,8 +17,8 @@ local config_frame
 
 -- Create the configuration window.
 function WoWXIV.Config.Create()
-    config_frame = WoWXIV.CreateEventFrame("WoWXIV_Config")
-    local f = config_frame
+    local f = WoWXIV.CreateEventFrame("WoWXIV_Config")
+    config_frame = f
 
     f:RegisterEvent("ADDON_LOADED")
     function f:ADDON_LOADED(addon)

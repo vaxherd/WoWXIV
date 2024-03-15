@@ -15,8 +15,8 @@ function Gauge:New(parent)
     new.cur = 1
     new.shield = 0
 
-    new.frame = CreateFrame("Frame", nil, parent)
-    local f = new.frame
+    local f = CreateFrame("Frame", nil, parent)
+    new.frame = f
     f:SetWidth(62)
     f:SetHeight(30)
 
@@ -126,8 +126,8 @@ function Enemy:New(parent, unit, rel_id)
 
     new.unit = unit
 
-    new.frame = CreateFrame("Frame", nil, parent)
-    local f = new.frame
+    local f = CreateFrame("Frame", nil, parent)
+    new.frame = f
     f:SetWidth(256)
     f:SetHeight(30)
 
