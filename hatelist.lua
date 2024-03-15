@@ -1,3 +1,6 @@
+local WoWXIV = WoWXIV
+WoWXIV.HateList = {}
+
 --------------------------------------------------------------------------
 
 local Gauge = {}
@@ -209,14 +212,14 @@ function Enemy:Update(rel_id, updateName)
 end
 
 function Enemy:Delete()
-    WoWXIV_DestroyFrame(self.frame)
+    WoWXIV.DestroyFrame(self.frame)
 end
 
 ---------------------------------------------------------------------------
 
 -- Create the global hate list object.
-function WoWXIV_HateList_Crate()
-    local f = WoWXIV_CreateEventFrame("WoWXIV_HateList", UIParent)
+function WoWXIV.HateList.Create()
+    local f = WoWXIV.CreateEventFrame("WoWXIV_HateList", UIParent)
     f:Hide()
     f:SetPoint("TOPLEFT", 30, -720)
     f:SetWidth(200)

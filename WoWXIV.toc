@@ -4,16 +4,13 @@
 ## Version: 0.1
 ## SavedVariables: WoWXIV_config
 
-
-# Must be loaded first so utility functions are available!
+# Must be loaded first so module definition is available!
 # (files are loaded/executed in the order listed in this file)
-util.lua
+WoWXIV.lua
 
 config.lua
 gamepad.lua
 hatelist.lua
 partylist.lua
 slashcmd.lua
-
-# Must be loaded last!
-main.lua
+util.lua
