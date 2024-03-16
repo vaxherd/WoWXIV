@@ -1,126 +1,6 @@
 local WoWXIV = WoWXIV
 WoWXIV.PartyList = {}
 
-------------------------------------------------------------------------
-
-local Gauge = {}
-Gauge.__index = Gauge
-
-function Gauge:New(parent)
-    local new = {}
-    setmetatable(new, self)
-    new.__index = self
-
-    new.max = 1
-    new.cur = 1
-    new.shield = 0
-
-    local f = CreateFrame("Frame", nil, parent)
-    new.frame = f
-    f:SetWidth(96)
-    f:SetHeight(30)
-
-    local box = f:CreateTexture(nil, "BORDER")
-    box:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -3)
-    box:SetWidth(96)
-    box:SetHeight(13)
-    box:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    box:SetTexCoord(0/256.0, 96/256.0, 12/256.0, 25/256.0)
-
-    new.shieldbar = f:CreateTexture(nil, "ARTWORK")  -- goes under main bar
-    new.shieldbar:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -7)
-    new.shieldbar:SetWidth(86)
-    new.shieldbar:SetHeight(5)
-    new.shieldbar:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    new.shieldbar:SetTexCoord(5/256.0, 91/256.0, 35/256.0, 40/256.0)
-
-    new.bar = f:CreateTexture(nil, "OVERLAY")
-    new.bar:SetPoint("TOPLEFT", f, "TOPLEFT", 5, -7)
-    new.bar:SetWidth(86)
-    new.bar:SetHeight(5)
-    new.bar:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    new.bar:SetTexCoord(5/256.0, 91/256.0, 27/256.0, 32/256.0)
-
-    new.overshield_l = f:CreateTexture(nil, "OVERLAY")
-    new.overshield_l:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-    new.overshield_l:SetWidth(5)
-    new.overshield_l:SetHeight(7)
-    new.overshield_l:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    new.overshield_l:SetTexCoord(0/256.0, 5/256.0, 43/256.0, 50/256.0)
-    new.overshield_c = f:CreateTexture(nil, "OVERLAY")
-    new.overshield_c:SetPoint("TOPLEFT", f, "TOPLEFT", 5, 0)
-    new.overshield_c:SetWidth(86)
-    new.overshield_c:SetHeight(7)
-    new.overshield_c:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    new.overshield_c:SetTexCoord(5/256.0, 91/256.0, 43/256.0, 50/256.0)
-    new.overshield_r = f:CreateTexture(nil, "OVERLAY")
-    new.overshield_r:SetPoint("TOPLEFT", f, "TOPLEFT", 91, 0)
-    new.overshield_r:SetWidth(5)
-    new.overshield_r:SetHeight(7)
-    new.overshield_r:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    new.overshield_r:SetTexCoord(91/256.0, 96/256.0, 43/256.0, 50/256.0)
-
-    new.value = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    new.value:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -13)
-    new.value:SetTextScale(1.3)
-    new.value:SetText("1")
-
-    return new
-end
-
-function Gauge:Update(max, cur, shield)
-    self.max = max
-    self.cur = cur
-    self.shield = shield
-
-    local bar_rel, shield_rel, overshield_rel
-    if max > 0 then
-        bar_rel = cur / max
-        shield_rel = (cur + shield) / max
-        if shield_rel > 1 then
-            overshield_rel = shield_rel - 1
-            shield_rel = 1
-        else
-            overshield_rel = 0
-        end
-    else
-        bar_rel = 0
-        shield_rel = 0
-        overshield_rel = 0
-    end
-
-    local SIZE = 86
-    local bar_w = bar_rel * SIZE
-    if bar_w == 0 then bar_w = 0.001 end  --  WoW can't deal with 0 width
-    local shield_w = shield_rel * SIZE
-    local overshield_w = overshield_rel * SIZE
-    if overshield_w > 1 then overshield_w = 1 end
-
-    self.bar:SetWidth(bar_w)
-    self.bar:SetTexCoord(5/256.0, (5+bar_w)/256.0, 27/256.0, 32/256.0)
-
-    if shield_w > bar_w then
-        self.shieldbar:Show()
-        self.shieldbar:SetTexCoord(5/256.0, (5+shield_w)/256.0, 35/256.0, 40/256.0)
-    else
-        self.shieldbar:Hide()
-    end
-
-    if overshield_w > 0 then
-        self.overshield_l:Show()
-        self.overshield_c:Show()
-        self.overshield_c:SetWidth(overshield_w)
-        self.overshield_c:SetTexCoord(5/256.0, (5+overshield_w)/256.0, 43/256.0, 50/256.0)
-        self.overshield_r:Show()
-    else
-        self.overshield_l:Hide()
-        self.overshield_c:Hide()
-        self.overshield_r:Hide()
-    end
-
-    self.value:SetText(cur)
-end
-
 --------------------------------------------------------------------------
 
 local Member = {}
@@ -156,11 +36,22 @@ function Member:New(parent, unit, npc_guid)
     new.name:SetPoint("TOPLEFT", f, "TOPLEFT", 36, -4)
     new.name:SetTextScale(1.1)
 
-    new.hp = Gauge:New(f)
-    new.hp.frame:SetPoint("TOPLEFT", f, "TOPLEFT", 32, -12)
+    new.hp = WoWXIV.UI.Gauge:New(f, 86)
+    new.hp:SetBoxColor(0.416, 0.725, 0.890)
+    new.hp:SetBarBackgroundColor(0.027, 0.161, 0.306)
+    new.hp:SetBarColor(1, 1, 1)
+    new.hp:SetShowOvershield(true)
+    new.hp:SetShowValue(true)
+    new.hp:SetValueScale(1.3)
+    new.hp:SetPoint("TOPLEFT", f, "TOPLEFT", 32, -12)
 
-    new.mp = Gauge:New(f)
-    new.mp.frame:SetPoint("TOPLEFT", f, "TOPLEFT", 136, -12)
+    new.mp = WoWXIV.UI.Gauge:New(f, 86)
+    new.mp:SetBoxColor(0.416, 0.725, 0.890)
+    new.mp:SetBarBackgroundColor(0.027, 0.161, 0.306)
+    new.mp:SetBarColor(1, 1, 1)
+    new.mp:SetShowValue(true)
+    new.mp:SetValueScale(1.3)
+    new.mp:SetPoint("TOPLEFT", f, "TOPLEFT", 136, -12)
 
     new.buffbar = WoWXIV.UI.AuraBar:New(unit, "ALL", "LEFT", 9, f, 240, 0)
 

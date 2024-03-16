@@ -3,118 +3,6 @@ WoWXIV.HateList = {}
 
 --------------------------------------------------------------------------
 
-local Gauge = {}
-Gauge.__index = Gauge
-
-function Gauge:New(parent)
-    local new = {}
-    setmetatable(new, self)
-    new.__index = self
-
-    new.max = 1
-    new.cur = 1
-    new.shield = 0
-
-    local f = CreateFrame("Frame", nil, parent)
-    new.frame = f
-    f:SetWidth(62)
-    f:SetHeight(30)
-
-    local box = f:CreateTexture(nil, "BORDER")
-    box:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -3)
-    box:SetWidth(96)
-    box:SetHeight(13)
-    box:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    box:SetTexCoord(0/256.0, 96/256.0, 12/256.0, 25/256.0)
-
-    new.shieldbar = f:CreateTexture(nil, "ARTWORK")  -- goes under main bar
-    new.shieldbar:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -7)
-    new.shieldbar:SetWidth(86)
-    new.shieldbar:SetHeight(5)
-    new.shieldbar:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    new.shieldbar:SetTexCoord(5/256.0, 91/256.0, 35/256.0, 40/256.0)
-
-    new.bar = f:CreateTexture(nil, "OVERLAY")
-    new.bar:SetPoint("TOPLEFT", f, "TOPLEFT", 5, -7)
-    new.bar:SetWidth(86)
-    new.bar:SetHeight(5)
-    new.bar:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    new.bar:SetTexCoord(5/256.0, 91/256.0, 27/256.0, 32/256.0)
-
-    new.overshield_l = f:CreateTexture(nil, "OVERLAY")
-    new.overshield_l:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-    new.overshield_l:SetWidth(5)
-    new.overshield_l:SetHeight(7)
-    new.overshield_l:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    new.overshield_l:SetTexCoord(0/256.0, 5/256.0, 43/256.0, 50/256.0)
-    new.overshield_c = f:CreateTexture(nil, "OVERLAY")
-    new.overshield_c:SetPoint("TOPLEFT", f, "TOPLEFT", 5, 0)
-    new.overshield_c:SetWidth(86)
-    new.overshield_c:SetHeight(7)
-    new.overshield_c:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    new.overshield_c:SetTexCoord(5/256.0, 91/256.0, 43/256.0, 50/256.0)
-    new.overshield_r = f:CreateTexture(nil, "OVERLAY")
-    new.overshield_r:SetPoint("TOPLEFT", f, "TOPLEFT", 91, 0)
-    new.overshield_r:SetWidth(5)
-    new.overshield_r:SetHeight(7)
-    new.overshield_r:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    new.overshield_r:SetTexCoord(91/256.0, 96/256.0, 43/256.0, 50/256.0)
-
-    new.value = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    new.value:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -13)
-    new.value:SetTextScale(1.3)
-    new.value:SetText("1")
-
-    return new
-end
-
-function Gauge:Update(max, cur, shield)
-    self.max = max
-    self.cur = cur
-    self.shield = shield
-
-    local bar_rel = cur / max
-    local shield_rel = (cur + shield) / max
-    local overshield_rel
-    if shield_rel > 1 then
-        overshield_rel = shield_rel - 1
-        shield_rel = 1
-    else
-        overshield_rel = 0
-    end
-
-    local SIZE = 88
-    local bar_w = bar_rel * SIZE
-    local shield_w = shield_rel * SIZE
-    local overshield_w = overshield_rel * SIZE
-
-    self.bar:SetWidth(bar_w)
-    self.bar:SetTexCoord(4/256.0, (4+bar_w)/256.0, 27/256.0, 32/256.0)
-
-    if shield_w > bar_w then
-        self.shieldbar:Show()
-        self.shieldbar:SetTexCoord(4/256.0, (4+shield_w)/256.0, 35/256.0, 40/256.0)
-    else
-        self.shieldbar:Hide()
-    end
-
-    if overshield_w > 0 then
-        self.overshield_l:Show()
-        self.overshield_c:Show()
-        self.overshield_c:SetWidth(overshield_w)
-        self.overshield_c:SetTexCoord(4/256.0, (4+overshield_w)/256.0, 43/256.0, 50/256.0)
-        self.overshield_r:Show()
-    else
-        self.overshield_l:Hide()
-        self.overshield_c:Hide()
-        self.overshield_r:Hide()
-    end
-
-    self.value:SetText(cur)
-end
-
---------------------------------------------------------------------------
-
 local Enemy = {}
 Enemy.__index = Enemy
 
@@ -142,26 +30,12 @@ function Enemy:New(parent, unit, rel_id)
     new.name:SetTextScale(1.1)
     new.name:SetText(select(1, UnitName(rel_id)))
 
-    local box = f:CreateTexture(nil, "BORDER")
-    box:SetPoint("TOPLEFT", f, "TOPLEFT", 19, -13)
-    box:SetWidth(62)
-    box:SetHeight(13)
-    box:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    box:SetTexCoord(0/256.0, 62/256.0, 54/256.0, 67/256.0)
-
-    new.shieldbar = f:CreateTexture(nil, "ARTWORK")  -- goes under main bar
-    new.shieldbar:SetPoint("TOPLEFT", f, "TOPLEFT", 24, -17)
-    new.shieldbar:SetWidth(52)
-    new.shieldbar:SetHeight(5)
-    new.shieldbar:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    new.shieldbar:SetTexCoord(5/256.0, 57/256.0, 35/256.0, 40/256.0)
-
-    new.bar = f:CreateTexture(nil, "OVERLAY")
-    new.bar:SetPoint("TOPLEFT", f, "TOPLEFT", 24, -17)
-    new.bar:SetWidth(52)
-    new.bar:SetHeight(5)
-    new.bar:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    new.bar:SetTexCoord(5/256.0, 57/256.0, 27/256.0, 32/256.0)
+    local hp = WoWXIV.UI.Gauge:New(f, 52)
+    new.hp = hp
+    hp:SetBoxColor(0.533, 0.533, 0.533)
+    hp:SetBarBackgroundColor(0.118, 0.118, 0.118)
+    hp:SetBarColor(1, 1, 1)
+    hp:SetPoint("TOPLEFT", f, "TOPLEFT", 19, -13)
 
     new:Update(rel_id, false)
     return new
@@ -187,28 +61,10 @@ function Enemy:Update(rel_id, updateName)
         hate_level = 0
     end
     self.hate_icon:SetTexCoord((hate_level*20)/256.0, (hate_level*20+19)/256.0,
-                               68/256.0, 87/256.0)
+                               38/256.0, 57/256.0)
 
-    local hp = UnitHealth(rel_id)
-    local hpmax = UnitHealthMax(rel_id)
-    local shield = UnitGetTotalAbsorbs(rel_id)
-    local hp_rel = hp / hpmax
-    local shield_rel = (hp + shield) / hpmax
-    local SIZE = 52
-    local bar_w = hp_rel * SIZE
-    if bar_w == 0 then bar_w = 0.001 end  --  WoW can't deal with 0 width
-    local shield_w = shield_rel * SIZE
-    if shield_w > 1 then
-        shield_w = 1
-    end
-    self.bar:SetWidth(bar_w)
-    self.bar:SetTexCoord(4/256.0, (4+bar_w)/256.0, 27/256.0, 32/256.0)
-    if shield_w > bar_w then
-        self.shieldbar:Show()
-        self.shieldbar:SetTexCoord(5/256.0, (5+shield_w)/256.0, 35/256.0, 40/256.0)
-    else
-        self.shieldbar:Hide()
-    end
+    self.hp:Update(UnitHealth(rel_id), UnitHealthMax(rel_id),
+                   UnitGetTotalAbsorbs(rel_id))
 end
 
 function Enemy:Delete()
