@@ -29,20 +29,17 @@ function Aura:New(parent)
     local f = CreateFrame("Frame", nil, parent)
     new.frame = f
     f:Hide()
-    f:SetWidth(24)
-    f:SetHeight(40)
+    f:SetSize(24, 40)
     f:SetScript("OnEnter", function() new:OnEnter() end)
     f:SetScript("OnLeave", function() new:OnLeave() end)
 
     new.icon = f:CreateTexture(nil, "ARTWORK")
     new.icon:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -4)
-    new.icon:SetWidth(24)
-    new.icon:SetHeight(24)
+    new.icon:SetSize(24, 24)
 
     new.border = f:CreateTexture(nil, "OVERLAY")
     new.border:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -3)
-    new.border:SetWidth(22)
-    new.border:SetHeight(26)
+    new.border:SetSize(22, 26)
     new.border:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     new.border:SetTexCoord(99/256.0, 121/256.0, 14/256.0, 40/256.0)
 
@@ -193,8 +190,7 @@ if not unit then print "null unit!" end --FIXME temp - why does this happen?
 
     local f = CreateFrame("Frame", nil, parent)
     new.frame = f
-    f:SetWidth(24*max)
-    f:SetHeight(40)
+    f:SetSize(24*max, 40)
     if new.leftalign then
         f:SetPoint("TOPLEFT", parent, "TOPLEFT", anchor_x, anchor_y)
     else
