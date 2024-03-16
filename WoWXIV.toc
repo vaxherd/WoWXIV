@@ -15,5 +15,5 @@ hatelist.lua
 partylist.lua
 slashcmd.lua
 ui/aurabar.lua
+ui/gauge.lua
 util.lua
-
