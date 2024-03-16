@@ -94,6 +94,7 @@ function Gauge:Update(max, cur, shield)
     if bar_w == 0 then bar_w = 0.001 end  --  WoW can't deal with 0 width
     local shield_w = shield_rel * SIZE
     local overshield_w = overshield_rel * SIZE
+    if overshield_w > 1 then overshield_w = 1 end
 
     self.bar:SetWidth(bar_w)
     self.bar:SetTexCoord(5/256.0, (5+bar_w)/256.0, 27/256.0, 32/256.0)
