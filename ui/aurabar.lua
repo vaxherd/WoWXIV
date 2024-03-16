@@ -185,6 +185,7 @@ function AuraBar:New(unit, type, align, max, parent, anchor_x, anchor_y)
     setmetatable(new, self)
     new.__index = self
 
+if not unit then print "null unit!" end --FIXME temp - why does this happen?
     new.unit = unit
     new.type = type
     new.leftalign = (align == "LEFT")
@@ -235,6 +236,7 @@ function AuraBar:OnUpdate()
 end
 
 function AuraBar:OnUnitAura(event, ...)
+if not self.unit then return end --FIXME temp
     local aura_list = {}
     if self.type ~= "HELPFUL" then
         for i = 1, self.max do
