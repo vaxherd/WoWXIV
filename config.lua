@@ -13,24 +13,36 @@ config_default["cancel_button"] = "PAD1"
 
 ------------------------------------------------------------------------
 
-local config_frame
-
 -- Create the configuration window.
 function WoWXIV.Config.Create()
-    local f = WoWXIV.CreateEventFrame("WoWXIV_Config")
-    config_frame = f
-
-    f:RegisterEvent("ADDON_LOADED")
-    function f:ADDON_LOADED(addon)
-        if addon == "WoWXIV" then
-            for k, v in pairs(config_default) do
-                if WoWXIV_config[k] == nil then
-                    WoWXIV_config[k] = v
-                end
-            end
-            f:CreateSettingsUI()
+    for k, v in pairs(config_default) do
+        if WoWXIV_config[k] == nil then
+            WoWXIV_config[k] = v
         end
     end
+
+    local f = WoWXIV.CreateEventFrame("WoWXIV_Config")
+    WoWXIV.Config.frame = f
+
+    f.label_confirm_type = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+    f.label_confirm_type:SetPoint("TOPLEFT", 10, -10)
+    f.label_confirm_type:SetText("Confirm button type")
+
+    f.button_confirm_type_east = CreateFrame("CheckButton", nil, f, "UIRadioButtonTemplate")
+    f.button_confirm_type_east:SetPoint("TOPLEFT", 20, -40)
+    f.button_confirm_type_east.text:SetText("Nintendo style")
+    f.button_confirm_type_east:SetChecked(WoWXIV_config["confirm_button"] == "PAD2")
+    f.button_confirm_type_east:SetScript("OnClick", function(self)
+        self:GetParent():SetConfirmType(true)
+    end)
+
+    f.button_confirm_type_south = CreateFrame("CheckButton", nil, f, "UIRadioButtonTemplate")
+    f.button_confirm_type_south:SetPoint("TOPLEFT", 20, -60)
+    f.button_confirm_type_south.text:SetText("Microsoft style")
+    f.button_confirm_type_south:SetChecked(WoWXIV_config["confirm_button"] == "PAD1")
+    f.button_confirm_type_south:SetScript("OnClick", function(self)
+        self:GetParent():SetConfirmType(false)
+    end)
 
     -- Required by the settings API:
     function f:OnCommit()
@@ -39,32 +51,6 @@ function WoWXIV.Config.Create()
         f:SetConfirmType(true)
     end
     function f:OnRefresh()
-    end
-
-    function f:CreateSettingsUI()
-        self.label_confirm_type = f:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-        self.label_confirm_type:SetPoint("TOPLEFT", 10, -10)
-        self.label_confirm_type:SetText("Confirm button type")
-
-        self.button_confirm_type_east = CreateFrame("CheckButton", nil, self, "UIRadioButtonTemplate")
-        self.button_confirm_type_east:SetPoint("TOPLEFT", 20, -40)
-        self.button_confirm_type_east.text:SetText("Nintendo style")
-        self.button_confirm_type_east:SetChecked(WoWXIV_config["confirm_button"] == "PAD2")
-        self.button_confirm_type_east:SetScript("OnClick", function(self)
-            self:GetParent():SetConfirmType(true)
-        end)
-
-        self.button_confirm_type_south = CreateFrame("CheckButton", nil, self, "UIRadioButtonTemplate")
-        self.button_confirm_type_south:SetPoint("TOPLEFT", 20, -60)
-        self.button_confirm_type_south.text:SetText("Microsoft style")
-        self.button_confirm_type_south:SetChecked(WoWXIV_config["confirm_button"] == "PAD1")
-        self.button_confirm_type_south:SetScript("OnClick", function(self)
-            self:GetParent():SetConfirmType(false)
-        end)
-
-        local category = Settings.RegisterCanvasLayoutCategory(self, "WoWXIV")
-        category.ID = "WoWXIV"
-        Settings.RegisterAddOnCategory(category)
     end
 
     function f:SetConfirmType(is_east)
@@ -80,11 +66,16 @@ function WoWXIV.Config.Create()
             WoWXIV_config["cancel_button"] = "PAD2"
         end
     end
+
+    local category = Settings.RegisterCanvasLayoutCategory(f, "WoWXIV")
+    WoWXIV.Config.category = category
+    category.ID = "WoWXIV"
+    Settings.RegisterAddOnCategory(category)
 end
 
 -- Open the addon configuration window.
 function WoWXIV.Config.Open()
-    InterfaceOptionsFrame_OpenToCategory(config_frame)
+    InterfaceOptionsFrame_OpenToCategory(WoWXIV.Config.category)
 end
 
 ------------------------------------------------------------------------
