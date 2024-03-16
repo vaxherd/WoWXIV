@@ -34,70 +34,61 @@ function Gauge:New(parent, width)
 
     local f = CreateFrame("Frame", nil, parent)
     new.frame = f
-    f:SetWidth(width+10)
-    f:SetHeight(30)
+    f:SetSize(width+10, 30)
 
     local box_l = f:CreateTexture(nil, "BORDER")
     new.box_l = box_l
     box_l:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -2)
-    box_l:SetWidth(6)
-    box_l:SetHeight(15)
+    box_l:SetSize(6, 15)
     box_l:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     box_l:SetTexCoord(0/256.0, 6/256.0, 11/256.0, 26/256.0)
     local box_c = f:CreateTexture(nil, "BORDER")
     new.box_c = box_c
     box_c:SetPoint("TOPLEFT", f, "TOPLEFT", 6, -2)
-    box_c:SetWidth(width-2)
-    box_c:SetHeight(15)
+    box_c:SetSize(width-2, 15)
     box_c:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     box_c:SetTexCoord(6/256.0, 90/256.0, 11/256.0, 26/256.0)
     local box_r = f:CreateTexture(nil, "BORDER")
     new.box_r = box_r
     box_r:SetPoint("TOPLEFT", f, "TOPLEFT", width+4, -2)
-    box_r:SetWidth(6)
-    box_r:SetHeight(15)
+    box_r:SetSize(6, 15)
     box_r:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     box_r:SetTexCoord(90/256.0, 96/256.0, 11/256.0, 26/256.0)
 
     local bar_bg = f:CreateTexture(nil, "BORDER")
     new.bar_bg = bar_bg
     bar_bg:SetPoint("TOPLEFT", f, "TOPLEFT", 5, -7)
-    bar_bg:SetWidth(width)
-    bar_bg:SetHeight(5)
+    bar_bg:SetSize(width, 5)
     bar_bg:SetColorTexture(0, 0, 0)
 
     local shieldbar = f:CreateTexture(nil, "ARTWORK")  -- goes under main bar
     new.shieldbar = shieldbar
     shieldbar:SetPoint("TOPLEFT", f, "TOPLEFT", 5, -7)
-    shieldbar:SetWidth(86)
-    shieldbar:SetHeight(5)
+    shieldbar:SetSize(width, 5)
     shieldbar:SetColorTexture(1, 0.82, 0)
 
     local bar = f:CreateTexture(nil, "OVERLAY")
     new.bar = bar
     bar:SetPoint("TOPLEFT", f, "TOPLEFT", 5, -7)
-    bar:SetWidth(86)
-    bar:SetHeight(5)
+    bar:SetSize(width, 5)
     bar:SetColorTexture(1, 1, 1)
 
     local overshield_l = f:CreateTexture(nil, "OVERLAY")
     new.overshield_l = overshield_l
     overshield_l:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-    overshield_l:SetWidth(5)
-    overshield_l:SetHeight(7)
+    overshield_l:SetSize(5, 7)
     overshield_l:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     overshield_l:SetTexCoord(0/256.0, 5/256.0, 43/256.0, 50/256.0)
     local overshield_c = f:CreateTexture(nil, "OVERLAY")
     new.overshield_c = overshield_c
     overshield_c:SetPoint("TOPLEFT", f, "TOPLEFT", 5, 0)
-    overshield_c:SetWidth(86)
-    overshield_c:SetHeight(7)
+    overshield_c:SetSize(width, 7)
     overshield_c:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     overshield_c:SetTexCoord(5/256.0, 91/256.0, 43/256.0, 50/256.0)
     local overshield_r = f:CreateTexture(nil, "OVERLAY")
     new.overshield_r = overshield_r
     overshield_r:SetPoint("TOPLEFT", f, "TOPLEFT", 91, 0)
-    overshield_r:SetWidth(5)
+    overshield_r:SetSize(5, 7)
     overshield_r:SetHeight(7)
     overshield_r:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     overshield_r:SetTexCoord(91/256.0, 96/256.0, 43/256.0, 50/256.0)
