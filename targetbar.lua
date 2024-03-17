@@ -118,6 +118,10 @@ end
 
 function TargetBar:Update()
     if not self.unit or not UnitGUID(self.unit) then  -- sanity check
+        if self.auras then
+            self.auras:Delete()
+            self.auras = nil
+        end
         self.unit = nil
         self.Hide()
     end
