@@ -256,6 +256,9 @@ if not self.unit then return end --FIXME temp
         end
     end
     table.sort(aura_list, function(a,b)
+        -- We could potentially sort player-source auras first (like XIV),
+        -- but WoW nameplates already filter those out for us, so probably
+        -- better to keep a strict expiration time order.
         if a[3].isHelpful ~= b[3].isHelpful then
             return not a[3].isHelpful
         elseif (a[3].expirationTime ~= 0) ~= (b[3].expirationTime ~= 0) then
