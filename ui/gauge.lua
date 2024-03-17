@@ -136,6 +136,10 @@ function Gauge:SetShowValue(show)
     end
 end
 
+function Gauge:SetValueScale(scale)
+    self.value:SetTextScale(scale)
+end
+
 function Gauge:Update(max, cur, shield)
     self.max = max
     self.cur = cur

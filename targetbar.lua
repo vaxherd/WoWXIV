@@ -6,40 +6,50 @@ WoWXIV.TargetBar = {}
 local TargetBar = {}
 TargetBar.__index = TargetBar
 
-function TargetBar:New()
+function TargetBar:New(is_focus)
     local new = {}
     setmetatable(new, self)
     new.__index = self
 
-    new.unit = nil
+    new.unit = is_focus and "focus" or "target"
     new.hostility = 0  -- enemies: +1 if aggro, 0 if no aggro. -1 if not an enemy
 
-    local f = CreateFrame("Frame", "WoWXIV_TargetBar", UIParent)
+    local f = CreateFrame("Frame",
+                          is_focus and "WoWXIV_FocusBar" or "WoWXIV_TargetBar",
+                          UIParent)
     new.frame = f
-    f:SetSize(480, 80)
-    f:SetPoint("TOP", UIParent, "TOP", 0, -20)
+    if is_focus then
+        f:SetSize(192, 80)
+        f:SetPoint("TOP", UIParent, "TOP", -400, -20)
+    else
+        f:SetSize(480, 80)
+        f:SetPoint("TOP", UIParent, "TOP", 0, -20)
+    end
 
     local name = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     new.name = name
-    name:SetTextScale(1.3)
+    name:SetTextScale(1.1)
     name:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
 
-    local hp = WoWXIV.UI.Gauge:New(f, 480)
+    local hp = WoWXIV.UI.Gauge:New(f, f:GetWidth())
     new.hp = hp
     hp:SetShowValue(true)
-    hp:SetPoint("TOP", f, "TOP", 0, -10)
+    if is_focus then
+        hp:SetValueScale(1.1)
+    end
+    hp:SetPoint("TOP", f, "TOP", 0, -8)
 
     self.auras = nil
 
-    f:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    f:RegisterEvent("PLAYER_TARGET_CHANGED")
+    f:RegisterEvent(is_focus and "PLAYER_FOCUS_CHANGED" or "PLAYER_TARGET_CHANGED")
+    local unit_events = {"UNIT_ABSORB_AMOUNT_CHANGED", "UNIT_HEALTH",
+                         "UNIT_LEVEL", "UNIT_MAXHEALTH"}
+    for _, event in ipairs(unit_events) do
+        new.frame:RegisterUnitEvent(event, new.unit)
+    end
     f:SetScript("OnEvent", function(self, event, ...)
         if event == "PLAYER_FOCUS_CHANGED" or event == "PLAYER_TARGET_CHANGED" then
-            if WoWXIV_config["targetbar_show_focus"] and UnitGUID("focus") then
-                new:SetUnit("focus")
-            else
-                new:SetUnit("target")
-            end
+            new:RefreshUnit()
         else
             new:Update()
         end
@@ -49,61 +59,45 @@ function TargetBar:New()
     return new
 end
 
-function TargetBar:UpdateColor()
-    hp:SetBoxColor(0.416, 0.725, 0.890)
-    hp:SetBarBackgroundColor(0.027, 0.161, 0.306)
-    hp:SetBarColor(1, 1, 1)
-end
-
-function TargetBar:SetUnit(unit)
-    self.unit = unit
-
+function TargetBar:RefreshUnit()
     if self.auras then
         self.auras:Delete()
         self.auras = nil
     end
 
-    local unit_events = {"UNIT_ABSORB_AMOUNT_CHANGED", "UNIT_HEALTH",
-                         "UNIT_LEVEL", "UNIT_MAXHEALTH"}
-
-    if not unit or not UnitGUID(unit) then
-        for _, event in ipairs(unit_events) do
-            self.frame:UnregisterEvent(event)
-        end
+    if not UnitGUID(self.unit) then
         self.frame:Hide()
         return
     end
-    for _, event in ipairs(unit_events) do
-        self.frame:RegisterUnitEvent(event, unit)
-    end
     self.frame:Show()
 
-    local auras = WoWXIV.UI.AuraBar:New(unit, "ALL", "LEFT", 40,
+    local auras = WoWXIV.UI.AuraBar:New(self.unit, "ALL", "LEFT",
+                                        is_focus and 8 or 40,
                                         self.frame, 0, -40)
 
     self.frame:SetAlpha(1)
-    if UnitIsDeadOrGhost(unit) then
+    if UnitIsDeadOrGhost(self.unit) then
         self.hostile = -1
         self.hp:SetBoxColor(0.3, 0.3, 0.3)
         self.hp:SetBarBackgroundColor(0, 0, 0)
         self.hp:SetBarColor(0.7, 0.7, 0.7)
         self.name:SetTextColor(0.7, 0.7, 0.7)
-    elseif UnitIsPlayer(unit) then
+    elseif UnitIsPlayer(self.unit) then
         self.hostile = -1
         self.hp:SetBoxColor(0.416, 0.725, 0.890)
         self.hp:SetBarBackgroundColor(0.027, 0.161, 0.306)
         self.hp:SetBarColor(1, 1, 1)
         self.name:SetTextColor(1, 1, 1)
-        if not UnitIsConnected(unit) then
+        if not UnitIsConnected(self.unit) then
             self.frame:SetAlpha(0.5)
         end
-    elseif UnitIsFriend("player", unit) then
+    elseif UnitIsFriend("player", self.unit) then
         self.hostile = -1
         self.hp:SetBoxColor(0.749, 0.918, 0.604)
         self.hp:SetBarBackgroundColor(0.149, 0.212, 0.094)
         self.hp:SetBarColor(0.929, 1, 0.906)
         self.name:SetTextColor(0.929, 1, 0.906)
-    elseif UnitAffectingCombat(unit) then
+    elseif UnitAffectingCombat(self.unit) then
         self.hostile = 1
         self.is_hostile = true
         self.hp:SetBoxColor(1, 0.604, 0.604)
@@ -168,8 +162,10 @@ end
 -- Create the global target bar instance, and hide the native target frame
 -- if desired.
 function WoWXIV.TargetBar.Create()
-    WoWXIV.TargetBar.bar = TargetBar:New()
+    WoWXIV.TargetBar.target_bar = TargetBar:New(false)
+    WoWXIV.TargetBar.focus_bar = TargetBar:New(true)
     if WoWXIV_config["targetbar_hide_native"] then
         WoWXIV.HideBlizzardFrame(TargetFrame)
+        WoWXIV.HideBlizzardFrame(FocusFrame)
     end
 end
