@@ -14,6 +14,7 @@ gamepad.lua
 hatelist.lua
 partylist.lua
 slashcmd.lua
+targetbar.lua
 ui/aurabar.lua
 ui/gauge.lua
 util.lua

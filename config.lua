@@ -11,7 +11,34 @@ local config_default = {}
 config_default["confirm_button"] = "PAD2"
 config_default["cancel_button"] = "PAD1"
 
+-- Target bar: display focus (if it exists) instead of target?
+config_default["targetbar_show_focus"] = false
+
 ------------------------------------------------------------------------
+
+local function AddHeader(f, x, y, text)
+    local label = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+    label:SetPoint("TOPLEFT", x, y)
+    label:SetTextScale(1.2)
+    label:SetText(text)
+    return label
+end
+
+local function AddCheckButton(f, x, y, text)
+    local button = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    button:SetPoint("TOPLEFT", x, y)
+    button.text:SetTextScale(1.25)
+    button.text:SetText(text)
+    return button
+end
+
+local function AddRadioButton(f, x, y, text)
+    local button = CreateFrame("CheckButton", nil, f, "UIRadioButtonTemplate")
+    button:SetPoint("TOPLEFT", x, y)
+    button.text:SetTextScale(1.25)
+    button.text:SetText(text)
+    return button
+end
 
 -- Create the configuration window.
 function WoWXIV.Config.Create()
@@ -24,24 +51,26 @@ function WoWXIV.Config.Create()
     local f = WoWXIV.CreateEventFrame("WoWXIV_Config")
     WoWXIV.Config.frame = f
 
-    f.label_confirm_type = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
-    f.label_confirm_type:SetPoint("TOPLEFT", 10, -10)
-    f.label_confirm_type:SetText("Confirm button type")
+    AddHeader(f, 10, -10, "Confirm button type")
 
-    f.button_confirm_type_east = CreateFrame("CheckButton", nil, f, "UIRadioButtonTemplate")
-    f.button_confirm_type_east:SetPoint("TOPLEFT", 20, -40)
-    f.button_confirm_type_east.text:SetText("Nintendo style")
+    f.button_confirm_type_east = AddRadioButton(f, 20, -40, "Nintendo style")
     f.button_confirm_type_east:SetChecked(WoWXIV_config["confirm_button"] == "PAD2")
     f.button_confirm_type_east:SetScript("OnClick", function(self)
         self:GetParent():SetConfirmType(true)
     end)
 
-    f.button_confirm_type_south = CreateFrame("CheckButton", nil, f, "UIRadioButtonTemplate")
-    f.button_confirm_type_south:SetPoint("TOPLEFT", 20, -60)
-    f.button_confirm_type_south.text:SetText("Microsoft style")
+    f.button_confirm_type_south = AddRadioButton(f, 20, -60, "Microsoft style")
     f.button_confirm_type_south:SetChecked(WoWXIV_config["confirm_button"] == "PAD1")
     f.button_confirm_type_south:SetScript("OnClick", function(self)
         self:GetParent():SetConfirmType(false)
+    end)
+
+    AddHeader(f, 10, -100, "Target bar settings")
+
+    f.button_targetbar_focus = AddCheckButton(f, 20, -130, "Show focus target when one is selected")
+    f.button_targetbar_focus:SetChecked(WoWXIV_config["targetbar_show_focus"])
+    f.button_targetbar_focus:SetScript("OnClick", function(self)
+        self:GetParent():SetTargetBarShowFocus(not WoWXIV_config["targetbar_show_focus"])
     end)
 
     -- Required by the settings API:
@@ -49,6 +78,7 @@ function WoWXIV.Config.Create()
     end
     function f:OnDefault()
         f:SetConfirmType(true)
+        f:SetTargetBarShowFocus(true)
     end
     function f:OnRefresh()
     end
@@ -65,6 +95,12 @@ function WoWXIV.Config.Create()
             WoWXIV_config["confirm_button"] = "PAD1"
             WoWXIV_config["cancel_button"] = "PAD2"
         end
+    end
+
+    function f:SetTargetBarShowFocus(show)
+        if show then show = true else show = false end  --Sanity: force to bool
+        self.button_targetbar_focus:SetChecked(show)
+        WoWXIV_config["targetbar_show_focus"] = show
     end
 
     local category = Settings.RegisterCanvasLayoutCategory(f, "WoWXIV")
