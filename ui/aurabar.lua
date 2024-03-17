@@ -132,6 +132,7 @@ function Aura:Update(unit, aura_index, aura_index_filter, aura_data)
 
     local icon_id = aura_data.icon
     local is_helpful = aura_data.isHelpful
+    local is_mine = aura_data.isFromPlayerOrPlayerPet
     local stacks = aura_data.applications
     local expires = aura_data.expirationTime
 
@@ -162,6 +163,11 @@ function Aura:Update(unit, aura_index, aura_index_filter, aura_data)
 
     if expires > 0 then
         self.expires = expires
+        if is_mine then
+            self.timer:SetTextColor(0.78, 0.89, 1)
+        else
+            self.timer:SetTextColor(1, 1, 1)
+        end
     else
         self.expires = nil
     end
