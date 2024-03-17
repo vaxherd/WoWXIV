@@ -9,6 +9,7 @@ WoWXIV.startup_frame:SetScript("OnEvent", function(self, event, ...)
         WoWXIV.BuffBar.Create()
         --WoWXIV.HateList.Create() --FIXME semi-broken, needs to deal with unaggroed mobs and mobs going out of range among other things
         WoWXIV.PartyList.Create()
+        WoWXIV.TargetBar.Create()
         WoWXIV.SlashCmd.Init()
     end
 end)
