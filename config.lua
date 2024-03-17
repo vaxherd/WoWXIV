@@ -12,6 +12,7 @@ config_default["confirm_button"] = "PAD2"
 config_default["cancel_button"] = "PAD1"
 
 -- Target bar: display focus (if it exists) instead of target?
+config_default["targetbar_hide_native"] = true
 config_default["targetbar_show_focus"] = false
 
 ------------------------------------------------------------------------
@@ -40,7 +41,7 @@ local function AddRadioButton(f, x, y, text)
     return button
 end
 
--- Create the configuration window.
+-- Initialize configuration data and create the configuration window.
 function WoWXIV.Config.Create()
     for k, v in pairs(config_default) do
         if WoWXIV_config[k] == nil then
@@ -67,9 +68,15 @@ function WoWXIV.Config.Create()
 
     AddHeader(f, 10, -100, "Target bar settings")
 
-    f.button_targetbar_focus = AddCheckButton(f, 20, -130, "Show focus target when one is selected")
-    f.button_targetbar_focus:SetChecked(WoWXIV_config["targetbar_show_focus"])
-    f.button_targetbar_focus:SetScript("OnClick", function(self)
+    f.button_targetbar_hide_native = AddCheckButton(f, 20, -130, "Hide native target frame (requires reload)")
+    f.button_targetbar_hide_native:SetChecked(WoWXIV_config["targetbar_hide_native"])
+    f.button_targetbar_hide_native:SetScript("OnClick", function(self)
+        self:GetParent():SetTargetBarShowFocus(not WoWXIV_config["targetbar_hide_native"])
+    end)
+
+    f.button_targetbar_show_focus = AddCheckButton(f, 20, -160, "Show focus target when one is selected")
+    f.button_targetbar_show_focus:SetChecked(WoWXIV_config["targetbar_show_focus"])
+    f.button_targetbar_show_focus:SetScript("OnClick", function(self)
         self:GetParent():SetTargetBarShowFocus(not WoWXIV_config["targetbar_show_focus"])
     end)
 
@@ -97,9 +104,13 @@ function WoWXIV.Config.Create()
         end
     end
 
+    function f:SetTargetBarHideNative(hide)
+        self.button_targetbar_hide_native:SetChecked(hide)
+        WoWXIV_config["targetbar_hide_native"] = hide
+    end
+
     function f:SetTargetBarShowFocus(show)
-        if show then show = true else show = false end  --Sanity: force to bool
-        self.button_targetbar_focus:SetChecked(show)
+        self.button_targetbar_show_focus:SetChecked(show)
         WoWXIV_config["targetbar_show_focus"] = show
     end
 
