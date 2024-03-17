@@ -176,8 +176,8 @@ AuraBar.__index = AuraBar
 
 -- type is one of: "HELPFUL", "HARMFUL", "MISC" (like XIV food/FC buffs),
 --     or "ALL" (for party list)
--- align is either "LEFT" or "RIGHT"
-function AuraBar:New(unit, type, align, max, parent, anchor_x, anchor_y)
+-- align is either "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", or "BOTTOMRIGHT"
+function AuraBar:New(unit, type, align, cols, rows, parent, anchor_x, anchor_y)
     local new = {}
     setmetatable(new, self)
     new.__index = self
@@ -185,27 +185,27 @@ function AuraBar:New(unit, type, align, max, parent, anchor_x, anchor_y)
 if not unit then print "null unit!" end --FIXME temp - why does this happen?
     new.unit = unit
     new.type = type
-    new.leftalign = (align == "LEFT")
-    new.max = max
+    new.leftalign = (align == "TOPLEFT" or align == "BOTTOMLEFT")
+    new.topalign = (align == "TOPLEFT" or align == "TOPRIGHT")
+    new.max = cols * rows
+
+    local inv_align = (new.topalign and "BOTTOM" or "TOP") .. (new.leftalign and "RIGHT" or "LEFT")
 
     local f = CreateFrame("Frame", nil, parent)
     new.frame = f
-    f:SetSize(24*max, 40)
-    if new.leftalign then
-        f:SetPoint("TOPLEFT", parent, "TOPLEFT", anchor_x, anchor_y)
-    else
-        f:SetPoint("TOPRIGHT", parent, "TOPRIGHT", anchor_x, anchor_y)
-    end
+    f:SetSize(24*cols, 40*rows)
+    f:SetPoint(align, parent, align, anchor_x, anchor_y)
 
     new.auras = {}
-    for i = 1, max do
-        local aura = Aura:New(f)
-        table.insert(new.auras, aura)
-        local x = (i-1)*24
-        if new.leftalign then
-            aura:SetAnchor("TOPLEFT", x, 0, "BOTTOMRIGHT")
-        else
-            aura:SetAnchor("TOPRIGHT", -x, 0, "BOTTOMLEFT")
+    local dx = new.leftalign and 24 or -24
+    local dy = new.topalign and -40 or 40
+    for r = 1, rows do
+        local y = (r-1)*dy
+        for c = 1, cols do
+            local aura = Aura:New(f)
+            table.insert(new.auras, aura)
+            local x = (c-1)*dx
+            aura:SetAnchor(align, x, y, inv_align)
         end
     end
 
@@ -231,6 +231,7 @@ function AuraBar:OnUpdate()
     end
 end
 
+-- FIXME: look into optimizing vis-a-vis https://us.forums.blizzard.com/en/wow/t/new-unitaura-processing-optimizations/1205007
 function AuraBar:OnUnitAura(event, ...)
 if not self.unit then return end --FIXME temp
     local aura_list = {}

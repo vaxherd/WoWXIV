@@ -71,8 +71,9 @@ function TargetBar:RefreshUnit()
     end
     self.frame:Show()
 
-    local auras = WoWXIV.UI.AuraBar:New(self.unit, "ALL", "LEFT",
-                                        is_focus and 8 or 40,
+    local auras = WoWXIV.UI.AuraBar:New(self.unit, "ALL", "TOPLEFT",
+                                        is_focus and 8 or 20,
+                                        is_focus and 1 or 2,
                                         self.frame, 0, -40)
 
     self.frame:SetAlpha(1)

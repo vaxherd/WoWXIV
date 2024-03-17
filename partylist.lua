@@ -48,7 +48,7 @@ function Member:New(parent, unit, npc_guid)
     new.mp:SetShowValue(true)
     new.mp:SetPoint("TOPLEFT", f, "TOPLEFT", 136, -12)
 
-    new.buffbar = WoWXIV.UI.AuraBar:New(unit, "ALL", "LEFT", 9, f, 240, 0)
+    new.buffbar = WoWXIV.UI.AuraBar:New(unit, "ALL", "TOPLEFT", 9, 1, f, 240, 0)
 
     new:Refresh()
     new:Update()
@@ -75,7 +75,7 @@ function Member:Refresh(new_unit)  -- optional new unit token
     if new_unit then
         self.unit = new_unit
         if self.buffbar then self.buffbar:Delete() end
-        self.buffbar = WoWXIV.UI.AuraBar:New(unit, "ALL", "LEFT", 9, f, 240, 0)
+        self.buffbar = WoWXIV.UI.AuraBar:New(unit, "ALL", "TOPLEFT", 9, 1, f, 240, 0)
     end
 
     self.name:SetText("Lv"..UnitLevel(self.unit)
