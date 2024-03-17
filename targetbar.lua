@@ -165,7 +165,11 @@ end
 
 ---------------------------------------------------------------------------
 
--- Create the global target bar instance.
+-- Create the global target bar instance, and hide the native target frame
+-- if desired.
 function WoWXIV.TargetBar.Create()
     WoWXIV.TargetBar.bar = TargetBar:New()
+    if WoWXIV_config["targetbar_hide_native"] then
+        WoWXIV.HideBlizzardFrame(TargetFrame)
+    end
 end
