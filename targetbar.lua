@@ -153,6 +153,10 @@ function TargetBar:Update()
         name_str = name
     end
     self.name:SetText(name_str)
+    while self.name:GetWidth() > self.frame:GetWidth() do
+        name_str = string.sub(name_str, 1, -5) .. "..."
+        self.name:SetText(name_str)
+    end
 
     self.hp:Update(hpmax, hp, UnitGetTotalAbsorbs(self.unit))
 end
