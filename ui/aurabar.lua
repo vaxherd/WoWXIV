@@ -18,10 +18,11 @@ function Aura:New(parent)
     new.parent = parent
     new.tooltip_anchor = "ANCHOR_BOTTOMRIGHT"
     new.unit = nil
-    new.aura_index = nil
-    new.aura_index_filter = nil
+    new.instance = nil
+    new.spell_id = nil
     new.icon_id = nil
     new.is_helpful = nil
+    new.is_mine = nil
     new.stacks = nil
     new.time_str = nil
     new.expires = nil
@@ -73,10 +74,21 @@ function Aura:OnLeave()
     GameTooltip:Hide()
 end
 
+function Aura:OnUpdate()
+    self:UpdateTimeLeft()
+    if not self.time_str or self.time_str == "" then
+        self.frame:SetScript("OnUpdate", nil)
+    end
+end
+
 function Aura:UpdateTooltip()
     if GameTooltip:IsForbidden() then return end
     if self.unit then
-        GameTooltip:SetUnitAura(self.unit, self.aura_index, self.aura_index_filter)
+        if self.is_helpful then
+            GameTooltip:SetUnitBuffByAuraInstanceID(self.unit, self.instance)
+        else
+            GameTooltip:SetUnitDebuffByAuraInstanceID(self.unit, self.instance)
+        end
     else
         GameTooltip:Hide()
     end
@@ -85,7 +97,7 @@ end
 function Aura:UpdateTimeLeft()
     local time_str
     local time_left
-    if self.expires then
+    if self.expires > 0 then
         time_left = self.expires - GetTime()
     else
         time_left = 0
@@ -111,30 +123,45 @@ function Aura:UpdateTimeLeft()
 end
 
 -- Use unit = nil (or omitted) to hide the icon.
-function Aura:Update(unit, aura_index, aura_index_filter, aura_data)
+function Aura:Update(unit, aura_data)
+    if unit then
+        self:InternalUpdate(
+            unit, aura_data.auraInstanceID, aura_data.spellId, aura_data.icon,
+            aura_data.isHelpful, aura_data.isFromPlayerOrPlayerPet,
+            aura_data.applications, aura_data.expirationTime)
+    else
+        self:InternalUpdate(nil)
+    end
+end
+
+function Aura:CopyFrom(other)
+    self:InternalUpdate(
+        other.unit, other.instance, other.spell_id, other.icon_id,
+        other.is_helpful, other.is_mine, other.stacks, other.expires)
+end
+
+function Aura:InternalUpdate(unit, instance, spell_id, icon_id, is_helpful, is_mine, stacks, expires)
     if not unit then
         if self.unit then
             self.frame:Hide()
             self.unit = nil
+            self.instance = nil
+            self.spell_id = nil
             self.icon_id = nil
             self.is_helpful = nil
-            self.stacks = nil
+            self.is_mine = nil
+            self.stacks = 0
             self.stack_label:SetText("")
-            self.time_left = nil
+            self.expires = 0
             self.timer:SetText("")
         end
         return
     end
 
     self.unit = unit
-    self.aura_index = aura_index
-    self.aura_index_filter = aura_index_filter
-
-    local icon_id = aura_data.icon
-    local is_helpful = aura_data.isHelpful
-    local is_mine = aura_data.isFromPlayerOrPlayerPet
-    local stacks = aura_data.applications
-    local expires = aura_data.expirationTime
+    self.instance = instance
+    self.spell_id = spell_id
+    self.is_mine = is_mine
 
     if icon_id ~= self.icon_id or is_helpful ~= self.is_helpful then
         if is_helpful then
@@ -168,8 +195,9 @@ function Aura:Update(unit, aura_index, aura_index_filter, aura_data)
         else
             self.timer:SetTextColor(1, 1, 1)
         end
+        self.frame:SetScript("OnUpdate", function() self:OnUpdate() end)
     else
-        self.expires = nil
+        self.expires = 0
     end
 
     self:UpdateTimeLeft()  -- also updates tooltip by side effect
@@ -180,20 +208,36 @@ end
 local AuraBar = UI.AuraBar
 AuraBar.__index = AuraBar
 
+-- Returns 1 if {id1,helpful1,expires1} < {id2,helpful2,expires2}
+local function CompareAuras(id1, helpful1, expires1, id2, helpful2, expires2)
+    -- We could potentially sort player-source auras first (like XIV),
+    -- but WoW nameplates already filter those out for us, so probably
+    -- better to keep a strict expiration time order.
+    if helpful1 ~= helpful2 then
+        return not helpful1
+    elseif (expires1 ~= 0) ~= (expires2 ~= 0) then
+        return expires1 ~= 0
+    elseif expires1 ~= 0 then
+        return expires1 < expires2
+    else
+        return id1 < id2
+    end
+end
+
 -- type is one of: "HELPFUL", "HARMFUL", "MISC" (like XIV food/FC buffs),
 --     or "ALL" (for party list)
 -- align is either "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", or "BOTTOMRIGHT"
-function AuraBar:New(unit, type, align, cols, rows, parent, anchor_x, anchor_y)
+function AuraBar:New(type, align, cols, rows, parent, anchor_x, anchor_y)
     local new = {}
     setmetatable(new, self)
     new.__index = self
 
-if not unit then print "null unit!" end --FIXME temp - why does this happen?
-    new.unit = unit
+    new.unit = null
     new.type = type
     new.leftalign = (align == "TOPLEFT" or align == "BOTTOMLEFT")
     new.topalign = (align == "TOPLEFT" or align == "TOPRIGHT")
     new.max = cols * rows
+    new.instance_map = {}  -- map from aura instance ID to self.auras[] index
 
     local inv_align = (new.topalign and "BOTTOM" or "TOP") .. (new.leftalign and "RIGHT" or "LEFT")
 
@@ -215,12 +259,9 @@ if not unit then print "null unit!" end --FIXME temp - why does this happen?
         end
     end
 
-    f:SetScript("OnUpdate", function(self) new:OnUpdate() end)
-    f:SetScript("OnEvent", function(self) new:OnUnitAura() end)
-    f:RegisterUnitEvent("UNIT_AURA", unit)
+    f:SetScript("OnEvent", function(self, event, ...) new:OnUnitAura(...) end)
 
-    new:OnUnitAura("PLAYER_ENTERING_WORLD")  -- get the initial aura list
-    f:Show()
+    f:Hide()
     return new
 end
 
@@ -229,17 +270,23 @@ function AuraBar:Delete()
     self.frame = nil
 end
 
-function AuraBar:OnUpdate()
-    for _, aura in ipairs(self.auras) do
-        if aura.time_str ~= "" then
-            aura:UpdateTimeLeft()
-        end
+function AuraBar:SetUnit(unit)
+    self.unit = unit
+    if unit then
+        self.frame:RegisterUnitEvent("UNIT_AURA", unit)
+    else
+        self.frame:UnregisterEvent("UNIT_AURA")
     end
+    self:Refresh()
 end
 
--- FIXME: look into optimizing vis-a-vis https://us.forums.blizzard.com/en/wow/t/new-unitaura-processing-optimizations/1205007
-function AuraBar:OnUnitAura(event, ...)
-if not self.unit then return end --FIXME temp
+function AuraBar:Refresh()
+    if not self.unit or not UnitGUID(self.unit) then
+        self.frame:Hide()
+        return
+    end
+    self.frame:Show()
+
     local aura_list = {}
     if self.type ~= "HELPFUL" then
         for i = 1, self.max do
@@ -256,24 +303,91 @@ if not self.unit then return end --FIXME temp
         end
     end
     table.sort(aura_list, function(a,b)
-        -- We could potentially sort player-source auras first (like XIV),
-        -- but WoW nameplates already filter those out for us, so probably
-        -- better to keep a strict expiration time order.
-        if a[3].isHelpful ~= b[3].isHelpful then
-            return not a[3].isHelpful
-        elseif (a[3].expirationTime ~= 0) ~= (b[3].expirationTime ~= 0) then
-            return a[3].expirationTime ~= 0
-        elseif a[3].expirationTime ~= 0 then
-            return a[3].expirationTime < b[3].expirationTime
-        else
-            return a[3].spellId < b[3].spellId
-        end
+        return CompareAuras(a[3].spellId, a[3].isHelpful, a[3].expirationTime,
+                            b[3].spellId, b[3].isHelpful, b[3].expirationTime)
     end)
+
+    self.instance_map = {}
     for i = 1, self.max do
         if aura_list[i] then
-            self.auras[i]:Update(self.unit, unpack(aura_list[i]))
+            self.auras[i]:Update(self.unit, aura_list[i][3])
+            self.instance_map[aura_list[i][3].auraInstanceID] = i
         else
             self.auras[i]:Update(nil)
+        end
+    end
+end
+
+function AuraBar:OnUnitAura(unit, update_info)
+    if not update_info or update_info.isFullUpdate then
+        self:Refresh()
+        return
+    end
+
+    if update_info.addedAuras then
+        for _, aura_data in ipairs(update_info.addedAuras) do
+            local function is_wanted(self, aura_data)
+                if aura_data.isHelpful then
+                    return self.type ~= "HARMFUL"
+                elseif aura_data.isHarmful then
+                    return self.type ~= "HELPFUL"
+                else
+                    return self.type == "MISC" or self.type == "ALL"
+                end
+            end
+            if not is_wanted(self, aura_data) then return end
+            local function insertBefore(new_data, aura)
+                if not aura.instance then
+                    return true
+                else
+                    return CompareAuras(new_data.spellId, new_data.isHelpful, new_data.expirationTime,
+                                        aura.spell_id, aura.is_helpful, aura.expires)
+                end
+            end
+            for i = 1, self.max do
+                if insertBefore(aura_data, self.auras[i]) then
+                    for j = self.max, i+1, -1 do
+                        local prev = self.auras[j-1]
+                        if prev.instance then
+                            self.auras[j]:CopyFrom(prev)
+                            self.instance_map[prev.instance] = j
+                        end
+                    end
+                    self.auras[i]:Update(self.unit, aura_data)
+                    self.instance_map[aura_data.auraInstanceID] = i
+                    break
+                end
+            end
+        end
+    end
+
+    if update_info.removedAuraInstanceIDs then
+        for _, instance in ipairs(update_info.removedAuraInstanceIDs) do
+            local index = self.instance_map[instance]
+            if index then
+                for i = index, self.max do
+                    local next = self.auras[i+1]
+                    if not next or not next.instance then
+                        self.auras[i]:Update(nil)
+                        break
+                    end
+                    self.auras[i]:CopyFrom(next)
+                    self.instance_map[next.instance] = i
+                end
+            end
+            self.instance_map[instance] = nil
+        end
+    end
+
+    if update_info.updatedAuraInstanceIDs then
+        for _, instance in ipairs(update_info.updatedAuraInstanceIDs) do
+            local index = self.instance_map[instance]
+            if index then
+                aura_data = C_UnitAuras.GetAuraDataByAuraInstanceID(self.unit, instance)
+                if aura_data then  -- sanity check
+                    self.auras[index]:Update(self.unit, aura_data)
+                end
+            end
         end
     end
 end
