@@ -6,6 +6,15 @@ WoWXIV.PartyList = {}
 local Member = {}
 Member.__index = Member
 
+local function NameForUnit(unit)
+    local name = UnitName(unit)
+    local level = UnitLevel(unit)
+    if level > 0 then
+        name = "Lv" .. level .. " " .. name
+    end
+    return name
+end
+
 function Member:New(parent, unit, npc_guid)
     local new = {}
     setmetatable(new, self)
@@ -77,8 +86,7 @@ function Member:Refresh(new_unit)  -- optional new unit token
         self.buffbar:SetUnit(new_unit)
     end
 
-    self.name:SetText("Lv"..UnitLevel(self.unit)
-                      .." "..UnitName(self.unit))
+    self.name:SetText(NameForUnit(self.unit))
 
     if not self.npc_id then
         local _, class, classID = UnitClass(self.unit)
@@ -125,8 +133,7 @@ function Member:Update(updateLabel)
     self.mp:Update(UnitPowerMax(self.unit), UnitPower(self.unit), 0)
 
     if updateLabel then
-        self.name:SetText("Lv"..UnitLevel(self.unit)
-                          .." "..UnitName(self.unit))
+        self.name:SetText(NameForUnit(self.unit))
     end
 end
 
