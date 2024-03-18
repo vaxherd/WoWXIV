@@ -3,17 +3,6 @@ WoWXIV.UI = WoWXIV.UI or {}
 local UI = WoWXIV.UI
 UI.Gauge = {}
 
--- FIXME: color notes
---    hp: 6ab9e3/15577b/07294e bar=ffffff text=ffffff
---    shield: b26d00 bar=ffd100
---    enemy: 888888/202020 bar=ffffff
---    target_enemy: ff9a9a/744159/4d1818 bar=ffc0c2 text=ffc0c2
---    target_neutral: ecd98e/524820/302a13 bar=fff8b4 text=fff8b4
---    target_ally: bfea9a/577b3a/263618 bar=edffe7 text=edffe7
---    target_player: 95daff/306294/152a3f bar=e9fffe text=e9fffe
---    target_object: 8e8e8e/1d1f1e bar=ffffff text=ffffff
---    cast: f8aa00/76590d bar=ffffff text=ffffff
-
 ------------------------------------------------------------------------
 
 local Gauge = UI.Gauge
