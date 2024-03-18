@@ -318,10 +318,52 @@ function AuraBar:Refresh()
     end
 end
 
+-- For debugging:
+local function DumpUpdateInfo(info)
+    local s
+    if not info then
+        s = " no update info"
+    elseif info.isFullUpdate then
+        s = " full update"
+    else
+        s = ""
+        local function print_table(t)
+            local ss = ""
+            local first = true
+            for _, v in ipairs(t) do
+                if first then first = false else ss = ss .. "," end
+                if type(v) == "table" then  -- for addedAuras
+                    v = v.auraInstanceID .. ':"' .. v.name .. '"'
+                end
+                ss = ss .. v
+            end
+            return ss
+        end
+        if info.addedAuras then
+            s = s .. " added={"..print_table(info.addedAuras).."}"
+        end
+        if info.removedAuraInstanceIDs then
+            s = s .. " removed={"..print_table(info.removedAuraInstanceIDs).."}"
+        end
+        if info.updatedAuraInstanceIDs then
+            s = s .. " updated={"..print_table(info.updatedAuraInstanceIDs).."}"
+        end
+    end
+    print("UNIT_AURA:" .. s)
+end
+
 function AuraBar:OnUnitAura(unit, update_info)
     if not update_info or update_info.isFullUpdate then
         self:Refresh()
         return
+    end
+    -- If removing from a full bar, we need a full refresh because there
+    -- may be auras we discarded due to overflow.
+    if update_info.removedAuraInstanceIDs and update_info.removedAuraInstanceIDs[1] then
+        if self.auras[self.max].instance then
+            self:Refresh()
+            return
+        end
     end
 
     if update_info.addedAuras then
@@ -335,27 +377,28 @@ function AuraBar:OnUnitAura(unit, update_info)
                     return self.type == "MISC" or self.type == "ALL"
                 end
             end
-            if not is_wanted(self, aura_data) then return end
-            local function insertBefore(new_data, aura)
-                if not aura.instance then
-                    return true
-                else
-                    return CompareAuras(new_data.spellId, new_data.isHelpful, new_data.expirationTime,
-                                        aura.spell_id, aura.is_helpful, aura.expires)
-                end
-            end
-            for i = 1, self.max do
-                if insertBefore(aura_data, self.auras[i]) then
-                    for j = self.max, i+1, -1 do
-                        local prev = self.auras[j-1]
-                        if prev.instance then
-                            self.auras[j]:CopyFrom(prev)
-                            self.instance_map[prev.instance] = j
-                        end
+            if is_wanted(self, aura_data) then
+                local function insertBefore(new_data, aura)
+                    if not aura.instance then
+                        return true
+                    else
+                        return CompareAuras(new_data.spellId, new_data.isHelpful, new_data.expirationTime,
+                                            aura.spell_id, aura.is_helpful, aura.expires)
                     end
-                    self.auras[i]:Update(self.unit, aura_data)
-                    self.instance_map[aura_data.auraInstanceID] = i
-                    break
+                end
+                for i = 1, self.max do
+                    if insertBefore(aura_data, self.auras[i]) then
+                        for j = self.max, i+1, -1 do
+                            local prev = self.auras[j-1]
+                            if prev.instance then
+                                self.auras[j]:CopyFrom(prev)
+                                self.instance_map[prev.instance] = j
+                            end
+                        end
+                        self.auras[i]:Update(self.unit, aura_data)
+                        self.instance_map[aura_data.auraInstanceID] = i
+                        break
+                    end
                 end
             end
         end
