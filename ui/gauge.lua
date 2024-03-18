@@ -78,20 +78,19 @@ function Gauge:New(parent, width)
     overshield_l:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
     overshield_l:SetSize(5, 7)
     overshield_l:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    overshield_l:SetTexCoord(0/256.0, 5/256.0, 43/256.0, 50/256.0)
+    overshield_l:SetTexCoord(0/256.0, 5/256.0, 28/256.0, 35/256.0)
     local overshield_c = f:CreateTexture(nil, "OVERLAY")
     new.overshield_c = overshield_c
-    overshield_c:SetPoint("TOPLEFT", f, "TOPLEFT", 5, 0)
+    overshield_c:SetPoint("TOPLEFT", overshield_l, "TOPRIGHT")
     overshield_c:SetSize(width, 7)
     overshield_c:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    overshield_c:SetTexCoord(5/256.0, 91/256.0, 43/256.0, 50/256.0)
+    overshield_c:SetTexCoord(5/256.0, 91/256.0, 28/256.0, 35/256.0)
     local overshield_r = f:CreateTexture(nil, "OVERLAY")
     new.overshield_r = overshield_r
-    overshield_r:SetPoint("TOPLEFT", f, "TOPLEFT", 91, 0)
+    overshield_r:SetPoint("TOPLEFT", overshield_c, "TOPRIGHT")
     overshield_r:SetSize(5, 7)
-    overshield_r:SetHeight(7)
     overshield_r:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    overshield_r:SetTexCoord(91/256.0, 96/256.0, 43/256.0, 50/256.0)
+    overshield_r:SetTexCoord(91/256.0, 96/256.0, 28/256.0, 35/256.0)
 
     new.value = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     new.value:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -14)
@@ -169,7 +168,7 @@ function Gauge:Update(max, cur, shield)
     if bar_w == 0 then bar_w = 0.001 end  --  WoW can't deal with 0 width
     local shield_w = shield_rel * width
     local overshield_w = overshield_rel * width
-    if overshield_w > 1 then overshield_w = 1 end
+    if overshield_w > width then overshield_w = width end
 
     self.bar:SetWidth(bar_w)
 
