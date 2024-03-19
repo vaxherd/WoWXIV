@@ -113,6 +113,10 @@ function TargetBar:RefreshUnit()
     self:Update()
 end
 
+local typenames = {rare = "(Rare) ",
+                   elite = "(Elite) ",
+                   rareelite = "(Rare/Elite) ",
+                   worldboss = "(World Boss) "}
 function TargetBar:Update()
     if not self.unit or not UnitGUID(self.unit) then  -- sanity check
         self.auras:SetUnit(nil)
@@ -147,7 +151,8 @@ function TargetBar:Update()
         end
         name_str = string.format("%.1f%% %s", pct, name)
     elseif lv and lv > 0 then
-        name_str = string.format("Lv%d %s", lv, name)
+        local type_str = (not self.is_focus) and typenames[UnitClassification(self.unit)] or ""
+        name_str = string.format("Lv%d %s%s", lv, type_str, name)
     else
         name_str = name
     end
