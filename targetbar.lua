@@ -143,18 +143,16 @@ function TargetBar:Update()
     local hp = UnitHealth(self.unit)
     local hpmax = UnitHealthMax(self.unit)
 
-    local name_str
+    local type_str = (not self.is_focus) and typenames[UnitClassification(self.unit)] or ""
+    local name_str = type_str .. name
     if hp < hpmax then
         local pct = math.floor(1000*hp/hpmax) / 10
         if hp > 0 and pct < 0.1 then
             pct = 0.1
         end
-        name_str = string.format("%.1f%% %s", pct, name)
+        name_str = string.format("%.1f%% %s", pct, name_str)
     elseif lv and lv > 0 then
-        local type_str = (not self.is_focus) and typenames[UnitClassification(self.unit)] or ""
-        name_str = string.format("Lv%d %s%s", lv, type_str, name)
-    else
-        name_str = name
+        name_str = string.format("Lv%d %s", lv, name_str)
     end
     self.name:SetText(name_str)
     while self.name:GetWidth() > self.frame:GetWidth() do
