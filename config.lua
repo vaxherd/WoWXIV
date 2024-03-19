@@ -15,6 +15,9 @@ config_default["cancel_button"] = "PAD1"
 config_default["targetbar_hide_native"] = true
 config_default["targetbar_show_focus"] = false
 
+-- Eye of the Jailer UI: replace with simple version?
+config_default["maw_simple_ui"] = true
+
 ------------------------------------------------------------------------
 
 local function AddHeader(f, x, y, text)
@@ -52,33 +55,53 @@ function WoWXIV.Config.Create()
     local f = WoWXIV.CreateEventFrame("WoWXIV_Config")
     WoWXIV.Config.frame = f
 
-    AddHeader(f, 10, -10, "Confirm button type")
+    local y = -10
 
-    f.button_confirm_type_east = AddRadioButton(f, 20, -40, "Nintendo style")
+    AddHeader(f, 10, y, "Confirm button type")
+    y = y - 30
+
+    f.button_confirm_type_east = AddRadioButton(f, 20, y, "Nintendo style")
     f.button_confirm_type_east:SetChecked(WoWXIV_config["confirm_button"] == "PAD2")
     f.button_confirm_type_east:SetScript("OnClick", function(self)
         self:GetParent():SetConfirmType(true)
     end)
+    y = y - 20
 
-    f.button_confirm_type_south = AddRadioButton(f, 20, -60, "Microsoft style")
+    f.button_confirm_type_south = AddRadioButton(f, 20, y, "Microsoft style")
     f.button_confirm_type_south:SetChecked(WoWXIV_config["confirm_button"] == "PAD1")
     f.button_confirm_type_south:SetScript("OnClick", function(self)
         self:GetParent():SetConfirmType(false)
     end)
+    y = y - 20
 
-    AddHeader(f, 10, -100, "Target bar settings")
+    y = y - 20
+    AddHeader(f, 10, y, "Target bar settings")
+    y = y - 30
 
-    f.button_targetbar_hide_native = AddCheckButton(f, 20, -130, "Hide native target frame (requires reload)")
+    f.button_targetbar_hide_native = AddCheckButton(f, 20, y, "Hide native target frame (requires reload)")
     f.button_targetbar_hide_native:SetChecked(WoWXIV_config["targetbar_hide_native"])
     f.button_targetbar_hide_native:SetScript("OnClick", function(self)
         self:GetParent():SetTargetBarShowFocus(not WoWXIV_config["targetbar_hide_native"])
     end)
+    y = y - 30
 
-    f.button_targetbar_show_focus = AddCheckButton(f, 20, -160, "Show focus target when one is selected")
+    f.button_targetbar_show_focus = AddCheckButton(f, 20, y, "Show focus target when one is selected")
     f.button_targetbar_show_focus:SetChecked(WoWXIV_config["targetbar_show_focus"])
     f.button_targetbar_show_focus:SetScript("OnClick", function(self)
         self:GetParent():SetTargetBarShowFocus(not WoWXIV_config["targetbar_show_focus"])
     end)
+    y = y - 30
+
+    y = y - 20
+    AddHeader(f, 10, -100, "Miscellaneous settings")
+    y = y - 30
+
+    f.button_maw_simple_ui = AddCheckButton(f, 20, y, "Use simple UI for Eye of the Jailer (requires reload)")
+    f.button_maw_simple_ui:SetChecked(WoWXIV_config["maw_simple_ui"])
+    f.button_maw_simple_ui:SetScript("OnClick", function(self)
+        self:GetParent():SetMawSimpleUI(not WoWXIV_config["maw_simple_ui"])
+    end)
+    y = y - 30
 
     -- Required by the settings API:
     function f:OnCommit()
@@ -112,6 +135,11 @@ function WoWXIV.Config.Create()
     function f:SetTargetBarShowFocus(show)
         self.button_targetbar_show_focus:SetChecked(show)
         WoWXIV_config["targetbar_show_focus"] = show
+    end
+
+    function f:SetMawSimpleUI(show)
+        self.button_maw_simple_ui:SetChecked(show)
+        WoWXIV_config["maw_simple_ui"] = show
     end
 
     local category = Settings.RegisterCanvasLayoutCategory(f, "WoWXIV")
