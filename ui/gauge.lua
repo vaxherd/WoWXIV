@@ -129,6 +129,8 @@ function Gauge:SetValueScale(scale)
 end
 
 function Gauge:Update(max, cur, shield)
+    shield = shield or 0
+
     self.max = max
     self.cur = cur
     self.shield = shield
