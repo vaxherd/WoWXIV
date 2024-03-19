@@ -28,11 +28,11 @@ function WoWXIV.Gamepad.Init()
     f:SetScript("OnKeyDown", f.OnKeyDown)
 
     function f:OnGamePadButtonDown(button)
+        if InCombatLockdown() then return end  --FIXME: causes "Action failed because of an AddOn" error
         --print(button)
 
         -- L1 enables right stick zoom.
         if button == "PADLSHOULDER" then
-          if not InCombatLockdown() then --FIXME: causes "Action failed because of an AddOn" error
             l1_down = true
             -- FIXME: This is a hack to ensure we get the "button up" event
             -- when L1 is released, since SetPropagateKeyboardInput() causes
@@ -43,13 +43,13 @@ function WoWXIV.Gamepad.Init()
             f:SetPropagateKeyboardInput(false)
             --zoom_saved_pitch_rate = C_CVar.GetCVar("GamePadCameraPitchSpeed")
             --C_CVar.SetCVar("GamePadCameraPitchSpeed", 0)
-          end
         end
     end
     f:EnableGamePadButton(true)
     f:SetScript("OnGamePadButtonDown", f.OnGamePadButtonDown)
 
     function f:OnGamePadButtonUp(button)
+        if InCombatLockdown() then f:SetPropagateKeyboardInput(true); return end  --FIXME: as above
         if button == "PADLSHOULDER" then
             l1_down = false
             f:SetPropagateKeyboardInput(true)
@@ -59,6 +59,7 @@ function WoWXIV.Gamepad.Init()
     f:SetScript("OnGamePadButtonUp", f.OnGamePadButtonUp)
 
     function f:OnGamePadStick(stick, x, y)
+        if InCombatLockdown() then f:SetPropagateKeyboardInput(true); return end  --FIXME: as above
         -- Handle zooming with L1 + camera up/down.
         if stick == "Camera" and l1_down then
             if y > 0.1 then
