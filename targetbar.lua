@@ -39,7 +39,11 @@ function TargetBar:New(is_focus)
     end
     hp:SetPoint("TOP", f, "TOP", 0, -8)
 
-    self.auras = nil
+    local auras = WoWXIV.UI.AuraBar:New("ALL", "TOPLEFT",
+                                        is_focus and 8 or 20,
+                                        is_focus and 1 or 2,
+                                        new.frame, 0, -40)
+    new.auras = auras
 
     f:RegisterEvent(is_focus and "PLAYER_FOCUS_CHANGED" or "PLAYER_TARGET_CHANGED")
     local unit_events = {"UNIT_ABSORB_AMOUNT_CHANGED", "UNIT_HEALTH",
@@ -60,22 +64,14 @@ function TargetBar:New(is_focus)
 end
 
 function TargetBar:RefreshUnit()
-    if self.auras then
-        self.auras:Delete()
-        self.auras = nil
-    end
-
     if not UnitGUID(self.unit) then
+        self.auras:SetUnit(nil)
         self.frame:Hide()
         return
     end
-    self.frame:Show()
 
-    local auras = WoWXIV.UI.AuraBar:New("ALL", "TOPLEFT",
-                                        is_focus and 8 or 20,
-                                        is_focus and 1 or 2,
-                                        self.frame, 0, -40)
-    auras:SetUnit(self.unit)
+    self.auras:SetUnit(self.unit)
+    self.frame:Show()
 
     self.frame:SetAlpha(1)
     if UnitIsDeadOrGhost(self.unit) then
@@ -119,12 +115,9 @@ end
 
 function TargetBar:Update()
     if not self.unit or not UnitGUID(self.unit) then  -- sanity check
-        if self.auras then
-            self.auras:Delete()
-            self.auras = nil
-        end
-        self.unit = nil
+        self.auras:SetUnit(nil)
         self.Hide()
+        return
     end
 
     if self.hostile == 0 and UnitAffectingCombat(self.unit) then
