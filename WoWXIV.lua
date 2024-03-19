@@ -11,9 +11,6 @@ WoWXIV.startup_frame:SetScript("OnEvent", function(self, event, ...)
         WoWXIV.PartyList.Create()
         WoWXIV.TargetBar.Create()
         WoWXIV.SlashCmd.Init()
-        if WoWXIV_config["maw_simple_ui"] then
-            WoWXIV.JailerEyeUI.Create()
-        end
     end
 end)
 WoWXIV.startup_frame:RegisterEvent("PLAYER_ENTERING_WORLD")

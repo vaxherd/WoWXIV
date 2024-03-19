@@ -12,7 +12,6 @@ buffbar.lua
 config.lua
 gamepad.lua
 hatelist.lua
-maw.lua
 partylist.lua
 slashcmd.lua
 targetbar.lua

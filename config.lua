@@ -15,9 +15,6 @@ config_default["cancel_button"] = "PAD1"
 config_default["targetbar_hide_native"] = true
 config_default["targetbar_show_focus"] = false
 
--- Eye of the Jailer UI: replace with simple version?
-config_default["maw_simple_ui"] = true
-
 ------------------------------------------------------------------------
 
 local function AddHeader(f, x, y, text)
@@ -92,17 +89,6 @@ function WoWXIV.Config.Create()
     end)
     y = y - 30
 
-    y = y - 20
-    AddHeader(f, 10, -100, "Miscellaneous settings")
-    y = y - 30
-
-    f.button_maw_simple_ui = AddCheckButton(f, 20, y, "Use simple UI for Eye of the Jailer (requires reload)")
-    f.button_maw_simple_ui:SetChecked(WoWXIV_config["maw_simple_ui"])
-    f.button_maw_simple_ui:SetScript("OnClick", function(self)
-        self:GetParent():SetMawSimpleUI(not WoWXIV_config["maw_simple_ui"])
-    end)
-    y = y - 30
-
     -- Required by the settings API:
     function f:OnCommit()
     end
@@ -135,11 +121,6 @@ function WoWXIV.Config.Create()
     function f:SetTargetBarShowFocus(show)
         self.button_targetbar_show_focus:SetChecked(show)
         WoWXIV_config["targetbar_show_focus"] = show
-    end
-
-    function f:SetMawSimpleUI(show)
-        self.button_maw_simple_ui:SetChecked(show)
-        WoWXIV_config["maw_simple_ui"] = show
     end
 
     local category = Settings.RegisterCanvasLayoutCategory(f, "WoWXIV")
