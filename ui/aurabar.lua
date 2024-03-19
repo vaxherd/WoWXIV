@@ -154,6 +154,11 @@ function Aura:InternalUpdate(unit, instance, spell_id, icon_id, is_helpful, is_m
             self.stack_label:SetText("")
             self.expires = 0
             self.timer:SetText("")
+            if not GameTooltip:IsForbidden() then
+                if GameTooltip:GetOwner() == self.frame and GameTooltip:IsShown() then
+                    GameTooltip:Hide()
+                end
+            end
         end
         return
     end
