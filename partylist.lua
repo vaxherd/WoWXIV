@@ -92,7 +92,7 @@ function Member:Refresh(new_unit)  -- optional new unit token
         local _, class, classID = UnitClass(self.unit)
         local role = UnitGroupRolesAssigned(self.unit)
         local specID, iconID, class_role
-        if classID then
+        if classID and self.unit == "player" then
             specID, _, _, iconID, class_role = GetSpecializationInfo(GetSpecialization())
             if not role or role == "NONE" then role = class_role end
         end
