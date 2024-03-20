@@ -152,7 +152,7 @@ function JailerEye:OnUpdate()
     end
     self.gauge:SetBarColor(unpack(STEP_COLORS[level+1]))
     self.gauge:Update(level_max, level_cur)
-    self.level:SetText(string.format("Level %d", level))
+    self.level:SetText(string.format("Tier %d", level))
     self.points:SetText(string.format("%d/%d", level_cur, level_max))
 
     if not self.shown then
