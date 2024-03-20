@@ -45,6 +45,7 @@ function TargetBar:New(is_focus)
                                         new.frame, 0, -40)
     new.auras = auras
 
+    f:RegisterEvent("PLAYER_LEAVING_WORLD")
     f:RegisterEvent(is_focus and "PLAYER_FOCUS_CHANGED" or "PLAYER_TARGET_CHANGED")
     local unit_events = {"UNIT_ABSORB_AMOUNT_CHANGED", "UNIT_HEALTH",
                          "UNIT_LEVEL", "UNIT_MAXHEALTH"}
@@ -52,7 +53,9 @@ function TargetBar:New(is_focus)
         new.frame:RegisterUnitEvent(event, new.unit)
     end
     f:SetScript("OnEvent", function(self, event, ...)
-        if event == "PLAYER_FOCUS_CHANGED" or event == "PLAYER_TARGET_CHANGED" then
+        if event == "PLAYER_ENTERING_WORLD" then  -- on every zone change
+            new:RefreshUnit()  -- clear anything from previous zone
+        elseif event == "PLAYER_FOCUS_CHANGED" or event == "PLAYER_TARGET_CHANGED" then
             new:RefreshUnit()
         else
             new:Update()
@@ -118,9 +121,9 @@ local typenames = {rare = "(Rare) ",
                    rareelite = "(Rare/Elite) ",
                    worldboss = "(World Boss) "}
 function TargetBar:Update()
-    if not self.unit or not UnitGUID(self.unit) then  -- sanity check
+    if not UnitGUID(self.unit) then
         self.auras:SetUnit(nil)
-        self.Hide()
+        self.frame:Hide()
         return
     end
 

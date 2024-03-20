@@ -197,6 +197,7 @@ function PartyList:New()
     f.events["ACTIVE_PLAYER_SPECIALIZATION_CHANGED"] = f.OnPartyChange
     f.events["GROUP_ROSTER_UPDATE"] = f.OnPartyChange
     f.events["PARTY_LEADER_CHANGED"] = f.OnPartyChange
+    f.events["PLAYER_ENTERING_WORLD"] = f.OnPartyChange
     f.events["UNIT_ABSORB_AMOUNT_CHANGED"] = f.OnMemberUpdate
     f.events["UNIT_AURA"] = f.OnMemberUpdate
     f.events["UNIT_ENTERED_VEHICLE"] = f.OnPartyChange
