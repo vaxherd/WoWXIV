@@ -49,7 +49,6 @@ function WoWXIV.Gamepad.Init()
     f:SetScript("OnGamePadButtonDown", f.OnGamePadButtonDown)
 
     function f:OnGamePadButtonUp(button)
-        if InCombatLockdown() then f:SetPropagateKeyboardInput(true); return end  --FIXME: as above
         if button == "PADLSHOULDER" then
             l1_down = false
             f:SetPropagateKeyboardInput(true)
@@ -59,7 +58,6 @@ function WoWXIV.Gamepad.Init()
     f:SetScript("OnGamePadButtonUp", f.OnGamePadButtonUp)
 
     function f:OnGamePadStick(stick, x, y)
-        if InCombatLockdown() then f:SetPropagateKeyboardInput(true); return end  --FIXME: as above
         -- Handle zooming with L1 + camera up/down.
         if stick == "Camera" and l1_down then
             if y > 0.1 then
