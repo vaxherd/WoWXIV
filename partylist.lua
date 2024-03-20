@@ -93,8 +93,11 @@ function Member:Refresh(new_unit)  -- optional new unit token
         local role = UnitGroupRolesAssigned(self.unit)
         local specID, iconID, class_role
         if classID and self.unit == "player" then
-            specID, _, _, iconID, class_role = GetSpecializationInfo(GetSpecialization())
-            if not role or role == "NONE" then role = class_role end
+            local spec = GetSpecialization()
+            if spec then  -- Sanity check (returns nil if called between zones)
+                specID, _, _, iconID, class_role = GetSpecializationInfo(spec)
+                if not role or role == "NONE" then role = class_role end
+            end
         end
         if role == "TANK" then
             self.class_bg:Show()
