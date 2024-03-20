@@ -3,43 +3,29 @@ WoWXIV.Gamepad = {}
 
 ------------------------------------------------------------------------
 
+local l1_down = false
+local zoom_saved_pitch_rate = 1
+
 -- Initialize gamepad handling.
 function WoWXIV.Gamepad.Init()
     local f = WoWXIV.CreateEventFrame("GamePadListener")
-    f:RegisterEvent("PLAYER_LOGIN")
-    f:RegisterEvent("PLAYER_LOGOUT")
-
-    local logged_in = false
-    local l1_down = false
-    local zoom_saved_pitch_rate = 1
-
-    function f:PLAYER_LOGIN()
-        logged_in = true
-    end
-
-    function f:PLAYER_LOGOUT()
-        logged_in = false
-    end
-
-    function f:OnKeyDown(key)
-        --print(key)
-    end
     f:SetPropagateKeyboardInput(true)
-    f:SetScript("OnKeyDown", f.OnKeyDown)
 
     function f:OnGamePadButtonDown(button)
-        if InCombatLockdown() then return end  --FIXME: causes "Action failed because of an AddOn" error
         --print(button)
+
+        -- SetPropagateKeyboardInput() is disallowed during combat.
+        if InCombatLockdown() then return end
 
         -- L1 enables right stick zoom.
         if button == "PADLSHOULDER" then
             l1_down = true
             -- FIXME: This is a hack to ensure we get the "button up" event
-            -- when L1 is released, since SetPropagateKeyboardInput() causes
-            -- those events to not be sent to us.  This prevents movement
-            -- and camera yaw while zooming, but it also means we don't
-            -- need to save and restore GamePadCameraPitchSpeed to disable
-            -- camera pitch.
+            -- when L1 is released, since SetPropagateKeyboardInput(true)
+            -- causes those events to not be sent to us.  This prevents
+            -- movement and camera yaw while zooming, but it also means we
+            -- don't need to save and restore GamePadCameraPitchSpeed to
+            -- disable camera pitch.
             f:SetPropagateKeyboardInput(false)
             --zoom_saved_pitch_rate = C_CVar.GetCVar("GamePadCameraPitchSpeed")
             --C_CVar.SetCVar("GamePadCameraPitchSpeed", 0)
@@ -49,7 +35,7 @@ function WoWXIV.Gamepad.Init()
     f:SetScript("OnGamePadButtonDown", f.OnGamePadButtonDown)
 
     function f:OnGamePadButtonUp(button)
-        if button == "PADLSHOULDER" then
+        if button == "PADLSHOULDER" and l1_down then
             l1_down = false
             f:SetPropagateKeyboardInput(true)
             --C_CVar.SetCVar("GamePadCameraPitchSpeed", zoom_saved_pitch_rate)
@@ -68,4 +54,16 @@ function WoWXIV.Gamepad.Init()
         end
     end
     f:SetScript("OnGamePadStick", f.OnGamePadStick)
+
+    f:RegisterEvent("PLAYER_REGEN_DISABLED")
+    function f:PLAYER_REGEN_DISABLED()
+        -- SetPropagateKeyboardInput() is blocked during combat, so
+        -- pretend L1 was released when entering combat to avoid the
+        -- entire UI getting locked out.
+        if l1_down then
+            l1_down = false
+            f:SetPropagateKeyboardInput(true)
+            --C_CVar.SetCVar("GamePadCameraPitchSpeed", zoom_saved_pitch_rate)
+        end
+    end
 end
