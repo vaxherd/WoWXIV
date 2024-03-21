@@ -15,6 +15,7 @@ function Aura:New(parent, clickable)
     setmetatable(new, self)
     new.__index = self
 
+clickable=false --FIXME: can't change aura data on the fly?
     new.parent = parent
     new.clickable = clickable
     new.tooltip_anchor = "ANCHOR_BOTTOMRIGHT"
