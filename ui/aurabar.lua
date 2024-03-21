@@ -19,6 +19,7 @@ function Aura:New(parent, clickable)
     new.clickable = clickable
     new.tooltip_anchor = "ANCHOR_BOTTOMRIGHT"
     new.unit = nil
+    new.data = nil
     new.instance = nil
     new.spell_id = nil
     new.icon_id = nil
@@ -131,22 +132,17 @@ end
 -- Use unit = nil (or omitted) to hide the icon.
 function Aura:Update(unit, aura_data)
     if unit then
-        self:InternalUpdate(
-            unit, aura_data.auraInstanceID, aura_data.spellId, aura_data.icon,
-            aura_data.isHelpful, aura_data.isFromPlayerOrPlayerPet,
-            aura_data.applications, aura_data.expirationTime)
+        self:InternalUpdate(unit, aura_data)
     else
         self:InternalUpdate(nil)
     end
 end
 
 function Aura:CopyFrom(other)
-    self:InternalUpdate(
-        other.unit, other.instance, other.spell_id, other.icon_id,
-        other.is_helpful, other.is_mine, other.stacks, other.expires)
+    self:InternalUpdate(other.unit, other.data)
 end
 
-function Aura:InternalUpdate(unit, instance, spell_id, icon_id, is_helpful, is_mine, stacks, expires)
+function Aura:InternalUpdate(unit, data)
     if not unit then
         if self.unit then
             self.frame:Hide()
@@ -173,7 +169,16 @@ function Aura:InternalUpdate(unit, instance, spell_id, icon_id, is_helpful, is_m
         return
     end
 
+    local instance = data.auraInstanceID
+    local spell_id = data.spellId
+    local icon_id = data.icon
+    local is_helpful = data.isHelpful
+    local is_mine = data.isFromPlayerOrPlayerPet
+    local stacks = data.applications
+    local expires = data.expirationTime
+
     self.unit = unit
+    self.data = data
     self.instance = instance
     self.spell_id = spell_id
     self.is_mine = is_mine
@@ -232,26 +237,19 @@ end
 local AuraBar = UI.AuraBar
 AuraBar.__index = AuraBar
 
--- Returns 1 if {id1,helpful1,mine1,expires1} < {id2,helpful2,mine2,expires2}
-local function CompareAuras(id1, helpful1, mine1, expires1,
-                            id2, helpful2, mine2, expires2)
-    if mine1 ~= mine2 then
-        return mine1
-    elseif helpful1 ~= helpful2 then
-        return not helpful1
-    elseif (expires1 ~= 0) ~= (expires2 ~= 0) then
-        return expires1 ~= 0
-    elseif expires1 ~= 0 then
-        return expires1 < expires2
+-- Returns 1 if AuraData a < AuraData b
+local function CompareAuras(a, b)
+    if a.isFromPlayerOrPlayerPet ~= b.isFromPlayerOrPlayerPet then
+        return a.isFromPlayerOrPlayerPet
+    elseif a.isHelpful ~= b.isHelpful then
+        return not a.isHelpful
+    elseif (a.expirationTime ~= 0) ~= (b.expirationTime ~= 0) then
+        return a.expirationTime ~= 0
+    elseif a.expirationTime ~= 0 then
+        return a.expirationTime < b.expirationTime
     else
-        return id1 < id2
+        return a.spellId < b.spellId
     end
-end
--- Same thing using AuraData arguments
-local function CompareAuraData(a, b)
-    return CompareAuras(
-        a.spellId, a.isHelpful, a.isFromPlayerOrPlayerPet, a.expirationTime,
-        b.spellId, b.isHelpful, b.isFromPlayerOrPlayerPet, b.expirationTime)
 end
 
 -- type is one of: "HELPFUL", "HARMFUL", "MISC" (like XIV food/FC buffs),
@@ -334,7 +332,7 @@ function AuraBar:Refresh()
             table.insert(aura_list, {i, "HELPFUL", data})
         end
     end
-    table.sort(aura_list, function(a,b) return CompareAuraData(a[3],b[3]) end)
+    table.sort(aura_list, function(a,b) return CompareAuras(a[3],b[3]) end)
 
     self.instance_map = {}
     for i = 1, self.max do
@@ -411,8 +409,7 @@ function AuraBar:OnUnitAura(unit, update_info)
                     if not aura.instance then
                         return true
                     else
-                        return CompareAuras(new_data.spellId, new_data.isHelpful, new_data.isFromPlayerOrPlayerPet, new_data.expirationTime,
-                                            aura.spell_id, aura.is_helpful, aura.is_mine, aura.expires)
+                        return CompareAuras(new_data, aura.data)
                     end
                 end
                 for i = 1, self.max do
