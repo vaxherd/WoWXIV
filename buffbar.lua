@@ -16,12 +16,12 @@ function WoWXIV.BuffBar.Create()
 
     local x = UIParent:GetWidth() - 250
     WoWXIV.BuffBar.buff_bar = WoWXIV.UI.AuraBar:New(
-        "HELPFUL", "BOTTOMRIGHT", 20, 2, f, 0, 80)
+        "HELPFUL", true, "BOTTOMRIGHT", 20, 2, f, 0, 80)
     WoWXIV.BuffBar.buff_bar:SetUnit("player")
     WoWXIV.BuffBar.debuff_bar = WoWXIV.UI.AuraBar:New(
-        "HARMFUL", "TOPRIGHT", 20, 1, f, 0, -80)
+        "HARMFUL", false, "TOPRIGHT", 20, 1, f, 0, -80)
     WoWXIV.BuffBar.debuff_bar:SetUnit("player")
     -- FIXME: not sure how to separate out misc buffs from others
-    --WoWXIV.BuffBar.misc_bar = WoWXIV.UI.AuraBar:New("MISC", "TOPRIGHT", 20, 1, f, 0, -120)
+    --WoWXIV.BuffBar.misc_bar = WoWXIV.UI.AuraBar:New("MISC", true, "TOPRIGHT", 20, 1, f, 0, -120)
     --WoWXIV.BuffBar.misc_bar:SetUnit("player")
 end

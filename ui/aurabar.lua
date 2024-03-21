@@ -10,12 +10,13 @@ local GameTooltip = GameTooltip
 local Aura = {}
 Aura.__index = Aura
 
-function Aura:New(parent)
+function Aura:New(parent, clickable)
     local new = {}
     setmetatable(new, self)
     new.__index = self
 
     new.parent = parent
+    new.clickable = clickable
     new.tooltip_anchor = "ANCHOR_BOTTOMRIGHT"
     new.unit = nil
     new.instance = nil
@@ -27,12 +28,17 @@ function Aura:New(parent)
     new.time_str = nil
     new.expires = nil
 
-    local f = CreateFrame("Frame", nil, parent)
+    local f
+    if clickable then
+        f = CreateFrame("Button", nil, parent, "SecureActionButtonTemplate")
+    else
+        f = CreateFrame("Frame", nil, parent)
+    end
     new.frame = f
     f:Hide()
     f:SetSize(24, 40)
-    f:SetScript("OnEnter", function() new:OnEnter() end)
-    f:SetScript("OnLeave", function() new:OnLeave() end)
+    f:HookScript("OnEnter", function() new:OnEnter() end)
+    f:HookScript("OnLeave", function() new:OnLeave() end)
 
     new.icon = f:CreateTexture(nil, "ARTWORK")
     new.icon:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -4)
@@ -154,6 +160,10 @@ function Aura:InternalUpdate(unit, instance, spell_id, icon_id, is_helpful, is_m
             self.stack_label:SetText("")
             self.expires = 0
             self.timer:SetText("")
+            if self.clickable then
+                self.frame:SetAttribute("type", nil)
+                self.frame:RegisterForClicks()
+            end
             if not GameTooltip:IsForbidden() then
                 if GameTooltip:GetOwner() == self.frame and GameTooltip:IsShown() then
                     GameTooltip:Hide()
@@ -167,6 +177,15 @@ function Aura:InternalUpdate(unit, instance, spell_id, icon_id, is_helpful, is_m
     self.instance = instance
     self.spell_id = spell_id
     self.is_mine = is_mine
+
+    if self.clickable then
+        local f = self.frame
+        f:SetAttribute("type", "cancelaura")
+        f:SetAttribute("unit", unit)
+        local spell_name, _ = GetSpellInfo(spell_id)
+        f:SetAttribute("spell", spell_name)
+        f:RegisterForClicks("RightButtonDown")
+    end
 
     if icon_id ~= self.icon_id or is_helpful ~= self.is_helpful then
         if is_helpful then
@@ -231,13 +250,15 @@ end
 
 -- type is one of: "HELPFUL", "HARMFUL", "MISC" (like XIV food/FC buffs),
 --     or "ALL" (for party list)
+-- clickable is true if buffs should be right-clickable to remove
 -- align is either "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", or "BOTTOMRIGHT"
-function AuraBar:New(type, align, cols, rows, parent, anchor_x, anchor_y)
+function AuraBar:New(type, clickable, align, cols, rows, parent, anchor_x, anchor_y)
     local new = {}
     setmetatable(new, self)
     new.__index = self
 
     new.unit = null
+    new.clickable = clickable
     new.type = type
     new.leftalign = (align == "TOPLEFT" or align == "BOTTOMLEFT")
     new.topalign = (align == "TOPLEFT" or align == "TOPRIGHT")
@@ -257,7 +278,7 @@ function AuraBar:New(type, align, cols, rows, parent, anchor_x, anchor_y)
     for r = 1, rows do
         local y = (r-1)*dy
         for c = 1, cols do
-            local aura = Aura:New(f)
+            local aura = Aura:New(f, clickable)
             table.insert(new.auras, aura)
             local x = (c-1)*dx
             aura:SetAnchor(align, x, y, inv_align)

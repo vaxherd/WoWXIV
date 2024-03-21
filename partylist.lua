@@ -57,7 +57,8 @@ function Member:New(parent, unit, npc_guid)
     new.mp:SetShowValue(true)
     new.mp:SetPoint("TOPLEFT", f, "TOPLEFT", 136, -12)
 
-    new.buffbar = WoWXIV.UI.AuraBar:New("ALL", "TOPLEFT", 9, 1, f, 240, 0)
+    new.buffbar = WoWXIV.UI.AuraBar:New(
+        "ALL", unit=="player", "TOPLEFT", 9, 1, f, 240, 0)
     new.buffbar:SetUnit(unit)
 
     new:Refresh()
