@@ -232,12 +232,12 @@ end
 local AuraBar = UI.AuraBar
 AuraBar.__index = AuraBar
 
--- Returns 1 if {id1,helpful1,expires1} < {id2,helpful2,expires2}
-local function CompareAuras(id1, helpful1, expires1, id2, helpful2, expires2)
-    -- We could potentially sort player-source auras first (like XIV),
-    -- but WoW nameplates already filter those out for us, so probably
-    -- better to keep a strict expiration time order.
-    if helpful1 ~= helpful2 then
+-- Returns 1 if {id1,helpful1,mine1,expires1} < {id2,helpful2,mine2,expires2}
+local function CompareAuras(id1, helpful1, mine1, expires1,
+                            id2, helpful2, mine2, expires2)
+    if mine1 ~= mine2 then
+        return mine1
+    elseif helpful1 ~= helpful2 then
         return not helpful1
     elseif (expires1 ~= 0) ~= (expires2 ~= 0) then
         return expires1 ~= 0
@@ -246,6 +246,12 @@ local function CompareAuras(id1, helpful1, expires1, id2, helpful2, expires2)
     else
         return id1 < id2
     end
+end
+-- Same thing using AuraData arguments
+local function CompareAuraData(a, b)
+    return CompareAuras(
+        a.spellId, a.isHelpful, a.isFromPlayerOrPlayerPet, a.expirationTime,
+        b.spellId, b.isHelpful, b.isFromPlayerOrPlayerPet, b.expirationTime)
 end
 
 -- type is one of: "HELPFUL", "HARMFUL", "MISC" (like XIV food/FC buffs),
@@ -328,10 +334,7 @@ function AuraBar:Refresh()
             table.insert(aura_list, {i, "HELPFUL", data})
         end
     end
-    table.sort(aura_list, function(a,b)
-        return CompareAuras(a[3].spellId, a[3].isHelpful, a[3].expirationTime,
-                            b[3].spellId, b[3].isHelpful, b[3].expirationTime)
-    end)
+    table.sort(aura_list, function(a,b) return CompareAuraData(a[3],b[3]) end)
 
     self.instance_map = {}
     for i = 1, self.max do
@@ -408,8 +411,8 @@ function AuraBar:OnUnitAura(unit, update_info)
                     if not aura.instance then
                         return true
                     else
-                        return CompareAuras(new_data.spellId, new_data.isHelpful, new_data.expirationTime,
-                                            aura.spell_id, aura.is_helpful, aura.expires)
+                        return CompareAuras(new_data.spellId, new_data.isHelpful, new_data.isFromPlayerOrPlayerPet, new_data.expirationTime,
+                                            aura.spell_id, aura.is_helpful, aura.is_mine, aura.expires)
                     end
                 end
                 for i = 1, self.max do
