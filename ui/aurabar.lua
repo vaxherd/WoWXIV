@@ -319,7 +319,9 @@ function AuraBar:New(type, clickable_unit, align, cols, rows, parent, anchor_x, 
     new.align = align
     new.leftalign = (align == "TOPLEFT" or align == "BOTTOMLEFT")
     new.topalign = (align == "TOPLEFT" or align == "TOPRIGHT")
-    local inv_align = ((new.topalign and "BOTTOM" or "TOP")
+    -- Always anchor tooltips to bottom because we display the bars at the
+    -- top of the screen (so top anchor would overlap the icon itself).
+    local inv_align = ("BOTTOM"
                        .. (new.leftalign and "RIGHT" or "LEFT"))
     new.inv_align = inv_align
     new.cols = cols
