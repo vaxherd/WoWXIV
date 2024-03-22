@@ -49,19 +49,12 @@ end
 local Aura = {}
 Aura.__index = Aura
 
--- clickable=true creates a button which can be right-clicked to cancel
--- the buff (if possible).  In this case, the unit and the index/filter
--- arguments to GetAuraDataByIndex() must be constant due to API
--- restrictions; pass them as click_unit, click_index, and click_index_filter.
--- If clickable is false (or omitted), the remaining arguments are ignored.
-function Aura:New(parent, clickable, click_unit, click_index,
-                  click_index_filter)
+function Aura:New(parent)
     local new = {}
     setmetatable(new, self)
     new.__index = self
 
     new.parent = parent
-    new.clickable = clickable
     new.tooltip_anchor = "BOTTOMRIGHT"
     new.unit = nil
     new.data = nil
@@ -74,21 +67,12 @@ function Aura:New(parent, clickable, click_unit, click_index,
     new.time_str = nil
     new.expires = nil
 
-    local f
-    if clickable then
-        f = CreateFrame("Button", nil, parent, "SecureActionButtonTemplate")
-        f:SetAttribute("type", "cancelaura")
-        f:SetAttribute("unit", click_unit)
-        f:SetAttribute("index", click_index)
-        f:SetAttribute("filter", click_index_filter)
-    else
-        f = CreateFrame("Frame", nil, parent)
-    end
+    local f = CreateFrame("Frame", nil, parent)
     new.frame = f
     f:Hide()
     f:SetSize(24, 40)
-    f:HookScript("OnEnter", function() new:OnEnter() end)
-    f:HookScript("OnLeave", function() new:OnLeave() end)
+    f:SetScript("OnEnter", function() new:OnEnter() end)
+    f:SetScript("OnLeave", function() new:OnLeave() end)
 
     new.icon = f:CreateTexture(nil, "ARTWORK")
     new.icon:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -4)
@@ -98,7 +82,6 @@ function Aura:New(parent, clickable, click_unit, click_index,
     new.border:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -3)
     new.border:SetSize(22, 26)
     new.border:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    new.border:SetTexCoord(99/256.0, 121/256.0, 14/256.0, 40/256.0)
 
     new.stack_label = f:CreateFontString(nil, "OVERLAY", "NumberFont_Shadow_Med")
     new.stack_label:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -2)
@@ -199,6 +182,7 @@ function Aura:InternalUpdate(unit, data)
         if self.unit then
             self.frame:Hide()
             self.unit = nil
+            self.data = nil
             self.instance = nil
             self.spell_id = nil
             self.icon_id = nil
@@ -208,9 +192,6 @@ function Aura:InternalUpdate(unit, data)
             self.stack_label:SetText("")
             self.expires = 0
             self.timer:SetText("")
-            if self.clickable then
-                self.frame:RegisterForClicks()
-            end
             if not GameTooltip:IsForbidden() then
                 if GameTooltip:GetOwner() == self.frame and GameTooltip:IsShown() then
                     GameTooltip:Hide()
@@ -233,10 +214,6 @@ function Aura:InternalUpdate(unit, data)
     self.instance = instance
     self.spell_id = spell_id
     self.is_mine = is_mine
-
-    if self.clickable then
-        self.frame:RegisterForClicks("RightButtonDown")
-    end
 
     if icon_id ~= self.icon_id or is_helpful ~= self.is_helpful then
         if is_helpful then
@@ -300,21 +277,13 @@ end
 
 -- type is one of: "HELPFUL", "HARMFUL", "MISC" (like XIV food/FC buffs),
 --     or "ALL" (for party list)
--- clickable_unit is the associated unit token if buffs should be
---     right-clickable to remove, else nil
 -- align is either "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", or "BOTTOMRIGHT"
-function AuraBar:New(type, clickable_unit, align, cols, rows, parent, anchor_x, anchor_y)
+function AuraBar:New(type, align, cols, rows, parent, anchor_x, anchor_y)
     local new = {}
     setmetatable(new, self)
     new.__index = self
 
-    if clickable_unit then
-        new.unit = clickable_unit
-        new.clickable = true
-    else
-        new.unit = null
-        new.clickable = false
-    end
+    new.unit = null
     new.type = type
     new.align = align
     new.leftalign = (align == "TOPLEFT" or align == "BOTTOMLEFT")
@@ -333,46 +302,18 @@ function AuraBar:New(type, clickable_unit, align, cols, rows, parent, anchor_x, 
     new.frame = f
     f:SetSize(24*cols, 40*rows)
     f:SetPoint(align, parent, align, anchor_x, anchor_y)
-    if new.clickable then
-        f:RegisterUnitEvent("UNIT_AURA", clickable_unit)
-new.clickable=false --FIXME broken due to taint
-    end
 
     new.auras = {}
     local dx = new.leftalign and 24 or -24
     local dy = new.topalign and -40 or 40
     new.dx, new.dy = dx, dy
-    if new.clickable then
-        -- For clickable auras, we need a static mapping from Aura instance
-        -- to aura slot index, so we have to create MAX_AURAS instances
-        -- regardless of the bar size and rearrange them as needed on update.
-        -- Note that for a combined buff/debuff bar, we need two sets
-        -- because the API requires us to get buffs and debuffs separately
-        -- (maybe because the server manages them separately?).  We store
-        -- these as a list of MAX_AURAS buff slots followed by MAX_AURAS
-        -- debuff slots.
-        if type ~= "HARMFUL" then
-            for i = 1, MAX_AURAS do
-                local aura = Aura:New(f, true, clickable_unit, i, "HELPFUL")
-                table.insert(new.auras, aura)
-            end
-        end
-        if type ~= "HELPFUL" then
-            for i = 1, MAX_AURAS do
-                local aura = Aura:New(f, true, clickable_unit, i, "HARMFUL")
-                table.insert(new.auras, aura)
-            end
-        end
-    else
-        -- Not clickable, so use a straightforward approach.
-        for r = 1, rows do
-            local y = (r-1)*dy
-            for c = 1, cols do
-                local aura = Aura:New(f)
-                table.insert(new.auras, aura)
-                local x = (c-1)*dx
-                aura:SetAnchor(align, x, y, inv_align)
-            end
+    for r = 1, rows do
+        local y = (r-1)*dy
+        for c = 1, cols do
+            local aura = Aura:New(f)
+            table.insert(new.auras, aura)
+            local x = (c-1)*dx
+            aura:SetAnchor(align, x, y, inv_align)
         end
     end
 
@@ -388,7 +329,6 @@ function AuraBar:Delete()
 end
 
 function AuraBar:SetUnit(unit)
-    assert(not self.clickable, "SetUnit() not allowed on clickable aura bars")
     self.unit = unit
     if unit then
         self.frame:RegisterUnitEvent("UNIT_AURA", unit)
@@ -423,39 +363,12 @@ function AuraBar:Refresh()
     table.sort(aura_list, function(a,b) return CompareAuras(a[3],b[3]) end)
 
     self.instance_map = {}
-    if self.clickable then
-        local done = {}
-        local x, y = 0, 0
-        local dx, dy, cols = self.dx, self.dy, self.cols
-        local align, inv_align = self.align, self.inv_align
-        for _, entry in ipairs(aura_list) do
-            local index = entry[1]
-            if entry[2] == "HARMFUL" and self.type ~= "HARMFUL" then
-                index = index + MAX_AURAS
-            end
-            local aura = self.auras[index]
-            aura:Update(self.unit, entry[3])
-            aura:SetAnchor(align, x, y, inv_align)
-            x = x + dx
-            if x == dx * self.cols then
-                x = 0
-                y = y + dy
-            end
-            done[index] = true
-        end
-        for i = 1, #self.auras do
-            if not done[i] then
-                self.auras[i]:Update(nil)
-            end
-        end
-    else  -- not clickable
-        for i = 1, self.max do
-            if aura_list[i] then
-                self.auras[i]:Update(self.unit, aura_list[i][3])
-                self.instance_map[aura_list[i][3].auraInstanceID] = i
-            else
-                self.auras[i]:Update(nil)
-            end
+    for i = 1, self.max do
+        if aura_list[i] then
+            self.auras[i]:Update(self.unit, aura_list[i][3])
+            self.instance_map[aura_list[i][3].auraInstanceID] = i
+        else
+            self.auras[i]:Update(nil)
         end
     end
 end
@@ -466,12 +379,6 @@ function AuraBar:OnUnitAura(unit, update_info)
     end
 
     if not update_info or update_info.isFullUpdate then
-        self:Refresh()
-        return
-    end
-    -- Trying to optimize clickable bars is too much of a pain, so just do
-    -- a full refresh on every update.
-    if self.clickable then
         self:Refresh()
         return
     end
@@ -560,20 +467,13 @@ function AuraBar:LogEvents(enable)
 end
 
 function AuraBar:Dump(unit, update_info)
-    print("AuraBar <", self, ">:", self.type, 
-          self.clickable and "clickable" or "normal")
+    print("AuraBar <", self, ">:", self.type)
     print("    unit: ", self.unit)
     for i, aura in ipairs(self.auras) do
         if aura.instance then
             local name, _ = GetSpellInfo(aura.spell_id)
             local position
-            if self.clickable then
-                local _, _, _, x, y = aura.frame:GetPoint()
-                position = " at "..((y/self.dy)*self.cols+(x/self.dx))
-            else
-                position = ""
-            end
-            print("    aura "..i..": "..aura.spell_id.." ("..name..")"..position)
+            print("    aura "..i..": "..aura.spell_id.." ("..name..")")
         end
     end
     self:Verify(true)
