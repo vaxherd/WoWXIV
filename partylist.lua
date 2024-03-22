@@ -1,6 +1,132 @@
 local WoWXIV = WoWXIV
 WoWXIV.PartyList = {}
 
+local GameTooltip = GameTooltip
+
+--------------------------------------------------------------------------
+
+local ClassIcon = {}
+ClassIcon.__index = ClassIcon
+
+function ClassIcon:New(parent)
+    local new = {}
+    setmetatable(new, self)
+    new.__index = self
+
+    new.parent = parent
+
+    local f = CreateFrame("Frame", nil, parent)
+    new.frame = f
+    f:SetSize(31, 31)
+    f:HookScript("OnEnter", function() new:OnEnter() end)
+    f:HookScript("OnLeave", function() new:OnLeave() end)
+
+    new.bg = f:CreateTexture(nil, "BORDER")
+    new.bg:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+    new.bg:SetSize(31, 31)
+    new.bg:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+
+    new.icon = f:CreateTexture(nil, "ARTWORK")
+    new.icon:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -4)
+    new.icon:SetSize(22, 22)
+
+    return new
+end
+
+function ClassIcon:OnEnter()
+    if GameTooltip:IsForbidden() then return end
+    if not self.frame:IsVisible() then return end
+    GameTooltip:SetOwner(self.frame, self.tooltip_anchor)
+    self:UpdateTooltip()
+end
+
+function ClassIcon:OnLeave()
+    if GameTooltip:IsForbidden() then return end
+    GameTooltip:Hide()
+end
+
+function ClassIcon:UpdateTooltip()
+    if GameTooltip:IsForbidden() or GameTooltip:GetOwner() ~= self.frame then
+        return
+    end
+    if self.tooltip then
+        GameTooltip:SetText(self.tooltip, HIGHLIGHT_FONT_COLOR:GetRGB())
+        GameTooltip:Show()
+    else
+        GameTooltip:Hide()
+    end
+end
+
+function ClassIcon:SetAnchor(anchor, x, y, tooltip_anchor)
+    self.frame:SetPoint(anchor, self.parent, anchor, x, y)
+    self.tooltip_anchor = tooltip_anchor
+end
+
+function ClassIcon:Set(unit)
+    local role_name, class_name, spec_name
+    if unit then
+        local role = UnitGroupRolesAssigned(unit)
+        local class, class_id
+        class_name, class, class_id = UnitClass(unit)
+        local spec_index
+        if class_id and unit == "player" then
+            spec_index = GetSpecialization()
+        end
+        local spec_id, spec_icon
+        if spec_index then
+            local class_role
+            spec_id, spec_name, _, spec_icon, class_role =
+                GetSpecializationInfo(spec_index)
+            if not role or role == "NONE" then role = class_role end
+        end
+    
+        if role == "TANK" then
+            role_name = " (Tank)"
+            self.bg:Show()
+            self.bg:SetTexCoord(128/256.0, 159/256.0, 16/256.0, 47/256.0)
+            self.icon:SetVertexColor(1, 1, 1, 0.4)
+        elseif role == "HEALER" then
+            role_name = " (Healer)"
+            self.bg:Show()
+            self.bg:SetTexCoord(160/256.0, 191/256.0, 16/256.0, 47/256.0)
+            self.icon:SetVertexColor(1, 1, 1, 0.4)
+        elseif role == "DAMAGER" then
+            role_name = " (DPS)"
+            self.bg:Show()
+            self.bg:SetTexCoord(192/256.0, 223/256.0, 16/256.0, 47/256.0)
+            self.icon:SetVertexColor(1, 1, 1, 0.4)
+        else
+            role_name = ""
+            self.bg:Hide()
+            self.icon:SetVertexColor(1, 1, 1, 1)
+        end
+        if spec_id then
+            self.icon:SetTexture(spec_icon)
+            self.icon:SetTexCoord(0, 1, 0, 1)
+        else
+            local atlas = class and GetClassAtlas(class) or nil
+            if atlas then
+                self.icon:Show()
+                self.icon:SetAtlas(atlas)
+            else
+                self.icon:Hide()
+            end
+        end
+    end  -- if unit
+
+    if class_name then
+        if spec_name then
+            spec_name = spec_name .. " "
+        else
+            spec_name = ""
+        end
+        self.tooltip = spec_name .. class_name .. role_name
+    else
+        self.tooltip = nil
+    end
+    self:UpdateTooltip()
+end
+
 --------------------------------------------------------------------------
 
 local Member = {}
@@ -29,13 +155,8 @@ function Member:New(parent, unit, npc_guid)
     f:SetSize(256, 40)
 
     if not new.npc_id then
-        new.class_bg = f:CreateTexture(nil, "BORDER")
-        new.class_bg:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -4)
-        new.class_bg:SetSize(31, 31)
-        new.class_bg:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-        new.class_icon = f:CreateTexture(nil, "ARTWORK")
-        new.class_icon:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -8)
-        new.class_icon:SetSize(22, 22)
+        new.class_icon = ClassIcon:New(f)
+        new.class_icon:SetAnchor("TOPLEFT", 0, -4, "BOTTOMRIGHT")
     end
 
     new.name = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
@@ -95,44 +216,7 @@ function Member:Refresh(new_unit)  -- optional new unit token
     self.name:SetText(NameForUnit(self.unit))
 
     if not self.npc_id then
-        local _, class, classID = UnitClass(self.unit)
-        local role = UnitGroupRolesAssigned(self.unit)
-        local specID, iconID, class_role
-        if classID and self.unit == "player" then
-            local spec = GetSpecialization()
-            if spec then  -- Sanity check (returns nil if called between zones)
-                specID, _, _, iconID, class_role = GetSpecializationInfo(spec)
-                if not role or role == "NONE" then role = class_role end
-            end
-        end
-        if role == "TANK" then
-            self.class_bg:Show()
-            self.class_bg:SetTexCoord(128/256.0, 159/256.0, 16/256.0, 47/256.0)
-            self.class_icon:SetVertexColor(1, 1, 1, 0.4)
-        elseif role == "HEALER" then
-            self.class_bg:Show()
-            self.class_bg:SetTexCoord(160/256.0, 191/256.0, 16/256.0, 47/256.0)
-            self.class_icon:SetVertexColor(1, 1, 1, 0.4)
-        elseif role == "DAMAGER" then
-            self.class_bg:Show()
-            self.class_bg:SetTexCoord(192/256.0, 223/256.0, 16/256.0, 47/256.0)
-            self.class_icon:SetVertexColor(1, 1, 1, 0.4)
-        else
-            self.class_bg:Hide()
-            self.class_icon:SetVertexColor(1, 1, 1, 1)
-        end
-        if specID then
-            self.class_icon:SetTexture(iconID)
-            self.class_icon:SetTexCoord(0, 1, 0, 1)
-        else
-            local atlas = GetClassAtlas(class)
-            if atlas then
-                self.class_icon:Show()
-                self.class_icon:SetAtlas(atlas)
-            else
-                self.class_icon:Hide()
-            end
-        end
+        self.class_icon:Set(self.unit)
     end
 end
 
