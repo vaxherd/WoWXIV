@@ -62,7 +62,7 @@ function Aura:New(parent, clickable, click_unit, click_index,
 
     new.parent = parent
     new.clickable = clickable
-    new.tooltip_anchor = "ANCHOR_BOTTOMRIGHT"
+    new.tooltip_anchor = "BOTTOMRIGHT"
     new.unit = nil
     new.data = nil
     new.instance = nil
@@ -121,7 +121,7 @@ end
 function Aura:OnEnter()
     if GameTooltip:IsForbidden() then return end
     if not self.frame:IsVisible() then return end
-    GameTooltip:SetOwner(self.frame, self.tooltip_anchor)
+    GameTooltip:SetOwner(self.frame, "ANCHOR_"..self.tooltip_anchor)
     self:UpdateTooltip()
 end
 

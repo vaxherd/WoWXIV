@@ -14,6 +14,7 @@ function ClassIcon:New(parent)
     new.__index = self
 
     new.parent = parent
+    new.tooltip_anchor = "BOTTOMRIGHT"
 
     local f = CreateFrame("Frame", nil, parent)
     new.frame = f
@@ -36,7 +37,7 @@ end
 function ClassIcon:OnEnter()
     if GameTooltip:IsForbidden() then return end
     if not self.frame:IsVisible() then return end
-    GameTooltip:SetOwner(self.frame, self.tooltip_anchor)
+    GameTooltip:SetOwner(self.frame, "ANCHOR_"..self.tooltip_anchor)
     self:UpdateTooltip()
 end
 
