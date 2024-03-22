@@ -9,6 +9,7 @@
 WoWXIV.lua
 
 buffbar.lua
+buffbar.xml
 config.lua
 gamepad.lua
 hatelist.lua
