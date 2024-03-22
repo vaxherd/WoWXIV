@@ -50,17 +50,23 @@ function Gauge:New(parent, width)
     bar_bg:SetSize(width, 5)
     bar_bg:SetColorTexture(0, 0, 0)
 
-    local shieldbar = f:CreateTexture(nil, "ARTWORK")  -- goes under main bar
-    new.shieldbar = shieldbar
-    shieldbar:SetPoint("TOPLEFT", f, "TOPLEFT", 5, -7)
-    shieldbar:SetSize(width, 5)
-    shieldbar:SetColorTexture(1, 0.82, 0)
-
-    local bar = f:CreateTexture(nil, "OVERLAY")
+    local bar = f:CreateTexture(nil, "ARTWORK", nil, 0)
     new.bar = bar
     bar:SetPoint("TOPLEFT", f, "TOPLEFT", 5, -7)
     bar:SetSize(width, 5)
     bar:SetColorTexture(1, 1, 1)
+
+    local absorbbar = f:CreateTexture(nil, "ARTWORK", nil, -1)
+    new.absorbbar = absorbbar
+    absorbbar:SetPoint("TOPLEFT", f, "TOPLEFT", 5, -7)
+    absorbbar:SetSize(width, 5)
+    absorbbar:SetColorTexture(0.5, 0.5, 0.5)
+
+    local shieldbar = f:CreateTexture(nil, "ARTWORK", nil, -2)
+    new.shieldbar = shieldbar
+    shieldbar:SetPoint("TOPLEFT", f, "TOPLEFT", 5, -7)
+    shieldbar:SetSize(width, 5)
+    shieldbar:SetColorTexture(1, 0.82, 0)
 
     local overshield_l = f:CreateTexture(nil, "OVERLAY")
     new.overshield_l = overshield_l
@@ -108,6 +114,7 @@ end
 
 function Gauge:SetBarColor(r, g, b)
     self.bar:SetColorTexture(r, g, b)
+    self.absorbbar:SetColorTexture(r/2, g/2, b/2)
     self.value:SetTextColor(r, g, b)
 end
 
@@ -128,16 +135,20 @@ function Gauge:SetValueScale(scale)
     self.value:SetTextScale(scale)
 end
 
-function Gauge:Update(max, cur, shield)
+function Gauge:Update(max, cur, shield, heal_absorb)
     shield = shield or 0
+    heal_absorb = heal_absorb or 0
 
     self.max = max
     self.cur = cur
     self.shield = shield
+    self.heal_absorb = heal_absorb
 
-    local bar_rel, shield_rel, overshield_rel
+    local bar_rel, absorb_rel, shield_rel, overshield_rel
     if max > 0 then
-        bar_rel = cur / max
+        bar_rel = (cur - heal_absorb) / max
+        if bar_rel < 0 then bar_rel = 0 end
+        absorb_rel = cur / max
         shield_rel = (cur + shield) / max
         if shield_rel > 1 then
             overshield_rel = shield_rel - 1
@@ -149,6 +160,7 @@ function Gauge:Update(max, cur, shield)
         bar_rel = 0
         shield_rel = 0
         overshield_rel = 0
+        absorb_rel = 0
     end
     if not self.show_overshield then
         overshield_rel = 0
@@ -156,14 +168,26 @@ function Gauge:Update(max, cur, shield)
 
     local width = self.width
     local bar_w = bar_rel * width
-    if bar_w == 0 then bar_w = 0.001 end  --  WoW can't deal with 0 width
+    local absorb_w = absorb_rel * width
     local shield_w = shield_rel * width
     local overshield_w = overshield_rel * width
     if overshield_w > width then overshield_w = width end
 
-    self.bar:SetWidth(bar_w)
+    if bar_w > 0 then
+        self.bar:Show()
+        self.bar:SetWidth(bar_w)
+    else
+        self.bar:Hide()
+    end
 
-    if shield_w > bar_w then
+    if absorb_w > bar_w then
+        self.absorbbar:Show()
+        self.absorbbar:SetWidth(absorb_w)
+    else
+        self.absorbbar:Hide()
+    end
+
+    if shield_w > absorb_w then
         self.shieldbar:Show()
         self.shieldbar:SetWidth(shield_w)
     else

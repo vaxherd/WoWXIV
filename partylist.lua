@@ -217,7 +217,8 @@ end
 
 function Member:Update(updateLabel)
     self.hp:Update(UnitHealthMax(self.unit), UnitHealth(self.unit),
-                   UnitGetTotalAbsorbs(self.unit))
+                   UnitGetTotalAbsorbs(self.unit),
+                   UnitGetTotalHealAbsorbs(self.unit))
     self.mp:Update(UnitPowerMax(self.unit), UnitPower(self.unit))
 
     if updateLabel then
