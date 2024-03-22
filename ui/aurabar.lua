@@ -333,15 +333,16 @@ function AuraBar:New(type, clickable_unit, align, cols, rows, parent, anchor_x, 
     new.frame = f
     f:SetSize(24*cols, 40*rows)
     f:SetPoint(align, parent, align, anchor_x, anchor_y)
-    if clickable_unit then
+    if new.clickable then
         f:RegisterUnitEvent("UNIT_AURA", clickable_unit)
+new.clickable=false --FIXME broken due to taint
     end
 
     new.auras = {}
     local dx = new.leftalign and 24 or -24
     local dy = new.topalign and -40 or 40
     new.dx, new.dy = dx, dy
-    if clickable_unit then
+    if new.clickable then
         -- For clickable auras, we need a static mapping from Aura instance
         -- to aura slot index, so we have to create MAX_AURAS instances
         -- regardless of the bar size and rearrange them as needed on update.
