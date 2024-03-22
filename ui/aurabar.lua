@@ -138,13 +138,16 @@ function Aura:OnUpdate()
 end
 
 function Aura:UpdateTooltip()
-    if GameTooltip:IsForbidden() then return end
+    if GameTooltip:IsForbidden() or GameTooltip:GetOwner() ~= self.frame then
+        return
+    end
     if self.unit then
         if self.is_helpful then
             GameTooltip:SetUnitBuffByAuraInstanceID(self.unit, self.instance)
         else
             GameTooltip:SetUnitDebuffByAuraInstanceID(self.unit, self.instance)
         end
+        GameTooltip:Show()
     else
         GameTooltip:Hide()
     end
