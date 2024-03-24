@@ -222,6 +222,8 @@ function FlyText:New(type, ...)
             local stacks = w.stacks
             stacks:SetText(new.amount)
         end
+        value:ClearAllPoints()
+        value:SetPoint("LEFT", icon, "RIGHT", 0, 0)
         if type == FLYTEXT_BUFF_ADD or type == FLYTEXT_DEBUFF_ADD then
             value:SetText("+" .. spell_name)
         else
@@ -236,6 +238,8 @@ function FlyText:New(type, ...)
         if g > 0 then
             icon:SetSize(20, 20)
             icon:SetTexture(GetCoinIcon(10000))
+            value:ClearAllPoints()
+            value:SetPoint("LEFT", icon, "RIGHT", 0, 0)
             value:SetText(g)
         else
             icon:Hide()
@@ -318,6 +322,7 @@ end
 
 function CombatEvent:ParseEvent()
     local event = self.event
+    self.timestamp = event[1]
     self.type = event[2]
     self.hidden_source = event[3]  -- e.g. for fall damage
     self.source = event[4]
@@ -406,9 +411,7 @@ function CombatEvent:ParseEvent()
         self.aura_type = event[argi+3]
     elseif subtype == "EXTRA_ATTACKS" then
         self.amount = event[argi]
-    elseif subtype == "AURA_APPLIED" or subtype == "AURA_REMOVED" or subtype == "AURA_REFRESH" or subtype == "AURA_BROKEN" then
-        self.aura_type = event[argi]
-    elseif subtype == "AURA_APPLIED_DOSE" or subtype == "AURA_REMOVED_DOSE" then
+    elseif strsub(subtype, 1, 5) == "AURA_" then
         self.aura_type = event[argi]
         self.amount = event[argi+1]
     elseif subtype == "CAST_FAILED" then
@@ -429,18 +432,33 @@ function FlyTextManager:New(parent)
     new.texts = {}
     new.dot = {}
     new.hot = {}
-    new.last_damage = 0
-    new.last_heal = 0
+    new.last_left = 0
+    new.last_right = 0
+    new.zone_entered = 0
 
     local f = CreateFrame("Frame", "WoWXIV_FlyTextManager", nil)
     new.frame = f
     f:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-    f:SetScript("OnEvent", function() new:OnCombatLogEvent() end)
+    -- Suppress aura events for the first 0.5 sec after entering a zone
+    -- to avoid spam from permanent buffs (which are reapplied on entering
+    -- each new zone).
+    f:RegisterEvent("PLAYER_ENTERING_WORLD")
+    f:SetScript("OnEvent", function(self, event, ...)
+        if event == "PLAYER_ENTERING_WORLD" then
+            new.zone_entered = GetTime()
+        else
+            new:OnCombatLogEvent()
+        end
+    end)
     f:SetScript("OnUpdate", function() new:OnUpdate() end)
 end
 
 function FlyTextManager:OnCombatLogEvent()
     local event = CombatEvent:New(CombatLogGetCurrentEventInfo())
+
+    if GetTime() < self.zone_entered + 0.5 and strsub(event.subtype, 1, 5) == "AURA_" then
+        return  -- suppress aura spam
+    end
 
     local unit = event.dest
     if unit == UnitGUID("player") then
@@ -450,31 +468,44 @@ function FlyTextManager:OnCombatLogEvent()
     end
 
     local text = nil
-    local is_heal = false
+    local left_side = false
     if event.subtype == "DAMAGE" then
-        text = FlyText:New(FLYTEXT_DAMAGE_DIRECT, unit, event.spell, event.spell_school, event.amount, event.critical)
+        left_side = true
+        text = FlyText:New(FLYTEXT_DAMAGE_DIRECT, unit, event.spell,
+                           event.spell_school, event.amount, event.critical)
     elseif event.subtype == "PERIODIC_DAMAGE" then
         self.dot = self.dot or {}
         self.dot[unit] = (self.dot[unit] or 0) + event.amount
-    elseif event.subtype == "MISSED" then
-        text = FlyText:New(FLYTEXT_DAMAGE_DIRECT, unit, event.spell, event.spell_school, event.amount and 0 or nil, event.critical)
+    elseif event.subtype == "MISSED" then  -- FIXME: does this also fire for absorbed heals? and if so, how do we distinguish damage vs heals?
+        left_side = true
+        text = FlyText:New(FLYTEXT_DAMAGE_DIRECT, unit, event.spell,
+                           event.spell_school, event.amount and 0 or nil)
     elseif event.subtype == "HEAL" then
-        is_heal = true
-        text = FlyText:New(FLYTEXT_HEAL_DIRECT, unit, event.spell, event.spell_school, event.amount, event.critical)
+        text = FlyText:New(FLYTEXT_HEAL_DIRECT, unit, event.spell,
+                           event.spell_school, event.amount, event.critical)
     elseif event.subtype == "PERIODIC_HEAL" then
-        is_heal = true
         self.hot = self.hot or {}
         self.hot[unit] = (self.hot[unit] or 0) + event.amount
+    elseif event.subtype == "AURA_APPLIED" then
+        -- It doesn't look like APPLIED_DOSE is used for stacking buffs?
+        -- (and so we can't actually get the stack count)
+        text = FlyText:New(
+            event.aura_type=="BUFF" and FLYTEXT_BUFF_ADD or FLYTEXT_DEBUFF_ADD,
+            unit, event.spell, event.spell_school)
+    elseif event.subtype == "AURA_REMOVED" then
+        text = FlyText:New(
+            event.aura_type=="BUFF" and FLYTEXT_BUFF_REMOVE or FLYTEXT_DEBUFF_REMOVE,
+            unit, event.spell, event.spell_school, event.amount)
     end
     if text then
         local now = GetTime()
         local dt
-        if is_heal then
-            dt = now - self.last_heal
-            self.last_heal = now
+        if left_side then
+            dt = now - self.last_left
+            self.last_left = now
         else
-            dt = now - self.last_damage
-            self.last_damage = now
+            dt = now - self.last_right
+            self.last_right = now
         end
         local dy = math.abs(FlyText:GetDY())
         local min_offset = 16
