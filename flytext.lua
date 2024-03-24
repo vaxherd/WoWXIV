@@ -476,7 +476,10 @@ function FlyTextManager:OnCombatLogEvent()
     elseif event.subtype == "PERIODIC_DAMAGE" then
         self.dot = self.dot or {}
         self.dot[unit] = (self.dot[unit] or 0) + event.amount
-    elseif event.subtype == "MISSED" then  -- FIXME: does this also fire for absorbed heals? and if so, how do we distinguish damage vs heals?
+    elseif event.subtype == "MISSED" then
+        -- Note: absorbed heals are reported as "heal for 0" with the
+        -- amount absorbed in event.absorbed, so we don't have to worry
+        -- about separating them out here.
         left_side = true
         text = FlyText:New(FLYTEXT_DAMAGE_DIRECT, unit, event.spell,
                            event.spell_school, event.amount and 0 or nil)
