@@ -11,6 +11,7 @@ WoWXIV.lua
 buffbar.lua
 buffbar.xml
 config.lua
+flytext.lua
 gamepad.lua
 hatelist.lua
 partylist.lua
