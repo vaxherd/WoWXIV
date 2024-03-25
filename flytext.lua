@@ -560,7 +560,7 @@ function FlyTextManager:OnCombatLogEvent()
     elseif event.subtype == "AURA_REMOVED" then
         text = FlyText:New(
             event.aura_type=="BUFF" and FLYTEXT_BUFF_REMOVE or FLYTEXT_DEBUFF_REMOVE,
-            unit, event.spell, event.spell_school, event.amount)
+            unit, event.spell, event.spell_school)
     end
     if text then
         self:AddText(text, left_side)
