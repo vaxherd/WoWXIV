@@ -122,9 +122,15 @@ function Gauge:SetShowOvershield(show)
      self.show_overshield = show
 end
 
-function Gauge:SetShowValue(show)
+function Gauge:SetShowValue(show, on_top)
     self.show_value = show
     if show then
+        self.value:ClearAllPoints()
+        if on_top then
+            self.value:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", -3, 10)
+        else
+            self.value:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", -3, -14)
+        end
         self.value:Show()
     else
         self.value:Hide()
