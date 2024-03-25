@@ -197,7 +197,7 @@ function FlyText:New(type, ...)
         local amount = new.amount
         if not amount then
             value:SetTextScale(0.9*font_scale)
-            amount = "Miss!"
+            amount = "Miss"
         elseif new.crit_flag then
             value:SetTextScale(2*font_scale)
             amount = amount .. "!"
