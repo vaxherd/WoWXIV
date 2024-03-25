@@ -86,15 +86,23 @@ function FlyText:AllocPooledFrame()
         local icon_s = f:CreateTexture(nil, "ARTWORK")
         w.icon_s = icon_s
         icon_s:SetPoint("LEFT", value, "RIGHT")
+        icon_s:SetSize(16, 16)
+        icon_s:SetTexture(GetCoinIcon(100))
+        icon_s:Hide()
         local value_s = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
         w.value_s = value_s
         value_s:SetPoint("LEFT", icon_s, "RIGHT")
+        value_s:SetTextColor(1, 1, 1)
         local icon_c = f:CreateTexture(nil, "ARTWORK")
         w.icon_c = icon_c
         icon_c:SetPoint("LEFT", value_s, "RIGHT")
+        icon_c:SetSize(16, 16)
+        icon_c:SetTexture(GetCoinIcon(1))
+        icon_c:Hide()
         local value_c = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
         w.value_c = value_c
         value_c:SetPoint("LEFT", icon_c, "RIGHT")
+        value_c:SetTextColor(1, 1, 1)
         return f
     end
 end
@@ -113,7 +121,7 @@ end
 -- Passive damage/heal: (type, unit, amount)
 -- Buff/debuff: (type, unit, spell_id, school, stacks)
 -- Loot money: (type, amount)
--- Loot item: (type, item_id, count [default 1])
+-- Loot item: (type, item_icon, item_name, name_color, count [default 1])
 function FlyText:New(type, ...)
     local new = {}
     setmetatable(new, self)
@@ -129,7 +137,7 @@ function FlyText:New(type, ...)
         new.amount = ...
     elseif type == FLYTEXT_LOOT_ITEM then
         new.unit = "player"
-        new.item_id, new.amount = ...
+        new.item_icon, new.item_name, new.item_color, new.amount = ...
     else
         print("FlyText error: invalid type", type)
         new.frame = nil
@@ -223,7 +231,7 @@ function FlyText:New(type, ...)
             stacks:SetText(new.amount)
         end
         value:ClearAllPoints()
-        value:SetPoint("LEFT", icon, "RIGHT", 0, 0)
+        value:SetPoint("LEFT", icon, "RIGHT")
         if type == FLYTEXT_BUFF_ADD or type == FLYTEXT_DEBUFF_ADD then
             value:SetText("+" .. spell_name)
         else
@@ -231,15 +239,17 @@ function FlyText:New(type, ...)
         end
 
     elseif type == FLYTEXT_LOOT_MONEY then
+        name:Hide()
         local amount = new.amount
         local g = math.floor(amount / 10000)
         local s = math.floor(amount / 100) % 100
         local c = amount % 100
         if g > 0 then
-            icon:SetSize(20, 20)
+            icon:SetSize(16, 16)
+            icon:SetMask("")
             icon:SetTexture(GetCoinIcon(10000))
             value:ClearAllPoints()
-            value:SetPoint("LEFT", icon, "RIGHT", 0, 0)
+            value:SetPoint("LEFT", icon, "RIGHT")
             value:SetText(g)
         else
             icon:Hide()
@@ -247,27 +257,48 @@ function FlyText:New(type, ...)
         end
         if s > 0 then
             icon = w.icon_s
+            icon:ClearAllPoints()
+            if g > 0 then
+                icon:SetPoint("LEFT", value, "RIGHT")
+            else
+                icon:SetPoint("LEFT", f, "CENTER")
+            end
+            icon:Show()
             value = w.value_s
-            icon:SetSize(20, 20)
-            icon:SetTexture(GetCoinIcon(100))
+            value:Show()
             value:SetText(s)
         end
         if c > 0 then
             icon = w.icon_c
+            icon:ClearAllPoints()
+            if g > 0 or s > 0 then
+                icon:SetPoint("LEFT", value, "RIGHT")
+            else
+                icon:SetPoint("LEFT", f, "CENTER")
+            end
+            icon:Show()
             value = w.value_c
-            icon:SetSize(20, 20)
-            icon:SetTexture(GetCoinIcon(100))
-            value:SetText()
+            value:Show()
+            value:SetText(c)
         end
 
     elseif type == FLYTEXT_LOOT_ITEM then
-        local item_name, _, _, _, _, _, _, _, _, item_icon = GetItemInfo(new.item_id)
+        name:Hide()
         icon:SetSize(24, 24)
-        icon:SetTexture(item_icon)
-        if new.amount > 1 then
-            item_name = item_name .. "×" .. new.amount
+        icon:SetMask("")
+        icon:SetTexture(new.item_icon)
+        local color = new.item_color
+        local r = tonumber("0x"..strsub(color, 1, 2)) / 255
+        local g = tonumber("0x"..strsub(color, 3, 4)) / 255
+        local b = tonumber("0x"..strsub(color, 5, 6)) / 255
+        local text = new.item_name
+        if new.amount and new.amount > 1 then
+            text = text .. "×" .. new.amount
         end
-        value:SetText(item_name)
+        value:ClearAllPoints()
+        value:SetPoint("LEFT", icon, "RIGHT")
+        value:SetTextColor(r, g, b)
+        value:SetText(text)
 
     end
 
@@ -435,22 +466,33 @@ function FlyTextManager:New(parent)
     new.last_left = 0
     new.last_right = 0
     new.zone_entered = 0
+    new.last_money = GetMoney()
+    new.last_item_icon = nil
 
     local f = CreateFrame("Frame", "WoWXIV_FlyTextManager", nil)
     new.frame = f
-    f:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-    -- Suppress aura events for the first 0.5 sec after entering a zone
-    -- to avoid spam from permanent buffs (which are reapplied on entering
-    -- each new zone).
-    f:RegisterEvent("PLAYER_ENTERING_WORLD")
+    f.xiv_eventmap = {
+        COMBAT_LOG_EVENT_UNFILTERED = FlyTextManager.OnCombatLogEvent,
+        PLAYER_MONEY = FlyTextManager.OnPlayerMoney,
+        CHAT_MSG_LOOT = FlyTextManager.OnLootItem,
+        CHAT_MSG_CURRENCY = FlyTextManager.OnLootCurrency,
+        -- Suppress aura events for the first 0.5 sec after entering a zone
+        -- to avoid spam from permanent buffs (which are reapplied on
+        -- entering each new zone).
+        PLAYER_ENTERING_WORLD = FlyTextManager.OnEnterZone,
+    }
+    for event, _ in pairs(f.xiv_eventmap) do
+        f:RegisterEvent(event)
+    end
     f:SetScript("OnEvent", function(self, event, ...)
-        if event == "PLAYER_ENTERING_WORLD" then
-            new.zone_entered = GetTime()
-        else
-            new:OnCombatLogEvent()
-        end
+        local handler = self.xiv_eventmap[event]
+        if handler then handler(new, event, ...) end
     end)
     f:SetScript("OnUpdate", function() new:OnUpdate() end)
+end
+
+function FlyTextManager:OnEnterZone()
+    self.zone_entered = GetTime()
 end
 
 function FlyTextManager:OnCombatLogEvent()
@@ -501,25 +543,93 @@ function FlyTextManager:OnCombatLogEvent()
             unit, event.spell, event.spell_school, event.amount)
     end
     if text then
-        local now = GetTime()
-        local dt
-        if left_side then
-            dt = now - self.last_left
-            self.last_left = now
-        else
-            dt = now - self.last_right
-            self.last_right = now
-        end
-        local dy = math.abs(FlyText:GetDY())
-        local min_offset = 16
-        if dt*dy < min_offset then
-            local time_offset = (min_offset - dt*dy) / dy
-            for _, t in ipairs(self.texts) do
-                t:Push(time_offset)
+        self:AddText(text, left_side)
+    end
+end
+
+function FlyTextManager:OnPlayerMoney()
+    local money = GetMoney()
+    local diff = money - self.last_money
+    self.last_money = money
+    if diff > 0 then
+        self:AddText(FlyText:New(FLYTEXT_LOOT_MONEY, diff))
+    end
+end
+
+-- Returns: type, id, color, count
+local function ParseLootMsg(msg)
+    local color = strfind(msg, "|c")
+    if color then
+        color = strsub(msg, color+4, color+9)
+    else
+        color = "ffffff"
+    end
+    local link = strfind(msg, "|H")
+    if link then
+        colon1 = strfind(msg, ":", link+2)
+        if colon1 then
+            local colon2 = strfind(msg, ":", colon1+1)
+            if colon2 then
+                local count
+                local link_end = strfind(msg, "|h|r", colon2+1)
+                if link_end and strsub(msg, link_end+4, link_end+4) == "x" then
+                    count = tonumber(strsub(msg, link_end+5, -1))
+                else
+                    count = 1
+                end
+                return strsub(msg, link+2, colon1-1),
+                       strsub(msg, colon1+1, colon2-1),
+                       color,
+                       count
             end
         end
-        tinsert(self.texts, text)
     end
+    return nil
+end
+
+function FlyTextManager:OnLootItem(event, msg)
+    local type, id, color, count = ParseLootMsg(msg)
+    if type ~= "item" then return end
+    local name, _, _, _, _, _, _, _, _, icon = GetItemInfo(id)
+    if name and icon then
+        self:AddText(FlyText:New(FLYTEXT_LOOT_ITEM, icon, name, color, count))
+    end
+end
+
+function FlyTextManager:OnLootCurrency(event, msg)
+    local type, id, color, count = ParseLootMsg(msg)
+    if type ~= "currency" then return end
+    local info = C_CurrencyInfo.GetCurrencyInfo(id)
+    if info and info.name and info.iconFileID then
+        local name = info.name
+        local dash = strfind(name, "-")
+        if dash then
+            name = strsub(name, 1, dash-1)  -- strip covenant
+        end
+        self:AddText(FlyText:New(FLYTEXT_LOOT_ITEM,
+                                 info.iconFileID, name, color, count))
+    end
+end
+
+function FlyTextManager:AddText(text, left_side)
+    local now = GetTime()
+    local dt
+    if left_side then
+        dt = now - self.last_left
+        self.last_left = now
+    else
+        dt = now - self.last_right
+        self.last_right = now
+    end
+    local dy = math.abs(FlyText:GetDY())
+    local min_offset = 16
+    if dt*dy < min_offset then
+        local time_offset = (min_offset - dt*dy) / dy
+        for _, t in ipairs(self.texts) do
+            t:Push(time_offset)
+        end
+    end
+    tinsert(self.texts, text)
 end
 
 function FlyTextManager:OnUpdate()
