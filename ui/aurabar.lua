@@ -207,7 +207,7 @@ function Aura:InternalUpdate(unit, data)
     local spell_id = data.spellId
     local icon_id = data.icon
     local is_helpful = data.isHelpful
-    local is_mine = data.isFromPlayerOrPlayerPet
+    local is_mine = (data.sourceUnit == "player")
     local stacks = data.applications
     local expires = data.expirationTime
 
@@ -264,8 +264,8 @@ AuraBar.__index = AuraBar
 
 -- Returns 1 if AuraData a < AuraData b
 local function CompareAuras(a, b)
-    if a.isFromPlayerOrPlayerPet ~= b.isFromPlayerOrPlayerPet then
-        return a.isFromPlayerOrPlayerPet
+    if (a.sourceUnit=="player") ~= (b.sourceUnit=="player") then
+        return a.sourceUnit=="player"
     elseif a.isHelpful ~= b.isHelpful then
         return not a.isHelpful
     elseif (a.expirationTime ~= 0) ~= (b.expirationTime ~= 0) then
