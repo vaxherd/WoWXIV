@@ -5,15 +5,18 @@ WoWXIV.Config = {}
 
 local config_default = {}
 
+-- Fly text: enable?
+config_default["flytext_enable"] = true
+
+-- Party list: use role colors in background?
+config_default["partylist_role_bg"] = false
+
 -- Target bar: hide the native target and focus frames?
 config_default["targetbar_hide_native"] = true
 -- Target bar: show only own debuffs on target bar?
 config_default["targetbar_target_own_debuffs_only"] = false
 -- Target bar: show only own debuffs on focus bar?
 config_default["targetbar_focus_own_debuffs_only"] = false
-
--- Fly text: enable?
-config_default["flytext_enable"] = true
 
 ------------------------------------------------------------------------
 
@@ -55,6 +58,28 @@ function WoWXIV.Config.Create()
     local y = 10
 
     y = y - 20
+    AddHeader(f, 10, y, "Fly text settings")
+    y = y - 30
+
+    f.button_flytext_enable = AddCheckButton(f, 20, y, "Enable fly text (player only)")
+    f.button_flytext_enable:SetChecked(WoWXIV_config["flytext_enable"])
+    f.button_flytext_enable:SetScript("OnClick", function(self)
+        self:GetParent():SetFlyTextEnable(not WoWXIV_config["flytext_enable"])
+    end)
+    y = y - 30
+
+    y = y - 20
+    AddHeader(f, 10, y, "Party list settings")
+    y = y - 30
+
+    f.button_partylist_role_bg = AddCheckButton(f, 20, y, "Use role color in list background")
+    f.button_partylist_role_bg:SetChecked(WoWXIV_config["partylist_role_bg"])
+    f.button_partylist_role_bg:SetScript("OnClick", function(self)
+        self:GetParent():SetPartyListRoleBG(not WoWXIV_config["partylist_role_bg"])
+    end)
+    y = y - 30
+
+    y = y - 20
     AddHeader(f, 10, y, "Target bar settings")
     y = y - 30
 
@@ -79,17 +104,6 @@ function WoWXIV.Config.Create()
     end)
     y = y - 30
 
-    y = y - 20
-    AddHeader(f, 10, y, "Fly text settings")
-    y = y - 30
-
-    f.button_flytext_enable = AddCheckButton(f, 20, y, "Enable fly text (player only)")
-    f.button_flytext_enable:SetChecked(WoWXIV_config["flytext_enable"])
-    f.button_flytext_enable:SetScript("OnClick", function(self)
-        self:GetParent():SetFlyTextEnable(not WoWXIV_config["flytext_enable"])
-    end)
-    y = y - 30
-
     -- Required by the settings API:
     function f:OnCommit()
     end
@@ -99,6 +113,18 @@ function WoWXIV.Config.Create()
         f:SetFlyTextEnable(true)
     end
     function f:OnRefresh()
+    end
+
+    function f:SetFlyTextEnable(enable)
+        self.button_flytext_enable:SetChecked(enable)
+        WoWXIV_config["flytext_enable"] = enable
+        WoWXIV.FlyText.Enable(enable)
+    end
+
+    function f:SetPartyListRoleBG(enable)
+        self.button_partylist_role_bg:SetChecked(enable)
+        WoWXIV_config["partylist_role_bg"] = enable
+        WoWXIV.PartyList.Refresh()
     end
 
     function f:SetTargetBarHideNative(hide)
@@ -116,12 +142,6 @@ function WoWXIV.Config.Create()
         self.button_targetbar_focus_own_debuffs_only:SetChecked(enable)
         WoWXIV_config["targetbar_focus_own_debuffs_only"] = enable
         WoWXIV.TargetBar.Refresh()
-    end
-
-    function f:SetFlyTextEnable(enable)
-        self.button_flytext_enable:SetChecked(enable)
-        WoWXIV_config["flytext_enable"] = enable
-        WoWXIV.FlyText.Enable(enable)
     end
 
     local category = Settings.RegisterCanvasLayoutCategory(f, "WoWXIV")
