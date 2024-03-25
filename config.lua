@@ -5,12 +5,6 @@ WoWXIV.Config = {}
 
 local config_default = {}
 
--- Confirm/cancel buttons.
--- PAD1 is the south button (Microsoft A, Nintendo B, Sony cross)
--- PAD2 is the east button (Microsoft B, Nintendo A, Sony circle)
-config_default["confirm_button"] = "PAD2"
-config_default["cancel_button"] = "PAD1"
-
 -- Target bar: hide the native target and focus frames?
 config_default["targetbar_hide_native"] = true
 -- Target bar: show only own debuffs on target bar?
@@ -58,30 +52,13 @@ function WoWXIV.Config.Create()
     local f = WoWXIV.CreateEventFrame("WoWXIV_Config")
     WoWXIV.Config.frame = f
 
-    local y = -10
-
-    AddHeader(f, 10, y, "Confirm button type")
-    y = y - 30
-
-    f.button_confirm_type_east = AddRadioButton(f, 20, y, "Nintendo style")
-    f.button_confirm_type_east:SetChecked(WoWXIV_config["confirm_button"] == "PAD2")
-    f.button_confirm_type_east:SetScript("OnClick", function(self)
-        self:GetParent():SetConfirmType(true)
-    end)
-    y = y - 20
-
-    f.button_confirm_type_south = AddRadioButton(f, 20, y, "Microsoft style")
-    f.button_confirm_type_south:SetChecked(WoWXIV_config["confirm_button"] == "PAD1")
-    f.button_confirm_type_south:SetScript("OnClick", function(self)
-        self:GetParent():SetConfirmType(false)
-    end)
-    y = y - 20
+    local y = 10
 
     y = y - 20
     AddHeader(f, 10, y, "Target bar settings")
     y = y - 30
 
-    f.button_targetbar_hide_native = AddCheckButton(f, 20, y, "Hide native target frame")
+    f.button_targetbar_hide_native = AddCheckButton(f, 20, y, "Hide native target frame (requires reload)")
     f.button_targetbar_hide_native:SetChecked(WoWXIV_config["targetbar_hide_native"])
     f.button_targetbar_hide_native:SetScript("OnClick", function(self)
         self:GetParent():SetTargetBarHideNative(not WoWXIV_config["targetbar_hide_native"])
@@ -117,26 +94,11 @@ function WoWXIV.Config.Create()
     function f:OnCommit()
     end
     function f:OnDefault()
-        f:SetConfirmType(true)
         f:SetTargetBarHideNative(true)
         f:SetTargetBarShowFocus(false)
         f:SetFlyTextEnable(true)
     end
     function f:OnRefresh()
-    end
-
-    function f:SetConfirmType(is_east)
-        self.button_confirm_type_east:SetChecked(false)
-        self.button_confirm_type_south:SetChecked(false)
-        if is_east then
-            self.button_confirm_type_east:SetChecked(true)
-            WoWXIV_config["confirm_button"] = "PAD2"
-            WoWXIV_config["cancel_button"] = "PAD1"
-        else
-            self.button_confirm_type_south:SetChecked(true)
-            WoWXIV_config["confirm_button"] = "PAD1"
-            WoWXIV_config["cancel_button"] = "PAD2"
-        end
     end
 
     function f:SetTargetBarHideNative(hide)
