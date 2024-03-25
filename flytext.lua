@@ -266,7 +266,7 @@ function FlyText:New(type, ...)
             icon:Show()
             value = w.value_s
             value:ClearAllPoints()
-            value:SetPoint("LEFT", icon_s, "RIGHT")
+            value:SetPoint("LEFT", icon, "RIGHT")
             value:SetText(s)
             value:Show()
         end
