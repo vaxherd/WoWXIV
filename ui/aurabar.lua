@@ -330,6 +330,14 @@ function AuraBar:Delete()
     self.frame = nil
 end
 
+function AuraBar:Show()
+    self.frame:Show()
+end
+
+function AuraBar:Hide()
+    self.frame:Hide()
+end
+
 function AuraBar:SetOwnDebuffsOnly(enable)
     self.own_debuffs_only = enable
 end

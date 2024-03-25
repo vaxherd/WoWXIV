@@ -97,6 +97,18 @@ function Gauge:New(parent, width)
     return new
 end
 
+function Gauge:Show()
+    self.frame:Show()
+end
+
+function Gauge:Hide()
+    self.frame:Hide()
+end
+
+function Gauge:SetAlpha(alpha)
+    self.frame:SetAlpha(alpha)
+end
+
 function Gauge:SetPoint(...)
     self.frame:ClearAllPoints()
     self.frame:SetPoint(...)

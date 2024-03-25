@@ -292,6 +292,7 @@ function PartyList:New()
     f.events["UNIT_ENTERED_VEHICLE"] = f.OnPartyChange
     f.events["UNIT_EXITED_VEHICLE"] = f.OnPartyChange
     f.events["UNIT_HEALTH"] = f.OnMemberUpdate
+    f.events["UNIT_HEAL_ABSORB_AMOUNT_CHANGED"] = f.OnMemberUpdate
     f.events["UNIT_LEVEL"] = f.OnMemberUpdateName
     f.events["UNIT_MAXHEALTH"] = f.OnMemberUpdate
     f.events["UNIT_MAXPOWER"] = f.OnMemberUpdate
