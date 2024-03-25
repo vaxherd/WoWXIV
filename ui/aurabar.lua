@@ -330,6 +330,10 @@ function AuraBar:Delete()
     self.frame = nil
 end
 
+function AuraBar:SetOwnDebuffsOnly(enable)
+    self.own_debuffs_only = enable
+end
+
 function AuraBar:SetUnit(unit)
     self.unit = unit
     if unit then
@@ -354,7 +358,9 @@ function AuraBar:Refresh()
         for i = 1, max do
             local data = C_UnitAuras.GetAuraDataByIndex(self.unit, i, "HARMFUL")
             if not data then break end
-            table.insert(aura_list, {i, "HARMFUL", data})
+            if not (self.own_debuffs_only and data.sourceUnit ~= "player") then
+                table.insert(aura_list, {i, "HARMFUL", data})
+            end
         end
     end
     if self.type ~= "HARMFUL" then
@@ -401,7 +407,9 @@ function AuraBar:OnUnitAura(unit, update_info)
                 if aura_data.isHelpful then
                     return self.type ~= "HARMFUL"
                 elseif aura_data.isHarmful then
-                    return self.type ~= "HELPFUL"
+                    return (self.type ~= "HELPFUL"
+                            and not (self.own_debuffs_only
+                                     and aura_data.sourceUnit ~= "player"))
                 else
                     return self.type == "MISC" or self.type == "ALL"
                 end

@@ -36,7 +36,7 @@ function TargetBar:New(is_focus)
     new.hp = hp
     if not is_focus then
         hp:SetShowValue(true, true)
-        -- Minor hack to measure text width
+        -- Minor hack to measure text width.
         hp.value:SetText("0000000000")
         new.name_maxwidth = new.name_maxwidth - hp.value:GetWidth()
     end
@@ -79,6 +79,10 @@ function TargetBar:RefreshUnit()
         return
     end
 
+    local own_only = (self.unit == "focus"
+                      and WoWXIV_config["targetbar_focus_own_debuffs_only"]
+                      or WoWXIV_config["targetbar_target_own_debuffs_only"])
+    self.auras:SetOwnDebuffsOnly(own_only)
     self.auras:SetUnit(self.unit)
     self.frame:Show()
 
@@ -174,13 +178,22 @@ end
 
 ---------------------------------------------------------------------------
 
--- Create the global target bar instance, and hide the native target frame
--- if desired.
+-- Create the global target and focus bar instances, and hide the native
+-- target/focus frame if desired.
 function WoWXIV.TargetBar.Create()
     WoWXIV.TargetBar.target_bar = TargetBar:New(false)
     WoWXIV.TargetBar.focus_bar = TargetBar:New(true)
     if WoWXIV_config["targetbar_hide_native"] then
         WoWXIV.HideBlizzardFrame(TargetFrame)
         WoWXIV.HideBlizzardFrame(FocusFrame)
+    end
+end
+
+-- Force a refresh of the target and focus bars, such as to pick up
+-- changed configuration settings.
+function WoWXIV.TargetBar.Refresh()
+    if WoWXIV.TargetBar.target_bar then
+        WoWXIV.TargetBar.target_bar:RefreshUnit()
+        WoWXIV.TargetBar.focus_bar:RefreshUnit()
     end
 end

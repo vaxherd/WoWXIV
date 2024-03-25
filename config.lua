@@ -11,9 +11,12 @@ local config_default = {}
 config_default["confirm_button"] = "PAD2"
 config_default["cancel_button"] = "PAD1"
 
--- Target bar: display focus (if it exists) instead of target?
+-- Target bar: hide the native target and focus frames?
 config_default["targetbar_hide_native"] = true
-config_default["targetbar_show_focus"] = false
+-- Target bar: show only own debuffs on target bar?
+config_default["targetbar_target_own_debuffs_only"] = false
+-- Target bar: show only own debuffs on focus bar?
+config_default["targetbar_focus_own_debuffs_only"] = false
 
 -- Fly text: enable?
 config_default["flytext_enable"] = true
@@ -85,10 +88,17 @@ function WoWXIV.Config.Create()
     end)
     y = y - 30
 
-    f.button_targetbar_show_focus = AddCheckButton(f, 20, y, "Show focus target when one is selected")
-    f.button_targetbar_show_focus:SetChecked(WoWXIV_config["targetbar_show_focus"])
-    f.button_targetbar_show_focus:SetScript("OnClick", function(self)
-        self:GetParent():SetTargetBarShowFocus(not WoWXIV_config["targetbar_show_focus"])
+    f.button_targetbar_target_own_debuffs_only = AddCheckButton(f, 20, y, "Show only own debuffs on target bar")
+    f.button_targetbar_target_own_debuffs_only:SetChecked(WoWXIV_config["targetbar_target_own_debuffs_only"])
+    f.button_targetbar_target_own_debuffs_only:SetScript("OnClick", function(self)
+        self:GetParent():SetTargetBarTargetOwnDebuffsOnly(not WoWXIV_config["targetbar_target_own_debuffs_only"])
+    end)
+    y = y - 30
+
+    f.button_targetbar_focus_own_debuffs_only = AddCheckButton(f, 20, y, "Show only own debuffs on focus bar")
+    f.button_targetbar_focus_own_debuffs_only:SetChecked(WoWXIV_config["targetbar_focus_own_debuffs_only"])
+    f.button_targetbar_focus_own_debuffs_only:SetScript("OnClick", function(self)
+        self:GetParent():SetTargetBarFocusOwnDebuffsOnly(not WoWXIV_config["targetbar_focus_own_debuffs_only"])
     end)
     y = y - 30
 
@@ -134,9 +144,16 @@ function WoWXIV.Config.Create()
         WoWXIV_config["targetbar_hide_native"] = hide
     end
 
-    function f:SetTargetBarShowFocus(show)
-        self.button_targetbar_show_focus:SetChecked(show)
-        WoWXIV_config["targetbar_show_focus"] = show
+    function f:SetTargetBarTargetOwnDebuffsOnly(enable)
+        self.button_targetbar_target_own_debuffs_only:SetChecked(enable)
+        WoWXIV_config["targetbar_target_own_debuffs_only"] = enable
+        WoWXIV.TargetBar.Refresh()
+    end
+
+    function f:SetTargetBarFocusOwnDebuffsOnly(enable)
+        self.button_targetbar_focus_own_debuffs_only:SetChecked(enable)
+        WoWXIV_config["targetbar_focus_own_debuffs_only"] = enable
+        WoWXIV.TargetBar.Refresh()
     end
 
     function f:SetFlyTextEnable(enable)
