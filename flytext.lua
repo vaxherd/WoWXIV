@@ -518,6 +518,7 @@ end
 
 function FlyTextManager:OnEnterZone()
     self.zone_entered = GetTime()
+    self.last_money = GetMoney()
 end
 
 function FlyTextManager:OnCombatLogEvent()
