@@ -264,10 +264,10 @@ AuraBar.__index = AuraBar
 
 -- Returns 1 if AuraData a < AuraData b
 local function CompareAuras(a, b)
-    if (a.sourceUnit=="player") ~= (b.sourceUnit=="player") then
-        return a.sourceUnit=="player"
-    elseif a.isHelpful ~= b.isHelpful then
+    if a.isHelpful ~= b.isHelpful then
         return not a.isHelpful
+    elseif (a.sourceUnit=="player") ~= (b.sourceUnit=="player") then
+        return a.sourceUnit=="player"
     elseif (a.expirationTime ~= 0) ~= (b.expirationTime ~= 0) then
         return a.expirationTime ~= 0
     elseif a.expirationTime ~= 0 then
