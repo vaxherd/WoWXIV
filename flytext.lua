@@ -265,8 +265,10 @@ function FlyText:New(type, ...)
             end
             icon:Show()
             value = w.value_s
-            value:Show()
+            value:ClearAllPoints()
+            value:SetPoint("LEFT", icon_s, "RIGHT")
             value:SetText(s)
+            value:Show()
         end
         if c > 0 then
             icon = w.icon_c
@@ -278,8 +280,8 @@ function FlyText:New(type, ...)
             end
             icon:Show()
             value = w.value_c
-            value:Show()
             value:SetText(c)
+            value:Show()
         end
 
     elseif type == FLYTEXT_LOOT_ITEM then
@@ -292,13 +294,17 @@ function FlyText:New(type, ...)
         local g = tonumber("0x"..strsub(color, 3, 4)) / 255
         local b = tonumber("0x"..strsub(color, 5, 6)) / 255
         local text = new.item_name
-        if new.amount and new.amount > 1 then
-            text = text .. "×" .. new.amount
-        end
         value:ClearAllPoints()
         value:SetPoint("LEFT", icon, "RIGHT")
         value:SetTextColor(r, g, b)
-        value:SetText(text)
+        value:SetText(new.item_name)
+        if new.amount and new.amount > 1 then
+            local value_s = w.value_s
+            value_s:ClearAllPoints()
+            value_s:SetPoint("LEFT", value, "RIGHT")
+            value_s:SetText("×"..new.amount)
+            value_s:Show()
+        end
 
     end
 
