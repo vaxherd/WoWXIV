@@ -13,6 +13,9 @@ FlyText.__index = FlyText
 -- Length of time a fly text will be displayed (seconds):
 local FLYTEXT_TIME = 4.5
 
+-- Default scale factor for text.
+local FLYTEXT_FONT_SCALE = 1.1
+
 -- Damage types for type argument to New():
 local FLYTEXT_DAMAGE_DIRECT  = 1  -- direct damage, or DoT from channeling
 local FLYTEXT_DAMAGE_PASSIVE = 2  -- DoT from auras
@@ -54,6 +57,7 @@ function FlyText:AllocPooledFrame()
         -- elements are either hidden or empty.
         w.name:Show()
         w.icon:Show()
+        w.value:SetTextScale(FLYTEXT_FONT_SCALE)
         w.value:Show()
         w.border:Hide()
         w.stacks:Hide()
@@ -71,6 +75,7 @@ function FlyText:AllocPooledFrame()
         local name = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
         w.name = name
         name:SetPoint("RIGHT", f, "CENTER")
+        name:SetTextScale(FLYTEXT_FONT_SCALE)
         local icon = f:CreateTexture(nil, "ARTWORK")
         w.icon = icon
         icon:SetPoint("LEFT", f, "CENTER")
@@ -83,6 +88,7 @@ function FlyText:AllocPooledFrame()
         local value = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
         w.value = value
         value:SetPoint("LEFT", icon, "RIGHT")
+        value:SetTextScale(FLYTEXT_FONT_SCALE)
         local icon_s = f:CreateTexture(nil, "ARTWORK")
         w.icon_s = icon_s
         icon_s:SetPoint("LEFT", value, "RIGHT")
@@ -92,6 +98,7 @@ function FlyText:AllocPooledFrame()
         local value_s = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
         w.value_s = value_s
         value_s:SetPoint("LEFT", icon_s, "RIGHT")
+        value_s:SetTextScale(FLYTEXT_FONT_SCALE)
         value_s:SetTextColor(1, 1, 1)
         local icon_c = f:CreateTexture(nil, "ARTWORK")
         w.icon_c = icon_c
@@ -102,6 +109,7 @@ function FlyText:AllocPooledFrame()
         local value_c = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
         w.value_c = value_c
         value_c:SetPoint("LEFT", icon_c, "RIGHT")
+        value_c:SetTextScale(FLYTEXT_FONT_SCALE)
         value_c:SetTextColor(1, 1, 1)
         return f
     end
@@ -169,15 +177,12 @@ function FlyText:New(type, ...)
     f:SetAlpha(0)
 
     local r, g, b = unpack(FLYTEXT_COLORS[type])
-    local font_scale = 1.1
 
     local w = f.WoWXIV
     local name = w.name
-    name:SetTextScale(font_scale)
     name:SetTextColor(r, g, b)
     local icon = w.icon
     local value = w.value
-    value:SetTextScale(font_scale)
     value:SetTextColor(r, g, b)
 
     if type == FLYTEXT_DAMAGE_DIRECT or type == FLYTEXT_HEAL_DIRECT then
@@ -196,10 +201,10 @@ function FlyText:New(type, ...)
         end
         local amount = new.amount
         if not amount then
-            value:SetTextScale(0.9*font_scale)
+            value:SetTextScale(0.9*FLYTEXT_FONT_SCALE)
             amount = "Miss"
         elseif new.crit_flag then
-            value:SetTextScale(2*font_scale)
+            value:SetTextScale(2*FLYTEXT_FONT_SCALE)
             amount = amount .. "!"
         end
         value:SetText(amount)
