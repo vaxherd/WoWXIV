@@ -30,11 +30,15 @@ function TargetBar:New(is_focus)
     new.name = name
     name:SetTextScale(1.1)
     name:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+    new.name_maxwidth = f:GetWidth()
 
     local hp = WoWXIV.UI.Gauge:New(f, f:GetWidth())
     new.hp = hp
     if not is_focus then
         hp:SetShowValue(true, true)
+        -- Minor hack to measure text width
+        hp.value:SetText("0000000000")
+        new.name_maxwidth = new.name_maxwidth - hp.value:GetWidth()
     end
     hp:SetPoint("TOP", f, "TOP", 0, -8)
 
@@ -160,7 +164,7 @@ function TargetBar:Update()
         name_str = string.format("Lv%d %s", lv, name_str)
     end
     self.name:SetText(name_str)
-    while self.name:GetWidth() > self.frame:GetWidth() do
+    while self.name:GetWidth() > self.name_maxwidth do
         name_str = string.sub(name_str, 1, -5) .. "..."
         self.name:SetText(name_str)
     end
