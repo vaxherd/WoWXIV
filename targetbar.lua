@@ -33,15 +33,14 @@ function TargetBar:New(is_focus)
 
     local hp = WoWXIV.UI.Gauge:New(f, f:GetWidth())
     new.hp = hp
-    hp:SetShowValue(true)
-    if is_focus then
-        hp:SetValueScale(1.1)
+    if not is_focus then
+        hp:SetShowValue(true, true)
     end
     hp:SetPoint("TOP", f, "TOP", 0, -8)
 
     local auras = WoWXIV.UI.AuraBar:New(
         "ALL", "TOPLEFT", is_focus and 8 or 20, is_focus and 1 or 2,
-        new.frame, 0, -40)
+        new.frame, 0, -22)
     new.auras = auras
 
     f:RegisterEvent("PLAYER_LEAVING_WORLD")
