@@ -533,7 +533,6 @@ function FlyTextManager:OnCombatLogEvent()
     local text = nil
     local left_side = false
     if event.subtype == "DAMAGE" then
-        left_side = true
         text = FlyText:New(FLYTEXT_DAMAGE_DIRECT, unit, event.spell,
                            event.spell_school, event.amount, event.critical)
     elseif event.subtype == "PERIODIC_DAMAGE" then
@@ -543,10 +542,10 @@ function FlyTextManager:OnCombatLogEvent()
         -- Note: absorbed heals are reported as "heal for 0" with the
         -- amount absorbed in event.absorbed, so we don't have to worry
         -- about separating them out here.
-        left_side = true
         text = FlyText:New(FLYTEXT_DAMAGE_DIRECT, unit, event.spell,
                            event.spell_school, event.amount and 0 or nil)
     elseif event.subtype == "HEAL" then
+        left_side = true
         text = FlyText:New(FLYTEXT_HEAL_DIRECT, unit, event.spell,
                            event.spell_school, event.amount, event.critical)
     elseif event.subtype == "PERIODIC_HEAL" then
