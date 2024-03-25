@@ -373,6 +373,7 @@ function CombatEvent:ParseEvent()
     local argi = 12
 
     local type = self.type
+    local rawtype = type
 
     -- Special cases first.
     if strsub(type, 1, 8) == "ENCHANT_" then
@@ -380,14 +381,17 @@ function CombatEvent:ParseEvent()
         self.item_id = event[argi+1]
         self.item_name = event[argi+2]
         return
-    end
-    if type == "PARTY_KILL" or type == "UNIT_DIED" or type == "UNIT_DESTROYED" then
+    elseif type == "PARTY_KILL" or type == "UNIT_DIED" or type == "UNIT_DESTROYED" then
         return  -- No extra arguments.
+    elseif type == "DAMAGE_SPLIT" or type == "DAMAGE_SHIELD" then
+        type = "SPELL_DAMAGE"
+    elseif type == "DAMAGE_SHIELD_MISSED" then
+        type = "SPELL_MISSED"
     end
 
     local sep = strfind(type, "_")
     if not sep then
-        print("Unhandled combat event:", type)
+        print("Unhandled combat event:", rawtype)
         return
     end
     local category = strsub(type, 1, sep-1)
@@ -405,7 +409,7 @@ function CombatEvent:ParseEvent()
         self.env_type = event[argi]
         argi = argi + 1
     else
-        print("Unhandled combat event:", type)
+        print("Unhandled combat event:", rawtype)
         return
     end
     self.category = category
