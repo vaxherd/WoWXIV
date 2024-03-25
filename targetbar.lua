@@ -43,7 +43,7 @@ function TargetBar:New(is_focus)
     hp:SetPoint("TOP", f, "TOP", 0, -8)
 
     local auras = WoWXIV.UI.AuraBar:New(
-        "ALL", "TOPLEFT", is_focus and 8 or 20, is_focus and 1 or 2,
+        "ALL", "TOPLEFT", is_focus and 8 or 20, is_focus and 1 or 4,
         new.frame, 0, -22)
     new.auras = auras
 
