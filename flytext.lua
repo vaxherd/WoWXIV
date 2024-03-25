@@ -466,6 +466,7 @@ function FlyTextManager:New(parent)
     setmetatable(new, self)
     new.__index = self
 
+    new.enabled = true
     new.texts = {}
     new.dot = {}
     new.hot = {}
@@ -495,6 +496,20 @@ function FlyTextManager:New(parent)
         if handler then handler(new, event, ...) end
     end)
     f:SetScript("OnUpdate", function() new:OnUpdate() end)
+
+    return new
+end
+
+function FlyTextManager:Enable(enable)
+    self.enabled = enable
+    if enable then
+        local f = self.frame
+        for event, _ in pairs(f.xiv_eventmap) do
+            f:RegisterEvent(event)
+        end
+    else
+        self.frame:UnregisterAllEvents()
+    end
 end
 
 function FlyTextManager:OnEnterZone()
@@ -670,7 +685,13 @@ end
 
 -- Create the fly-text manager.
 function WoWXIV.FlyText.CreateManager()
-    if WoWXIV_config["flytext_enable"] then
-        WoWXIV.FlyText.manager = FlyTextManager:New()
+    WoWXIV.FlyText.manager = FlyTextManager:New()
+    WoWXIV.FlyText.Enable(WoWXIV_config["flytext_enable"])
+end
+
+-- Enable or disable fly-text dispaly.
+function WoWXIV.FlyText.Enable(enable)
+    if WoWXIV.FlyText.manager then
+        WoWXIV.FlyText.manager:Enable(enable)
     end
 end

@@ -142,6 +142,7 @@ function WoWXIV.Config.Create()
     function f:SetFlyTextEnable(enable)
         self.button_flytext_enable:SetChecked(enable)
         WoWXIV_config["flytext_enable"] = enable
+        WoWXIV.FlyText.Enable(enable)
     end
 
     local category = Settings.RegisterCanvasLayoutCategory(f, "WoWXIV")
