@@ -73,10 +73,12 @@ function TargetBar:New(is_focus)
         new.target_name = target_name
         target_name:SetTextScale(1.1)
         target_name:SetPoint("TOPLEFT", f, "TOPLEFT", 436, 0)
+        target_name:Hide()
 
         local target_hp = WoWXIV.UI.Gauge:New(f, 128)
         new.target_hp = target_hp
         target_hp:SetPoint("TOPLEFT", f, "TOPLEFT", 432, -8)
+        target_hp:Hide()
     end
 
     f:RegisterEvent("PLAYER_LEAVING_WORLD")
@@ -145,14 +147,27 @@ local function SetColorsForUnit(unit, hp, name)
     return hostile
 end
 
+-- Internal helper.
+function TargetBar:SetNoUnit()
+    self.auras:SetUnit(nil)
+    self.frame:Hide()
+    if self.unit == "target" then
+        self.target_id = nil
+        self.target_arrow1:Hide()
+        self.target_arrow2:Hide()
+        self.target_name:Hide()
+        self.target_hp:Hide()
+        self.frame:SetScript("OnUpdate", nil)
+    end
+end
+
 function TargetBar:RefreshUnit()
     -- Work around native target frame sometimes not staying hidden
     -- (presumably due to racing with the in-combat flag)
     if not InCombatLockdown then TargetFrame:Hide() end
 
     if not UnitGUID(self.unit) then
-        self.auras:SetUnit(nil)
-        self.frame:Hide()
+        self:SetNoUnit()
         return
     end
 
@@ -176,8 +191,7 @@ local typenames = {rare = "(Rare) ",
                    worldboss = "(World Boss) "}
 function TargetBar:Update()
     if not UnitGUID(self.unit) then
-        self.auras:SetUnit(nil)
-        self.frame:Hide()
+        self:SetNoUnit()
         return
     end
 
