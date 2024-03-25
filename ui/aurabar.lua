@@ -348,15 +348,17 @@ function AuraBar:Refresh()
     self.frame:Show()
 
     local aura_list = {}
+    local max = self.max
+    if max > MAX_AURAS then max = MAX_AURAS end
     if self.type ~= "HELPFUL" then
-        for i = 1, self.max do
+        for i = 1, max do
             local data = C_UnitAuras.GetAuraDataByIndex(self.unit, i, "HARMFUL")
             if not data then break end
             table.insert(aura_list, {i, "HARMFUL", data})
         end
     end
     if self.type ~= "HARMFUL" then
-        for i = 1, self.max do
+        for i = 1, max do
             local data = C_UnitAuras.GetAuraDataByIndex(self.unit, i, "HELPFUL")
             if not data then break end
             table.insert(aura_list, {i, "HELPFUL", data})
