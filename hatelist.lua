@@ -77,9 +77,9 @@ function WoWXIV.HateList.Create()
     f:Hide()
     f:SetPoint("TOPLEFT", 30, -720)
     f:SetSize(200, 30)
-    
+
     f.units = {}
-    
+
     f.bg_t = f:CreateTexture(nil, "BACKGROUND")
     f.bg_t:SetPoint("TOP", f)
     f.bg_t:SetSize(f:GetWidth(), 4)
@@ -95,27 +95,27 @@ function WoWXIV.HateList.Create()
     f.bg_b:SetSize(f:GetWidth(), 4)
     f.bg_b:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     f.bg_b:SetTexCoord(0, 1, 7/256.0, 11/256.0)
-    
+
     f:RegisterEvent("UNIT_ABSORB_AMOUNT_CHANGED")
     function f:UNIT_ABSORB_AMOUNT_CHANGED(unit)
         f:Update(unit, false)
     end
-    
+
     f:RegisterEvent("UNIT_HEALTH")
     function f:UNIT_HEALTH(unit)
         f:Update(unit, false)
     end
-    
+
     f:RegisterEvent("UNIT_NAME_UPDATE")
     function f:UNIT_NAME_UPDATE(unit)
         f:Update(unit, true)
     end
-    
+
     f:RegisterEvent("UNIT_THREAT_LIST_UPDATE")
     function f:UNIT_THREAT_LIST_UPDATE(unit)
         f:Update(unit)
     end
-    
+
     function f:Update(unit, updateName)
         local unit_id = UnitGUID(unit)
         local is_enemy = UnitIsEnemy("player", unit)
@@ -133,7 +133,7 @@ function WoWXIV.HateList.Create()
         if not unit_id or not is_enemy then
             return
         end
-    
+
         local resize_list = false
         local index = 0
         for i, enemy in ipairs(self.units) do
@@ -150,7 +150,7 @@ function WoWXIV.HateList.Create()
             index = #self.units
             resize_list = true
         end
-    
+
         if UnitIsDead(unit) then
             self.units[index]:Delete()
             table.remove(self.units, index)
@@ -158,7 +158,7 @@ function WoWXIV.HateList.Create()
         else
             self.units[index]:Update(unit, updateName)
         end
-    
+
         if resize_list then
             local count = #self.units
             if count == 0 then

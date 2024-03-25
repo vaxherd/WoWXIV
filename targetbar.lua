@@ -284,7 +284,7 @@ function TargetBar:OnUpdate()
     while dt >= 1.6 do
         self.target_arrow_start = self.target_arrow_start + 1.6
         dt = dt - 1.6
-    end 
+    end
     local xofs = (dt >= 0.25) and 12 or 12*(dt/0.25)
     local alpha
     if dt < 0.2 then

@@ -3,6 +3,18 @@ WoWXIV.PartyList = {}
 
 local GameTooltip = GameTooltip
 
+-- Role type constants returned from ClassIcon:Set().
+local ROLE_TANK = 1
+local ROLE_HEALER = 2
+local ROLE_DPS = 3
+
+-- Background colors for each role.
+local ROLE_COLORS = {
+    [ROLE_TANK]   = {0.145, 0.212, 0.427},
+    [ROLE_HEALER] = {0.184, 0.298, 0.141},
+    [ROLE_DPS]    = {0.314, 0.180, 0.180},
+}
+
 --------------------------------------------------------------------------
 
 local ClassIcon = {}
@@ -63,8 +75,9 @@ function ClassIcon:SetAnchor(anchor, x, y, tooltip_anchor)
     self.tooltip_anchor = tooltip_anchor
 end
 
+-- Returns detected role (ROLE_* constant) or nil.
 function ClassIcon:Set(unit)
-    local role_name, class_name, spec_name
+    local role_name, role_id, class_name, spec_name
     if unit then
         local role = UnitGroupRolesAssigned(unit)
         local class, class_id
@@ -80,23 +93,27 @@ function ClassIcon:Set(unit)
                 GetSpecializationInfo(spec_index)
             if not role or role == "NONE" then role = class_role end
         end
-    
+
         if role == "TANK" then
+            role_id = ROLE_TANK
             role_name = " (Tank)"
             self.bg:Show()
             self.bg:SetTexCoord(128/256.0, 159/256.0, 16/256.0, 47/256.0)
             self.icon:SetVertexColor(1, 1, 1, 0.4)
         elseif role == "HEALER" then
+            role_id = ROLE_HEALER
             role_name = " (Healer)"
             self.bg:Show()
             self.bg:SetTexCoord(160/256.0, 191/256.0, 16/256.0, 47/256.0)
             self.icon:SetVertexColor(1, 1, 1, 0.4)
         elseif role == "DAMAGER" then
+            role_id = ROLE_DPS
             role_name = " (DPS)"
             self.bg:Show()
             self.bg:SetTexCoord(192/256.0, 223/256.0, 16/256.0, 47/256.0)
             self.icon:SetVertexColor(1, 1, 1, 0.4)
         else
+            role_id = nil
             role_name = ""
             self.bg:Hide()
             self.icon:SetVertexColor(1, 1, 1, 1)
@@ -126,6 +143,8 @@ function ClassIcon:Set(unit)
         self.tooltip = nil
     end
     self:UpdateTooltip()
+
+    return role_id
 end
 
 --------------------------------------------------------------------------
@@ -155,31 +174,41 @@ function Member:New(parent, unit, npc_guid)
     new.frame = f
     f:SetSize(256, 40)
 
+    local bg = f:CreateTexture(nil, "BACKGROUND")
+    new.bg = bg
+    bg:SetAllPoints(f)
+    bg:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+    bg:SetTexCoord(0, 1, 4/256.0, 7/256.0)
+    bg:SetVertexColor(0, 0, 0, 1)
+
     if not new.npc_id then
         new.class_icon = ClassIcon:New(f)
-        new.class_icon:SetAnchor("TOPLEFT", 0, -4, "BOTTOMRIGHT")
+        new.class_icon:SetAnchor("TOPLEFT", 0, -5, "BOTTOMRIGHT")
     end
 
-    new.name = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    new.name:SetPoint("TOPLEFT", f, "TOPLEFT", 36, -4)
-    new.name:SetTextScale(1.1)
+    local name = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    new.name = name
+    name:SetPoint("TOPLEFT", f, "TOPLEFT", 36, -3)
+    name:SetTextScale(1.1)
 
-    new.hp = WoWXIV.UI.Gauge:New(f, 86)
-    new.hp:SetBoxColor(0.416, 0.725, 0.890)
-    new.hp:SetBarBackgroundColor(0.027, 0.161, 0.306)
-    new.hp:SetBarColor(1, 1, 1)
-    new.hp:SetShowOvershield(true)
-    new.hp:SetShowValue(true)
-    new.hp:SetPoint("TOPLEFT", f, "TOPLEFT", 32, -12)
+    local hp = WoWXIV.UI.Gauge:New(f, 86)
+    new.hp = hp
+    hp:SetBoxColor(0.416, 0.725, 0.890)
+    hp:SetBarBackgroundColor(0.027, 0.161, 0.306)
+    hp:SetBarColor(1, 1, 1)
+    hp:SetShowOvershield(true)
+    hp:SetShowValue(true)
+    hp:SetPoint("TOPLEFT", f, "TOPLEFT", 32, -11)
 
-    new.mp = WoWXIV.UI.Gauge:New(f, 86)
-    new.mp:SetBoxColor(0.416, 0.725, 0.890)
-    new.mp:SetBarBackgroundColor(0.027, 0.161, 0.306)
-    new.mp:SetBarColor(1, 1, 1)
-    new.mp:SetShowValue(true)
-    new.mp:SetPoint("TOPLEFT", f, "TOPLEFT", 136, -12)
+    local mp = WoWXIV.UI.Gauge:New(f, 86)
+    new.mp = mp
+    mp:SetBoxColor(0.416, 0.725, 0.890)
+    mp:SetBarBackgroundColor(0.027, 0.161, 0.306)
+    mp:SetBarColor(1, 1, 1)
+    mp:SetShowValue(true)
+    mp:SetPoint("TOPLEFT", f, "TOPLEFT", 136, -11)
 
-    new.buffbar = WoWXIV.UI.AuraBar:New("ALL", "TOPLEFT", 9, 1, f, 240, 0)
+    new.buffbar = WoWXIV.UI.AuraBar:New("ALL", "TOPLEFT", 9, 2, f, 240, 0)
     new.buffbar:SetUnit(unit)
 
     new:Refresh()
@@ -210,8 +239,15 @@ function Member:Refresh(new_unit)  -- optional new unit token
 
     self.name:SetText(NameForUnit(self.unit))
 
+    local role_id
     if not self.npc_id then
-        self.class_icon:Set(self.unit)
+        role_id = self.class_icon:Set(self.unit)
+    end
+    if WoWXIV_config["partylist_role_bg"] and role_id then
+        local color = ROLE_COLORS[role_id]
+        self.bg:SetVertexColor(color[1], color[2], color[3], 1)  -- FIXME: unpack doesn't work here?
+    else
+        self.bg:SetVertexColor(0, 0, 0, 1)
     end
 end
 
@@ -252,23 +288,20 @@ function PartyList:New()
     f.owner = new
     f:Hide()
     f:SetPoint("TOPLEFT", 30, -24)
-    f:SetSize(256, 43)
+    f:SetSize(256, 48)
 
     new.bg_t = f:CreateTexture(nil, "BACKGROUND")
     new.bg_t:SetPoint("TOP", f)
     new.bg_t:SetSize(f:GetWidth(), 4)
     new.bg_t:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     new.bg_t:SetTexCoord(0, 1, 0/256.0, 4/256.0)
+    new.bg_t:SetVertexColor(0, 0, 0, 1)
     new.bg_b = f:CreateTexture(nil, "BACKGROUND")
     new.bg_b:SetPoint("BOTTOM", f)
     new.bg_b:SetSize(f:GetWidth(), 4)
     new.bg_b:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     new.bg_b:SetTexCoord(0, 1, 7/256.0, 11/256.0)
-    new.bg_c = f:CreateTexture(nil, "BACKGROUND")
-    new.bg_c:SetPoint("TOPLEFT", new.bg_t, "BOTTOMLEFT")
-    new.bg_c:SetPoint("BOTTOMRIGHT", new.bg_b, "TOPRIGHT")
-    new.bg_c:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    new.bg_c:SetTexCoord(0, 1, 4/256.0, 7/256.0)
+    new.bg_b:SetVertexColor(0, 0, 0, 1)
 
     function f:OnPartyChange()
         f.owner:SetParty()
@@ -322,7 +355,7 @@ end
 
 function PartyList:SetParty()
     local f = self.frame
-    local y = 0
+    local y = -4
 
     local old_party = self.party
     self.party = {}
@@ -376,7 +409,7 @@ function PartyList:SetParty()
         end
     end
 
-    self.frame:SetHeight((-y)+3)
+    self.frame:SetHeight((-y)+4)
 end
 
 function PartyList:UpdateParty(unit, updateLabel)
@@ -440,6 +473,11 @@ end
 -- Create the global party list instance.
 function WoWXIV.PartyList.Create()
     WoWXIV.PartyList.list = PartyList:New()
+end
+
+-- Refresh the party list.  Must be called to pick up config changes.
+function WoWXIV.PartyList.Refresh()
+    WoWXIV.PartyList.list:SetParty()
 end
 
 -- Mark the given unit (must be a GUID) as an ally to be shown in the
