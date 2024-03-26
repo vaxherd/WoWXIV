@@ -93,7 +93,7 @@ function FlyText:AllocPooledFrame()
         w.icon_s = icon_s
         icon_s:SetPoint("LEFT", value, "RIGHT")
         icon_s:SetSize(16, 16)
-        icon_s:SetTexture(GetCoinIcon(100))
+        icon_s:SetTexture(237620)  -- Interface/MONEYFRAME/UI-SilverIcon.blp
         icon_s:Hide()
         local value_s = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
         w.value_s = value_s
@@ -104,7 +104,7 @@ function FlyText:AllocPooledFrame()
         w.icon_c = icon_c
         icon_c:SetPoint("LEFT", value_s, "RIGHT")
         icon_c:SetSize(16, 16)
-        icon_c:SetTexture(GetCoinIcon(1))
+        icon_c:SetTexture(237617)  -- Interface/MONEYFRAME/UI-CopperIcon.blp
         icon_c:Hide()
         local value_c = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
         w.value_c = value_c
@@ -252,7 +252,7 @@ function FlyText:New(type, ...)
         if g > 0 then
             icon:SetSize(16, 16)
             icon:SetMask("")
-            icon:SetTexture(GetCoinIcon(10000))
+            icon:SetTexture(237618)  -- Interface/MONEYFRAME/UI-GoldIcon.blp
             value:ClearAllPoints()
             value:SetPoint("LEFT", icon, "RIGHT")
             value:SetText(g)
