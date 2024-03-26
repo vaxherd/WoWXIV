@@ -87,6 +87,9 @@ function TargetBar:New(is_focus)
                          "UNIT_CLASSIFICATION_CHANGED", "UNIT_HEALTH",
                          "UNIT_HEAL_ABSORB_AMOUNT_CHANGED",
                          "UNIT_LEVEL", "UNIT_MAXHEALTH"}
+    -- FIXME: this list isn't enough for Ardenweald world quest "Tough Crowd"
+    -- (fake audience members); UNIT_FACTION and UNIT_THREAT_LIST_CHANGED
+    -- apparently don't trigger soon enough; try UNIT_MODEL_CHANGED
     local units = is_focus and {"focus"} or {"target", "targettarget"}
     for _, event in ipairs(unit_events) do
         new.frame:RegisterUnitEvent(event, unpack(units))
