@@ -83,7 +83,8 @@ function TargetBar:New(is_focus)
 
     f:RegisterEvent("PLAYER_LEAVING_WORLD")
     f:RegisterEvent(is_focus and "PLAYER_FOCUS_CHANGED" or "PLAYER_TARGET_CHANGED")
-    local unit_events = {"UNIT_ABSORB_AMOUNT_CHANGED", "UNIT_HEALTH",
+    local unit_events = {"UNIT_ABSORB_AMOUNT_CHANGED",
+                         "UNIT_CLASSIFICATION_CHANGED", "UNIT_HEALTH",
                          "UNIT_HEAL_ABSORB_AMOUNT_CHANGED",
                          "UNIT_LEVEL", "UNIT_MAXHEALTH"}
     local units = is_focus and {"focus"} or {"target", "targettarget"}
@@ -96,7 +97,9 @@ function TargetBar:New(is_focus)
     f:SetScript("OnEvent", function(self, event, ...)
         if event == "PLAYER_ENTERING_WORLD" then  -- on every zone change
             new:RefreshUnit()  -- clear anything from previous zone
-        elseif event == "PLAYER_FOCUS_CHANGED" or event == "PLAYER_TARGET_CHANGED" then
+        elseif (event == "PLAYER_FOCUS_CHANGED" or
+                event == "PLAYER_TARGET_CHANGED" or
+                event == "UNIT_CLASSIFICATION_CHANGED") then
             new:RefreshUnit()
         else
             new:Update()
