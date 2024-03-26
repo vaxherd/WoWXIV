@@ -1,8 +1,16 @@
 local WoWXIV = WoWXIV
 WoWXIV.Config = {}
 
+-- Global config array, saved and restored by the API.
+-- This is currently restored after parsing, so the value will always be
+-- nil here, but we write it this way as future-proofing against values
+-- being loaded sooner.
+WoWXIV_Config = WoWXIV_Config or {}
+
 ------------------------------------------------------------------------
 
+-- Default settings list.  Anything in here which is missing from
+-- WoWXIV_Config after module load is inserted by the init routine.
 local config_default = {}
 
 -- Fly text: enable?
@@ -20,29 +28,105 @@ config_default["targetbar_focus_own_debuffs_only"] = false
 
 ------------------------------------------------------------------------
 
-local function AddHeader(f, x, y, text)
+local ConfigFrame = {}
+ConfigFrame.__index = ConfigFrame
+
+function ConfigFrame:AddHeader(text)
+    local f = self.native_frame
     local label = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
-    label:SetPoint("TOPLEFT", x, y)
+    self.y = self.y - 20
+    label:SetPoint("TOPLEFT", self.x, self.y)
+    self.y = self.y - 30
     label:SetTextScale(1.2)
     label:SetText(text)
-    return label
 end
 
-local function AddCheckButton(f, x, y, text)
+function ConfigFrame:AddCheckButton(text, setting, on_change)
+    local f = self.native_frame
     local button = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
-    button:SetPoint("TOPLEFT", x, y)
+    button:SetPoint("TOPLEFT", self.x+10, self.y)
+    self.y = self.y - 30
     button.text:SetTextScale(1.25)
     button.text:SetText(text)
-    return button
+    button:SetChecked(WoWXIV_config[setting])
+    button:SetScript("OnClick", function(self)
+        local new_value = not WoWXIV_config[setting]
+        WoWXIV_config[setting] = new_value
+        self:SetChecked(new_value)
+        if on_change then on_change(new_value) end
+    end)
 end
 
-local function AddRadioButton(f, x, y, text)
+-- We don't have any of these at the moment, but in case we add some later:
+function ConfigFrame:AddRadioButton(text, setting, value, on_change)
+    local f = self.native_frame
     local button = CreateFrame("CheckButton", nil, f, "UIRadioButtonTemplate")
-    button:SetPoint("TOPLEFT", x, y)
+    button:SetPoint("TOPLEFT", self.x+10, self.y)
+    self.y = self.y - 30
     button.text:SetTextScale(1.25)
     button.text:SetText(text)
-    return button
+    button:SetChecked(WoWXIV_config[setting] == value)
+    button.WoWXIV_value = value
+    f.WoWXIV_radio_buttons = f.WoWXIV_radio_buttons or {}
+    f.WoWXIV_radio_buttons[setting] = f.WoWXIV_radio_buttons[setting] or {}
+    tinsert(f.WoWXIV_radio_buttons[setting], button)
+    button:SetScript("OnClick", function(self)
+        WoWXIV_config[setting] = value
+        self:SetChecked(true)
+        for _, other in ipairs(f.WoWXIV_radio_buttons) do
+            if other.WoWXIV_value ~= value then
+                other.SetChecked(false)
+            end
+        end
+        if on_change then on_change(new_value) end
+    end)
 end
+
+function ConfigFrame:New()
+    -- It sure would be nice if Lua had some syntactic sugar for this...
+    local new = {}
+    setmetatable(new, self)
+    new.__index = self
+
+    local f = CreateFrame("Frame", "WoWXIV_Config", nil)
+    new.native_frame = f
+    new.x = 10
+    new.y = 10  -- Assuming an initial header.
+
+    new:AddHeader("Fly text settings")
+    new:AddCheckButton("Enable fly text (player only)",
+                       "flytext_enable", WoWXIV.FlyText.Enable)
+
+    new:AddHeader("Party list settings")
+    new:AddCheckButton("Use role color in list background",
+                       "partylist_role_bg", WoWXIV.PartyList.Refresh)
+
+    new:AddHeader("Target bar settings")
+    new:AddCheckButton("Hide native target frame (requires reload)",
+                       "targetbar_hide_native")
+    new:AddCheckButton("Show only own debuffs on target bar",
+                       "targetbar_target_own_debuffs_only",
+                       WoWXIV.TargetBar.Refresh)
+    new:AddCheckButton("Show only own debuffs on focus bar",
+                       "targetbar_focus_own_debuffs_only",
+                       WoWXIV.TargetBar.Refresh)
+
+    -- Required by the settings API:
+    function f:OnCommit()
+    end
+    function f:OnDefault()
+        -- Currently unimplemented because we had an implementation but it
+        -- kept getting out of sync with the actual options.  If we add
+        -- this back then we'll need to massage the button implementation
+        -- a bit.
+    end
+    function f:OnRefresh()
+    end
+
+    return new
+end
+
+------------------------------------------------------------------------
 
 -- Initialize configuration data and create the configuration window.
 function WoWXIV.Config.Create()
@@ -51,99 +135,9 @@ function WoWXIV.Config.Create()
             WoWXIV_config[k] = v
         end
     end
-
-    local f = WoWXIV.CreateEventFrame("WoWXIV_Config")
-    WoWXIV.Config.frame = f
-
-    local y = 10
-
-    y = y - 20
-    AddHeader(f, 10, y, "Fly text settings")
-    y = y - 30
-
-    f.button_flytext_enable = AddCheckButton(f, 20, y, "Enable fly text (player only)")
-    f.button_flytext_enable:SetChecked(WoWXIV_config["flytext_enable"])
-    f.button_flytext_enable:SetScript("OnClick", function(self)
-        self:GetParent():SetFlyTextEnable(not WoWXIV_config["flytext_enable"])
-    end)
-    y = y - 30
-
-    y = y - 20
-    AddHeader(f, 10, y, "Party list settings")
-    y = y - 30
-
-    f.button_partylist_role_bg = AddCheckButton(f, 20, y, "Use role color in list background")
-    f.button_partylist_role_bg:SetChecked(WoWXIV_config["partylist_role_bg"])
-    f.button_partylist_role_bg:SetScript("OnClick", function(self)
-        self:GetParent():SetPartyListRoleBG(not WoWXIV_config["partylist_role_bg"])
-    end)
-    y = y - 30
-
-    y = y - 20
-    AddHeader(f, 10, y, "Target bar settings")
-    y = y - 30
-
-    f.button_targetbar_hide_native = AddCheckButton(f, 20, y, "Hide native target frame (requires reload)")
-    f.button_targetbar_hide_native:SetChecked(WoWXIV_config["targetbar_hide_native"])
-    f.button_targetbar_hide_native:SetScript("OnClick", function(self)
-        self:GetParent():SetTargetBarHideNative(not WoWXIV_config["targetbar_hide_native"])
-    end)
-    y = y - 30
-
-    f.button_targetbar_target_own_debuffs_only = AddCheckButton(f, 20, y, "Show only own debuffs on target bar")
-    f.button_targetbar_target_own_debuffs_only:SetChecked(WoWXIV_config["targetbar_target_own_debuffs_only"])
-    f.button_targetbar_target_own_debuffs_only:SetScript("OnClick", function(self)
-        self:GetParent():SetTargetBarTargetOwnDebuffsOnly(not WoWXIV_config["targetbar_target_own_debuffs_only"])
-    end)
-    y = y - 30
-
-    f.button_targetbar_focus_own_debuffs_only = AddCheckButton(f, 20, y, "Show only own debuffs on focus bar")
-    f.button_targetbar_focus_own_debuffs_only:SetChecked(WoWXIV_config["targetbar_focus_own_debuffs_only"])
-    f.button_targetbar_focus_own_debuffs_only:SetScript("OnClick", function(self)
-        self:GetParent():SetTargetBarFocusOwnDebuffsOnly(not WoWXIV_config["targetbar_focus_own_debuffs_only"])
-    end)
-    y = y - 30
-
-    -- Required by the settings API:
-    function f:OnCommit()
-    end
-    function f:OnDefault()
-        f:SetTargetBarHideNative(true)
-        f:SetTargetBarShowFocus(false)
-        f:SetFlyTextEnable(true)
-    end
-    function f:OnRefresh()
-    end
-
-    function f:SetFlyTextEnable(enable)
-        self.button_flytext_enable:SetChecked(enable)
-        WoWXIV_config["flytext_enable"] = enable
-        WoWXIV.FlyText.Enable(enable)
-    end
-
-    function f:SetPartyListRoleBG(enable)
-        self.button_partylist_role_bg:SetChecked(enable)
-        WoWXIV_config["partylist_role_bg"] = enable
-        WoWXIV.PartyList.Refresh()
-    end
-
-    function f:SetTargetBarHideNative(hide)
-        self.button_targetbar_hide_native:SetChecked(hide)
-        WoWXIV_config["targetbar_hide_native"] = hide
-    end
-
-    function f:SetTargetBarTargetOwnDebuffsOnly(enable)
-        self.button_targetbar_target_own_debuffs_only:SetChecked(enable)
-        WoWXIV_config["targetbar_target_own_debuffs_only"] = enable
-        WoWXIV.TargetBar.Refresh()
-    end
-
-    function f:SetTargetBarFocusOwnDebuffsOnly(enable)
-        self.button_targetbar_focus_own_debuffs_only:SetChecked(enable)
-        WoWXIV_config["targetbar_focus_own_debuffs_only"] = enable
-        WoWXIV.TargetBar.Refresh()
-    end
-
+    local config_frame = ConfigFrame:New()
+    WoWXIV.Config.frame = config_frame
+    local f = config_frame.native_frame
     local category = Settings.RegisterCanvasLayoutCategory(f, "WoWXIV")
     WoWXIV.Config.category = category
     category.ID = "WoWXIV"
@@ -154,5 +148,3 @@ end
 function WoWXIV.Config.Open()
     InterfaceOptionsFrame_OpenToCategory(WoWXIV.Config.category)
 end
-
-------------------------------------------------------------------------
