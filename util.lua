@@ -37,14 +37,24 @@ function WoWXIV.DestroyFrame(frame)
     frame:UnregisterAllEvents()
 end
 
+-- Helper to deal with Show() getting called during combat via
+-- the CLIENT_SCENE_CLOSED event.
+local function HideBlizzardFrameHelper(frame)
+    if InCombatLockdown() then
+        C_Timer.After(1, function() HideBlizzardFrameHelper(frame) end)
+    else
+        frame:Hide()
+    end
+end
+
 -- Hide a frame created by the Blizzard UI, under the assumption it will
 -- be replaced by a custom UI frame.  Logic borrowed from ElvUI's
 -- UF:DisableBlizzard_HideFrame().
 function WoWXIV.HideBlizzardFrame(frame)
     frame:UnregisterAllEvents()
     frame:Hide()
-    hooksecurefunc(frame, "Show", frame.Hide)
+    hooksecurefunc(frame, "Show", HideBlizzardFrameHelper)
     hooksecurefunc(frame, "SetShown", function(frame, shown)
-        if shown then frame:Hide() end
+        if shown then HideBlizzardFrameHelper(frame) end
     end)
 end
