@@ -10,13 +10,13 @@ local strfind = string.find
 local FlyText = {}
 FlyText.__index = FlyText
 
--- Length of time a fly text will be displayed (seconds):
+-- Length of time a fly text will be displayed (seconds).
 local FLYTEXT_TIME = 4.5
 
 -- Default scale factor for text.
 local FLYTEXT_FONT_SCALE = 1.1
 
--- Damage types for type argument to New():
+-- Damage types for type argument to New().
 local FLYTEXT_DAMAGE_DIRECT  = 1  -- direct damage, or DoT from channeling
 local FLYTEXT_DAMAGE_PASSIVE = 2  -- DoT from auras
 local FLYTEXT_HEAL_DIRECT    = 3
@@ -28,7 +28,7 @@ local FLYTEXT_DEBUFF_REMOVE  = 8
 local FLYTEXT_LOOT_MONEY     = 9
 local FLYTEXT_LOOT_ITEM      = 10
 
--- Corresponding text colors:
+-- Corresponding text colors.
 local COLOR_RED   = {1, 0.753, 0.761}
 local COLOR_GREEN = {0.929, 1, 0.906}
 local COLOR_WHITE = {1, 1, 1}
@@ -676,7 +676,7 @@ function FlyTextManager:OnUpdate()
     if self.dot then
         for unit, amount in pairs(self.dot) do
             text = FlyText:New(FLYTEXT_DAMAGE_PASSIVE, unit, amount)
-            tinsert(self.texts, text)
+            self:AddText(text, false)
         end
         self.dot = nil
     end
