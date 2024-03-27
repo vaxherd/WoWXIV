@@ -86,10 +86,8 @@ function TargetBar:New(is_focus)
     local unit_events = {"UNIT_ABSORB_AMOUNT_CHANGED",
                          "UNIT_CLASSIFICATION_CHANGED", "UNIT_HEALTH",
                          "UNIT_HEAL_ABSORB_AMOUNT_CHANGED",
-                         "UNIT_LEVEL", "UNIT_MAXHEALTH"}
-    -- FIXME: this list isn't enough for Ardenweald world quest "Tough Crowd"
-    -- (fake audience members); UNIT_FACTION and UNIT_THREAT_LIST_CHANGED
-    -- apparently don't trigger soon enough; try UNIT_MODEL_CHANGED
+                         "UNIT_LEVEL", "UNIT_MAXHEALTH",
+                         "UNIT_THREAT_LIST_UPDATE"}
     local units = is_focus and {"focus"} or {"target", "targettarget"}
     for _, event in ipairs(unit_events) do
         new.frame:RegisterUnitEvent(event, unpack(units))
@@ -102,7 +100,8 @@ function TargetBar:New(is_focus)
             new:RefreshUnit()  -- clear anything from previous zone
         elseif (event == "PLAYER_FOCUS_CHANGED" or
                 event == "PLAYER_TARGET_CHANGED" or
-                event == "UNIT_CLASSIFICATION_CHANGED") then
+                event == "UNIT_CLASSIFICATION_CHANGED" or
+                event == "UNIT_THREAT_LIST_UPDATE") then
             new:RefreshUnit()
         else
             new:Update()
