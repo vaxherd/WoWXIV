@@ -269,7 +269,7 @@ function Member:Update(updateLabel)
         self.name:SetText(NameForUnit(self.unit))
     end
 
-    if UnitIsUnit("target", self.unit) then
+    if UnitIsUnit("target", self.unit=="vehicle" and "player" or self.unit) then
         self.highlight:Show()
     else
         self.highlight:Hide()
