@@ -63,9 +63,9 @@ function Aura:New(parent)
     new.icon_id = nil
     new.is_helpful = nil
     new.is_mine = nil
-    new.stacks = nil
+    new.stacks = 0
     new.time_str = nil
-    new.expires = nil
+    new.expires = 0
 
     local f = CreateFrame("Frame", nil, parent)
     new.frame = f
@@ -179,6 +179,13 @@ function Aura:CopyFrom(other)
     self:InternalUpdate(other.unit, other.data)
 end
 
+function Aura:SwapWith(other)
+    local unit = self.unit
+    local data = self.data
+    self:InternalUpdate(other.unit, other.data)
+    other:InternalUpdate(unit, data)
+end
+
 function Aura:InternalUpdate(unit, data)
     if not unit then
         if self.unit then
@@ -242,16 +249,18 @@ function Aura:InternalUpdate(unit, data)
         self.stacks = stacks
     end
 
-    if expires > 0 then
-        self.expires = expires
-        if is_mine then
-            self.timer:SetTextColor(0.78, 0.89, 1)
+    if expires ~= self.expires then
+        if expires > 0 then
+            self.expires = expires
+            if is_mine then
+                self.timer:SetTextColor(0.78, 0.89, 1)
+            else
+                self.timer:SetTextColor(1, 1, 1)
+            end
+            self.frame:SetScript("OnUpdate", function() self:OnUpdate() end)
         else
-            self.timer:SetTextColor(1, 1, 1)
+            self.expires = 0
         end
-        self.frame:SetScript("OnUpdate", function() self:OnUpdate() end)
-    else
-        self.expires = 0
     end
 
     self:UpdateTimeLeft()  -- also updates tooltip by side effect
@@ -423,7 +432,7 @@ function AuraBar:OnUnitAura(unit, update_info)
                 end
             end
             if is_wanted(self, aura_data) then
-                local function insertBefore(new_data, aura)
+                local function InsertBefore(new_data, aura)
                     if not aura.instance then
                         return true
                     else
@@ -431,7 +440,7 @@ function AuraBar:OnUnitAura(unit, update_info)
                     end
                 end
                 for i = 1, self.max do
-                    if insertBefore(aura_data, self.auras[i]) then
+                    if InsertBefore(aura_data, self.auras[i]) then
                         for j = self.max, i+1, -1 do
                             local prev = self.auras[j-1]
                             if prev.instance then
@@ -472,7 +481,38 @@ function AuraBar:OnUnitAura(unit, update_info)
             if index then
                 aura_data = C_UnitAuras.GetAuraDataByAuraInstanceID(self.unit, instance)
                 if aura_data then  -- sanity check
-                    self.auras[index]:Update(self.unit, aura_data)
+                    local aura = self.auras[index]
+                    local old_expires = aura.expires
+                    aura:Update(self.unit, aura_data)
+                    -- If duration changed, then we need to re-sort the aura.
+                    -- We assume it won't move by a large amount so the swap
+                    -- costs here are less than the cost to refresh the bar
+                    -- as a whole.
+                    if aura.expires ~= old_expires then
+                        local function CompareExpires(a, b)
+                            if a == 0 then a = math.huge end
+                            if b == 0 then b = math.huge end
+                            return a < b
+                        end
+                        local new_expires = aura.expires
+                        while index > 1 do
+                            local prev = self.auras[index-1]
+                            if not CompareExpires(new_expires, prev.expires) then break end
+                            aura:SwapWith(prev)
+                            -- |aura| now points to the aura we swapped with.
+                            self.instance_map[aura.instance] = index
+                            aura, index = prev, index-1
+                        end
+                        local max = self.max
+                        while index < max do
+                            local next = self.auras[index+1]
+                            if not next.instance or not CompareExpires(next.expires, new_expires) then break end
+                            aura:SwapWith(next)
+                            self.instance_map[aura.instance] = index
+                            aura, index = next, index+1
+                        end
+                        self.instance_map[aura_data.auraInstanceID] = index
+                    end
                 end
             end
         end
