@@ -181,6 +181,14 @@ function Member:New(parent, unit, npc_guid)
     bg:SetTexCoord(0, 1, 4/256.0, 7/256.0)
     bg:SetVertexColor(0, 0, 0, 1)
 
+    local highlight = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+    new.highlight = highlight
+    highlight:SetAllPoints(f)
+    highlight:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+    highlight:SetTexCoord(0, 1, 4/256.0, 7/256.0)
+    highlight:SetVertexColor(1, 1, 1, 0.5)
+    highlight:Hide()
+
     if not new.npc_id then
         new.class_icon = ClassIcon:New(f)
         new.class_icon:SetAnchor("TOPLEFT", 0, -5, "BOTTOMRIGHT")
@@ -260,6 +268,12 @@ function Member:Update(updateLabel)
     if updateLabel then
         self.name:SetText(NameForUnit(self.unit))
     end
+
+    if UnitIsUnit("target", self.unit) then
+        self.highlight:Show()
+    else
+        self.highlight:Hide()
+    end
 end
 
 function Member:Delete()
@@ -307,6 +321,12 @@ function PartyList:New()
         f.owner:SetParty()
     end
 
+    function f:OnTargetChange()
+        for _, member in pairs(f.owner.party) do
+            member:Update(false)
+        end
+    end
+
     function f:OnMemberUpdate(unit)
         f.owner:UpdateParty(unit, false)
     end
@@ -320,6 +340,7 @@ function PartyList:New()
     f.events["GROUP_ROSTER_UPDATE"] = f.OnPartyChange
     f.events["PARTY_LEADER_CHANGED"] = f.OnPartyChange
     f.events["PLAYER_ENTERING_WORLD"] = f.OnPartyChange
+    f.events["PLAYER_TARGET_CHANGED"] = f.OnTargetChange
     f.events["UNIT_ABSORB_AMOUNT_CHANGED"] = f.OnMemberUpdate
     f.events["UNIT_AURA"] = f.OnMemberUpdate
     f.events["UNIT_ENTERED_VEHICLE"] = f.OnPartyChange
