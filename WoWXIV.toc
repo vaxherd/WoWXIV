@@ -10,6 +10,7 @@ WoWXIV.lua
 
 buffbar.lua
 buffbar.xml
+combat.lua
 config.lua
 flytext.lua
 gamepad.lua
