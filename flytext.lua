@@ -1,7 +1,7 @@
 local WoWXIV = WoWXIV
 WoWXIV.FlyText = {}
 
-local CombatLogGetCurrentEventInfo = _G.CombatLogGetCurrentEventInfo
+local CLM = WoWXIV.CombatLogManager
 local strsub = string.sub
 local strfind = string.find
 
@@ -349,134 +349,6 @@ end
 
 ------------------------------------------------------------------------
 
-local CombatEvent = {}
-CombatEvent.__index = CombatEvent
-
-function CombatEvent:New(...)
-    local new = {}
-    setmetatable(new, self)
-    new.__index = self
-
-    new.event = {...}
-    new:ParseEvent()
-    return new
-end
-
-function CombatEvent:ParseEvent()
-    local event = self.event
-    self.timestamp = event[1]
-    self.type = event[2]
-    self.hidden_source = event[3]  -- e.g. for fall damage
-    self.source = event[4]
-    self.source_name = event[5]
-    self.source_flags = event[6]
-    self.source_raid_flags = event[7]
-    self.dest = event[8]
-    self.dest_name = event[9]
-    self.dest_flags = event[10]
-    self.dest_raid_flags = event[11]
-    local argi = 12
-
-    local type = self.type
-    local rawtype = type
-
-    -- Special cases first.
-    if strsub(type, 1, 8) == "ENCHANT_" then
-        self.category = "ENCHANT"
-        self.subtype = strsub(type, 9, -1)
-        self.spell_name = event[argi]
-        self.item_id = event[argi+1]
-        self.item_name = event[argi+2]
-        return
-    elseif type == "PARTY_KILL" then
-        self.category = "PARTY"
-        self.subtype = strsub(type, 7, -1)
-        return  -- No extra arguments.
-    elseif type == "UNIT_DIED" or type == "UNIT_DESTROYED" then
-        self.category = "UNIT"
-        self.subtype = strsub(type, 6, -1)
-        return  -- No extra arguments.
-    elseif type == "DAMAGE_SPLIT" or type == "DAMAGE_SHIELD" then
-        type = "SPELL_DAMAGE"
-    elseif type == "DAMAGE_SHIELD_MISSED" then
-        type = "SPELL_MISSED"
-    end
-
-    local sep = strfind(type, "_")
-    if not sep then
-        print("Unhandled combat event:", rawtype)
-        self.category = type
-        self.subtype = ""
-        return
-    end
-    local category = strsub(type, 1, sep-1)
-    local subtype = strsub(type, sep+1, -1)
-    if category == "SWING" then
-        self.spell = nil
-        self.spell_name = nil
-        self.spell_school = 1  -- Physical
-    elseif category == "RANGE" or category == "SPELL" then
-        self.spell = event[argi]
-        self.spell_name = event[argi+1]
-        self.spell_school = event[argi+2]
-        argi = argi + 3
-    elseif category == "ENVIRONMENTAL" then
-        self.env_type = event[argi]
-        argi = argi + 1
-    else
-        print("Unhandled combat event:", rawtype)
-        return
-    end
-    self.category = category
-    self.subtype = subtype
-
-    if subtype == "DAMAGE" or subtype == "PERIODIC_DAMAGE" or subtype == "BUILDING_DAMAGE" then
-        self.amount = event[argi]
-        self.overkill = event[argi+1]
-        self.school = event[argi+2]
-        self.resisted = event[argi+3]
-        self.blocked = event[argi+4]
-        self.absorbed = event[argi+5]
-        self.critical = event[argi+6]
-        self.glancing = event[argi+7]
-        self.crushing = event[argi+8]
-    elseif subtype == "MISSED" then
-        self.miss_type = event[argi]
-        self.is_offhand = event[argi+1]
-        self.amount = event[argi+2]
-    elseif subtype == "HEAL" or subtype == "PERIODIC_HEAL" then
-        self.amount = event[argi]
-        self.overheal = event[argi+1]
-        self.absorbed = event[argi+2]
-        self.critical = event[argi+3]
-    elseif subtype == "ENERGIZE" then
-        self.amount = event[argi]
-        self.power_type = event[argi+1]
-    elseif subtype == "DRAIN" or subtype == "LEECH" then
-        self.amount = event[argi]
-        self.power_type = event[argi+1]
-        self.extra_amount = event[argi+2]
-    elseif subtype == "INTERRUPT" or subtype == "DISPEL_FAILED" then
-        self.extra_spell_id = event[argi]
-        self.extra_spell_name = event[argi+1]
-        self.extra_school = event[argi+2]
-    elseif subtype == "DISPEL" or subtype == "STOLEN" or subtype == "AURA_BROKEN_SPELL" then
-        self.extra_spell_id = event[argi]
-        self.extra_spell_name = event[argi+1]
-        self.extra_school = event[argi+2]
-        self.aura_type = event[argi+3]
-    elseif subtype == "EXTRA_ATTACKS" then
-        self.amount = event[argi]
-    elseif strsub(subtype, 1, 5) == "AURA_" then
-        self.aura_type = event[argi]
-        self.amount = event[argi+1]
-    elseif subtype == "CAST_FAILED" then
-        self.failed_type = event[argi]
-    end
-end
-
-------------------------------------------------------------------------
-
 local FlyTextManager = {}
 FlyTextManager.__index = FlyTextManager
 
@@ -498,7 +370,6 @@ function FlyTextManager:New(parent)
     local f = CreateFrame("Frame", "WoWXIV_FlyTextManager", nil)
     new.frame = f
     f.xiv_eventmap = {
-        COMBAT_LOG_EVENT_UNFILTERED = FlyTextManager.OnCombatLogEvent,
         PLAYER_MONEY = FlyTextManager.OnPlayerMoney,
         CHAT_MSG_LOOT = FlyTextManager.OnLootItem,
         CHAT_MSG_CURRENCY = FlyTextManager.OnLootCurrency,
@@ -507,15 +378,11 @@ function FlyTextManager:New(parent)
         -- entering each new zone).
         PLAYER_ENTERING_WORLD = FlyTextManager.OnEnterZone,
     }
-    for event, _ in pairs(f.xiv_eventmap) do
-        f:RegisterEvent(event)
-    end
     f:SetScript("OnEvent", function(self, event, ...)
         local handler = self.xiv_eventmap[event]
         if handler then handler(new, event, ...) end
     end)
     f:SetScript("OnUpdate", function() new:OnUpdate() end)
-
     return new
 end
 
@@ -526,8 +393,10 @@ function FlyTextManager:Enable(enable)
         for event, _ in pairs(f.xiv_eventmap) do
             f:RegisterEvent(event)
         end
+        CLM.RegisterAnyEvent(self, self.OnCombatLogEvent)
     else
         self.frame:UnregisterAllEvents()
+        CLM.UnregisterAllEvents(self)
     end
 end
 
@@ -536,9 +405,7 @@ function FlyTextManager:OnEnterZone()
     self.last_money = GetMoney()
 end
 
-function FlyTextManager:OnCombatLogEvent()
-    local event = CombatEvent:New(CombatLogGetCurrentEventInfo())
-
+function FlyTextManager:OnCombatLogEvent(event)
     if GetTime() < self.zone_entered + 0.5 and strsub(event.subtype, 1, 5) == "AURA_" then
         return  -- suppress aura spam
     end
@@ -553,7 +420,7 @@ function FlyTextManager:OnCombatLogEvent()
     local text = nil
     local left_side = false
     if event.subtype == "DAMAGE" then
-        text = FlyText:New(FLYTEXT_DAMAGE_DIRECT, unit, event.spell,
+        text = FlyText:New(FLYTEXT_DAMAGE_DIRECT, unit, event.spell_id,
                            event.spell_school, event.amount, event.critical)
     elseif event.subtype == "PERIODIC_DAMAGE" then
         self.dot = self.dot or {}
@@ -562,11 +429,11 @@ function FlyTextManager:OnCombatLogEvent()
         -- Note: absorbed heals are reported as "heal for 0" with the
         -- amount absorbed in event.absorbed, so we don't have to worry
         -- about separating them out here.
-        text = FlyText:New(FLYTEXT_DAMAGE_DIRECT, unit, event.spell,
+        text = FlyText:New(FLYTEXT_DAMAGE_DIRECT, unit, event.spell_id,
                            event.spell_school, event.amount and 0 or nil)
     elseif event.subtype == "HEAL" then
         left_side = true
-        text = FlyText:New(FLYTEXT_HEAL_DIRECT, unit, event.spell,
+        text = FlyText:New(FLYTEXT_HEAL_DIRECT, unit, event.spell_id,
                            event.spell_school, event.amount, event.critical)
     elseif event.subtype == "PERIODIC_HEAL" then
         self.hot = self.hot or {}
@@ -576,11 +443,11 @@ function FlyTextManager:OnCombatLogEvent()
         -- (and so we can't actually get the stack count)
         text = FlyText:New(
             event.aura_type=="BUFF" and FLYTEXT_BUFF_ADD or FLYTEXT_DEBUFF_ADD,
-            unit, event.spell, event.spell_school)
+            unit, event.spell_id, event.spell_school)
     elseif event.subtype == "AURA_REMOVED" then
         text = FlyText:New(
             event.aura_type=="BUFF" and FLYTEXT_BUFF_REMOVE or FLYTEXT_DEBUFF_REMOVE,
-            unit, event.spell, event.spell_school)
+            unit, event.spell_id, event.spell_school)
     end
     if text then
         self:AddText(text, left_side)
