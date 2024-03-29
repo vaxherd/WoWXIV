@@ -13,6 +13,9 @@ WoWXIV_Config = WoWXIV_Config or {}
 -- WoWXIV_Config after module load is inserted by the init routine.
 local config_default = {}
 
+-- Enmity list: enable?
+config_default["hatelist_enable"] = true
+
 -- Fly text: enable?
 config_default["flytext_enable"] = true
 
@@ -92,6 +95,10 @@ function ConfigFrame:New()
     new.native_frame = f
     new.x = 10
     new.y = 10  -- Assuming an initial header.
+
+    new:AddHeader("Enmity list settings")
+    new:AddCheckButton("Enable enmity list",
+                       "hatelist_enable", WoWXIV.HateList.Enable)
 
     new:AddHeader("Fly text settings")
     new:AddCheckButton("Enable fly text (player only)",

@@ -343,7 +343,7 @@ end
 
 -- Register a function to be called for any event of the given subtype.
 function WoWXIV.CombatLogManager.RegisterEventSubtype(object, func, subtype)
-    Manager.Register(object, func, "subtype", category)
+    Manager.Register(object, func, "subtype", subtype)
 end
 
 -- Register a function to be called for all combat events.
