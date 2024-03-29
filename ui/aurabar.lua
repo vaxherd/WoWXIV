@@ -487,17 +487,17 @@ function AuraBar:OnUnitAura(unit, update_info)
                     -- If duration changed, then we need to re-sort the aura.
                     -- We assume it won't move by a large amount so the swap
                     -- costs here are less than the cost to refresh the bar
-                    -- as a whole.
+                    -- as a whole.  But as for removed auras, if the bar is
+                    -- full then we need to do a refresh instead.
                     if aura.expires ~= old_expires then
-                        local function CompareExpires(a, b)
-                            if a == 0 then a = math.huge end
-                            if b == 0 then b = math.huge end
-                            return a < b
+                        if self.auras[self.max].instance then
+                            self:Refresh()
+                            return
                         end
                         local new_expires = aura.expires
                         while index > 1 do
                             local prev = self.auras[index-1]
-                            if not CompareExpires(new_expires, prev.expires) then break end
+                            if not CompareAuras(aura.data, prev.data) then break end
                             aura:SwapWith(prev)
                             -- |aura| now points to the aura we swapped with.
                             self.instance_map[aura.instance] = index
@@ -506,7 +506,7 @@ function AuraBar:OnUnitAura(unit, update_info)
                         local max = self.max
                         while index < max do
                             local next = self.auras[index+1]
-                            if not next.instance or not CompareExpires(next.expires, new_expires) then break end
+                            if not next.instance or not CompareAuras(next.data, aura.data) then break end
                             aura:SwapWith(next)
                             self.instance_map[aura.instance] = index
                             aura, index = next, index+1
