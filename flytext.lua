@@ -411,7 +411,7 @@ function FlyTextManager:OnCombatLogEvent(event)
     end
 
     local unit = event.dest
-    if unit == UnitGUID("player") then
+    if unit == UnitGUID("player") or (UnitInVehicle("player") and unit == UnitGUID("vehicle")) then
         unit = "player"
     else
         return  -- Can't draw fly text for non-player units.
