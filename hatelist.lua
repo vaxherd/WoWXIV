@@ -22,7 +22,7 @@ function Enemy:New(parent, y)
 
     local f = CreateFrame("Frame", nil, parent)
     new.frame = f
-    f:SetSize(256, 30)
+    f:SetSize(200, 30)
     f:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, y)
     f:Hide()
 
@@ -150,6 +150,14 @@ function HateList:New()
     bg_c:SetTexCoord(0, 1, 4/256.0, 7/256.0)
     bg_c:SetVertexColor(0, 0, 0, 1)
 
+    local highlight = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+    new.highlight = highlight
+    highlight:SetSize(200, 30)
+    highlight:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+    highlight:SetTexCoord(0, 1, 0/256.0, 11/256.0)
+    highlight:SetVertexColor(1, 1, 1, 0.5)
+    highlight:Hide()
+
     for i = 1, 8 do
         local y = -30*(i-1)
         tinsert(new.enemies, Enemy:New(f, y))
@@ -168,6 +176,7 @@ function HateList:Enable(enable)
         f:RegisterEvent("FORBIDDEN_NAME_PLATE_UNIT_REMOVED")
         f:RegisterEvent("NAME_PLATE_UNIT_ADDED")
         f:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
+        f:RegisterEvent("PLAYER_TARGET_CHANGED")
         f:RegisterEvent("UNIT_FLAGS")
         f:RegisterEvent("UNIT_HEALTH")
         f:RegisterEvent("UNIT_NAME_UPDATE")
@@ -214,6 +223,11 @@ function HateList:InternalRefresh(index)
 end
 
 function HateList:OnEvent(event, unit)
+    if event == "PLAYER_TARGET_CHANGED" then
+        self:UpdateTargetHighlight()
+        return
+    end
+
     local guid = UnitGUID(unit)
     local index = self.guids[guid]
 
@@ -285,6 +299,9 @@ function HateList:AddEnemy(guid, name)
             break
         end
     end
+    if UnitGUID("target") == guid then
+        self:UpdateTargetHighlight()
+    end
 end
 
 -- guid is passed for convenience, to delete it from the guids table.
@@ -303,6 +320,7 @@ function HateList:RemoveEnemy(index, guid)
 
     self.enemies[index]:SetUnit(nil)
     self:ResizeFrame(index-1)
+    self:UpdateTargetHighlight()
 
     -- Lua zealots don't want you to think about performance, so there's
     -- no way to explicitly remove a key from a table.  The Lua engine
@@ -318,6 +336,23 @@ function HateList:RemoveEnemy(index, guid)
         end
         self.guids = new_guids
         self.guids_remove_count = 0
+    end
+end
+
+function HateList:UpdateTargetHighlight()
+    local highlight = self.highlight
+    highlight:Hide()
+
+    local target_guid = UnitGUID("target")
+    if not target_guid then return end
+
+    for index, enemy in ipairs(self.enemies) do
+        if enemy:UnitGUID() == target_guid then
+            highlight:ClearAllPoints()
+            highlight:SetPoint("TOPLEFT", self.frame, "TOPLEFT", 0, (-30)*(index-1))
+            highlight:Show()
+            return
+        end
     end
 end
 
