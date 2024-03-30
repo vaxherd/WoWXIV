@@ -150,16 +150,32 @@ function HateList:New()
     bg_c:SetTexCoord(0, 1, 4/256.0, 7/256.0)
     bg_c:SetVertexColor(0, 0, 0, 1)
 
-    local highlight = f:CreateTexture(nil, "BACKGROUND", nil, 1)
-    new.highlight = highlight
-    highlight:SetSize(200, 30)
-    highlight:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    highlight:SetTexCoord(0, 1, 0/256.0, 11/256.0)
-    highlight:SetVertexColor(1, 1, 1, 0.5)
-    highlight:Hide()
+    local highlight_t = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+    new.highlight_t = highlight_t
+    highlight_t:SetSize(f:GetWidth(), 4)
+    highlight_t:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+    highlight_t:SetTexCoord(0, 1, 0/256.0, 4/256.0)
+    highlight_t:SetVertexColor(1, 1, 1, 0.5)
+    local highlight_c = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+    new.highlight_c = highlight_c
+    highlight_c:SetPoint("TOP", highlight_t, "BOTTOM")
+    highlight_c:SetSize(f:GetWidth(), 24)
+    highlight_c:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+    highlight_c:SetTexCoord(0, 1, 4/256.0, 7/256.0)
+    highlight_c:SetVertexColor(1, 1, 1, 0.5)
+    local highlight_b = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+    new.highlight_b = highlight_b
+    highlight_b:SetPoint("TOP", highlight_c, "BOTTOM")
+    highlight_b:SetSize(f:GetWidth(), 4)
+    highlight_b:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+    highlight_b:SetTexCoord(0, 1, 7/256.0, 11/256.0)
+    highlight_b:SetVertexColor(1, 1, 1, 0.5)
+    highlight_t:Hide()
+    highlight_c:Hide()
+    highlight_b:Hide()
 
     for i = 1, 8 do
-        local y = -30*(i-1)
+        local y = -2-30*(i-1)
         tinsert(new.enemies, Enemy:New(f, y))
         tinsert(new.unit_not_seen, 0)
     end
@@ -339,23 +355,6 @@ function HateList:RemoveEnemy(index, guid)
     end
 end
 
-function HateList:UpdateTargetHighlight()
-    local highlight = self.highlight
-    highlight:Hide()
-
-    local target_guid = UnitGUID("target")
-    if not target_guid then return end
-
-    for index, enemy in ipairs(self.enemies) do
-        if enemy:UnitGUID() == target_guid then
-            highlight:ClearAllPoints()
-            highlight:SetPoint("TOPLEFT", self.frame, "TOPLEFT", 0, (-30)*(index-1))
-            highlight:Show()
-            return
-        end
-    end
-end
-
 -- Called periodically as a fallback to ensure that enemies which
 -- disappeared without us noticing are still removed.
 function HateList:OnPeriodicUpdate()
@@ -383,13 +382,36 @@ function HateList:OnPeriodicUpdate()
     C_Timer.After(1, function() self:OnPeriodicUpdate() end)
 end
 
--- Internal helper.
 function HateList:ResizeFrame(count)
     if count > 0 then
         self.frame:SetHeight(4+30*count)
         self.frame:Show()
     else
         self.frame:Hide()
+    end
+end
+
+function HateList:UpdateTargetHighlight()
+    local highlight_t = self.highlight_t
+    local highlight_c = self.highlight_c
+    local highlight_b = self.highlight_b
+    highlight_t:Hide()
+    highlight_c:Hide()
+    highlight_b:Hide()
+
+    local target_guid = UnitGUID("target")
+    if not target_guid then return end
+
+    for index, enemy in ipairs(self.enemies) do
+        if enemy:UnitGUID() == target_guid then
+            highlight_t:ClearAllPoints()
+            highlight_t:SetPoint("TOPLEFT", self.frame, "TOPLEFT",
+                                 0, -1-30*(index-1))
+            highlight_t:Show()
+            highlight_c:Show()
+            highlight_b:Show()
+            return
+        end
     end
 end
 
