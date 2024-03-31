@@ -2,6 +2,7 @@ local WoWXIV = WoWXIV
 WoWXIV.PartyList = {}
 
 local GameTooltip = GameTooltip
+local strfind = string.find
 
 -- Role type constants returned from ClassIcon:Set().
 local ROLE_TANK = 1
@@ -385,6 +386,13 @@ function PartyList:SetParty()
     local tokens = {"player", "vehicle", "party1", "party2", "party3", "party4"}
     for _, token in ipairs(tokens) do
         local id = UnitGUID(token)
+        if token == "vehicle" then
+            -- Vehicles with "[DNT]" in the name are used when player
+            -- movement is locked in certain events, such as the Ruby
+            -- Lifeshrine sidequest "Stay a While".
+            local name = UnitName(token)
+            if name and strfind(name, "%[DNT]") then id = nil end
+        end
         if id then
             if old_party[token] then
                 self.party[token] = old_party[token]
