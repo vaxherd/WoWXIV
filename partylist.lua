@@ -502,6 +502,7 @@ end
 -- Create the global party list instance.
 function WoWXIV.PartyList.Create()
     WoWXIV.PartyList.list = PartyList:New()
+    WoWXIV.HideBlizzardFrame(PartyFrame)
 end
 
 -- Refresh the party list.  Must be called to pick up config changes.
