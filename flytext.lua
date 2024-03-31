@@ -236,7 +236,7 @@ function FlyText:New(type, ...)
             stacks:SetText(new.amount)
         end
         value:ClearAllPoints()
-        value:SetPoint("LEFT", icon, "RIGHT")
+        value:SetPoint("LEFT", icon, "RIGHT", 2, 0)
         if type == FLYTEXT_BUFF_ADD or type == FLYTEXT_DEBUFF_ADD then
             value:SetText("+" .. spell_name)
         else
@@ -300,7 +300,7 @@ function FlyText:New(type, ...)
         local b = tonumber("0x"..strsub(color, 5, 6)) / 255
         local text = new.item_name
         value:ClearAllPoints()
-        value:SetPoint("LEFT", icon, "RIGHT")
+        value:SetPoint("LEFT", icon, "RIGHT", 2, 0)
         value:SetTextColor(r, g, b)
         value:SetText(new.item_name)
         if new.amount and new.amount > 1 then
