@@ -463,7 +463,7 @@ function FlyTextManager:OnPlayerMoney()
     end
 end
 
--- Returns: type, id, color, count
+-- Returns: type, id, color, count [, name]
 local function ParseLootMsg(msg)
     local color = strfind(msg, "|c")
     if color then
@@ -475,19 +475,26 @@ local function ParseLootMsg(msg)
     if link then
         colon1 = strfind(msg, ":", link+2)
         if colon1 then
+            local type = strsub(msg, link+2, colon1-1)
             local colon2 = strfind(msg, ":", colon1+1)
             if colon2 then
-                local count
+                local id = strsub(msg, colon1+1, colon2-1)
+                local name, count
                 local link_end = strfind(msg, "|h|r", colon2+1)
-                if link_end and strsub(msg, link_end+4, link_end+4) == "x" then
-                    count = tonumber(strsub(msg, link_end+5, -1))
-                else
-                    count = 1
+                if link_end then
+                    if strsub(msg, link_end-1, link_end-1) == "]" then
+                        local name_start = strfind(msg, "%[", colon2+1)
+                        if name_start then
+                            name = strsub(msg, name_start+1, link_end-2)
+                        end
+                    end
+                    if strsub(msg, link_end+4, link_end+4) == "x" then
+                        count = tonumber(strsub(msg, link_end+5, -1))
+                    else
+                        count = 1
+                    end
                 end
-                return strsub(msg, link+2, colon1-1),
-                       strsub(msg, colon1+1, colon2-1),
-                       color,
-                       count
+                return type, id, color, count, name
             end
         end
     end
@@ -495,20 +502,20 @@ local function ParseLootMsg(msg)
 end
 
 function FlyTextManager:OnLootItem(event, msg)
-    local type, id, color, count = ParseLootMsg(msg)
+    local type, id, color, count, name = ParseLootMsg(msg)
     if type ~= "item" then return end
-    local name, _, _, _, _, _, _, _, _, icon = GetItemInfo(id)
+    local base_name, _, _, _, _, _, _, _, _, icon = GetItemInfo(id)
+    if not name then name = base_name end
     if name and icon then
         self:AddText(FlyText:New(FLYTEXT_LOOT_ITEM, icon, name, color, count))
     end
 end
 
 function FlyTextManager:OnLootCurrency(event, msg)
-    local type, id, color, count = ParseLootMsg(msg)
+    local type, id, color, count, name = ParseLootMsg(msg)
     if type ~= "currency" then return end
     local info = C_CurrencyInfo.GetCurrencyInfo(id)
-    if info and info.name and info.iconFileID then
-        local name = info.name
+    if info and info.iconFileID then
         local dash = strfind(name, "-")
         if dash then
             name = strsub(name, 1, dash-1)  -- strip covenant
