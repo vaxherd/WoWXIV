@@ -332,10 +332,10 @@ function HateList:RemoveEnemy(index, guid)
     -- the newly-opened last slot, so search for one to add.
     if index == #self.enemies then
         self:InternalRefresh(index)
+    else
+        self.enemies[index]:SetUnit(nil)
+        self:ResizeFrame(index-1)
     end
-
-    self.enemies[index]:SetUnit(nil)
-    self:ResizeFrame(index-1)
     self:UpdateTargetHighlight()
 
     -- Lua zealots don't want you to think about performance, so there's
