@@ -44,6 +44,11 @@ local function DumpUpdateInfo(info)
     print("UNIT_AURA:" .. s)
 end
 
+-- File ID of Dragon Glyph Resonance aura icon.  We have to match by
+-- aura icon rather than spell ID because each token has a unique ID
+-- (e.g. 394546 for Algeth'era Court, 394551 for Vault of the Incarnates).
+local ICON_DRAGON_GLYPH_RESONANCE = 4728198
+
 ------------------------------------------------------------------------
 
 local Aura = {}
@@ -92,6 +97,7 @@ function Aura:New(parent)
     new.timer:SetPoint("BOTTOM", f, "BOTTOM", 0, 3)
     new.timer:SetTextScale(1)
     new.timer:SetText("")
+    new.is_glyph_dist = false  -- Is timer repurposed as dragon glyph distance?
 
     return new
 end
@@ -137,24 +143,35 @@ function Aura:UpdateTooltip()
 end
 
 function Aura:UpdateTimeLeft()
-    local time_str
-    local time_left
-    if self.expires > 0 then
-        time_left = self.expires - GetTime()
+    local time_str, is_glyph_dist
+    if self.icon_id == ICON_DRAGON_GLYPH_RESONANCE and WoWXIV_config["buffbar_dragon_glyph_distance"] then
+        is_glyph_dist = true
+        time_str = self.data.points[1] .. "y"
     else
-        time_left = 0
+        is_glyph_dist = false
+        local time_left
+        if self.expires > 0 then
+            time_left = self.expires - GetTime()
+        else
+            time_left = 0
+        end
+        local time_rounded = math.floor(time_left + 0.5)
+        if time_left < 0.5 then
+            time_str = nil
+        elseif time_rounded < 60 then
+            time_str = time_rounded
+        elseif time_rounded < 3600 then
+            time_str = math.floor(time_rounded/60) .. "m"
+        elseif time_rounded < 86400 then
+            time_str = math.floor(time_rounded/3600) .. "h"
+        else
+            time_str = math.floor(time_rounded/86400) .. "d"
+        end
     end
-    local time_rounded = math.floor(time_left + 0.5)
-    if time_left < 0.5 then
-        time_str = nil
-    elseif time_rounded < 60 then
-        time_str = time_rounded
-    elseif time_rounded < 3600 then
-        time_str = math.floor(time_rounded/60) .. "m"
-    elseif time_rounded < 86400 then
-        time_str = math.floor(time_rounded/3600) .. "h"
-    else
-        time_str = math.floor(time_rounded/86400) .. "d"
+
+    if is_glyph_dist ~= self.is_glyph_dist then
+        self.is_glyph_dist = is_glyph_dist
+        self.timer:SetTextScale(is_glyph_dist and 0.9 or 1.0)
     end
     if time_str ~= self.time_str then
         self.timer:SetText(time_str)
@@ -249,17 +266,18 @@ function Aura:InternalUpdate(unit, data)
         self.stacks = stacks
     end
 
-    if expires ~= self.expires then
-        if expires > 0 then
-            self.expires = expires
-            if is_mine then
-                self.timer:SetTextColor(0.78, 0.89, 1)
-            else
-                self.timer:SetTextColor(1, 1, 1)
-            end
-            self.frame:SetScript("OnUpdate", function() self:OnUpdate() end)
+    if expires > 0 then
+        self.expires = expires
+        if is_mine then
+            self.timer:SetTextColor(0.78, 0.89, 1)
         else
-            self.expires = 0
+            self.timer:SetTextColor(1, 1, 1)
+        end
+        self.frame:SetScript("OnUpdate", function() self:OnUpdate() end)
+    else
+        self.expires = 0
+        if self.icon_id == ICON_DRAGON_GLYPH_RESONANCE then
+            self.frame:SetScript("OnUpdate", function() self:OnUpdate() end)
         end
     end
 

@@ -1,6 +1,11 @@
 local WoWXIV = WoWXIV
 WoWXIV.BuffBar = {}
 
+-- File ID of Dragon Glyph Resonance aura icon.  We have to match by
+-- aura icon rather than spell ID because each token has a unique ID
+-- (e.g. 394546 for Algeth'era Court, 394551 for Vault of the Incarnates).
+local ICON_DRAGON_GLYPH_RESONANCE = 4728198
+
 ------------------------------------------------------------------------
 
 -- We need this separate implementation from the shared AuraBar because
@@ -50,6 +55,7 @@ function PlayerBuff:New(f)
     new.timer:SetPoint("BOTTOM", f, "BOTTOM", 0, 3)
     new.timer:SetTextScale(1)
     new.timer:SetText("")
+    new.is_glyph_dist = false  -- Is timer repurposed as dragon glyph distance?
 
     f:HookScript("OnEnter", function() new:OnEnter() end)
     f:HookScript("OnLeave", function() new:OnLeave() end)
@@ -84,24 +90,35 @@ function PlayerBuff:UpdateTooltip()
 end
 
 function PlayerBuff:UpdateTimeLeft()
-    local time_str
-    local time_left
-    if self.expires > 0 then
-        time_left = self.expires - GetTime()
+    local time_str, is_glyph_dist
+    if self.icon_id == ICON_DRAGON_GLYPH_RESONANCE and WoWXIV_config["buffbar_dragon_glyph_distance"] then
+        is_glyph_dist = true
+        time_str = self.data.points[1] .. "y"
     else
-        time_left = 0
+        is_glyph_dist = false
+        local time_left
+        if self.expires > 0 then
+            time_left = self.expires - GetTime()
+        else
+            time_left = 0
+        end
+        local time_rounded = math.floor(time_left + 0.5)
+        if time_left < 0.5 then
+            time_str = nil
+        elseif time_rounded < 60 then
+            time_str = time_rounded
+        elseif time_rounded < 3600 then
+            time_str = math.floor(time_rounded/60) .. "m"
+        elseif time_rounded < 86400 then
+            time_str = math.floor(time_rounded/3600) .. "h"
+        else
+            time_str = math.floor(time_rounded/86400) .. "d"
+        end
     end
-    local time_rounded = math.floor(time_left + 0.5)
-    if time_left < 0.5 then
-        time_str = nil
-    elseif time_rounded < 60 then
-        time_str = time_rounded
-    elseif time_rounded < 3600 then
-        time_str = math.floor(time_rounded/60) .. "m"
-    elseif time_rounded < 86400 then
-        time_str = math.floor(time_rounded/3600) .. "h"
-    else
-        time_str = math.floor(time_rounded/86400) .. "d"
+
+    if is_glyph_dist ~= self.is_glyph_dist then
+        self.is_glyph_dist = is_glyph_dist
+        self.timer:SetTextScale(is_glyph_dist and 0.9 or 1.0)
     end
     if time_str ~= self.time_str then
         self.timer:SetText(time_str)
@@ -168,6 +185,9 @@ function PlayerBuff:Update(data)
         self.frame:SetScript("OnUpdate", function() self:OnUpdate() end)
     else
         self.expires = 0
+        if self.icon_id == ICON_DRAGON_GLYPH_RESONANCE then
+            self.frame:SetScript("OnUpdate", function() self:OnUpdate() end)
+        end
     end
 
     self:UpdateTimeLeft()  -- also updates tooltip by side effect

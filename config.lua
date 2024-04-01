@@ -13,6 +13,9 @@ WoWXIV_Config = WoWXIV_Config or {}
 -- WoWXIV_Config after module load is inserted by the init routine.
 local config_default = {}
 
+-- Buff bars: show distance for dragon glyph?
+config_default["buffbar_dragon_glyph_distance"] = true
+
 -- Enmity list: enable?
 config_default["hatelist_enable"] = true
 
@@ -37,18 +40,28 @@ ConfigFrame.__index = ConfigFrame
 function ConfigFrame:AddHeader(text)
     local f = self.native_frame
     local label = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
-    self.y = self.y - 20
-    label:SetPoint("TOPLEFT", self.x, self.y)
     self.y = self.y - 30
+    label:SetPoint("TOPLEFT", self.x, self.y)
+    self.y = self.y - 15
     label:SetTextScale(1.2)
+    label:SetText(text)
+end
+
+function ConfigFrame:AddComment(text)
+    local f = self.native_frame
+    local label = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    self.y = self.y - 5
+    label:SetPoint("TOPLEFT", self.x+40, self.y)
+    self.y = self.y - 10
     label:SetText(text)
 end
 
 function ConfigFrame:AddCheckButton(text, setting, on_change)
     local f = self.native_frame
     local button = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+    self.y = self.y - 10
     button:SetPoint("TOPLEFT", self.x+10, self.y)
-    self.y = self.y - 30
+    self.y = self.y - 20
     button.text:SetTextScale(1.25)
     button.text:SetText(text)
     button:SetChecked(WoWXIV_config[setting])
@@ -64,8 +77,9 @@ end
 function ConfigFrame:AddRadioButton(text, setting, value, on_change)
     local f = self.native_frame
     local button = CreateFrame("CheckButton", nil, f, "UIRadioButtonTemplate")
+    self.y = self.y - 10
     button:SetPoint("TOPLEFT", self.x+10, self.y)
-    self.y = self.y - 30
+    self.y = self.y - 20
     button.text:SetTextScale(1.25)
     button.text:SetText(text)
     button:SetChecked(WoWXIV_config[setting] == value)
@@ -95,6 +109,11 @@ function ConfigFrame:New()
     new.native_frame = f
     new.x = 10
     new.y = 10  -- Assuming an initial header.
+
+    new:AddHeader("Buff/debuff bar settings")
+    new:AddCheckButton("Show distance for Dragon Glyph Resonance",
+                       "buffbar_dragon_glyph_distance")
+    new:AddComment("Note: The game only updates the distance once every 5 seconds.")
 
     new:AddHeader("Enmity list settings")
     new:AddCheckButton("Enable enmity list",
