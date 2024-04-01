@@ -98,8 +98,10 @@ function PlayerBuff:UpdateTimeLeft()
         time_str = time_rounded
     elseif time_rounded < 3600 then
         time_str = math.floor(time_rounded/60) .. "m"
-    else
+    elseif time_rounded < 86400 then
         time_str = math.floor(time_rounded/3600) .. "h"
+    else
+        time_str = math.floor(time_rounded/86400) .. "d"
     end
     if time_str ~= self.time_str then
         self.timer:SetText(time_str)
