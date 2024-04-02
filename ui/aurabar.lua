@@ -269,7 +269,7 @@ function Aura:InternalUpdate(unit, data)
     if expires > 0 then
         self.expires = expires
         if is_mine then
-            self.timer:SetTextColor(0.78, 0.89, 1)
+            self.timer:SetTextColor(0.56, 1, 0.78)
         else
             self.timer:SetTextColor(1, 1, 1)
         end
