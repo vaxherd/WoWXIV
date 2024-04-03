@@ -332,6 +332,13 @@ function WoWXIV.TargetBar.Create()
         WoWXIV.HideBlizzardFrame(TargetFrame)
         WoWXIV.HideBlizzardFrame(FocusFrame)
     end
+    if WoWXIV_config["targetbar_move_top_center"] then
+        -- Put it about halfway between the hotbars and menu bar.
+        local offset_x = UIParent:GetWidth() * 0.262
+        UIWidgetTopCenterContainerFrame:ClearAllPoints()
+        UIWidgetTopCenterContainerFrame:SetPoint("BOTTOM", UIParent, "BOTTOM",
+                                                 offset_x, 15)
+    end
 end
 
 -- Force a refresh of the target and focus bars, such as to pick up
