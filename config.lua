@@ -31,6 +31,8 @@ config_default["targetbar_hide_native"] = true
 config_default["targetbar_target_own_debuffs_only"] = false
 -- Target bar: show only own debuffs on focus bar?
 config_default["targetbar_focus_own_debuffs_only"] = false
+-- Target bar: move top-center info widget to bottom right?
+config_default["targetbar_move_top_center"] = true
 
 ------------------------------------------------------------------------
 
@@ -53,6 +55,7 @@ function ConfigFrame:AddComment(text)
     self.y = self.y - 5
     label:SetPoint("TOPLEFT", self.x+40, self.y)
     self.y = self.y - 10
+    label:SetTextColor(1, 0.5, 0)
     label:SetText(text)
 end
 
@@ -130,12 +133,17 @@ function ConfigFrame:New()
     new:AddHeader("Target bar settings")
     new:AddCheckButton("Hide native target frame (requires reload)",
                        "targetbar_hide_native")
+    new:AddComment("Note: Native target frame may still appear during combat in rare situations.")
     new:AddCheckButton("Show only own debuffs on target bar",
                        "targetbar_target_own_debuffs_only",
                        WoWXIV.TargetBar.Refresh)
     new:AddCheckButton("Show only own debuffs on focus bar",
                        "targetbar_focus_own_debuffs_only",
                        WoWXIV.TargetBar.Refresh)
+    new:AddCheckButton("Move top-center widget to bottom right (requires reload)",
+                       "targetbar_move_top_center",
+                       WoWXIV.TargetBar.Refresh)
+    new:AddComment("(Eye of the Jailer, Heart of Amirdrassil health, etc.)")
 
     -- Required by the settings API:
     function f:OnCommit()
