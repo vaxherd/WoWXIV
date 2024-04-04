@@ -1,6 +1,7 @@
 local WoWXIV = WoWXIV
 WoWXIV.UI = WoWXIV.UI or {}
 local UI = WoWXIV.UI
+UI.Aura = {}
 UI.AuraBar = {}
 
 local GameTooltip = GameTooltip
@@ -51,15 +52,24 @@ local ICON_DRAGON_GLYPH_RESONANCE = 4728198
 
 ------------------------------------------------------------------------
 
-local Aura = {}
+local Aura = UI.Aura
 Aura.__index = Aura
 
 function Aura:New(parent)
+    local f = CreateFrame("Frame", nil, parent)
+    f:Hide()
+    f:SetSize(24, 40)
+    return Aura:NewWithFrame(f)
+end
+
+function Aura:NewWithFrame(f, is_secure_player_aura)
     local new = {}
     setmetatable(new, self)
     new.__index = self
 
-    new.parent = parent
+    new.frame = f
+    new.is_secure_player_aura = is_secure_player_aura
+    new.parent = f:GetParent()
     new.tooltip_anchor = "BOTTOMRIGHT"
     new.unit = nil
     new.data = nil
@@ -71,13 +81,6 @@ function Aura:New(parent)
     new.stacks = 0
     new.time_str = nil
     new.expires = 0
-
-    local f = CreateFrame("Frame", nil, parent)
-    new.frame = f
-    f:Hide()
-    f:SetSize(24, 40)
-    f:SetScript("OnEnter", function() new:OnEnter() end)
-    f:SetScript("OnLeave", function() new:OnLeave() end)
 
     new.icon = f:CreateTexture(nil, "ARTWORK")
     new.icon:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -4)
@@ -99,18 +102,26 @@ function Aura:New(parent)
     new.timer:SetText("")
     new.is_glyph_dist = false  -- Is timer repurposed as dragon glyph distance?
 
+    -- Use HookScript instead of SetScript in case the frame is a secure frame.
+    f:HookScript("OnEnter", function() new:OnEnter() end)
+    f:HookScript("OnLeave", function() new:OnLeave() end)
+
     return new
 end
 
 function Aura:SetAnchor(anchor, x, y, tooltip_anchor)
     self.frame:SetPoint(anchor, self.parent, anchor, x, y)
-    self.tooltip_anchor = tooltip_anchor
+    self:SetTooltipAnchor(tooltip_anchor)
+end
+
+function Aura:SetTooltipAnchor(tooltip_anchor)
+    self.tooltip_anchor = "ANCHOR_" .. tooltip_anchor
 end
 
 function Aura:OnEnter()
     if GameTooltip:IsForbidden() then return end
     if not self.frame:IsVisible() then return end
-    GameTooltip:SetOwner(self.frame, "ANCHOR_"..self.tooltip_anchor)
+    GameTooltip:SetOwner(self.frame, self.tooltip_anchor)
     self:UpdateTooltip()
 end
 
@@ -206,7 +217,9 @@ end
 function Aura:InternalUpdate(unit, data)
     if not unit then
         if self.unit then
-            self.frame:Hide()
+            if not self.is_secure_player_aura then
+                self.frame:Hide()
+            end
             self.unit = nil
             self.data = nil
             self.instance = nil
@@ -250,7 +263,7 @@ function Aura:InternalUpdate(unit, data)
             self.border:SetTexCoord(99/256.0, 121/256.0, 40/256.0, 14/256.0)
         end
         self.icon:SetTexture(icon_id)  -- Must come _after_ SetMask()!
-        if not self.icon_id then
+        if not self.icon_id and not self.is_secure_player_aura then
             self.frame:Show()
         end
         self.icon_id = icon_id

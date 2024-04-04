@@ -1,4 +1,4 @@
-<Ui xmlns='http://www.blizzard.com/wow/ui/'>
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
   <Button name="PlayerBuffTemplate" inherits="SecureActionButtonTemplate" virtual="true">
     <Size x="24" y="40"/>
     <Attributes>
