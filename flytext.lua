@@ -1,14 +1,15 @@
 local _, WoWXIV = ...
 WoWXIV.FlyText = {}
 
+local class = WoWXIV.class
+
 local CLM = WoWXIV.CombatLogManager
 local strsub = string.sub
 local strfind = string.find
 
 ------------------------------------------------------------------------
 
-local FlyText = {}
-FlyText.__index = FlyText
+local FlyText = class()
 
 -- Length of time a fly text will be displayed (seconds).
 local FLYTEXT_TIME = 4.5
@@ -20,7 +21,7 @@ local FLYTEXT_CRIT_SCALE = FLYTEXT_FONT_SCALE * 2
 -- Scale factor for "Miss" text.
 local FLYTEXT_MISS_SCALE = FLYTEXT_FONT_SCALE * 0.9
 
--- Damage types for type argument to New().
+-- Damage types for type argument to constructor.
 local FLYTEXT_DAMAGE_DIRECT  = 1  -- direct damage, or DoT from channeling
 local FLYTEXT_DAMAGE_PASSIVE = 2  -- DoT from auras
 local FLYTEXT_HEAL_DIRECT    = 3
@@ -123,49 +124,45 @@ end
 -- Buff/debuff: (type, unit, spell_id, school, stacks)
 -- Loot money: (type, amount)
 -- Loot item: (type, item_icon, item_name, name_color, count [default 1])
-function FlyText:New(type, ...)
-    local new = {}
-    setmetatable(new, self)
-    new.__index = self
-
-    new.type = type
+function FlyText:__constructor(type, ...)
+    self.type = type
     if type == FLYTEXT_DAMAGE_PASSIVE or type == FLYTEXT_HEAL_PASSIVE then
-        new.unit, new.amount = ...
+        self.unit, self.amount = ...
     elseif type >= FLYTEXT_DAMAGE_DIRECT and type <= FLYTEXT_DEBUFF_REMOVE then
-        new.unit, new.spell_id, new.school, new.amount, new.crit_flag = ...
+        self.unit, self.spell_id, self.school, self.amount, self.crit_flag = ...
     elseif type == FLYTEXT_LOOT_MONEY then
-        new.unit = "player"
-        new.amount = ...
+        self.unit = "player"
+        self.amount = ...
     elseif type == FLYTEXT_LOOT_ITEM then
-        new.unit = "player"
-        new.item_icon, new.item_name, new.item_color, new.amount = ...
+        self.unit = "player"
+        self.item_icon, self.item_name, self.item_color, self.amount = ...
     else
         print("FlyText error: invalid type", type)
-        new.frame = nil
-        return new
+        self.frame = nil
+        return self
     end
 
     -- There seems to be no API for getting the screen position of a unit,
     -- so we can't draw anything for units other than the player.
-    if new.unit ~= "player" then
-        new.frame = nil
-        return new
+    if self.unit ~= "player" then
+        self.frame = nil
+        return self
     end
 
-    new.time = FLYTEXT_TIME
-    new.start = GetTime()
+    self.time = FLYTEXT_TIME
+    self.start = GetTime()
     if type == FLYTEXT_HEAL_DIRECT or type == FLYTEXT_HEAL_PASSIVE then
-        new.x = -(UIParent:GetWidth()*0.01)
+        self.x = -(UIParent:GetWidth()*0.01)
     else
-        new.x = UIParent:GetWidth()*0.05
+        self.x = UIParent:GetWidth()*0.05
     end
-    new.y = 0
-    new.dy = FlyText:GetDY()
+    self.y = 0
+    self.dy = FlyText:GetDY()
 
     local f = FlyText:AllocPooledFrame()
-    new.frame = f
+    self.frame = f
     f:ClearAllPoints()
-    f:SetPoint("CENTER", nil, "CENTER", new.x, 0)
+    f:SetPoint("CENTER", nil, "CENTER", self.x, 0)
     f:SetSize(100, 20)
     f:SetAlpha(0)
 
@@ -179,7 +176,7 @@ function FlyText:New(type, ...)
     value:SetTextColor(r, g, b)
 
     if type == FLYTEXT_DAMAGE_DIRECT or type == FLYTEXT_HEAL_DIRECT then
-        local spell_name, _ = GetSpellInfo(new.spell_id)
+        local spell_name, _ = GetSpellInfo(self.spell_id)
         if spell_name then
             name:SetText(spell_name)
         else
@@ -192,11 +189,11 @@ function FlyText:New(type, ...)
             value:ClearAllPoints()
             value:SetPoint("LEFT", f, "CENTER", 10, 0)
         end
-        local amount = new.amount
+        local amount = self.amount
         if not amount then
             value:SetTextScale(FLYTEXT_MISS_SCALE)
             amount = "Miss"
-        elseif new.crit_flag then
+        elseif self.crit_flag then
             value:SetTextScale(FLYTEXT_CRIT_SCALE)
             local exclam = w.exclam
             exclam:SetTextColor(r, g, b)
@@ -209,11 +206,11 @@ function FlyText:New(type, ...)
         icon:Hide()
         value:ClearAllPoints()
         value:SetPoint("LEFT", f, "CENTER", 10, 0)
-        value:SetText(new.amount)
+        value:SetText(self.amount)
 
     elseif type >= FLYTEXT_BUFF_ADD and type <= FLYTEXT_DEBUFF_REMOVE then
         name:Hide()
-        local spell_name, _, spell_icon = GetSpellInfo(new.spell_id)
+        local spell_name, _, spell_icon = GetSpellInfo(self.spell_id)
         icon:SetSize(24, 24)
         local border = w.border
         border:SetSize(22, 26)
@@ -226,9 +223,9 @@ function FlyText:New(type, ...)
             border:SetTexCoord(99/256.0, 121/256.0, 40/256.0, 14/256.0)
         end
         icon:SetTexture(spell_icon)
-        if new.amount and new.amount > 0 then
+        if self.amount and self.amount > 0 then
             local stacks = w.stacks
-            stacks:SetText(new.amount)
+            stacks:SetText(self.amount)
         end
         value:ClearAllPoints()
         value:SetPoint("LEFT", icon, "RIGHT", 2, 0)
@@ -249,20 +246,20 @@ function FlyText:New(type, ...)
         -- The function takes an optional second boolean argument which
         -- (if true) adds thousands separators, but we leave it at the
         -- default of false for consistency with the rest of our UI.
-        value:SetText(GetMoneyString(new.amount))
+        value:SetText(GetMoneyString(self.amount))
 
     elseif type == FLYTEXT_LOOT_ITEM then
         name:Hide()
         icon:SetSize(24, 24)
         icon:SetMask("")
-        icon:SetTexture(new.item_icon)
-        local color = new.item_color
+        icon:SetTexture(self.item_icon)
+        local color = self.item_color
         local r = tonumber("0x"..strsub(color, 1, 2)) / 255
         local g = tonumber("0x"..strsub(color, 3, 4)) / 255
         local b = tonumber("0x"..strsub(color, 5, 6)) / 255
-        local text = new.item_name
-        if new.amount and new.amount > 1 then
-            text = text .. WoWXIV.FormatColoredText("×"..new.amount, COLOR_BLUE)
+        local text = self.item_name
+        if self.amount and self.amount > 1 then
+            text = text .. WoWXIV.FormatColoredText("×"..self.amount, COLOR_BLUE)
         end
         value:ClearAllPoints()
         value:SetPoint("LEFT", icon, "RIGHT", 2, 0)
@@ -270,8 +267,6 @@ function FlyText:New(type, ...)
         value:SetText(text)
 
     end
-
-    return new
 end
 
 -- Returns true if text is still displayed, false if deleted.
@@ -307,41 +302,35 @@ end
 
 ------------------------------------------------------------------------
 
-local FlyTextManager = {}
-FlyTextManager.__index = FlyTextManager
+local FlyTextManager = class()
 
-function FlyTextManager:New(parent)
-    local new = {}
-    setmetatable(new, self)
-    new.__index = self
-
-    new.enabled = true
-    new.texts = {}
-    new.dot = {}
-    new.hot = {}
-    new.last_left = 0
-    new.last_right = 0
-    new.zone_entered = 0
-    new.last_money = GetMoney()
-    new.last_item_icon = nil
+function FlyTextManager:__constructor(parent)
+    self.enabled = true
+    self.texts = {}
+    self.dot = {}
+    self.hot = {}
+    self.last_left = 0
+    self.last_right = 0
+    self.zone_entered = 0
+    self.last_money = GetMoney()
+    self.last_item_icon = nil
 
     local f = CreateFrame("Frame", "WoWXIV_FlyTextManager", nil)
-    new.frame = f
+    self.frame = f
     f.xiv_eventmap = {
         PLAYER_MONEY = FlyTextManager.OnPlayerMoney,
         CHAT_MSG_LOOT = FlyTextManager.OnLootItem,
         CHAT_MSG_CURRENCY = FlyTextManager.OnLootCurrency,
         -- Suppress aura events for the first 0.5 sec after entering a zone
         -- to avoid spam from permanent buffs (which are reapplied on
-        -- entering each new zone).
+        -- entering each self zone).
         PLAYER_ENTERING_WORLD = FlyTextManager.OnEnterZone,
     }
-    f:SetScript("OnEvent", function(self, event, ...)
-        local handler = self.xiv_eventmap[event]
-        if handler then handler(new, event, ...) end
+    f:SetScript("OnEvent", function(frame, event, ...)
+        local handler = frame.xiv_eventmap[event]
+        if handler then handler(self, event, ...) end
     end)
-    f:SetScript("OnUpdate", function() new:OnUpdate() end)
-    return new
+    f:SetScript("OnUpdate", function() self:OnUpdate() end)
 end
 
 function FlyTextManager:Enable(enable)
@@ -378,8 +367,8 @@ function FlyTextManager:OnCombatLogEvent(event)
     local text = nil
     local left_side = false
     if event.subtype == "DAMAGE" then
-        text = FlyText:New(FLYTEXT_DAMAGE_DIRECT, unit, event.spell_id,
-                           event.spell_school, event.amount, event.critical)
+        text = FlyText(FLYTEXT_DAMAGE_DIRECT, unit, event.spell_id,
+                       event.spell_school, event.amount, event.critical)
     elseif event.subtype == "PERIODIC_DAMAGE" then
         self.dot = self.dot or {}
         self.dot[unit] = (self.dot[unit] or 0) + event.amount
@@ -387,23 +376,23 @@ function FlyTextManager:OnCombatLogEvent(event)
         -- Note: absorbed heals are reported as "heal for 0" with the
         -- amount absorbed in event.absorbed, so we don't have to worry
         -- about separating them out here.
-        text = FlyText:New(FLYTEXT_DAMAGE_DIRECT, unit, event.spell_id,
-                           event.spell_school, event.amount and 0 or nil)
+        text = FlyText(FLYTEXT_DAMAGE_DIRECT, unit, event.spell_id,
+                       event.spell_school, event.amount and 0 or nil)
     elseif event.subtype == "HEAL" then
         left_side = true
-        text = FlyText:New(FLYTEXT_HEAL_DIRECT, unit, event.spell_id,
-                           event.spell_school, event.amount, event.critical)
+        text = FlyText(FLYTEXT_HEAL_DIRECT, unit, event.spell_id,
+                       event.spell_school, event.amount, event.critical)
     elseif event.subtype == "PERIODIC_HEAL" then
         self.hot = self.hot or {}
         self.hot[unit] = (self.hot[unit] or 0) + event.amount
     elseif event.subtype == "AURA_APPLIED" then
         -- It doesn't look like APPLIED_DOSE is used for stacking buffs?
         -- (and so we can't actually get the stack count)
-        text = FlyText:New(
+        text = FlyText(
             event.aura_type=="BUFF" and FLYTEXT_BUFF_ADD or FLYTEXT_DEBUFF_ADD,
             unit, event.spell_id, event.spell_school)
     elseif event.subtype == "AURA_REMOVED" then
-        text = FlyText:New(
+        text = FlyText(
             event.aura_type=="BUFF" and FLYTEXT_BUFF_REMOVE or FLYTEXT_DEBUFF_REMOVE,
             unit, event.spell_id, event.spell_school)
     end
@@ -417,7 +406,7 @@ function FlyTextManager:OnPlayerMoney()
     local diff = money - self.last_money
     self.last_money = money
     if diff > 0 then
-        self:AddText(FlyText:New(FLYTEXT_LOOT_MONEY, diff))
+        self:AddText(FlyText(FLYTEXT_LOOT_MONEY, diff))
     end
 end
 
@@ -469,7 +458,7 @@ function FlyTextManager:OnLootItem(event, msg)
     local base_name, _, _, _, _, _, _, _, _, icon = GetItemInfo(id)
     if not name then name = base_name end
     if name and icon then
-        self:AddText(FlyText:New(FLYTEXT_LOOT_ITEM, icon, name, color, count))
+        self:AddText(FlyText(FLYTEXT_LOOT_ITEM, icon, name, color, count))
     end
 end
 
@@ -482,8 +471,8 @@ function FlyTextManager:OnLootCurrency(event, msg)
         if dash then
             name = strsub(name, 1, dash-1)  -- strip covenant
         end
-        self:AddText(FlyText:New(FLYTEXT_LOOT_ITEM,
-                                 info.iconFileID, name, color, count))
+        self:AddText(FlyText(FLYTEXT_LOOT_ITEM,
+                             info.iconFileID, name, color, count))
     end
 end
 
@@ -511,7 +500,7 @@ end
 function FlyTextManager:OnUpdate()
     if self.dot then
         for unit, amount in pairs(self.dot) do
-            text = FlyText:New(FLYTEXT_DAMAGE_PASSIVE, unit, amount)
+            text = FlyText(FLYTEXT_DAMAGE_PASSIVE, unit, amount)
             self:AddText(text, false)
         end
         self.dot = nil
@@ -519,7 +508,7 @@ function FlyTextManager:OnUpdate()
 
     if self.hot then
         for unit, amount in pairs(self.hot) do
-            text = FlyText:New(FLYTEXT_HEAL_PASSIVE, unit, amount)
+            text = FlyText(FLYTEXT_HEAL_PASSIVE, unit, amount)
             tinsert(self.texts, text)
         end
         self.hot = nil
@@ -540,11 +529,11 @@ end
 
 -- Create the fly-text manager.
 function WoWXIV.FlyText.CreateManager()
-    WoWXIV.FlyText.manager = FlyTextManager:New()
+    WoWXIV.FlyText.manager = FlyTextManager()
     WoWXIV.FlyText.Enable(WoWXIV_config["flytext_enable"])
 end
 
--- Enable or disable fly-text dispaly.
+-- Enable or disable fly-text display.
 function WoWXIV.FlyText.Enable(enable)
     if WoWXIV.FlyText.manager then
         WoWXIV.FlyText.manager:Enable(enable)

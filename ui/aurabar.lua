@@ -1,8 +1,12 @@
 local _, WoWXIV = ...
 WoWXIV.UI = WoWXIV.UI or {}
 local UI = WoWXIV.UI
-UI.Aura = {}
-UI.AuraBar = {}
+
+local class = WoWXIV.class
+UI.Aura = class()
+UI.AuraBar = class()
+
+local class = WoWXIV.class
 
 local GameTooltip = GameTooltip
 
@@ -53,60 +57,60 @@ local ICON_DRAGON_GLYPH_RESONANCE = 4728198
 ------------------------------------------------------------------------
 
 local Aura = UI.Aura
-Aura.__index = Aura
 
-function Aura:New(parent)
-    local f = CreateFrame("Frame", nil, parent)
-    f:Hide()
-    f:SetSize(24, 40)
-    return Aura:NewWithFrame(f)
-end
+-- Constructor takes two forms, to handle secure aura frames for
+-- player buffs:
+--     Aura(parent)  -- normal instance; pass the parent frame
+--     Aura(secure_frame, true)  -- secure aura frame: pass the secure frame
+--                               -- and set the second argument to true
+function Aura:__constructor(frame, is_secure_player_aura)
+    local f
+    if is_secure_player_aura then
+        f = frame
+    else
+        f = CreateFrame("Frame", nil, frame)
+        f:Hide()
+        f:SetSize(24, 40)
+    end
 
-function Aura:NewWithFrame(f, is_secure_player_aura)
-    local new = {}
-    setmetatable(new, self)
-    new.__index = self
+    self.frame = f
+    self.is_secure_player_aura = is_secure_player_aura
+    self.parent = f:GetParent()
+    self.tooltip_anchor = "BOTTOMRIGHT"
+    self.unit = nil
+    self.data = nil
+    self.instance = nil
+    self.spell_id = nil
+    self.icon_id = nil
+    self.is_helpful = nil
+    self.is_mine = nil
+    self.stacks = 0
+    self.time_str = nil
+    self.expires = 0
 
-    new.frame = f
-    new.is_secure_player_aura = is_secure_player_aura
-    new.parent = f:GetParent()
-    new.tooltip_anchor = "BOTTOMRIGHT"
-    new.unit = nil
-    new.data = nil
-    new.instance = nil
-    new.spell_id = nil
-    new.icon_id = nil
-    new.is_helpful = nil
-    new.is_mine = nil
-    new.stacks = 0
-    new.time_str = nil
-    new.expires = 0
+    self.icon = f:CreateTexture(nil, "ARTWORK")
+    self.icon:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -4)
+    self.icon:SetSize(24, 24)
 
-    new.icon = f:CreateTexture(nil, "ARTWORK")
-    new.icon:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -4)
-    new.icon:SetSize(24, 24)
+    self.border = f:CreateTexture(nil, "OVERLAY")
+    self.border:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -3)
+    self.border:SetSize(22, 26)
+    self.border:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
 
-    new.border = f:CreateTexture(nil, "OVERLAY")
-    new.border:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -3)
-    new.border:SetSize(22, 26)
-    new.border:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+    self.stack_label = f:CreateFontString(nil, "OVERLAY", "NumberFont_Shadow_Med")
+    self.stack_label:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -2)
+    self.stack_label:SetTextScale(1)
+    self.stack_label:SetText("")
 
-    new.stack_label = f:CreateFontString(nil, "OVERLAY", "NumberFont_Shadow_Med")
-    new.stack_label:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -2)
-    new.stack_label:SetTextScale(1)
-    new.stack_label:SetText("")
-
-    new.timer = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    new.timer:SetPoint("BOTTOM", f, "BOTTOM", 0, 3)
-    new.timer:SetTextScale(1)
-    new.timer:SetText("")
-    new.is_glyph_dist = false  -- Is timer repurposed as dragon glyph distance?
+    self.timer = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    self.timer:SetPoint("BOTTOM", f, "BOTTOM", 0, 3)
+    self.timer:SetTextScale(1)
+    self.timer:SetText("")
+    self.is_glyph_dist = false  -- Is timer repurposed as dragon glyph distance?
 
     -- Use HookScript instead of SetScript in case the frame is a secure frame.
-    f:HookScript("OnEnter", function() new:OnEnter() end)
-    f:HookScript("OnLeave", function() new:OnLeave() end)
-
-    return new
+    f:HookScript("OnEnter", function() self:OnEnter() end)
+    f:HookScript("OnLeave", function() self:OnLeave() end)
 end
 
 function Aura:SetAnchor(anchor, x, y, tooltip_anchor)
@@ -320,49 +324,45 @@ end
 -- type is one of: "HELPFUL", "HARMFUL", "MISC" (like XIV food/FC buffs),
 --     or "ALL" (for party list)
 -- align is either "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", or "BOTTOMRIGHT"
-function AuraBar:New(type, align, cols, rows, parent, anchor_x, anchor_y)
-    local new = {}
-    setmetatable(new, self)
-    new.__index = self
-
-    new.unit = null
-    new.type = type
-    new.align = align
-    new.leftalign = (align == "TOPLEFT" or align == "BOTTOMLEFT")
-    new.topalign = (align == "TOPLEFT" or align == "TOPRIGHT")
+function AuraBar:__constructor(type, align, cols, rows, parent,
+                               anchor_x, anchor_y)
+    self.unit = null
+    self.type = type
+    self.align = align
+    self.leftalign = (align == "TOPLEFT" or align == "BOTTOMLEFT")
+    self.topalign = (align == "TOPLEFT" or align == "TOPRIGHT")
     -- Always anchor tooltips to bottom because we display the bars at the
     -- top of the screen (so top anchor would overlap the icon itself).
     local inv_align = ("BOTTOM"
-                       .. (new.leftalign and "RIGHT" or "LEFT"))
-    new.inv_align = inv_align
-    new.cols = cols
-    new.max = cols * rows
-    new.instance_map = {}  -- map from aura instance ID to self.auras[] index
-    new.log_events = false  -- set with AuraBar:LogEvents()
+                       .. (self.leftalign and "RIGHT" or "LEFT"))
+    self.inv_align = inv_align
+    self.cols = cols
+    self.max = cols * rows
+    self.instance_map = {}  -- map from aura instance ID to self.auras[] index
+    self.log_events = false  -- set with AuraBar:LogEvents()
 
     local f = CreateFrame("Frame", nil, parent)
-    new.frame = f
+    self.frame = f
     f:SetSize(24*cols, 40*rows)
     f:SetPoint(align, parent, align, anchor_x, anchor_y)
 
-    new.auras = {}
-    local dx = new.leftalign and 24 or -24
-    local dy = new.topalign and -40 or 40
-    new.dx, new.dy = dx, dy
+    self.auras = {}
+    local dx = self.leftalign and 24 or -24
+    local dy = self.topalign and -40 or 40
+    self.dx, self.dy = dx, dy
     for r = 1, rows do
         local y = (r-1)*dy
         for c = 1, cols do
-            local aura = Aura:New(f)
-            table.insert(new.auras, aura)
+            local aura = Aura(f)
+            table.insert(self.auras, aura)
             local x = (c-1)*dx
             aura:SetAnchor(align, x, y, inv_align)
         end
     end
 
-    f:SetScript("OnEvent", function(self, event, ...) new:OnUnitAura(...) end)
+    f:SetScript("OnEvent", function(frame,event,...) self:OnUnitAura(...) end)
 
-    new:Refresh()
-    return new
+    self:Refresh()
 end
 
 function AuraBar:Delete()

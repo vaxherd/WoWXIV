@@ -5,6 +5,7 @@
 ## SavedVariables: WoWXIV_config
 
 WoWXIV.lua
+_base.lua
 buffbar.lua
 buffbar.xml
 combat.lua
@@ -15,6 +16,7 @@ hatelist.lua
 partylist.lua
 slashcmd.lua
 targetbar.lua
+util.lua
+
 ui/aurabar.lua
 ui/gauge.lua
-util.lua

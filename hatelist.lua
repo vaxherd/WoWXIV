@@ -1,6 +1,8 @@
 local _, WoWXIV = ...
 WoWXIV.HateList = {}
 
+local class = WoWXIV.class
+
 local CLM = WoWXIV.CombatLogManager
 local UnitFlags = CLM.UnitFlags
 local band = bit.band
@@ -8,43 +10,36 @@ local bor = bit.bor
 
 --------------------------------------------------------------------------
 
-local Enemy = {}
-Enemy.__index = Enemy
+local Enemy = class()
 
-function Enemy:New(parent, y)
-    local new = {}
-    setmetatable(new, self)
-    new.__index = self
-
-    new.guid = nil    -- GUID of currently monitored unit, nil if none
-    new.name = ""     -- Name of unit (saved because we can't get it by GUID)
-    new.token = nil   -- Token by which we can look up unit info. nil if none
+function Enemy:__constructor(parent, y)
+    self.guid = nil    -- GUID of currently monitored unit, nil if none
+    self.name = ""     -- Name of unit (saved because we can't get it by GUID)
+    self.token = nil   -- Token by which we can look up unit info. nil if none
 
     local f = CreateFrame("Frame", nil, parent)
-    new.frame = f
+    self.frame = f
     f:SetSize(200, 30)
     f:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, y)
     f:Hide()
 
     local hate_icon = f:CreateTexture(nil, "ARTWORK")
-    new.hate_icon = hate_icon
+    self.hate_icon = hate_icon
     hate_icon:SetPoint("TOPLEFT", f, "TOPLEFT")
     hate_icon:SetSize(19, 19)
     hate_icon:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
 
     local name_label = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    new.name_label = name_label
+    self.name_label = name_label
     name_label:SetPoint("TOPLEFT", f, "TOPLEFT", 23, -1)
     name_label:SetTextScale(1.1)
 
-    local hp = WoWXIV.UI.Gauge:New(f, 52)
-    new.hp = hp
+    local hp = WoWXIV.UI.Gauge(f, 52)
+    self.hp = hp
     hp:SetBoxColor(0.533, 0.533, 0.533)
     hp:SetBarBackgroundColor(0.118, 0.118, 0.118)
     hp:SetBarColor(1, 1, 1)
     hp:SetPoint("TOPLEFT", f, "TOPLEFT", 19, -13)
-
-    return new
 end
 
 -- Pass unit_guid=nil (or no arguments) to clear a previously set enemy.
@@ -109,41 +104,36 @@ end
 
 --------------------------------------------------------------------------
 
-local HateList = {}
-HateList.__index = HateList
+local HateList = class()
 
-function HateList:New()
-    local new = {}
-    setmetatable(new, self)
-    new.__index = self
-
-    new.enemies = {}  -- 1 per enemy slot (all precreated)
-    new.guids = {}    -- Mapping from enemy GUID to enemies[] slot
-    new.unit_not_seen = {}  -- Safety net, see OnPeriodicUpdate()
+function HateList:__constructor()
+    self.enemies = {}  -- 1 per enemy slot (all precreated)
+    self.guids = {}    -- Mapping from enemy GUID to enemies[] slot
+    self.unit_not_seen = {}  -- Safety net, see OnPeriodicUpdate()
 
     local f = CreateFrame("Frame", "WoWXIV_HateList", UIParent)
-    new.frame = f
+    self.frame = f
     f:Hide()
     f:SetPoint("TOPLEFT", 30, -(UIParent:GetHeight()/2))
     f:SetSize(200, 34)
-    f:SetScript("OnEvent", function(self, ...) new:OnEvent(...) end)
+    f:SetScript("OnEvent", function(frame, ...) self:OnEvent(...) end)
 
     local bg_t = f:CreateTexture(nil, "BACKGROUND")
-    new.bg_t = bg_t
+    self.bg_t = bg_t
     bg_t:SetPoint("TOP", f)
     bg_t:SetSize(f:GetWidth(), 4)
     bg_t:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     bg_t:SetTexCoord(0, 1, 0/256.0, 4/256.0)
     bg_t:SetVertexColor(0, 0, 0, 1)
     local bg_b = f:CreateTexture(nil, "BACKGROUND")
-    new.bg_b = bg_b
+    self.bg_b = bg_b
     bg_b:SetPoint("BOTTOM", f)
     bg_b:SetSize(f:GetWidth(), 4)
     bg_b:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     bg_b:SetTexCoord(0, 1, 7/256.0, 11/256.0)
     bg_b:SetVertexColor(0, 0, 0, 1)
     local bg_c = f:CreateTexture(nil, "BACKGROUND")
-    new.bg_c = bg_c
+    self.bg_c = bg_c
     bg_c:SetPoint("TOPLEFT", bg_t, "BOTTOMLEFT")
     bg_c:SetPoint("BOTTOMRIGHT", bg_b, "TOPRIGHT")
     bg_c:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
@@ -151,20 +141,20 @@ function HateList:New()
     bg_c:SetVertexColor(0, 0, 0, 1)
 
     local highlight_t = f:CreateTexture(nil, "BACKGROUND", nil, 1)
-    new.highlight_t = highlight_t
+    self.highlight_t = highlight_t
     highlight_t:SetSize(f:GetWidth(), 4)
     highlight_t:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     highlight_t:SetTexCoord(0, 1, 0/256.0, 4/256.0)
     highlight_t:SetVertexColor(1, 1, 1, 0.5)
     local highlight_c = f:CreateTexture(nil, "BACKGROUND", nil, 1)
-    new.highlight_c = highlight_c
+    self.highlight_c = highlight_c
     highlight_c:SetPoint("TOP", highlight_t, "BOTTOM")
     highlight_c:SetSize(f:GetWidth(), 24)
     highlight_c:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     highlight_c:SetTexCoord(0, 1, 4/256.0, 7/256.0)
     highlight_c:SetVertexColor(1, 1, 1, 0.5)
     local highlight_b = f:CreateTexture(nil, "BACKGROUND", nil, 1)
-    new.highlight_b = highlight_b
+    self.highlight_b = highlight_b
     highlight_b:SetPoint("TOP", highlight_c, "BOTTOM")
     highlight_b:SetSize(f:GetWidth(), 4)
     highlight_b:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
@@ -176,13 +166,11 @@ function HateList:New()
 
     for i = 1, 8 do
         local y = -2-30*(i-1)
-        tinsert(new.enemies, Enemy:New(f, y))
-        tinsert(new.unit_not_seen, 0)
+        tinsert(self.enemies, Enemy(f, y))
+        tinsert(self.unit_not_seen, 0)
     end
 
-    C_Timer.After(1, function() new:OnPeriodicUpdate() end)
-
-    return new
+    C_Timer.After(1, function() self:OnPeriodicUpdate() end)
 end
 
 function HateList:Enable(enable)
@@ -419,7 +407,7 @@ end
 
 -- Create the global enmity list object.
 function WoWXIV.HateList.Create()
-    WoWXIV.HateList.list = HateList:New()
+    WoWXIV.HateList.list = HateList()
     WoWXIV.HateList.Enable(WoWXIV_config["hatelist_enable"])
 end
 
