@@ -125,8 +125,8 @@ local function SetColorsForUnit(unit, hp, name)
         hostile = -1
         hp:SetBoxColor(0.416, 0.725, 0.890)
         hp:SetBarBackgroundColor(0.027, 0.161, 0.306)
-        hp:SetBarColor(0.914, 1, 0.996)
-        name:SetTextColor(0.914, 1, 0.996)
+        hp:SetBarColor(0.790, 0.931, 0.970)
+        name:SetTextColor(0.790, 0.931, 0.970)
         if not UnitIsConnected(unit) then
             inactive = true
         end
