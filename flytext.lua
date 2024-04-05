@@ -15,6 +15,10 @@ local FLYTEXT_TIME = 4.5
 
 -- Default scale factor for text.
 local FLYTEXT_FONT_SCALE = 1.1
+-- Scale factor for critical hits.
+local FLYTEXT_CRIT_SCALE = FLYTEXT_FONT_SCALE * 2
+-- Scale factor for "Miss" text.
+local FLYTEXT_MISS_SCALE = FLYTEXT_FONT_SCALE * 0.9
 
 -- Damage types for type argument to New().
 local FLYTEXT_DAMAGE_DIRECT  = 1  -- direct damage, or DoT from channeling
@@ -64,6 +68,7 @@ function FlyText:AllocPooledFrame()
         w.icon:Show()
         w.value:SetTextScale(FLYTEXT_FONT_SCALE)
         w.value:Show()
+        w.exclam:Hide()
         w.border:Hide()
         w.stacks:Hide()
         f:Show()
@@ -90,6 +95,15 @@ function FlyText:AllocPooledFrame()
         w.value = value
         value:SetPoint("LEFT", icon, "RIGHT")
         value:SetTextScale(FLYTEXT_FONT_SCALE)
+        -- Use a separate text instance with a larger font size for the
+        -- "!" critical indicator because it looks too much like a "1"
+        -- in the game font.
+        local exclam = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+        w.exclam = exclam
+        exclam:SetPoint("LEFT", value, "RIGHT")
+        exclam:SetTextScale(FLYTEXT_CRIT_SCALE * 1.15)
+        exclam:SetText("!")
+        exclam:Hide()
         return f
     end
 end
@@ -155,13 +169,13 @@ function FlyText:New(type, ...)
     f:SetSize(100, 20)
     f:SetAlpha(0)
 
-    local r, g, b = unpack(FLYTEXT_COLORS[type])
-
     local w = f.WoWXIV
     local name = w.name
-    name:SetTextColor(r, g, b)
     local icon = w.icon
     local value = w.value
+
+    local r, g, b = unpack(FLYTEXT_COLORS[type])
+    name:SetTextColor(r, g, b)
     value:SetTextColor(r, g, b)
 
     if type == FLYTEXT_DAMAGE_DIRECT or type == FLYTEXT_HEAL_DIRECT then
@@ -180,11 +194,13 @@ function FlyText:New(type, ...)
         end
         local amount = new.amount
         if not amount then
-            value:SetTextScale(0.9*FLYTEXT_FONT_SCALE)
+            value:SetTextScale(FLYTEXT_MISS_SCALE)
             amount = "Miss"
         elseif new.crit_flag then
-            value:SetTextScale(2*FLYTEXT_FONT_SCALE)
-            amount = amount .. "!"
+            value:SetTextScale(FLYTEXT_CRIT_SCALE)
+            local exclam = w.exclam
+            exclam:SetTextColor(r, g, b)
+            exclam:Show()
         end
         value:SetText(amount)
 
