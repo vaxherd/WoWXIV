@@ -1,4 +1,4 @@
-local WoWXIV = WoWXIV
+local _, WoWXIV = ...
 WoWXIV.PartyList = {}
 
 local GameTooltip = GameTooltip

@@ -1,4 +1,4 @@
-local WoWXIV = WoWXIV
+local _, WoWXIV = ...
 WoWXIV.UI = WoWXIV.UI or {}
 local UI = WoWXIV.UI
 UI.Aura = {}

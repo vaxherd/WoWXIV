@@ -1,4 +1,4 @@
-local WoWXIV = WoWXIV
+local _, WoWXIV = ...
 WoWXIV.CombatLogManager = {}
 local CLM = WoWXIV.CombatLogManager
 

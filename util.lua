@@ -1,4 +1,4 @@
-local WoWXIV = WoWXIV
+local _, WoWXIV = ...
 
 local floor = math.floor
 

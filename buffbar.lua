@@ -1,4 +1,4 @@
-local WoWXIV = WoWXIV
+local _, WoWXIV = ...
 WoWXIV.BuffBar = {}
 
 -- File ID of Dragon Glyph Resonance aura icon.  We have to match by
