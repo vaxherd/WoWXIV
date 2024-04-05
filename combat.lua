@@ -1,7 +1,9 @@
 local _, WoWXIV = ...
 WoWXIV.CombatLogManager = {}
-local CLM = WoWXIV.CombatLogManager
 
+local class = WoWXIV.class
+
+local CLM = WoWXIV.CombatLogManager
 local CombatLogGetCurrentEventInfo = _G.CombatLogGetCurrentEventInfo
 local strsub = string.sub
 local strfind = string.find
@@ -49,17 +51,11 @@ CLM.UnitFlags.NONE                 = 0x80000000
 
 ------------------------------------------------------------------------
 
-local CombatEvent = {}
-CombatEvent.__index = CombatEvent
+local CombatEvent = class()
 
-function CombatEvent:New(...)
-    local new = {}
-    setmetatable(new, self)
-    new.__index = self
-
-    new.event = {...}
-    new:ParseEvent()
-    return new
+function CombatEvent:__constructor(...)
+    self.event = {...}
+    self:ParseEvent()
 end
 
 function CombatEvent:ParseEvent()
@@ -195,7 +191,7 @@ local Manager_handlers_subtype = {}
 local Manager_handlers_all = {}
 
 local function Manager_OnEvent()
-    local event = CombatEvent:New(CombatLogGetCurrentEventInfo())
+    local event = CombatEvent(CombatLogGetCurrentEventInfo())
 
     -- This may be premature optimization, but since measuring performance
     -- of a single addon can be a bit of a challenge, we assume it's worth

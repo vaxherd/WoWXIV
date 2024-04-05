@@ -1,6 +1,8 @@
 local _, WoWXIV = ...
 WoWXIV.Config = {}
 
+local class = WoWXIV.class
+
 -- Global config array, saved and restored by the API.
 -- This is currently restored after parsing, so the value will always be
 -- nil here, but we write it this way as future-proofing against values
@@ -36,8 +38,7 @@ config_default["targetbar_move_top_center"] = true
 
 ------------------------------------------------------------------------
 
-local ConfigFrame = {}
-ConfigFrame.__index = ConfigFrame
+local ConfigFrame = class()
 
 function ConfigFrame:AddHeader(text)
     local f = self.native_frame
@@ -102,48 +103,43 @@ function ConfigFrame:AddRadioButton(text, setting, value, on_change)
     end)
 end
 
-function ConfigFrame:New()
-    -- It sure would be nice if Lua had some syntactic sugar for this...
-    local new = {}
-    setmetatable(new, self)
-    new.__index = self
-
+function ConfigFrame:__constructor()
     local f = CreateFrame("Frame", "WoWXIV_Config", nil)
-    new.native_frame = f
-    new.x = 10
-    new.y = 10  -- Assuming an initial header.
+    self.native_frame = f
+    self.x = 10
+    self.y = 10  -- Assuming an initial header.
 
-    new:AddHeader("Buff/debuff bar settings")
-    new:AddCheckButton("Show distance for Dragon Glyph Resonance",
+    self:AddHeader("Buff/debuff bar settings")
+    self:AddCheckButton("Show distance for Dragon Glyph Resonance",
                        "buffbar_dragon_glyph_distance")
-    new:AddComment("Note: The game only updates the distance once every 5 seconds.")
+    self:AddComment("Note: The game only updates the distance once every 5 seconds.")
 
-    new:AddHeader("Enmity list settings")
-    new:AddCheckButton("Enable enmity list",
+    self:AddHeader("Enmity list settings")
+    self:AddCheckButton("Enable enmity list",
                        "hatelist_enable", WoWXIV.HateList.Enable)
 
-    new:AddHeader("Fly text settings")
-    new:AddCheckButton("Enable fly text (player only)",
+    self:AddHeader("Fly text settings")
+    self:AddCheckButton("Enable fly text (player only)",
                        "flytext_enable", WoWXIV.FlyText.Enable)
 
-    new:AddHeader("Party list settings")
-    new:AddCheckButton("Use role color in list background",
+    self:AddHeader("Party list settings")
+    self:AddCheckButton("Use role color in list background",
                        "partylist_role_bg", WoWXIV.PartyList.Refresh)
 
-    new:AddHeader("Target bar settings")
-    new:AddCheckButton("Hide native target frame (requires reload)",
+    self:AddHeader("Target bar settings")
+    self:AddCheckButton("Hide native target frame (requires reload)",
                        "targetbar_hide_native")
-    new:AddComment("Note: Native target frame may still appear during combat in rare situations.")
-    new:AddCheckButton("Show only own debuffs on target bar",
+    self:AddComment("Note: Native target frame may still appear during combat in rare situations.")
+    self:AddCheckButton("Show only own debuffs on target bar",
                        "targetbar_target_own_debuffs_only",
                        WoWXIV.TargetBar.Refresh)
-    new:AddCheckButton("Show only own debuffs on focus bar",
+    self:AddCheckButton("Show only own debuffs on focus bar",
                        "targetbar_focus_own_debuffs_only",
                        WoWXIV.TargetBar.Refresh)
-    new:AddCheckButton("Move top-center widget to bottom right (requires reload)",
+    self:AddCheckButton("Move top-center widget to bottom right (requires reload)",
                        "targetbar_move_top_center",
                        WoWXIV.TargetBar.Refresh)
-    new:AddComment("(Eye of the Jailer, Heart of Amirdrassil health, etc.)")
+    self:AddComment("(Eye of the Jailer, Heart of Amirdrassil health, etc.)")
 
     -- Required by the settings API:
     function f:OnCommit()
@@ -156,8 +152,6 @@ function ConfigFrame:New()
     end
     function f:OnRefresh()
     end
-
-    return new
 end
 
 ------------------------------------------------------------------------
@@ -169,7 +163,7 @@ function WoWXIV.Config.Create()
             WoWXIV_config[k] = v
         end
     end
-    local config_frame = ConfigFrame:New()
+    local config_frame = ConfigFrame()
     WoWXIV.Config.frame = config_frame
     local f = config_frame.native_frame
     local category = Settings.RegisterCanvasLayoutCategory(f, "WoWXIV")

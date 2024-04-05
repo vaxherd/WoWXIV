@@ -1,6 +1,8 @@
 local _, WoWXIV = ...
 WoWXIV.PartyList = {}
 
+local class = WoWXIV.class
+
 local GameTooltip = GameTooltip
 local strfind = string.find
 
@@ -18,33 +20,26 @@ local ROLE_COLORS = {
 
 --------------------------------------------------------------------------
 
-local ClassIcon = {}
-ClassIcon.__index = ClassIcon
+local ClassIcon = class()
 
-function ClassIcon:New(parent)
-    local new = {}
-    setmetatable(new, self)
-    new.__index = self
-
-    new.parent = parent
-    new.tooltip_anchor = "BOTTOMRIGHT"
+function ClassIcon:__constructor(parent)
+    self.parent = parent
+    self.tooltip_anchor = "BOTTOMRIGHT"
 
     local f = CreateFrame("Frame", nil, parent)
-    new.frame = f
+    self.frame = f
     f:SetSize(31, 31)
-    f:HookScript("OnEnter", function() new:OnEnter() end)
-    f:HookScript("OnLeave", function() new:OnLeave() end)
+    f:HookScript("OnEnter", function() self:OnEnter() end)
+    f:HookScript("OnLeave", function() self:OnLeave() end)
 
-    new.bg = f:CreateTexture(nil, "BORDER")
-    new.bg:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-    new.bg:SetSize(31, 31)
-    new.bg:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+    self.bg = f:CreateTexture(nil, "BORDER")
+    self.bg:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+    self.bg:SetSize(31, 31)
+    self.bg:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
 
-    new.icon = f:CreateTexture(nil, "ARTWORK")
-    new.icon:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -4)
-    new.icon:SetSize(22, 22)
-
-    return new
+    self.icon = f:CreateTexture(nil, "ARTWORK")
+    self.icon:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -4)
+    self.icon:SetSize(22, 22)
 end
 
 function ClassIcon:OnEnter()
@@ -150,8 +145,7 @@ end
 
 --------------------------------------------------------------------------
 
-local Member = {}
-Member.__index = Member
+local Member = class()
 
 local function NameForUnit(unit)
     local name = UnitName(unit)
@@ -162,46 +156,42 @@ local function NameForUnit(unit)
     return name
 end
 
-function Member:New(parent, unit, npc_guid)
-    local new = {}
-    setmetatable(new, self)
-    new.__index = self
-
-    new.unit = unit
-    new.npc_id = npc_guid
-    new.missing = false
+function Member:__constructor(parent, unit, npc_guid)
+    self.unit = unit
+    self.npc_id = npc_guid
+    self.missing = false
 
     local f = CreateFrame("Frame", nil, parent)
-    new.frame = f
+    self.frame = f
     f:SetSize(256, 40)
 
     local bg = f:CreateTexture(nil, "BACKGROUND")
-    new.bg = bg
+    self.bg = bg
     bg:SetAllPoints(f)
     bg:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     bg:SetTexCoord(0, 1, 4/256.0, 7/256.0)
     bg:SetVertexColor(0, 0, 0, 1)
 
     local highlight = f:CreateTexture(nil, "BACKGROUND", nil, 1)
-    new.highlight = highlight
+    self.highlight = highlight
     highlight:SetAllPoints(f)
     highlight:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     highlight:SetTexCoord(0, 1, 4/256.0, 7/256.0)
     highlight:SetVertexColor(1, 1, 1, 0.5)
     highlight:Hide()
 
-    if not new.npc_id then
-        new.class_icon = ClassIcon:New(f)
-        new.class_icon:SetAnchor("TOPLEFT", 0, -5, "BOTTOMRIGHT")
+    if not self.npc_id then
+        self.class_icon = ClassIcon(f)
+        self.class_icon:SetAnchor("TOPLEFT", 0, -5, "BOTTOMRIGHT")
     end
 
     local name = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    new.name = name
+    self.name = name
     name:SetPoint("TOPLEFT", f, "TOPLEFT", 36, -3)
     name:SetTextScale(1.1)
 
-    local hp = WoWXIV.UI.Gauge:New(f, 86)
-    new.hp = hp
+    local hp = WoWXIV.UI.Gauge(f, 86)
+    self.hp = hp
     hp:SetBoxColor(0.416, 0.725, 0.890)
     hp:SetBarBackgroundColor(0.027, 0.161, 0.306)
     hp:SetBarColor(1, 1, 1)
@@ -209,20 +199,19 @@ function Member:New(parent, unit, npc_guid)
     hp:SetShowValue(true)
     hp:SetPoint("TOPLEFT", f, "TOPLEFT", 32, -11)
 
-    local mp = WoWXIV.UI.Gauge:New(f, 86)
-    new.mp = mp
+    local mp = WoWXIV.UI.Gauge(f, 86)
+    self.mp = mp
     mp:SetBoxColor(0.416, 0.725, 0.890)
     mp:SetBarBackgroundColor(0.027, 0.161, 0.306)
     mp:SetBarColor(1, 1, 1)
     mp:SetShowValue(true)
     mp:SetPoint("TOPLEFT", f, "TOPLEFT", 136, -11)
 
-    new.buffbar = WoWXIV.UI.AuraBar:New("ALL", "TOPLEFT", 9, 1, f, 240, -1)
-    new.buffbar:SetUnit(unit)
+    self.buffbar = WoWXIV.UI.AuraBar("ALL", "TOPLEFT", 9, 1, f, 240, -1)
+    self.buffbar:SetUnit(unit)
 
-    new:Refresh()
-    new:Update()
-    return new
+    self:Refresh()
+    self:Update()
 end
 
 function Member:SetYPosition(parent, y)
@@ -283,40 +272,35 @@ end
 
 ---------------------------------------------------------------------------
 
-local PartyList = {}
-PartyList.__index = PartyList
+local PartyList = class()
 
-function PartyList:New()
-    local new = {}
-    setmetatable(new, self)
-    new.__index = self
-
-    new.party = {}  -- mapping from party token or NPC GUID to Member instance
-    new.allies = {}  -- list of {guid, token} for each ally
-    new.ally_map = {}  -- map from ally tokens to GUIDs
+function PartyList:__constructor()
+    self.party = {}  -- mapping from party token or NPC GUID to Member instance
+    self.allies = {}  -- list of {guid, token} for each ally
+    self.ally_map = {}  -- map from ally tokens to GUIDs
 
     -- We could use our CreateEventFrame helper, but most events we're
     -- interested in will follow the same code path, so we write our
     -- own OnEvent handler to be concise.
     local f = CreateFrame("Frame", "WoWXIV_PartyList", UIParent)
-    new.frame = f
-    f.owner = new
+    self.frame = f
+    f.owner = self
     f:Hide()
     f:SetPoint("TOPLEFT", 30, -24)
     f:SetSize(256, 48)
 
-    new.bg_t = f:CreateTexture(nil, "BACKGROUND")
-    new.bg_t:SetPoint("TOP", f)
-    new.bg_t:SetSize(f:GetWidth(), 4)
-    new.bg_t:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    new.bg_t:SetTexCoord(0, 1, 0/256.0, 4/256.0)
-    new.bg_t:SetVertexColor(0, 0, 0, 1)
-    new.bg_b = f:CreateTexture(nil, "BACKGROUND")
-    new.bg_b:SetPoint("BOTTOM", f)
-    new.bg_b:SetSize(f:GetWidth(), 4)
-    new.bg_b:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    new.bg_b:SetTexCoord(0, 1, 7/256.0, 11/256.0)
-    new.bg_b:SetVertexColor(0, 0, 0, 1)
+    self.bg_t = f:CreateTexture(nil, "BACKGROUND")
+    self.bg_t:SetPoint("TOP", f)
+    self.bg_t:SetSize(f:GetWidth(), 4)
+    self.bg_t:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+    self.bg_t:SetTexCoord(0, 1, 0/256.0, 4/256.0)
+    self.bg_t:SetVertexColor(0, 0, 0, 1)
+    self.bg_b = f:CreateTexture(nil, "BACKGROUND")
+    self.bg_b:SetPoint("BOTTOM", f)
+    self.bg_b:SetSize(f:GetWidth(), 4)
+    self.bg_b:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+    self.bg_b:SetTexCoord(0, 1, 7/256.0, 11/256.0)
+    self.bg_b:SetVertexColor(0, 0, 0, 1)
 
     function f:OnPartyChange()
         f.owner:SetParty()
@@ -368,11 +352,10 @@ function PartyList:New()
         end
     end)
 
-    C_Timer.After(1, function() new:RefreshAllies() end)
+    C_Timer.After(1, function() self:RefreshAllies() end)
 
-    new:SetParty()
+    self:SetParty()
     f:Show()
-    return new
 end
 
 function PartyList:SetParty()
@@ -401,7 +384,7 @@ function PartyList:SetParty()
             else
                 local npc_id = nil
                 if token == "vehicle" then npc_id = id end
-                self.party[token] = Member:New(f, token, npc_id)
+                self.party[token] = Member(f, token, npc_id)
             end
             self.party[token]:SetYPosition(f, y)
             y = y - 40
@@ -421,7 +404,7 @@ function PartyList:SetParty()
             end
             old_party[id] = nil
         elseif token then
-            self.party[id] = Member:New(f, token, id)
+            self.party[id] = Member(f, token, id)
         end
         if self.party[id] then
             self.party[id]:SetYPosition(f, y)
@@ -501,7 +484,7 @@ end
 
 -- Create the global party list instance.
 function WoWXIV.PartyList.Create()
-    WoWXIV.PartyList.list = PartyList:New()
+    WoWXIV.PartyList.list = PartyList()
     WoWXIV.HideBlizzardFrame(PartyFrame)
 end
 

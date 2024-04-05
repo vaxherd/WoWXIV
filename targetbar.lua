@@ -1,25 +1,22 @@
 local _, WoWXIV = ...
 WoWXIV.TargetBar = {}
 
+local class = WoWXIV.class
+
 ------------------------------------------------------------------------
 
 local ARROW_X, ARROW1_Y, ARROW2_Y = 391, -4, -9
 
-local TargetBar = {}
-TargetBar.__index = TargetBar
+local TargetBar = class()
 
-function TargetBar:New(is_focus)
-    local new = {}
-    setmetatable(new, self)
-    new.__index = self
-
-    new.unit = is_focus and "focus" or "target"
-    new.hostile = 0  -- enemies: +1 if aggro, 0 if no aggro. -1 if not an enemy
+function TargetBar:__constructor(is_focus)
+    self.unit = is_focus and "focus" or "target"
+    self.hostile = 0  -- enemies: +1 if aggro, 0 if no aggro. -1 if not an enemy
 
     local f = CreateFrame("Frame",
                           is_focus and "WoWXIV_FocusBar" or "WoWXIV_TargetBar",
                           UIParent)
-    new.frame = f
+    self.frame = f
     if is_focus then
         f:SetSize(144, 80)
         f:SetPoint("TOP", UIParent, "TOP", -400, -20)
@@ -29,32 +26,32 @@ function TargetBar:New(is_focus)
     end
 
     local name = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    new.name = name
+    self.name = name
     name:SetTextScale(is_focus and 1.0 or 1.1)
     name:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-    new.name_maxwidth = f:GetWidth()
+    self.name_maxwidth = f:GetWidth()
 
-    local hp = WoWXIV.UI.Gauge:New(f, f:GetWidth())
-    new.hp = hp
+    local hp = WoWXIV.UI.Gauge(f, f:GetWidth())
+    self.hp = hp
     if not is_focus then
         hp:SetShowValue(true, true)
         -- Minor hack to measure text width.
         hp.value:SetText("0000000000")
-        new.name_maxwidth = new.name_maxwidth - hp.value:GetWidth()
+        self.name_maxwidth = self.name_maxwidth - hp.value:GetWidth()
     end
     hp:SetPoint("TOP", f, "TOP", 0, -8)
 
-    local auras = WoWXIV.UI.AuraBar:New(
+    local auras = WoWXIV.UI.AuraBar(
         "ALL", "TOPLEFT", is_focus and 6 or 16, is_focus and 1 or 5,
-        new.frame, 0, -22)
-    new.auras = auras
+        self.frame, 0, -22)
+    self.auras = auras
 
     if not is_focus then
-        new.target_id = nil
-        new.target_arrow_start = 0
+        self.target_id = nil
+        self.target_arrow_start = 0
 
         local target_arrow1 = f:CreateTexture(nil, "ARTWORK")
-        new.target_arrow1 = target_arrow1
+        self.target_arrow1 = target_arrow1
         target_arrow1:SetPoint("TOPLEFT", f, "TOPLEFT", ARROW_X, ARROW1_Y)
         target_arrow1:SetSize(28, 28)
         target_arrow1:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
@@ -62,7 +59,7 @@ function TargetBar:New(is_focus)
         target_arrow1:Hide()
 
         local target_arrow2 = f:CreateTexture(nil, "ARTWORK")
-        new.target_arrow2 = target_arrow2
+        self.target_arrow2 = target_arrow2
         target_arrow2:SetPoint("TOPLEFT", f, "TOPLEFT", ARROW_X, ARROW2_Y)
         target_arrow2:SetSize(22, 18)
         target_arrow2:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
@@ -70,13 +67,13 @@ function TargetBar:New(is_focus)
         target_arrow2:Hide()
 
         local target_name = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-        new.target_name = target_name
+        self.target_name = target_name
         target_name:SetTextScale(1.1)
         target_name:SetPoint("TOPLEFT", f, "TOPLEFT", 436, 0)
         target_name:Hide()
 
-        local target_hp = WoWXIV.UI.Gauge:New(f, 128)
-        new.target_hp = target_hp
+        local target_hp = WoWXIV.UI.Gauge(f, 128)
+        self.target_hp = target_hp
         target_hp:SetPoint("TOPLEFT", f, "TOPLEFT", 432, -8)
         target_hp:Hide()
     end
@@ -90,26 +87,25 @@ function TargetBar:New(is_focus)
                          "UNIT_THREAT_LIST_UPDATE"}
     local units = is_focus and {"focus"} or {"target", "targettarget"}
     for _, event in ipairs(unit_events) do
-        new.frame:RegisterUnitEvent(event, unpack(units))
+        self.frame:RegisterUnitEvent(event, unpack(units))
     end
     if not is_focus then
-        new.frame:RegisterUnitEvent("UNIT_TARGET", "target")
+        self.frame:RegisterUnitEvent("UNIT_TARGET", "target")
     end
-    f:SetScript("OnEvent", function(self, event, ...)
+    f:SetScript("OnEvent", function(frame, event, ...)
         if event == "PLAYER_ENTERING_WORLD" then  -- on every zone change
-            new:RefreshUnit()  -- clear anything from previous zone
+            self:RefreshUnit()  -- clear anything from previous zone
         elseif (event == "PLAYER_FOCUS_CHANGED" or
                 event == "PLAYER_TARGET_CHANGED" or
                 event == "UNIT_CLASSIFICATION_CHANGED" or
                 event == "UNIT_THREAT_LIST_UPDATE") then
-            new:RefreshUnit()
+            self:RefreshUnit()
         else
-            new:Update()
+            self:Update()
         end
     end)
 
     f:Hide()
-    return new
 end
 
 -- Helper function to set colors and return hostile and inactive state.
@@ -326,8 +322,8 @@ end
 -- Create the global target and focus bar instances, and hide the native
 -- target/focus frame if desired.
 function WoWXIV.TargetBar.Create()
-    WoWXIV.TargetBar.target_bar = TargetBar:New(false)
-    WoWXIV.TargetBar.focus_bar = TargetBar:New(true)
+    WoWXIV.TargetBar.target_bar = TargetBar(false)
+    WoWXIV.TargetBar.focus_bar = TargetBar(true)
     if WoWXIV_config["targetbar_hide_native"] then
         WoWXIV.HideBlizzardFrame(TargetFrame)
         WoWXIV.HideBlizzardFrame(FocusFrame)
