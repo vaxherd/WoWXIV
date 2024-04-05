@@ -31,6 +31,7 @@ local FLYTEXT_LOOT_ITEM      = 10
 -- Corresponding text colors.
 local COLOR_RED   = {1, 0.753, 0.761}
 local COLOR_GREEN = {0.929, 1, 0.906}
+local COLOR_BLUE  = {0.790, 0.931, 0.970}
 local COLOR_WHITE = {1, 1, 1}
 local COLOR_GRAY  = {0.7, 0.7, 0.7}
 local FLYTEXT_COLORS = {
@@ -47,6 +48,10 @@ local FLYTEXT_COLORS = {
 }
 
 -- Internal helpers to pool frames (since we can't explicitly delete them).
+-- The frame returned from this function has name/icon/value elements shown
+-- with unspecified contents and the value text scale set to the default;
+-- other elements are either hidden or empty, so the caller does not need
+-- to explicitly hide them if not needed.
 function FlyText:AllocPooledFrame()
     self.frame_pool = self.frame_pool or {}
     local pool = self.frame_pool
@@ -61,10 +66,6 @@ function FlyText:AllocPooledFrame()
         w.value:Show()
         w.border:Hide()
         w.stacks:Hide()
-        w.icon_s:Hide()
-        w.value_s:Hide()
-        w.icon_c:Hide()
-        w.value_c:Hide()
         f:Show()
         return f
     else
@@ -89,28 +90,6 @@ function FlyText:AllocPooledFrame()
         w.value = value
         value:SetPoint("LEFT", icon, "RIGHT")
         value:SetTextScale(FLYTEXT_FONT_SCALE)
-        local icon_s = f:CreateTexture(nil, "ARTWORK")
-        w.icon_s = icon_s
-        icon_s:SetPoint("LEFT", value, "RIGHT")
-        icon_s:SetSize(16, 16)
-        icon_s:SetTexture(237620)  -- Interface/MONEYFRAME/UI-SilverIcon.blp
-        icon_s:Hide()
-        local value_s = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-        w.value_s = value_s
-        value_s:SetPoint("LEFT", icon_s, "RIGHT")
-        value_s:SetTextScale(FLYTEXT_FONT_SCALE)
-        value_s:SetTextColor(1, 1, 1)
-        local icon_c = f:CreateTexture(nil, "ARTWORK")
-        w.icon_c = icon_c
-        icon_c:SetPoint("LEFT", value_s, "RIGHT")
-        icon_c:SetSize(16, 16)
-        icon_c:SetTexture(237617)  -- Interface/MONEYFRAME/UI-CopperIcon.blp
-        icon_c:Hide()
-        local value_c = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-        w.value_c = value_c
-        value_c:SetPoint("LEFT", icon_c, "RIGHT")
-        value_c:SetTextScale(FLYTEXT_FONT_SCALE)
-        value_c:SetTextColor(1, 1, 1)
         return f
     end
 end
@@ -245,49 +224,16 @@ function FlyText:New(type, ...)
 
     elseif type == FLYTEXT_LOOT_MONEY then
         name:Hide()
-        local amount = new.amount
-        local g = math.floor(amount / 10000)
-        local s = math.floor(amount / 100) % 100
-        local c = amount % 100
-        if g > 0 then
-            icon:SetSize(16, 16)
-            icon:SetMask("")
-            icon:SetTexture(237618)  -- Interface/MONEYFRAME/UI-GoldIcon.blp
-            value:ClearAllPoints()
-            value:SetPoint("LEFT", icon, "RIGHT")
-            value:SetText(g)
-        else
-            icon:Hide()
-            value:Hide()
-        end
-        if s > 0 then
-            icon = w.icon_s
-            icon:ClearAllPoints()
-            if g > 0 then
-                icon:SetPoint("LEFT", value, "RIGHT")
-            else
-                icon:SetPoint("LEFT", f, "CENTER")
-            end
-            icon:Show()
-            value = w.value_s
-            value:ClearAllPoints()
-            value:SetPoint("LEFT", icon, "RIGHT")
-            value:SetText(s)
-            value:Show()
-        end
-        if c > 0 then
-            icon = w.icon_c
-            icon:ClearAllPoints()
-            if g > 0 or s > 0 then
-                icon:SetPoint("LEFT", value, "RIGHT")
-            else
-                icon:SetPoint("LEFT", f, "CENTER")
-            end
-            icon:Show()
-            value = w.value_c
-            value:SetText(c)
-            value:Show()
-        end
+        icon:Hide()
+        value:ClearAllPoints()
+        value:SetPoint("LEFT", f, "CENTER")
+        -- GetMoneyString() is a Blizzard API function, defined in
+        -- Interface/SharedXML/FormattingUtil.lua, which creates a
+        -- gold/silver/copper money string with embedded icons.
+        -- The function takes an optional second boolean argument which
+        -- (if true) adds thousands separators, but we leave it at the
+        -- default of false for consistency with the rest of our UI.
+        value:SetText(GetMoneyString(new.amount))
 
     elseif type == FLYTEXT_LOOT_ITEM then
         name:Hide()
@@ -299,17 +245,13 @@ function FlyText:New(type, ...)
         local g = tonumber("0x"..strsub(color, 3, 4)) / 255
         local b = tonumber("0x"..strsub(color, 5, 6)) / 255
         local text = new.item_name
+        if new.amount and new.amount > 1 then
+            text = text .. WoWXIV.FormatColoredText("×"..new.amount, COLOR_BLUE)
+        end
         value:ClearAllPoints()
         value:SetPoint("LEFT", icon, "RIGHT", 2, 0)
         value:SetTextColor(r, g, b)
-        value:SetText(new.item_name)
-        if new.amount and new.amount > 1 then
-            local value_s = w.value_s
-            value_s:ClearAllPoints()
-            value_s:SetPoint("LEFT", value, "RIGHT")
-            value_s:SetText("×"..new.amount)
-            value_s:Show()
-        end
+        value:SetText(text)
 
     end
 
