@@ -1,4 +1,4 @@
-local WoWXIV = WoWXIV
+local _, WoWXIV = ...
 WoWXIV.Config = {}
 
 -- Global config array, saved and restored by the API.

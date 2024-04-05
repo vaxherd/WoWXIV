@@ -1,4 +1,4 @@
-local WoWXIV = WoWXIV
+local _, WoWXIV = ...
 WoWXIV.Gamepad = {}
 
 -- This addon assumes the following console variable settings:

@@ -4,10 +4,7 @@
 ## Version: 0.1
 ## SavedVariables: WoWXIV_config
 
-# Must be loaded first so module definition is available!
-# (files are loaded/executed in the order listed in this file)
 WoWXIV.lua
-
 buffbar.lua
 buffbar.xml
 combat.lua
