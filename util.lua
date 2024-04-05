@@ -1,5 +1,9 @@
 local WoWXIV = WoWXIV
 
+local floor = math.floor
+
+------------------------------------------------------------------------
+-- Frame management routines
 ------------------------------------------------------------------------
 
 -- Create a basic frame suitable for receiving events.  Any received
@@ -57,4 +61,24 @@ function WoWXIV.HideBlizzardFrame(frame)
     hooksecurefunc(frame, "SetShown", function(frame, shown)
         if shown then HideBlizzardFrameHelper(frame) end
     end)
+end
+
+------------------------------------------------------------------------
+-- Text formatting routines
+------------------------------------------------------------------------
+
+-- Helper for FormatColoredText().
+local function ColorTo255(v)
+    return floor((v<0 and 0 or v>1 and 1 or v) * 255 + 0.5)
+end
+
+-- Return the given string enclosed in formatting codes for the given
+-- color (expressed as normalized red, green, and blue component values
+-- or a table thereof).
+function WoWXIV.FormatColoredText(text, r, g, b)
+    if type(r) == "table" then
+        r, g, b = unpack(r)
+    end
+    return ("|cFF%02X%02X%02X%s|r"):format(
+        ColorTo255(r), ColorTo255(g), ColorTo255(b), text)
 end
