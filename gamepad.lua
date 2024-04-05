@@ -1,69 +1,44 @@
 local WoWXIV = WoWXIV
 WoWXIV.Gamepad = {}
 
+-- This addon assumes the following console variable settings:
+--    - GamePadEmulateShift = PADRTRIGGER
+--    - GamePadEmulateCtrl = PADLTRIGGER
+--    - GamePadEmulateAlt = PADLSHOULDER
+-- Shift/Ctrl are not currently used in code but are assumed to be used
+-- for hotkey bindings.
+
 ------------------------------------------------------------------------
 
-local l1_down = false
-local zoom_saved_pitch_rate = 1
+-- Saved value of GamePadCameraPitchSpeed, used to prevent camera
+-- rotation while zooming.
+local zoom_saved_pitch_speed = nil
 
 -- Initialize gamepad handling.
 function WoWXIV.Gamepad.Init()
     local f = WoWXIV.CreateEventFrame("GamePadListener")
     f:SetPropagateKeyboardInput(true)
 
-    function f:OnGamePadButtonDown(button)
-        --print(button)
-
-        -- SetPropagateKeyboardInput() is disallowed during combat.
-        if InCombatLockdown() then return end
-
-        -- L1 enables right stick zoom.
-        if button == "PADLSHOULDER" then
-            l1_down = true
-            -- FIXME: This is a hack to ensure we get the "button up" event
-            -- when L1 is released, since SetPropagateKeyboardInput(true)
-            -- causes those events to not be sent to us.  This prevents
-            -- movement and camera yaw while zooming, but it also means we
-            -- don't need to save and restore GamePadCameraPitchSpeed to
-            -- disable camera pitch.
-            f:SetPropagateKeyboardInput(false)
-            --zoom_saved_pitch_rate = C_CVar.GetCVar("GamePadCameraPitchSpeed")
-            --C_CVar.SetCVar("GamePadCameraPitchSpeed", 0)
-        end
-    end
-    f:EnableGamePadButton(true)
-    f:SetScript("OnGamePadButtonDown", f.OnGamePadButtonDown)
-
-    function f:OnGamePadButtonUp(button)
-        if button == "PADLSHOULDER" and l1_down then
-            l1_down = false
-            f:SetPropagateKeyboardInput(true)
-            --C_CVar.SetCVar("GamePadCameraPitchSpeed", zoom_saved_pitch_rate)
-        end
-    end
-    f:SetScript("OnGamePadButtonUp", f.OnGamePadButtonUp)
-
     function f:OnGamePadStick(stick, x, y)
         -- Handle zooming with L1 + camera up/down.
-        if stick == "Camera" and l1_down then
-            if y > 0.1 then
-                CameraZoomIn(y/4)
-            elseif y < -0.1 then
-                CameraZoomOut(-y/4)
+        if stick == "Camera" then
+            if IsAltKeyDown() then  -- L1 assumed to be assigned to Alt
+                if not zoom_saved_pitch_speed then
+                    zoom_saved_pitch_speed = C_CVar.GetCVar("GamePadCameraPitchSpeed")
+                    C_CVar.SetCVar("GamePadCameraPitchSpeed", 0)
+                end
+                if y > 0.1 then
+                    CameraZoomIn(y/4)
+                elseif y < -0.1 then
+                    CameraZoomOut(-y/4)
+                end
+            else
+                if zoom_saved_pitch_speed then
+                    C_CVar.SetCVar("GamePadCameraPitchSpeed", zoom_saved_pitch_speed)
+                    zoom_saved_pitch_speed = nil
+                end
             end
         end
     end
     f:SetScript("OnGamePadStick", f.OnGamePadStick)
-
-    f:RegisterEvent("PLAYER_REGEN_DISABLED")
-    function f:PLAYER_REGEN_DISABLED()
-        -- SetPropagateKeyboardInput() is blocked during combat, so
-        -- pretend L1 was released when entering combat to avoid the
-        -- entire UI getting locked out.
-        if l1_down then
-            l1_down = false
-            f:SetPropagateKeyboardInput(true)
-            --C_CVar.SetCVar("GamePadCameraPitchSpeed", zoom_saved_pitch_rate)
-        end
-    end
 end
