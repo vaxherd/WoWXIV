@@ -207,12 +207,11 @@ function HateList:InternalRefresh(index)
     for i = 1, 40+#units do
         local unit = i<=#units and units[i] or "nameplate"..(i-#units)
         local guid = UnitGUID(unit)
-        if guid and not self.guids[guid] then
+        if guid and not self.guids[guid] and not UnitIsDead(unit) then
             local name = UnitName(unit)
             local is_target, _, _, hate = UnitDetailedThreatSituation("player", unit)
             if is_target or hate then
-                self.enemies[index]:SetUnit(guid, name)
-                self.guids[guid] = index
+                self:AddEnemy(guid, name, index)
                 index = index+1
                 if index > #self.enemies then break end
             end
@@ -294,15 +293,23 @@ function HateList:OnUnitGone(event)
     end
 end
 
-function HateList:AddEnemy(guid, name)
-    for index = 1, #self.enemies do
-        if not self.enemies[index]:UnitGUID() then
-            self.enemies[index]:SetUnit(guid, name)
-            self.guids[guid] = index
-            self:ResizeFrame(index)
-            break
+-- |index| is an optimization for when the first unused index is already
+-- known (i.e. for calling from InternalRefresh()).
+function HateList:AddEnemy(guid, name, index)
+    if not index then
+        for i = 1, #self.enemies do
+            if not self.enemies[i]:UnitGUID() then
+                index = i
+                break
+            end
         end
+        if not index then
+            return  -- No free slots.
+        end
+        self:ResizeFrame(index)
     end
+    self.enemies[index]:SetUnit(guid, name)
+    self.guids[guid] = index
     if UnitGUID("target") == guid then
         self:UpdateTargetHighlight()
     end
