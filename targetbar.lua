@@ -327,6 +327,7 @@ function WoWXIV.TargetBar.Create()
     if WoWXIV_config["targetbar_hide_native"] then
         WoWXIV.HideBlizzardFrame(TargetFrame)
         WoWXIV.HideBlizzardFrame(FocusFrame)
+        WoWXIV.HideBlizzardFrame(BossTargetFrameContainer)
     end
     if WoWXIV_config["targetbar_move_top_center"] then
         -- Put it about halfway between the hotbars and menu bar.
