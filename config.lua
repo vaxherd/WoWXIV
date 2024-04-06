@@ -129,7 +129,6 @@ function ConfigFrame:__constructor()
     self:AddHeader("Target bar settings")
     self:AddCheckButton("Hide native target frame (requires reload)",
                        "targetbar_hide_native")
-    self:AddComment("Note: Native target frame may still appear during combat in rare situations.")
     self:AddCheckButton("Show only own debuffs on target bar",
                        "targetbar_target_own_debuffs_only",
                        WoWXIV.TargetBar.Refresh)
