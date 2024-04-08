@@ -479,15 +479,19 @@ function FlyTextManager:OnCurrencyUpdate(event, id, total, change)
     -- recorded using four "currencies", for the whole number, tenths,
     -- hundredths, and thousands of seconds.  We only want to show fly
     -- text for things the game would normally report with a log message,
-    -- so we exclude anything without an icon.  (We don't just parse
-    -- CHAT_MSG_CURRENCY because that's significantly delayed relative to
-    -- the actual currency gain in many cases.)
+    -- so we exclude anything without an icon or with a "hidden" notation
+    -- in the name; there unfortunately doesn't seem to be an explicit
+    -- "hidden" flag we can check.  (We don't just parse CHAT_MSG_CURRENCY
+    -- because that's significantly delayed relative to the actual currency
+    -- gain in many cases.)
     local icon = info.iconFileID
-    if not icon then return end
+    local name = info.name
+    if not icon or not name or name:find("Hidden") or name:find("DNT") then
+        return
+    end
 
     -- Strip the covenant from Shadowlands covenant currencies (which are
     -- internally named e.g. "Reservoir Anima-Night Fae").
-    local name = info.name
     local dash = strfind(name, "-")
     if dash then
         name = strsub(name, 1, dash-1)
