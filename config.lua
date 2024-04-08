@@ -27,7 +27,9 @@ config_default["flytext_enable"] = true
 config_default["flytext_hide_autoloot"] = true
 
 -- Map: show current coordinates under minimap?
-config_default["map_show_coords"] = true
+config_default["map_show_coords_minimap"] = true
+-- Map: show mouseover coordinates on world map?
+config_default["map_show_coords_worldmap"] = true
 
 -- Party list: use role colors in background?
 config_default["partylist_role_bg"] = false
@@ -141,7 +143,11 @@ function ConfigFrame:__constructor()
 
     self:AddHeader("Map settings")
     self:AddCheckButton("Show current coordinates under minimap",
-                       "map_show_coords", WoWXIV.Map.SetShowCoords)
+                       "map_show_coords_minimap",
+                       function(enable) WoWXIV.Map.SetShowCoords(WoWXIV_config["map_show_coords_worldmap"], enable) end)
+    self:AddCheckButton("Show mouseover coordinates on world map",
+                       "map_show_coords_worldmap",
+                       function(enable) WoWXIV.Map.SetShowCoords(enable, WoWXIV_config["map_show_coords_minimap"]) end)
 
     self:AddHeader("Party list settings")
     self:AddCheckButton("Use role color in list background",
