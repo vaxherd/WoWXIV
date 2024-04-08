@@ -320,7 +320,7 @@ function FlyTextManager:__constructor(parent)
     f.xiv_eventmap = {
         PLAYER_MONEY = FlyTextManager.OnPlayerMoney,
         CHAT_MSG_LOOT = FlyTextManager.OnLootItem,
-        CHAT_MSG_CURRENCY = FlyTextManager.OnLootCurrency,
+        CURRENCY_DISPLAY_UPDATE = FlyTextManager.OnCurrencyUpdate,
         -- Suppress aura events for the first 0.5 sec after entering a zone
         -- to avoid spam from permanent buffs (which are reapplied on
         -- entering each self zone).
@@ -462,18 +462,41 @@ function FlyTextManager:OnLootItem(event, msg)
     end
 end
 
-function FlyTextManager:OnLootCurrency(event, msg)
-    local type, id, color, count, name = ParseLootMsg(msg)
-    if type ~= "currency" then return end
+function FlyTextManager:OnCurrencyUpdate(event, id, total, change)
+    -- We seem to get an empty event on startup.
+    if not id then return end
+    -- Only report gains of currency, since losses are usually due to
+    -- explicit player action.
+    if change <= 0 then return end
+
     local info = C_CurrencyInfo.GetCurrencyInfo(id)
-    if info and info.iconFileID then
-        local dash = strfind(name, "-")
-        if dash then
-            name = strsub(name, 1, dash-1)  -- strip covenant
-        end
-        self:AddText(FlyText(FLYTEXT_LOOT_ITEM,
-                             info.iconFileID, name, color, count))
+    if not info then return end  -- Sanity check.
+
+    -- Many non-item stats/collectables (both actual currencies like
+    -- Nazjatar manapearls or Dragon Isles supplies, and more stat-like
+    -- values such as talent points) are internally tracked as
+    -- "currencies"; notably, the player's time in a dragon race is
+    -- recorded using four "currencies", for the whole number, tenths,
+    -- hundredths, and thousands of seconds.  We only want to show fly
+    -- text for things the game would normally report with a log message,
+    -- so we exclude anything without an icon.  (We don't just parse
+    -- CHAT_MSG_CURRENCY because that's significantly delayed relative to
+    -- the actual currency gain in many cases.)
+    local icon = info.iconFileID
+    if not icon then return end
+
+    -- Strip the covenant from Shadowlands covenant currencies (which are
+    -- internally named e.g. "Reservoir Anima-Night Fae").
+    local name = info.name
+    local dash = strfind(name, "-")
+    if dash then
+        name = strsub(name, 1, dash-1)
     end
+
+    local color = ITEM_QUALITY_COLORS[info.quality].hex or "|cff000000"
+    color = strsub(color, 5, 10)
+    self:AddText(FlyText(FLYTEXT_LOOT_ITEM,
+                         info.iconFileID, name, color, change))
 end
 
 function FlyTextManager:AddText(text, left_side)
