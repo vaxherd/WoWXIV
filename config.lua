@@ -55,6 +55,7 @@ function ConfigFrame:AddHeader(text)
     label:SetTextScale(1.2)
     label:SetText(text)
     self.y = self.y - 15
+    return label
 end
 
 function ConfigFrame:AddText(text)
@@ -73,6 +74,7 @@ function ConfigFrame:AddText(text)
     -- We can get away with this for now because this is only used once
     -- and at the very bottom of the config frame (for the about text).
     self.y = self.y - 70
+    return label
 end
 
 function ConfigFrame:AddComment(text)
@@ -83,6 +85,7 @@ function ConfigFrame:AddComment(text)
     label:SetTextColor(1, 0.5, 0)
     label:SetText(text)
     self.y = self.y - 10
+    return label
 end
 
 function ConfigFrame:AddHorizontalBar(text)
@@ -94,6 +97,7 @@ function ConfigFrame:AddHorizontalBar(text)
     texture:SetHeight(1.5)
     texture:SetAtlas("Options_HorizontalDivider")
     self.y = self.y - 10
+    return texture
 end
 
 -- Call as: AddCheckButton([indent,] text, setting, on_change)
@@ -121,6 +125,7 @@ function ConfigFrame:AddCheckButton(arg1, ...)
         self:SetChecked(new_value)
         if on_change then on_change(new_value) end
     end)
+    return button
 end
 
 -- We don't have any of these at the moment, but in case we add some later:
@@ -147,6 +152,7 @@ function ConfigFrame:AddRadioButton(text, setting, value, on_change)
         end
         if on_change then on_change(new_value) end
     end)
+    return button
 end
 
 function ConfigFrame:__constructor()
@@ -165,10 +171,11 @@ function ConfigFrame:__constructor()
                        "hatelist_enable", WoWXIV.HateList.Enable)
 
     self:AddHeader("Fly text settings")
-    self:AddCheckButton("Enable fly text (player only)",
-                       "flytext_enable", WoWXIV.FlyText.Enable)
-    self:AddCheckButton(1, "Hide loot frame when autolooting",
-                       "flytext_hide_autoloot")
+    self:AddCheckButton("Enable fly text (player only)", "flytext_enable",
+                        function(enable) self:SetEnableFlyText(enable) end)
+    self.flytext_hide_autoloot_button =
+        self:AddCheckButton(1, "Hide loot frame when autolooting",
+                           "flytext_hide_autoloot")
 
     self:AddHeader("Map settings")
     self:AddCheckButton("Show current coordinates under minimap",
@@ -206,6 +213,18 @@ function ConfigFrame:__constructor()
                  "Author: vaxherd")
 
     f:SetHeight(-self.y + 10)
+
+    -- Set dependent option sensitivity appropriately.
+    self:SetEnableFlyText(WoWXIV_config["flytext_enable"])
+end
+
+function ConfigFrame:SetEnableFlyText(enable)
+    WoWXIV.FlyText.Enable(enable)
+    self.flytext_hide_autoloot_button:SetEnabled(enable)
+    -- SetEnabled() doesn't change the text color, so we have to do
+    -- that manually.
+    self.flytext_hide_autoloot_button.text:SetTextColor(
+        (enable and NORMAL_FONT_COLOR or DISABLED_FONT_COLOR):GetRGB())
 end
 
 ------------------------------------------------------------------------
