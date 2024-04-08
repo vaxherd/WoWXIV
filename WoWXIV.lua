@@ -20,6 +20,7 @@ WoWXIV.startup_frame:SetScript("OnEvent", function(self, event, arg1, ...)
         WoWXIV.FlyText.CreateManager()
         WoWXIV.HateList.Create()
         WoWXIV.PartyList.Create()
+        WoWXIV.Map.Init()
         WoWXIV.SlashCmd.Init()
         WoWXIV.TargetBar.Create()
     end
