@@ -52,19 +52,48 @@ function ConfigFrame:AddHeader(text)
     local label = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
     self.y = self.y - 30
     label:SetPoint("TOPLEFT", self.x, self.y)
-    self.y = self.y - 15
     label:SetTextScale(1.2)
     label:SetText(text)
+    self.y = self.y - 15
+end
+
+function ConfigFrame:AddText(text)
+    local f = self.native_frame
+    local label = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    self.y = self.y - 25
+    label:SetPoint("TOPLEFT", self.x, self.y)
+    label:SetPoint("TOPRIGHT", -self.x, self.y)
+    label:SetJustifyH("LEFT")
+    label:SetSpacing(3)
+    label:SetTextScale(1.1)
+    label:SetText(text)
+    -- FIXME: This is fundamentally broken because we don't know how wide
+    -- the frame will be until it's sized when the options window is first
+    -- opened, and therefore we don't know how tall it will end up being.
+    -- We can get away with this for now because this is only used once
+    -- and at the very bottom of the config frame (for the about text).
+    self.y = self.y - 70
 end
 
 function ConfigFrame:AddComment(text)
     local f = self.native_frame
     local label = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    self.y = self.y - 5
+    self.y = self.y - 6
     label:SetPoint("TOPLEFT", self.x+40, self.y)
-    self.y = self.y - 10
     label:SetTextColor(1, 0.5, 0)
     label:SetText(text)
+    self.y = self.y - 10
+end
+
+function ConfigFrame:AddHorizontalBar(text)
+    local f = self.native_frame
+    local texture = f:CreateTexture(nil, "ARTWORK")
+    self.y = self.y - 10
+    texture:SetPoint("LEFT", f, "TOPLEFT", self.x, self.y)
+    texture:SetPoint("RIGHT", f, "TOPRIGHT", 0, self.y)
+    texture:SetHeight(1.5)
+    texture:SetAtlas("Options_HorizontalDivider")
+    self.y = self.y - 10
 end
 
 -- Call as: AddCheckButton([indent,] text, setting, on_change)
@@ -82,9 +111,9 @@ function ConfigFrame:AddCheckButton(arg1, ...)
     local button = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
     self.y = self.y - 10
     button:SetPoint("TOPLEFT", self.x+10+30*indent, self.y)
-    self.y = self.y - 20
     button.text:SetTextScale(1.25)
     button.text:SetText(text)
+    self.y = self.y - 20
     button:SetChecked(WoWXIV_config[setting])
     button:SetScript("OnClick", function(self)
         local new_value = not WoWXIV_config[setting]
@@ -100,9 +129,9 @@ function ConfigFrame:AddRadioButton(text, setting, value, on_change)
     local button = CreateFrame("CheckButton", nil, f, "UIRadioButtonTemplate")
     self.y = self.y - 10
     button:SetPoint("TOPLEFT", self.x+10, self.y)
-    self.y = self.y - 20
     button.text:SetTextScale(1.25)
     button.text:SetText(text)
+    self.y = self.y - 20
     button:SetChecked(WoWXIV_config[setting] == value)
     button.WoWXIV_value = value
     f.WoWXIV_radio_buttons = f.WoWXIV_radio_buttons or {}
@@ -167,7 +196,16 @@ function ConfigFrame:__constructor()
                        WoWXIV.TargetBar.Refresh)
     self:AddComment("(Eye of the Jailer, Heart of Amirdrassil health, etc.)")
 
-    f:SetHeight(-self.y)
+    self.y = self.y - 20
+    self:AddHorizontalBar()
+    self.y = self.y + 10
+    self:AddHeader("About WoWXIV")
+    self:AddText("WoWXIV is designed to change several aspects of the " ..
+                 "WoW user interface to mimic the UI of Final Fantasy XIV, " ..
+                 "along with a few general quality-of-life tweaks.|n|n" ..
+                 "Author: vaxherd")
+
+    f:SetHeight(-self.y + 10)
 end
 
 ------------------------------------------------------------------------
@@ -202,7 +240,7 @@ function WoWXIV.Config.Create()
     function root:OnRefresh()
         container:ClearAllPoints()
         container:SetPoint("TOPLEFT")
-        container:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -26, 0)
+        container:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -29, 6)
         f:SetWidth(container:GetWidth())
     end
     local category = Settings.RegisterCanvasLayoutCategory(root, "WoWXIV")
