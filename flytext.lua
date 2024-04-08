@@ -550,9 +550,86 @@ end
 
 ------------------------------------------------------------------------
 
+local LootHandler = class()
+
+function LootHandler:__constructor()
+    self.looting = false
+    self.autolooted = false
+
+    local f = CreateFrame("Frame", "WoWXIV_LootHandler", nil)
+    self.frame = f
+    f:Hide()
+    f:SetScript("OnEvent", function(frame,...) self:OnEvent(...) end)
+    f:RegisterEvent("LOOT_READY")
+    f:RegisterEvent("LOOT_CLOSED")
+
+    -- For debugging/reverse-engineering:
+    if false then
+        f:SetScript("OnEvent", function(frame,...) print(...) end)
+        f:RegisterEvent("BONUS_ROLL_ACTIVATE")
+        f:RegisterEvent("BONUS_ROLL_DEACTIVATE")
+        f:RegisterEvent("BONUS_ROLL_FAILED")
+        f:RegisterEvent("BONUS_ROLL_RESULT")
+        f:RegisterEvent("BONUS_ROLL_STARTED")
+        f:RegisterEvent("CANCEL_ALL_LOOT_ROLLS")
+        f:RegisterEvent("CANCEL_LOOT_ROLL")
+        f:RegisterEvent("CONFIRM_DISENCHANT_ROLL")
+        f:RegisterEvent("CONFIRM_LOOT_ROLL")
+        f:RegisterEvent("ENCOUNTER_LOOT_RECEIVED")
+        f:RegisterEvent("GARRISON_MISSION_BONUS_ROLL_LOOT")
+        f:RegisterEvent("ITEM_PUSH")
+        f:RegisterEvent("LOOT_BIND_CONFIRM")
+        f:RegisterEvent("LOOT_CLOSED")
+        f:RegisterEvent("LOOT_ITEM_AVAILABLE")
+        f:RegisterEvent("LOOT_ITEM_ROLL_WON")
+        f:RegisterEvent("LOOT_OPENED")
+        f:RegisterEvent("LOOT_READY")
+        f:RegisterEvent("LOOT_ROLLS_COMPLETE")
+        f:RegisterEvent("LOOT_SLOT_CHANGED")
+        f:RegisterEvent("LOOT_SLOT_CLEARED")
+        f:RegisterEvent("MAIN_SPEC_NEED_ROLL")
+        f:RegisterEvent("OPEN_MASTER_LOOT_LIST")
+        f:RegisterEvent("PET_BATTLE_LOOT_RECEIVED")
+        f:RegisterEvent("QUEST_CURRENCY_LOOT_RECEIVED")
+        f:RegisterEvent("QUEST_LOOT_RECEIVED")
+        f:RegisterEvent("START_LOOT_ROLL")
+        hooksecurefunc("LootSlot", function(...) print("LootSlot",...) end)
+    end
+end
+
+function LootHandler:OnEvent(event, ...)
+    if event == "LOOT_READY" then
+        -- The engine fires two LOOT_READY events, one before and one
+        -- after LOOT_OPENED.  
+        if not self.looting then
+            self.looting = true
+            local autoloot = ...
+            -- The autoloot flag is (by all appearances) a signal that
+            -- the game _will_ automatically take all loot, not that the
+            -- loot frame _should_ automatically LootSlot() each slot,
+            -- so we don't need to do anything more than hide the frame.
+            if autoloot and WoWXIV_config["flytext_enable"] and WoWXIV_config["flytext_hide_autoloot"] then
+                self.autolooted = true
+                LootFrame:UnregisterEvent("LOOT_OPENED")
+                -- FIXME: the top half of the frame sometimes appears anyway
+                -- (presumably from LootFrame.NineSlice); why is this?
+            end
+        end
+    elseif event == "LOOT_CLOSED" then
+        if self.autolooted then
+            LootFrame:RegisterEvent("LOOT_OPENED")
+        end
+        self.looting = false
+        self.autolooted = false
+    end
+end
+
+------------------------------------------------------------------------
+
 -- Create the fly-text manager.
 function WoWXIV.FlyText.CreateManager()
     WoWXIV.FlyText.manager = FlyTextManager()
+    WoWXIV.FlyText.loot_handler = LootHandler()
     WoWXIV.FlyText.Enable(WoWXIV_config["flytext_enable"])
 end
 

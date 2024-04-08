@@ -23,6 +23,8 @@ config_default["hatelist_enable"] = true
 
 -- Fly text: enable?
 config_default["flytext_enable"] = true
+-- Fly text: if enabled, hide loot frame when autolooting?
+config_default["flytext_hide_autoloot"] = true
 
 -- Party list: use role colors in background?
 config_default["partylist_role_bg"] = false
@@ -60,11 +62,21 @@ function ConfigFrame:AddComment(text)
     label:SetText(text)
 end
 
-function ConfigFrame:AddCheckButton(text, setting, on_change)
+-- Call as: AddCheckButton([indent,] text, setting, on_change)
+function ConfigFrame:AddCheckButton(arg1, ...)
+    local indent, text, setting, on_change
+    if type(arg1) == "number" then
+        indent = arg1
+        text, setting, on_change = ...
+    else
+        indent = 0
+        text = arg1
+        setting, on_change = ...
+    end
     local f = self.native_frame
     local button = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
     self.y = self.y - 10
-    button:SetPoint("TOPLEFT", self.x+10, self.y)
+    button:SetPoint("TOPLEFT", self.x+10+30*indent, self.y)
     self.y = self.y - 20
     button.text:SetTextScale(1.25)
     button.text:SetText(text)
@@ -121,13 +133,15 @@ function ConfigFrame:__constructor()
     self:AddHeader("Fly text settings")
     self:AddCheckButton("Enable fly text (player only)",
                        "flytext_enable", WoWXIV.FlyText.Enable)
+    self:AddCheckButton(1, "Hide loot frame when autolooting",
+                       "flytext_hide_autoloot")
 
     self:AddHeader("Party list settings")
     self:AddCheckButton("Use role color in list background",
                        "partylist_role_bg", WoWXIV.PartyList.Refresh)
 
     self:AddHeader("Target bar settings")
-    self:AddCheckButton("Hide native target frame (requires reload)",
+    self:AddCheckButton("Hide native target frame |cffff0000(requires reload)|r",
                        "targetbar_hide_native")
     self:AddCheckButton("Show only own debuffs on target bar",
                        "targetbar_target_own_debuffs_only",
@@ -135,7 +149,7 @@ function ConfigFrame:__constructor()
     self:AddCheckButton("Show only own debuffs on focus bar",
                        "targetbar_focus_own_debuffs_only",
                        WoWXIV.TargetBar.Refresh)
-    self:AddCheckButton("Move top-center widget to bottom right (requires reload)",
+    self:AddCheckButton("Move top-center widget to bottom right |cffff0000(requires reload)|r",
                        "targetbar_move_top_center",
                        WoWXIV.TargetBar.Refresh)
     self:AddComment("(Eye of the Jailer, Heart of Amirdrassil health, etc.)")
