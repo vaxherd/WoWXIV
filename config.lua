@@ -26,6 +26,9 @@ config_default["flytext_enable"] = true
 -- Fly text: if enabled, hide loot frame when autolooting?
 config_default["flytext_hide_autoloot"] = true
 
+-- Map: show current coordinates under minimap?
+config_default["map_show_coords"] = true
+
 -- Party list: use role colors in background?
 config_default["partylist_role_bg"] = false
 
@@ -116,7 +119,7 @@ function ConfigFrame:AddRadioButton(text, setting, value, on_change)
 end
 
 function ConfigFrame:__constructor()
-    local f = CreateFrame("Frame", "WoWXIV_Config", nil)
+    local f = CreateFrame("Frame", "WoWXIV_Config")
     self.native_frame = f
     self.x = 10
     self.y = 10  -- Assuming an initial header.
@@ -136,6 +139,10 @@ function ConfigFrame:__constructor()
     self:AddCheckButton(1, "Hide loot frame when autolooting",
                        "flytext_hide_autoloot")
 
+    self:AddHeader("Map settings")
+    self:AddCheckButton("Show current coordinates under minimap",
+                       "map_show_coords", WoWXIV.Map.SetShowCoords)
+
     self:AddHeader("Party list settings")
     self:AddCheckButton("Use role color in list background",
                        "partylist_role_bg", WoWXIV.PartyList.Refresh)
@@ -154,17 +161,7 @@ function ConfigFrame:__constructor()
                        WoWXIV.TargetBar.Refresh)
     self:AddComment("(Eye of the Jailer, Heart of Amirdrassil health, etc.)")
 
-    -- Required by the settings API:
-    function f:OnCommit()
-    end
-    function f:OnDefault()
-        -- Currently unimplemented because we had an implementation but it
-        -- kept getting out of sync with the actual options.  If we add
-        -- this back then we'll need to massage the button implementation
-        -- a bit.
-    end
-    function f:OnRefresh()
-    end
+    f:SetHeight(-self.y)
 end
 
 ------------------------------------------------------------------------
@@ -176,10 +173,33 @@ function WoWXIV.Config.Create()
             WoWXIV_config[k] = v
         end
     end
+
     local config_frame = ConfigFrame()
     WoWXIV.Config.frame = config_frame
     local f = config_frame.native_frame
-    local category = Settings.RegisterCanvasLayoutCategory(f, "WoWXIV")
+
+    local container = CreateFrame("ScrollFrame", "WoWXIV_ConfigScroller", nil,
+                                  "UIPanelScrollFrameTemplate")
+    container:SetScrollChild(f)
+
+    local root = CreateFrame("Frame", "WoWXIV_ConfigRoot")
+    container:SetParent(root)
+    -- Required by the settings API:
+    function root:OnCommit()
+    end
+    function root:OnDefault()
+        -- Currently unimplemented because we had an implementation but it
+        -- kept getting out of sync with the actual options.  If we add
+        -- this back then we'll need to massage the button implementation
+        -- a bit.
+    end
+    function root:OnRefresh()
+        container:ClearAllPoints()
+        container:SetPoint("TOPLEFT")
+        container:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -26, 0)
+        f:SetWidth(container:GetWidth())
+    end
+    local category = Settings.RegisterCanvasLayoutCategory(root, "WoWXIV")
     WoWXIV.Config.category = category
     category.ID = "WoWXIV"
     Settings.RegisterAddOnCategory(category)

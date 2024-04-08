@@ -13,6 +13,7 @@ config.lua
 flytext.lua
 gamepad.lua
 hatelist.lua
+map.lua
 partylist.lua
 slashcmd.lua
 targetbar.lua

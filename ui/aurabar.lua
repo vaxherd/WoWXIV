@@ -11,7 +11,7 @@ local class = WoWXIV.class
 local GameTooltip = GameTooltip
 
 -- Maximum number of auras that can be applied to a unit.  This seems to
--- be hardcoded in the game, but using a named constant anyway for
+-- be hardcoded in the game, but we use a named constant anyway for
 -- readability and in case of a TOP incident leading to an increase.
 local MAX_AURAS = 40
 
