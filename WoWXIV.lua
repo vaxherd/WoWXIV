@@ -2,13 +2,15 @@
 -- module structure, so we take advantage of that to avoid requiring
 -- this module to be loaded first.  We still export the table under a
 -- global name for external scripting convenience.  (The first argument
--- is just the addon name, which we have no need of.)
-_, WoWXIV = ...
+-- is just the addon name, which we have no need of except when checking
+-- against an ADDON_LOADED event.)
+local module_name
+module_name, WoWXIV = ...
 
 WoWXIV.startup_frame = CreateFrame("Frame", "WoWXIV_StartupFrame")
 WoWXIV.startup_frame:RegisterEvent("ADDON_LOADED")
 WoWXIV.startup_frame:SetScript("OnEvent", function(self, event, arg1, ...)
-    if event == "ADDON_LOADED" and arg1 == "WoWXIV" then
+    if event == "ADDON_LOADED" and arg1 == module_name then
         WoWXIV.Config.Create()
 
         WoWXIV.CombatLogManager.Create()
