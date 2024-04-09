@@ -139,6 +139,7 @@ end
 function MinimapOverlay:GetCoords()
     local map = GetBestMapForUnit("player")
     local pos = GetPlayerMapPosition(map, "player")
+    if not pos then return nil end
     return pos.x*100, pos.y*100
 end
 
