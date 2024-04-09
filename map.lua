@@ -138,8 +138,9 @@ end
 
 function MinimapOverlay:GetCoords()
     local map = GetBestMapForUnit("player")
+    if not map then return end  -- May happen while teleporting between zones.
     local pos = GetPlayerMapPosition(map, "player")
-    if not pos then return nil end
+    if not pos then return nil end  -- No position returned in dungeons.
     return pos.x*100, pos.y*100
 end
 
