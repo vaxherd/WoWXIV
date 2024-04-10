@@ -163,10 +163,6 @@ function TargetBar:SetNoUnit()
 end
 
 function TargetBar:RefreshUnit()
-    -- Work around native target frame sometimes not staying hidden
-    -- (presumably due to racing with the in-combat flag)
-    if not InCombatLockdown then TargetFrame:Hide() end
-
     if not UnitGUID(self.unit) then
         self:SetNoUnit()
         return
