@@ -278,6 +278,7 @@ local PartyList = class()
 
 local PARTY_UNIT_TOKENS = {"player", "vehicle"}
 for i = 1, 4 do tinsert(PARTY_UNIT_TOKENS, "party"..i) end
+for i = 1, 40 do tinsert(PARTY_UNIT_TOKENS, "raid"..i) end
 
 function PartyList:__constructor()
     self.party = {}  -- mapping from unit token to Member instance
