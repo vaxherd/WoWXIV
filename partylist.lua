@@ -228,9 +228,9 @@ function Member:Hide()
     self.shown = false
 end
 
-function Member:SetYPosition(parent, y)
+function Member:SetRelPosition(parent, x, y)
     self.frame:ClearAllPoints()
-    self.frame:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, y)
+    self.frame:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
 end
 
 function Member:SetNarrow(narrow)
@@ -412,7 +412,9 @@ function PartyList:SetParty(is_retry)
     end
 
     local f = self.frame
-    local y = -4
+    local width, height = 0, 0
+    local x0, y0 = 0, -4
+    local row, col = 0, 0
     for _, unit in ipairs(PARTY_UNIT_TOKENS) do
         local member = self.party[unit]
         assert(member)
@@ -425,16 +427,24 @@ function PartyList:SetParty(is_retry)
             if name and strfind(name, "%[DNT]") then id = nil end
         end
         if id then
-            member:SetYPosition(f, y)
+            local x = x0 + col*264
+            local y = y0 + row*(-40)
+            member:SetRelPosition(f, x, y)
             member:SetNarrow(narrow)
             member:Refresh()
             member:Show()
-            y = y - 40
+            local bottom = -y+40
+            if bottom > height then height = bottom end
+            row = row+1
+            if narrow and row >= 20 then
+                col = col+1
+                row = 0
+            end
         else
             member:Hide()
         end
     end
-    f:SetHeight((-y)+4)
+    f:SetHeight(height+4)
 end
 
 function PartyList:UpdateParty(unit, updateLabel)
