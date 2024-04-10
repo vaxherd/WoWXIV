@@ -266,10 +266,6 @@ function Member:Update(updateLabel)
     end
 end
 
-function Member:Delete()
-    WoWXIV.DestroyFrame(self.frame)
-end
-
 ---------------------------------------------------------------------------
 
 local PartyList = class()
@@ -417,7 +413,7 @@ function PartyList:SetParty()
 
     for _, member in pairs(old_party) do
         if member then
-            member:Delete()
+            -- No way to destroy a frame!
         end
     end
 
