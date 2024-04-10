@@ -33,6 +33,8 @@ config_default["map_show_coords_worldmap"] = true
 
 -- Party list: use role colors in background?
 config_default["partylist_role_bg"] = false
+-- Party list: when to use narrow format
+config_default["partylist_narrow_condition"] = "never"
 
 -- Target bar: hide the native target and focus frames?
 config_default["targetbar_hide_native"] = true
@@ -128,15 +130,24 @@ function ConfigFrame:AddCheckButton(arg1, ...)
     return button
 end
 
--- We don't have any of these at the moment, but in case we add some later:
+function ConfigFrame:AddRadioHeader(text)
+    local f = self.native_frame
+    local label = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    self.y = self.y - 20
+    label:SetPoint("TOPLEFT", self.x+15, self.y)
+    label:SetText(text)
+    self.y = self.y - 10
+    return label
+end
+
 function ConfigFrame:AddRadioButton(text, setting, value, on_change)
     local f = self.native_frame
     local button = CreateFrame("CheckButton", nil, f, "UIRadioButtonTemplate")
     self.y = self.y - 10
-    button:SetPoint("TOPLEFT", self.x+10, self.y)
+    button:SetPoint("TOPLEFT", self.x+35, self.y)
     button.text:SetTextScale(1.25)
     button.text:SetText(text)
-    self.y = self.y - 20
+    self.y = self.y - 10
     button:SetChecked(WoWXIV_config[setting] == value)
     button.WoWXIV_value = value
     f.WoWXIV_radio_buttons = f.WoWXIV_radio_buttons or {}
@@ -145,9 +156,9 @@ function ConfigFrame:AddRadioButton(text, setting, value, on_change)
     button:SetScript("OnClick", function(self)
         WoWXIV_config[setting] = value
         self:SetChecked(true)
-        for _, other in ipairs(f.WoWXIV_radio_buttons) do
+        for _, other in ipairs(f.WoWXIV_radio_buttons[setting]) do
             if other.WoWXIV_value ~= value then
-                other.SetChecked(false)
+                other:SetChecked(false)
             end
         end
         if on_change then on_change(new_value) end
@@ -188,6 +199,16 @@ function ConfigFrame:__constructor()
     self:AddHeader("Party list settings")
     self:AddCheckButton("Use role color in list background",
                        "partylist_role_bg", WoWXIV.PartyList.Refresh)
+    self:AddRadioHeader("Use narrow format (omit mana and limit buffs/debuffs):")
+    self:AddRadioButton("Never", "partylist_narrow_condition", "never",
+                        WoWXIV.PartyList.Refresh)
+    self:AddRadioButton("Always", "partylist_narrow_condition", "always",
+                        WoWXIV.PartyList.Refresh)
+    self:AddRadioButton("Only in raids", "partylist_narrow_condition", "raid",
+                        WoWXIV.PartyList.Refresh)
+    self:AddRadioButton("Only in raids with 21+ members",
+                        "partylist_narrow_condition", "raidlarge",
+                        WoWXIV.PartyList.Refresh)
 
     self:AddHeader("Target bar settings")
     self:AddCheckButton("Hide native target frame |cffff0000(requires reload)|r",

@@ -324,8 +324,7 @@ end
 -- type is one of: "HELPFUL", "HARMFUL", "MISC" (like XIV food/FC buffs),
 --     or "ALL" (for party list)
 -- align is either "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", or "BOTTOMRIGHT"
-function AuraBar:__constructor(type, align, cols, rows, parent,
-                               anchor_x, anchor_y)
+function AuraBar:__constructor(type, align, cols, rows, parent, rel_x, rel_y)
     self.unit = null
     self.type = type
     self.align = align
@@ -338,13 +337,14 @@ function AuraBar:__constructor(type, align, cols, rows, parent,
     self.inv_align = inv_align
     self.cols = cols
     self.max = cols * rows
+    self.parent = parent
     self.instance_map = {}  -- map from aura instance ID to self.auras[] index
     self.log_events = false  -- set with AuraBar:LogEvents()
 
     local f = CreateFrame("Frame", nil, parent)
     self.frame = f
     f:SetSize(24*cols, 40*rows)
-    f:SetPoint(align, parent, align, anchor_x, anchor_y)
+    self:SetRelPosition(rel_x, rel_y)
 
     self.auras = {}
     local dx = self.leftalign and 24 or -24
@@ -365,12 +365,44 @@ function AuraBar:__constructor(type, align, cols, rows, parent,
     self:Refresh()
 end
 
+function AuraBar:SetRelPosition(rel_x, rel_y)
+    local f = self.frame
+    f:ClearAllPoints()
+    f:SetPoint(self.align, self.parent, self.align, rel_x, rel_y)
+end
+
 function AuraBar:Show()
     self.frame:Show()
 end
 
 function AuraBar:Hide()
     self.frame:Hide()
+end
+
+function AuraBar:SetSize(cols, rows)
+    self.max = cols * rows
+    local f, align, inv_align = self.frame, self.align, self.inv_align
+    local dx, dy = self.dx, self.dy
+    local index = 0
+    for r = 1, rows do
+        local y = (r-1)*dy
+        for c = 1, cols do
+            index = index+1
+            local aura
+            if index <= #self.auras then
+                aura = self.auras[index]
+            else
+                aura = Aura(f)
+                table.insert(self.auras, aura)
+            end
+            local x = (c-1)*dx
+            aura:SetAnchor(align, x, y, inv_align)
+        end
+    end
+    while index < #self.auras do
+        index = index+1
+        self.auras[index]:Update(nil)
+    end
 end
 
 function AuraBar:SetOwnDebuffsOnly(enable)
@@ -395,10 +427,8 @@ function AuraBar:Refresh()
     self.frame:Show()
 
     local aura_list = {}
-    local max = self.max
-    if max > MAX_AURAS then max = MAX_AURAS end
     if self.type ~= "HELPFUL" then
-        for i = 1, max do
+        for i = 1, MAX_AURAS do
             local data = C_UnitAuras.GetAuraDataByIndex(self.unit, i, "HARMFUL")
             if not data then break end
             if not (self.own_debuffs_only and data.sourceUnit ~= "player") then
@@ -407,7 +437,7 @@ function AuraBar:Refresh()
         end
     end
     if self.type ~= "HARMFUL" then
-        for i = 1, max do
+        for i = 1, MAX_AURAS do
             local data = C_UnitAuras.GetAuraDataByIndex(self.unit, i, "HELPFUL")
             if not data then break end
             table.insert(aura_list, {i, "HELPFUL", data})
