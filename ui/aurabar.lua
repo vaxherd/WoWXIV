@@ -365,11 +365,6 @@ function AuraBar:__constructor(type, align, cols, rows, parent,
     self:Refresh()
 end
 
-function AuraBar:Delete()
-    WoWXIV.DestroyFrame(self.frame)
-    self.frame = nil
-end
-
 function AuraBar:Show()
     self.frame:Show()
 end

@@ -26,21 +26,6 @@ function WoWXIV.CreateEventFrame(name, parent)
     return f
 end
 
--- Destroy the given frame.
--- Because the WoW API does not seem to have a function to actually
--- destroy a frame (FIXME: does it?), we instead reparent to nil and
--- explicitly hide the window, under the assumption that that will
--- remove all external references to the frame and allow it to be
--- garbage-collected.
---
--- Parameters:
---     frame: Frame to destroy.
-function WoWXIV.DestroyFrame(frame)
-    frame:SetParent(nil)
-    frame:Hide()
-    frame:UnregisterAllEvents()
-end
-
 -- Hide a frame created by the Blizzard UI, under the assumption it will
 -- be replaced by a custom UI frame.
 function WoWXIV.HideBlizzardFrame(frame)
