@@ -85,7 +85,7 @@ function Aura:__constructor(frame, is_secure_player_aura)
     self.is_helpful = nil
     self.is_mine = nil
     self.stacks = 0
-    self.time_str = nil
+    self.time_str = ""
     self.expires = 0
 
     self.icon = f:CreateTexture(nil, "ARTWORK")
@@ -136,7 +136,7 @@ end
 
 function Aura:OnUpdate()
     self:UpdateTimeLeft()
-    if not self.time_str or self.time_str == "" then
+    if self.time_str == "" then
         self.frame:SetScript("OnUpdate", nil)
     end
 end
@@ -235,6 +235,7 @@ function Aura:InternalUpdate(unit, data)
             self.stack_label:SetText("")
             self.expires = 0
             self.timer:SetText("")
+            self.time_str = ""
             if not GameTooltip:IsForbidden() then
                 if GameTooltip:GetOwner() == self.frame and GameTooltip:IsShown() then
                     GameTooltip:Hide()
