@@ -156,9 +156,8 @@ local function NameForUnit(unit)
     return name
 end
 
-function Member:__constructor(parent, unit, npc_guid)
+function Member:__constructor(parent, unit)
     self.unit = unit
-    self.npc_id = npc_guid
     self.missing = false
 
     local f = CreateFrame("Frame", nil, parent)
@@ -180,7 +179,7 @@ function Member:__constructor(parent, unit, npc_guid)
     highlight:SetVertexColor(1, 1, 1, 0.5)
     highlight:Hide()
 
-    if not self.npc_id then
+    if self.unit ~= "vehicle" then
         self.class_icon = ClassIcon(f)
         self.class_icon:SetAnchor("TOPLEFT", 0, -5, "BOTTOMRIGHT")
     end
@@ -229,16 +228,11 @@ function Member:SetMissing(missing)
     end
 end
 
-function Member:Refresh(new_unit)  -- optional new unit token
-    if new_unit then
-        self.unit = new_unit
-        self.buffbar:SetUnit(new_unit)
-    end
-
+function Member:Refresh()
     self.name:SetText(NameForUnit(self.unit))
 
     local role_id
-    if not self.npc_id then
+    if self.unit ~= "vehicle" then
         role_id = self.class_icon:Set(self.unit)
     end
     if WoWXIV_config["partylist_role_bg"] and role_id then
@@ -271,9 +265,7 @@ end
 local PartyList = class()
 
 function PartyList:__constructor()
-    self.party = {}  -- mapping from party token or NPC GUID to Member instance
-    self.allies = {}  -- list of {guid, token} for each ally
-    self.ally_map = {}  -- map from ally tokens to GUIDs
+    self.party = {}  -- mapping from party token to Member instance
 
     -- We could use our CreateEventFrame helper, but most events we're
     -- interested in will follow the same code path, so we write our
@@ -348,8 +340,6 @@ function PartyList:__constructor()
         end
     end)
 
-    C_Timer.After(1, function() self:RefreshAllies() end)
-
     self:SetParty()
     f:Show()
 end
@@ -360,7 +350,6 @@ function PartyList:SetParty()
 
     local old_party = self.party
     self.party = {}
-    self.ally_map = {}
 
     local tokens = {"player", "vehicle", "party1", "party2", "party3", "party4"}
     for _, token in ipairs(tokens) do
@@ -378,36 +367,10 @@ function PartyList:SetParty()
                 self.party[token]:Refresh()
                 old_party[token] = nil
             else
-                local npc_id = nil
-                if token == "vehicle" then npc_id = id end
-                self.party[token] = Member(f, token, npc_id)
+                self.party[token] = Member(f, token)
             end
             self.party[token]:SetYPosition(f, y)
             y = y - 40
-        end
-    end
-
-    for i, id_token in ipairs(self.allies) do
-        local id = id_token[1]
-        local token = id_token[2]
-        if old_party[id] then
-            self.party[id] = old_party[id]
-            if token then
-                self.party[id]:SetMissing(false)
-                self.party[id]:Refresh(token)
-            else
-                self.party[id]:SetMissing(true)
-            end
-            old_party[id] = nil
-        elseif token then
-            self.party[id] = Member(f, token, id)
-        end
-        if self.party[id] then
-            self.party[id]:SetYPosition(f, y)
-            y = y - 40
-        end
-        if token then
-            self.ally_map[token] = id
         end
     end
 
@@ -421,59 +384,8 @@ function PartyList:SetParty()
 end
 
 function PartyList:UpdateParty(unit, updateLabel)
-    local token = unit
-    if self.ally_map[unit] then token = self.ally_map[unit] end
-    if not self.party[token] then return end
-    self.party[token]:Update(updateLabel)
-end
-
-local function FindToken(unit_id)
-    if UnitGUID("focus") == unit_id then return "focus" end
-    for i = 1, 40 do
-        local token = "nameplate"..i
-        if UnitGUID(token) == unit_id then return token end
-    end
-    return nil
-end
-
-function PartyList:AddAlly(unit_id)
-    for _, id_token in ipairs(self.allies) do
-        if id_token[1] == unit_id then return end
-    end
-    local token = FindToken(unit_id)
-    if not token then
-        print("Target's unit token not found!")
-        return
-    end
-    table.insert(self.allies, {unit_id, token})
-    self:SetParty()
-end
-
-function PartyList:ClearAllies()
-    self.allies = {}
-    self:SetParty()
-end
-
-function PartyList:RefreshAllies()
-    local changed = false
-    for i, id_token in ipairs(self.allies) do
-        local id = id_token[1]
-        local token = id_token[2]
-        if not token or UnitGUID(token) ~= id then
-            local newtoken = FindToken(id)
-            if newtoken then
-                id_token[2] = newtoken
-            else
-                id_token[2] = nil
-            end
-            changed = true
-        end
-    end
-    if changed then
-        self:SetParty()
-    end
-
-    C_Timer.After(1, function() self:RefreshAllies() end)
+    if not self.party[unit] then return end
+    self.party[unit]:Update(updateLabel)
 end
 
 ---------------------------------------------------------------------------
@@ -487,15 +399,4 @@ end
 -- Refresh the party list.  Must be called to pick up config changes.
 function WoWXIV.PartyList.Refresh()
     WoWXIV.PartyList.list:SetParty()
-end
-
--- Mark the given unit (must be a GUID) as an ally to be shown in the
--- party list.
-function WoWXIV.PartyList.AddAlly(unit_id)
-    WoWXIV.PartyList.list:AddAlly(unit_id)
-end
-
--- Remove all allies from the party list.
-function WoWXIV.PartyList.ClearAllies()
-    WoWXIV.PartyList.list:ClearAllies()
 end
