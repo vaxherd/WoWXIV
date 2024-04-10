@@ -158,10 +158,12 @@ end
 
 function Member:__constructor(parent, unit)
     self.unit = unit
+    self.shown = false
     self.missing = false
 
-    local f = CreateFrame("Frame", nil, parent)
+    local f = CreateFrame("Frame", "WoWXIV_PartyListMember_"..unit, parent)
     self.frame = f
+    f:Hide()
     f:SetSize(256, 40)
 
     local bg = f:CreateTexture(nil, "BACKGROUND")
@@ -211,6 +213,16 @@ function Member:__constructor(parent, unit)
 
     self:Refresh()
     self:Update()
+end
+
+function Member:Show()
+    self.frame:Show()
+    self.shown = true
+end
+
+function Member:Hide()
+    self.frame:Hide()
+    self.shown = false
 end
 
 function Member:SetYPosition(parent, y)
@@ -264,8 +276,11 @@ end
 
 local PartyList = class()
 
+local PARTY_UNIT_TOKENS = {"player", "vehicle"}
+for i = 1, 4 do tinsert(PARTY_UNIT_TOKENS, "party"..i) end
+
 function PartyList:__constructor()
-    self.party = {}  -- mapping from party token to Member instance
+    self.party = {}  -- mapping from unit token to Member instance
 
     -- We could use our CreateEventFrame helper, but most events we're
     -- interested in will follow the same code path, so we write our
@@ -278,17 +293,21 @@ function PartyList:__constructor()
     f:SetSize(256, 48)
 
     self.bg_t = f:CreateTexture(nil, "BACKGROUND")
-    self.bg_t:SetPoint("TOP", f)
+    self.bg_t:SetPoint("TOP")
     self.bg_t:SetSize(f:GetWidth(), 4)
     self.bg_t:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     self.bg_t:SetTexCoord(0, 1, 0/256.0, 4/256.0)
     self.bg_t:SetVertexColor(0, 0, 0, 1)
     self.bg_b = f:CreateTexture(nil, "BACKGROUND")
-    self.bg_b:SetPoint("BOTTOM", f)
+    self.bg_b:SetPoint("BOTTOM")
     self.bg_b:SetSize(f:GetWidth(), 4)
     self.bg_b:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     self.bg_b:SetTexCoord(0, 1, 7/256.0, 11/256.0)
     self.bg_b:SetVertexColor(0, 0, 0, 1)
+
+    for _, unit in ipairs(PARTY_UNIT_TOKENS) do
+        self.party[unit] = Member(f, unit)
+    end
 
     function f:OnPartyChange()
         f.owner:SetParty()
@@ -347,45 +366,33 @@ end
 function PartyList:SetParty()
     local f = self.frame
     local y = -4
-
-    local old_party = self.party
-    self.party = {}
-
-    local tokens = {"player", "vehicle", "party1", "party2", "party3", "party4"}
-    for _, token in ipairs(tokens) do
-        local id = UnitGUID(token)
-        if token == "vehicle" then
+    for _, unit in ipairs(PARTY_UNIT_TOKENS) do
+        local member = self.party[unit]
+        assert(member)
+        local id = UnitGUID(unit)
+        if unit == "vehicle" then
             -- Vehicles with "[DNT]" in the name are used when player
             -- movement is locked in certain events, such as the Ruby
             -- Lifeshrine sidequest "Stay a While".
-            local name = UnitName(token)
+            local name = UnitName(unit)
             if name and strfind(name, "%[DNT]") then id = nil end
         end
         if id then
-            if old_party[token] then
-                self.party[token] = old_party[token]
-                self.party[token]:Refresh()
-                old_party[token] = nil
-            else
-                self.party[token] = Member(f, token)
-            end
-            self.party[token]:SetYPosition(f, y)
+            member:SetYPosition(f, y)
+            member:Refresh()
+            member:Show()
             y = y - 40
+        else
+            member:Hide()
         end
     end
-
-    for _, member in pairs(old_party) do
-        if member then
-            -- No way to destroy a frame!
-        end
-    end
-
-    self.frame:SetHeight((-y)+4)
+    f:SetHeight((-y)+4)
 end
 
 function PartyList:UpdateParty(unit, updateLabel)
-    if not self.party[unit] then return end
-    self.party[unit]:Update(updateLabel)
+    local member = self.party[unit]
+    if not member then return end
+    member:Update(updateLabel)
 end
 
 ---------------------------------------------------------------------------
