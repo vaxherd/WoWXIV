@@ -147,11 +147,13 @@ end
 
 local Member = class()
 
-local function NameForUnit(unit)
+local function NameForUnit(unit, with_level)
     local name = UnitName(unit)
-    local level = UnitLevel(unit)
-    if level > 0 then
-        name = "Lv" .. level .. " " .. name
+    if with_level then
+        local level = UnitLevel(unit)
+        if level > 0 then
+            name = "Lv" .. level .. " " .. name
+        end
     end
     return name
 end
@@ -159,6 +161,7 @@ end
 function Member:__constructor(parent, unit)
     self.unit = unit
     self.shown = false
+    self.narrow = false
     self.missing = false
 
     local f = CreateFrame("Frame", "WoWXIV_PartyListMember_"..unit, parent)
@@ -230,6 +233,22 @@ function Member:SetYPosition(parent, y)
     self.frame:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, y)
 end
 
+function Member:SetNarrow(narrow)
+    if narrow == self.narrow then return end
+    self.narrow = narrow
+    if narrow then
+        self.mp:Hide()
+        self.buffbar:SetSize(5, 1)
+        self.buffbar:SetRelPosition(136, -1)
+    else
+        self.mp:Show()
+        self.buffbar:SetSize(9, 1)
+        self.buffbar:SetRelPosition(240, -1)
+    end
+    self.buffbar:Refresh()
+    self:Refresh()
+end
+
 function Member:SetMissing(missing)
     self.missing = missing
     if self.missing then
@@ -241,8 +260,7 @@ function Member:SetMissing(missing)
 end
 
 function Member:Refresh()
-    self.name:SetText(NameForUnit(self.unit))
-
+    self.name:SetText(NameForUnit(self.unit, not self.narrow))
     local role_id
     if self.unit ~= "vehicle" then
         role_id = self.class_icon:Set(self.unit)
@@ -262,7 +280,7 @@ function Member:Update(updateLabel)
     self.mp:Update(UnitPowerMax(self.unit), UnitPower(self.unit))
 
     if updateLabel then
-        self.name:SetText(NameForUnit(self.unit))
+        self.name:SetText(NameForUnit(self.unit, not self.narrow))
     end
 
     if UnitIsUnit("target", self.unit=="vehicle" and "player" or self.unit) then
@@ -377,6 +395,22 @@ function PartyList:SetParty(is_retry)
     end
     self.pending_SetParty = false
 
+    local narrow_condition = WoWXIV_config["partylist_narrow_condition"]
+    local narrow
+    if narrow_condition == "always" then
+        narrow = true
+    elseif narrow_condition == "raid" and UnitInRaid("player") then
+        narrow = true
+    elseif narrow_condition == "raidlarge" and UnitInRaid("player") then
+        local raid_size = 1
+        for i = 1, 40 do
+            if UnitGUID("raid"..i) then raid_size = raid_size+1 end
+        end
+        narrow = (raid_size > 20)
+    else
+        narrow = false
+    end
+
     local f = self.frame
     local y = -4
     for _, unit in ipairs(PARTY_UNIT_TOKENS) do
@@ -392,6 +426,7 @@ function PartyList:SetParty(is_retry)
         end
         if id then
             member:SetYPosition(f, y)
+            member:SetNarrow(narrow)
             member:Refresh()
             member:Show()
             y = y - 40
