@@ -282,6 +282,7 @@ for i = 1, 40 do tinsert(PARTY_UNIT_TOKENS, "raid"..i) end
 
 function PartyList:__constructor()
     self.party = {}  -- mapping from unit token to Member instance
+    self.pending_SetParty = false  -- see SetParty()
 
     -- We could use our CreateEventFrame helper, but most events we're
     -- interested in will follow the same code path, so we write our
@@ -364,7 +365,18 @@ function PartyList:__constructor()
     f:Show()
 end
 
-function PartyList:SetParty()
+function PartyList:SetParty(is_retry)
+    -- Normally party change events can never occur during combat, but
+    -- some quests will put the player into or out of a vehicle while
+    -- in combat, so we check here to be safe.
+    if not is_retry and self.pending_SetParty then return end
+    if InCombatLockdown() then
+        self.pending_SetParty = true
+        C_Timer.After(1, function() self:SetParty(true) end)
+        return
+    end
+    self.pending_SetParty = false
+
     local f = self.frame
     local y = -4
     for _, unit in ipairs(PARTY_UNIT_TOKENS) do
