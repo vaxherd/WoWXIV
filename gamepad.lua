@@ -31,10 +31,11 @@ function QuestItemButton:__constructor()
     -- without an arbitrary target selected (including soft targets), and
     -- we can't use non-targeted items like Aqueous Material Accumulator
     -- (Maldraxxus world quest "Further Gelatinous Research"), though
-    -- targeting the player seems to work in that case.  Need to find a
-    -- better solution here.  Ideally we would just call
+    -- targeting the player seems to work in that case.  For now we use a
+    -- kludge to detect cases likely to need the player targeted, but we
+    -- need to find a better solution here.  Ideally we would just call
     -- UseQuestLogSpecialItem(log_index), but that's a protected function
-    -- and there's no secure action wrapper for it.
+    -- and there's no secure action wrapper for it (as of 10.2.6).
     f:SetAttribute("unit", "target")
     f:RegisterForClicks("LeftButtonDown")
     -- FIXME: make this configurable
@@ -71,6 +72,14 @@ function QuestItemButton:UpdateQuestItem(is_retry)
         -- an inventory slot index), so we need to set the name instead.
         local name = GetItemInfo(item)
         self.frame:SetAttribute("item", name)
+        -- Some quest items need to be targeted on the player for the
+        -- item to activate.  This is our best guess at the condition
+        -- for the moment.
+        if not C_Item.IsHelpfulItem(item) and not C_Item.IsHarmfulItem(item) then
+            self.frame:SetAttribute("unit", "player")
+        else
+            self.frame:SetAttribute("unit", "target")
+        end
     else
         self.frame:SetAttribute("item", nil)
     end
