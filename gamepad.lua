@@ -2,6 +2,7 @@ local _, WoWXIV = ...
 WoWXIV.Gamepad = {}
 
 local class = WoWXIV.class
+local GetItemInfo = C_Item.GetItemInfo
 
 -- This addon assumes the following console variable settings:
 --    GamePadEmulateShift = PADRTRIGGER

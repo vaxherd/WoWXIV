@@ -4,6 +4,7 @@ WoWXIV.FlyText = {}
 local class = WoWXIV.class
 
 local CLM = WoWXIV.CombatLogManager
+local GetItemInfo = C_Item.GetItemInfo
 local strsub = string.sub
 local strfind = string.find
 
