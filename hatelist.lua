@@ -180,6 +180,7 @@ function HateList:Enable(enable)
         f:RegisterEvent("FORBIDDEN_NAME_PLATE_UNIT_REMOVED")
         f:RegisterEvent("NAME_PLATE_UNIT_ADDED")
         f:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
+        f:RegisterEvent("PLAYER_REGEN_ENABLED")
         f:RegisterEvent("PLAYER_TARGET_CHANGED")
         f:RegisterEvent("UNIT_FLAGS")
         f:RegisterEvent("UNIT_HEALTH")
@@ -226,6 +227,16 @@ function HateList:InternalRefresh(index)
 end
 
 function HateList:OnEvent(event, unit)
+    if event == "PLAYER_REGEN_ENABLED" then
+        -- If we left combat, then by definition we have no aggro.
+        assert(not InCombatLockdown())
+        for _, enemy in ipairs(self.enemies) do
+            enemy:SetUnit(nil)
+        end
+        self:ResizeFrame(0)
+        return
+    end
+
     if event == "PLAYER_TARGET_CHANGED" then
         self:UpdateTargetHighlight()
         return
