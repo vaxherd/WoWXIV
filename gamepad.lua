@@ -11,6 +11,16 @@ local GetItemInfo = C_Item.GetItemInfo
 
 ------------------------------------------------------------------------
 
+-- Convenience function for checking the state of all modifiers:
+local function IsModifier(shift, ctrl, alt)
+    local function bool(x) return x and x~=0 end
+    local function eqv(a,b) return bool(a) == bool(b) end
+    return eqv(shift, IsShiftKeyDown()) and
+           eqv(ctrl, IsControlKeyDown()) and
+           eqv(alt, IsAltKeyDown())
+end
+
+
 -- Invisible button used to securely activate quest items.
 -- FIXME: It would be nice to make this visible, like the special action
 -- button.  It would be even nicer if quest items consistently showed up
@@ -105,7 +115,7 @@ end
 
 function GamePadListener:OnGamePadButton(button)
     -- Use R3 to toggle first-person view.
-    if button == "PADRSTICK" then
+    if button == "PADRSTICK" and IsModifier(0,0,0) then
         if self.fpv_saved_zoom then
             -- CameraZoomOut() operates from the current zoom value, not
             -- the target value, so we need to check whether we're still
@@ -130,7 +140,7 @@ end
 function GamePadListener:OnGamePadStick(stick, x, y)
     -- Handle zooming with L1 + camera up/down.
     if stick == "Camera" then
-        if IsAltKeyDown() then  -- L1 assumed to be assigned to Alt
+        if IsModifier(0,0,1) then  -- L1 assumed to be assigned to Alt
             if not self.zoom_saved_pitch_speed then
                 self.zoom_saved_pitch_speed =
                     C_CVar.GetCVar("GamePadCameraPitchSpeed")
