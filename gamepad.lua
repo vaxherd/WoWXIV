@@ -93,11 +93,38 @@ function GamePadListener:__constructor()
     -- Saved value of GamePadCameraPitchSpeed, used to prevent camera
     -- rotation while zooming.
     self.zoom_saved_pitch_speed = nil
+    -- Saved camera zoom while in first-person camera.
+    self.fpv_saved_zoom = nil
 
     local f = WoWXIV.CreateEventFrame("WoWXIV_GamePadListener")
     self.frame = f
     f:SetPropagateKeyboardInput(true)
+    f:SetScript("OnGamePadButtonDown", function(_,...) self:OnGamePadButton(...) end)
     f:SetScript("OnGamePadStick", function(_,...) self:OnGamePadStick(...) end)
+end
+
+function GamePadListener:OnGamePadButton(button)
+    -- Use R3 to toggle first-person view.
+    if button == "PADRSTICK" then
+        if self.fpv_saved_zoom then
+            -- CameraZoomOut() operates from the current zoom value, not
+            -- the target value, so we need to check whether we're still
+            -- in the middle of zooming in and adjust appropriately.
+            local zoom = GetCameraZoom()
+            -- Note that the engine is a bit sloppy with zooming and
+            -- tends to over/undershoot a bit.  We accept that as just
+            -- part of the game rather than spending an OnUpdate script
+            -- on trying to micromanage the zoom value.
+            CameraZoomOut(self.fpv_saved_zoom - zoom)
+            self.fpv_saved_zoom = nil
+        else
+            local zoom = GetCameraZoom()
+            if zoom > 0 then
+                self.fpv_saved_zoom = zoom
+                CameraZoomIn(zoom)
+            end
+        end
+    end
 end
 
 function GamePadListener:OnGamePadStick(stick, x, y)
@@ -113,6 +140,10 @@ function GamePadListener:OnGamePadStick(stick, x, y)
                 CameraZoomIn(y/4)
             elseif y < -0.1 then
                 CameraZoomOut(-y/4)
+                -- Since WoW doesn't have an independent "first-person view"
+                -- state, we allow normally zooming out of FPV and silently
+                -- cancel FPV state in that case.
+                self.fpv_saved_zoom = nil
             end
         else
             if self.zoom_saved_pitch_speed then
