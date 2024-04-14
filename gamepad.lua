@@ -84,7 +84,10 @@ function QuestItemButton:UpdateQuestItem(is_retry)
         self.frame:SetAttribute("item", name)
         -- Some quest items need to be targeted on the player for the
         -- item to activate.  This is our best guess at the condition
-        -- for the moment.
+        -- for the moment, though it's not perfect (see e.g. Azure Span
+        -- sidequest "Setting the Defense", in which an item intended to
+        -- be used on friendly NPCs matches this condition but is also
+        -- usable with a normal confirm button press).
         if not C_Item.IsHelpfulItem(item) and not C_Item.IsHarmfulItem(item) then
             self.frame:SetAttribute("unit", "player")
         else
