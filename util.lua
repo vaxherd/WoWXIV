@@ -33,6 +33,7 @@ function WoWXIV.HideBlizzardFrame(frame)
     frame:Hide()
     function frame:Show() end
     function frame:SetShown() end
+    function frame:Update() end
 end
 
 ------------------------------------------------------------------------
