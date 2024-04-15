@@ -18,6 +18,22 @@ local ROLE_COLORS = {
     [ROLE_DPS]    = CreateColor(0.314, 0.180, 0.180),
 }
 
+-- Background and text colors for each class.  We adjust these a bit
+-- from the defaults for visibility's sake.
+local CLASS_TEXT_COLORS, CLASS_BG_COLORS = {}, {}
+for class, color in pairs(RAID_CLASS_COLORS) do
+    -- The Shaman color is a bit dark on a red (DPS) background, so
+    -- brighten it a bit.
+    if class == "SHAMAN" then
+        CLASS_TEXT_COLORS[class] = CreateColor(0.2, 0.552, 0.896)
+    else
+        CLASS_TEXT_COLORS[class] = color
+    end
+    -- Dim the class color for background use so we can more easily read
+    -- text on top.
+    CLASS_BG_COLORS[class] = CreateColor(color.r/2, color.g/2, color.b/2)
+end
+
 -- Default party member background color (black).
 local DEFAULT_BG_COLOR = CreateColor(0, 0, 0)
 
@@ -279,20 +295,17 @@ function Member:Refresh()
         role_id, class = self.class_icon:Set(self.unit)
     end
     local role_color = role_id and ROLE_COLORS[role_id]
-    local class_color = class and RAID_CLASS_COLORS[class]
+    local class_bg_color = class and CLASS_BG_COLORS[class]
+    local class_text_color = class and CLASS_TEXT_COLORS[class]
     local colors = WoWXIV_config["partylist_colors"]
     local bg_color, name_color
     if colors == "role" then
         bg_color = role_color
     elseif colors == "role+class" then
         bg_color = role_color
-        name_color = class_color
+        name_color = class_text_color
     elseif colors == "class" then
-        -- Dim the class color so we can more easily read text on top.
-        if class_color then
-            bg_color = CreateColor(
-                class_color.r/2, class_color.g/2, class_color.b/2)
-        end
+        bg_color = class_bg_color
     end
     self.bg:SetVertexColor((bg_color or DEFAULT_BG_COLOR):GetRGBA())
     self.name:SetTextColor((name_color or NORMAL_FONT_COLOR):GetRGB())
