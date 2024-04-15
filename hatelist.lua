@@ -204,7 +204,9 @@ function HateList:Refresh()
 end
 
 function HateList:InternalRefresh(index)
-    local units = {"target", "focus", "softtarget", "softenemy"}
+    local units = {"boss1", "boss2", "boss3", "boss4",
+                   "boss5", "boss6", "boss7", "boss8",
+                   "target", "focus", "softtarget", "softenemy"}
     for i = 1, 40+#units do
         local unit = i<=#units and units[i] or "nameplate"..(i-#units)
         local guid = UnitGUID(unit)
