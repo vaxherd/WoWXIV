@@ -93,7 +93,9 @@ function QuestItemButton:UpdateQuestItem(is_retry)
         -- normal confirm button press).  Conversely, Rusziona's Whistle
         -- (202293) from Little Scales Daycare quest "What's a Duck?"
         -- (72459) requires the player to be targeted but is marked
-        -- "helpful".
+        -- "helpful"; similarly for Primordial Muck (177880) in
+        -- Revendreth world quest "Muck It Up".  Perhaps we just need an
+        -- exhaustive list?
         if not C_Item.IsHelpfulItem(item) and not C_Item.IsHarmfulItem(item) then
             self.frame:SetAttribute("unit", "player")
         else
