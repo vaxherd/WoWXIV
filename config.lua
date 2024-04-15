@@ -31,8 +31,8 @@ config_default["map_show_coords_minimap"] = true
 -- Map: show mouseover coordinates on world map?
 config_default["map_show_coords_worldmap"] = true
 
--- Party list: use role colors in background?
-config_default["partylist_role_bg"] = false
+-- Party list: where to use role/class colors
+config_default["partylist_colors"] = nil
 -- Party list: when to use narrow format
 config_default["partylist_narrow_condition"] = "never"
 
@@ -197,8 +197,19 @@ function ConfigFrame:__constructor()
                        function(enable) WoWXIV.Map.SetShowCoords(enable, WoWXIV_config["map_show_coords_minimap"]) end)
 
     self:AddHeader("Party list settings")
-    self:AddCheckButton("Use role color in list background",
+    self:AddRadioHeader("Role/class coloring:",
                        "partylist_role_bg", WoWXIV.PartyList.Refresh)
+    self:AddRadioButton("None", "partylist_colors", nil,
+                        WoWXIV.PartyList.Refresh)
+    self:AddRadioButton("Role color in background",
+                        "partylist_colors", "role",
+                        WoWXIV.PartyList.Refresh)
+    self:AddRadioButton("Role color in background, class color in name",
+                        "partylist_colors", "role+class",
+                        WoWXIV.PartyList.Refresh)
+    self:AddRadioButton("Class color in background",
+                        "partylist_colors", "class",
+                        WoWXIV.PartyList.Refresh)
     self:AddRadioHeader("Use narrow format (omit mana and limit buffs/debuffs):")
     self:AddRadioButton("Never", "partylist_narrow_condition", "never",
                         WoWXIV.PartyList.Refresh)

@@ -13,10 +13,13 @@ local ROLE_DPS = 3
 
 -- Background colors for each role.
 local ROLE_COLORS = {
-    [ROLE_TANK]   = {0.145, 0.212, 0.427},
-    [ROLE_HEALER] = {0.184, 0.298, 0.141},
-    [ROLE_DPS]    = {0.314, 0.180, 0.180},
+    [ROLE_TANK]   = CreateColor(0.145, 0.212, 0.427),
+    [ROLE_HEALER] = CreateColor(0.184, 0.298, 0.141),
+    [ROLE_DPS]    = CreateColor(0.314, 0.180, 0.180),
 }
+
+-- Default party member background color (black).
+local DEFAULT_BG_COLOR = CreateColor(0, 0, 0)
 
 --------------------------------------------------------------------------
 
@@ -71,12 +74,12 @@ function ClassIcon:SetAnchor(anchor, x, y, tooltip_anchor)
     self.tooltip_anchor = tooltip_anchor
 end
 
--- Returns detected role (ROLE_* constant) or nil.
+-- Returns detected role (ROLE_* constant) and class ("PRIEST" etc) or nil.
 function ClassIcon:Set(unit)
-    local role_name, role_id, class_name, spec_name
+    local role_name, role_id, class_name, class, spec_name
     if unit then
         local role = UnitGroupRolesAssigned(unit)
-        local class, class_id
+        local class_id
         class_name, class, class_id = UnitClass(unit)
         local spec_index
         if class_id and unit == "player" then
@@ -140,7 +143,7 @@ function ClassIcon:Set(unit)
     end
     self:UpdateTooltip()
 
-    return role_id
+    return role_id, class
 end
 
 --------------------------------------------------------------------------
@@ -261,16 +264,29 @@ end
 
 function Member:Refresh()
     self.name:SetText(NameForUnit(self.unit, not self.narrow))
-    local role_id
+
+    local role_id, class
     if self.unit ~= "vehicle" then
-        role_id = self.class_icon:Set(self.unit)
+        role_id, class = self.class_icon:Set(self.unit)
     end
-    if WoWXIV_config["partylist_role_bg"] and role_id then
-        local color = ROLE_COLORS[role_id]
-        self.bg:SetVertexColor(color[1], color[2], color[3], 1)  -- FIXME: unpack doesn't work here?
-    else
-        self.bg:SetVertexColor(0, 0, 0, 1)
+    local role_color = role_id and ROLE_COLORS[role_id]
+    local class_color = class and RAID_CLASS_COLORS[class]
+    local colors = WoWXIV_config["partylist_colors"]
+    local bg_color, name_color
+    if colors == "role" then
+        bg_color = role_color
+    elseif colors == "role+class" then
+        bg_color = role_color
+        name_color = class_color
+    elseif colors == "class" then
+        -- Dim the class color so we can more easily read text on top.
+        if class_color then
+            bg_color = CreateColor(
+                class_color.r/2, class_color.g/2, class_color.b/2)
+        end
     end
+    self.bg:SetVertexColor((bg_color or DEFAULT_BG_COLOR):GetRGBA())
+    self.name:SetTextColor((name_color or NORMAL_FONT_COLOR):GetRGB())
 end
 
 function Member:Update(updateLabel)
