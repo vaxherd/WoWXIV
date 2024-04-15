@@ -167,8 +167,17 @@ function Member:__constructor(parent, unit)
     self.narrow = false
     self.missing = false
 
-    local f = CreateFrame("Frame", "WoWXIV_PartyListMember_"..unit, parent)
+    -- Use SecureUnitButtonTemplate to allow targeting the member on click.
+    -- Note that SecureActionButtonTemplate doesn't work here for some reason;
+    -- the button still responds to clicks (as can be verified by hooking the
+    -- OnClick event) and still highlights the associated unit on mouseover,
+    -- but the "target" action doesn't fire.
+    local f = CreateFrame("Button", "WoWXIV_PartyListMember_"..unit, parent,
+                          "SecureUnitButtonTemplate")
     self.frame = f
+    f:SetAttribute("type1", "target")
+    f:SetAttribute("unit", unit=="vehicle" and "player" or unit)
+    f:RegisterForClicks("LeftButtonDown")
     f:Hide()
     f:SetSize(256, 40)
 
