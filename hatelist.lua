@@ -13,9 +13,9 @@ local bor = bit.bor
 local Enemy = class()
 
 function Enemy:__constructor(parent, y)
-    self.guid = nil    -- GUID of currently monitored unit, nil if none
-    self.name = ""     -- Name of unit (saved because we can't get it by GUID)
-    self.token = nil   -- Token by which we can look up unit info. nil if none
+    self.guid = nil   -- GUID of currently monitored unit, nil if none
+    self.name = ""    -- Name of unit (saved because we can't get it by GUID)
+    self.token = nil  -- Token by which we can look up unit info, nil if none
 
     local f = CreateFrame("Frame", nil, parent)
     self.frame = f
