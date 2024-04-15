@@ -40,12 +40,13 @@ function QuestItemButton:__constructor()
     -- FIXME: Setting unit=target means we can't use ground-target items
     -- without an arbitrary target selected (including soft targets), and
     -- we can't use non-targeted items like Aqueous Material Accumulator
-    -- (Maldraxxus world quest "Further Gelatinous Research"), though
-    -- targeting the player seems to work in that case.  For now we use a
-    -- kludge to detect cases likely to need the player targeted, but we
-    -- need to find a better solution here.  Ideally we would just call
-    -- UseQuestLogSpecialItem(log_index), but that's a protected function
-    -- and there's no secure action wrapper for it (as of 10.2.6).
+    -- (item ID 180876, from Maldraxxus world quest "Further Gelatinous
+    -- Research", quest ID 61189), though targeting the player seems to
+    -- work in that case.  For now we use a kludge to detect cases likely
+    -- to need the player targeted, but we need to find a better solution
+    -- here.  Ideally we would just call UseQuestLogSpecialItem(log_index),
+    -- but that's a protected function and there's no secure action wrapper
+    -- for it (as of 10.2.6).
     f:SetAttribute("unit", "target")
     f:RegisterForClicks("LeftButtonDown")
     -- FIXME: make this configurable
@@ -84,10 +85,15 @@ function QuestItemButton:UpdateQuestItem(is_retry)
         self.frame:SetAttribute("item", name)
         -- Some quest items need to be targeted on the player for the
         -- item to activate.  This is our best guess at the condition
-        -- for the moment, though it's not perfect (see e.g. Azure Span
-        -- sidequest "Setting the Defense", in which an item intended to
-        -- be used on friendly NPCs matches this condition but is also
-        -- usable with a normal confirm button press).
+        -- for the moment, though it's not perfect.  See e.g. Azure Span
+        -- sidequest "Setting the Defense" (ID 66489), in which an item
+        -- (Arch Instructor's Wand, ID 192471) intended to be used on
+        -- friendly NPCs matches this condition and thus can't be used
+        -- if we force unit="player" (though it's also usable with a
+        -- normal confirm button press).  Conversely, Rusziona's Whistle
+        -- (202293) from Little Scales Daycare quest "What's a Duck?"
+        -- (72459) requires the player to be targeted but is marked
+        -- "helpful".
         if not C_Item.IsHelpfulItem(item) and not C_Item.IsHarmfulItem(item) then
             self.frame:SetAttribute("unit", "player")
         else
