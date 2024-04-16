@@ -85,6 +85,14 @@ function ClassIcon:UpdateTooltip()
     end
 end
 
+function ClassIcon:Show()
+    self.frame:Show()
+end
+
+function ClassIcon:Hide()
+    self.frame:Hide()
+end
+
 function ClassIcon:SetAnchor(anchor, x, y, tooltip_anchor)
     self.frame:SetPoint(anchor, self.parent, anchor, x, y)
     self.tooltip_anchor = tooltip_anchor
@@ -229,7 +237,7 @@ function Member:__constructor(parent, unit)
     hp:SetBarColor(1, 1, 1)
     hp:SetShowOvershield(true)
     hp:SetShowValue(true)
-    hp:SetPoint("TOPLEFT", f, "TOPLEFT", 32, -11)
+    hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 32, -11)
 
     local mp = WoWXIV.UI.Gauge(f, 86)
     self.mp = mp
@@ -237,7 +245,7 @@ function Member:__constructor(parent, unit)
     mp:SetBarBackgroundColor(0.027, 0.161, 0.306)
     mp:SetBarColor(1, 1, 1)
     mp:SetShowValue(true)
-    mp:SetPoint("TOPLEFT", f, "TOPLEFT", 136, -11)
+    mp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 136, -11)
 
     self.buffbar = WoWXIV.UI.AuraBar("ALL", "TOPLEFT", 9, 1, f, 240, -1)
     self.buffbar:SetUnit(unit)
@@ -264,12 +272,24 @@ end
 function Member:SetNarrow(narrow)
     if narrow == self.narrow then return end
     self.narrow = narrow
+    local f = self.frame
     if narrow then
+        self.class_icon:Hide()
         self.mp:Hide()
+        f:SetWidth(228)
+        self.name:ClearAllPoints()
+        self.name:SetPoint("TOPLEFT", f, "TOPLEFT", 9, -3)
+        self.hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 5, -11)
         self.buffbar:SetSize(5, 1)
-        self.buffbar:SetRelPosition(136, -1)
+        self.buffbar:SetRelPosition(100, -1)
     else
+        self.class_icon:Show()
         self.mp:Show()
+        f:SetWidth(256)
+        self.name:ClearAllPoints()
+        self.name:SetPoint("TOPLEFT", f, "TOPLEFT", 36, -3)
+        self.hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 32, -11)
+        self.mp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 136, -11)
         self.buffbar:SetSize(9, 1)
         self.buffbar:SetRelPosition(240, -1)
     end
@@ -351,17 +371,32 @@ function PartyList:__constructor()
     f:SetSize(256, 48)
 
     self.bg_t = f:CreateTexture(nil, "BACKGROUND")
-    self.bg_t:SetPoint("TOP")
-    self.bg_t:SetSize(f:GetWidth(), 4)
+    self.bg_t:SetPoint("TOPLEFT")
+    self.bg_t:SetSize(256, 4)
     self.bg_t:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     self.bg_t:SetTexCoord(0, 1, 0/256.0, 4/256.0)
     self.bg_t:SetVertexColor(0, 0, 0, 1)
     self.bg_b = f:CreateTexture(nil, "BACKGROUND")
-    self.bg_b:SetPoint("BOTTOM")
-    self.bg_b:SetSize(f:GetWidth(), 4)
+    self.bg_b:SetPoint("BOTTOMLEFT")
+    self.bg_b:SetSize(256, 4)
     self.bg_b:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     self.bg_b:SetTexCoord(0, 1, 7/256.0, 11/256.0)
     self.bg_b:SetVertexColor(0, 0, 0, 1)
+
+    self.bg2_t = f:CreateTexture(nil, "BACKGROUND")
+    self.bg2_t:SetPoint("TOPRIGHT")
+    self.bg2_t:SetSize(256, 4)
+    self.bg2_t:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+    self.bg2_t:SetTexCoord(0, 1, 0/256.0, 4/256.0)
+    self.bg2_t:SetVertexColor(0, 0, 0, 1)
+    self.bg2_t:Hide()
+    self.bg2_b = f:CreateTexture(nil, "BACKGROUND")
+    self.bg2_b:SetPoint("BOTTOMRIGHT")
+    self.bg2_b:SetSize(256, 4)
+    self.bg2_b:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+    self.bg2_b:SetTexCoord(0, 1, 7/256.0, 11/256.0)
+    self.bg2_b:SetVertexColor(0, 0, 0, 1)
+    self.bg2_b:Hide()
 
     for _, unit in ipairs(PARTY_UNIT_TOKENS) do
         self.party[unit] = Member(f, unit)
@@ -450,9 +485,12 @@ function PartyList:SetParty(is_retry)
     end
 
     local f = self.frame
+    local col_width = narrow and 228 or 256
+    local row_height = 40
+    local col_spacing = col_width + (narrow and 0 or 8)
     local width, height = 0, 0
     local x0, y0 = 0, -4
-    local row, col = 0, 0
+    local row, col, ncols = 0, 0, 0
     for _, unit in ipairs(PARTY_UNIT_TOKENS) do
         local member = self.party[unit]
         assert(member)
@@ -465,14 +503,17 @@ function PartyList:SetParty(is_retry)
             if name and strfind(name, "%[DNT]") then id = nil end
         end
         if id then
-            local x = x0 + col*264
-            local y = y0 + row*(-40)
+            local x = x0 + col*(col_spacing)
+            local y = y0 + row*(-row_height)
             member:SetRelPosition(f, x, y)
             member:SetNarrow(narrow)
             member:Refresh()
             member:Show()
-            local bottom = -y+40
+            local right = x + col_width
+            local bottom = -y + row_height
+            if right > width then width = right end
             if bottom > height then height = bottom end
+            if col+1 > ncols then ncols = col+1 end
             row = row+1
             if narrow and row >= 20 then
                 col = col+1
@@ -482,7 +523,21 @@ function PartyList:SetParty(is_retry)
             member:Hide()
         end
     end
-    f:SetHeight(height+4)
+    f:SetSize(width, height+4)
+    self.bg_t:SetWidth(col_width)
+    self.bg_b:SetWidth(col_width)
+    if ncols > 1 then  -- assumed to be 2
+        self.bg2_t:SetWidth(col_width)
+        self.bg2_b:SetWidth(col_width)
+        self.bg2_b:ClearAllPoints()
+        local col2_y = y0 + row*(-40)
+        self.bg2_b:SetPoint("BOTTOMRIGHT", 0, height - (-col2_y))
+        self.bg2_t:Show()
+        self.bg2_b:Show()
+    else
+        self.bg2_t:Hide()
+        self.bg2_b:Hide()
+    end
 end
 
 function PartyList:UpdateParty(unit, updateLabel)

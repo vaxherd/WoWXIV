@@ -39,7 +39,7 @@ function Enemy:__constructor(parent, y)
     hp:SetBoxColor(0.533, 0.533, 0.533)
     hp:SetBarBackgroundColor(0.118, 0.118, 0.118)
     hp:SetBarColor(1, 1, 1)
-    hp:SetPoint("TOPLEFT", f, "TOPLEFT", 19, -13)
+    hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 19, -13)
 end
 
 -- Pass unit_guid=nil (or no arguments) to clear a previously set enemy.
