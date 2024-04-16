@@ -203,7 +203,7 @@ function Member:__constructor(parent, unit)
     f:SetAttribute("unit", unit=="vehicle" and "player" or unit)
     f:RegisterForClicks("LeftButtonDown")
     f:Hide()
-    f:SetSize(256, 40)
+    f:SetSize(256, 37)
 
     local bg = f:CreateTexture(nil, "BACKGROUND")
     self.bg = bg
@@ -222,12 +222,12 @@ function Member:__constructor(parent, unit)
 
     if self.unit ~= "vehicle" then
         self.class_icon = ClassIcon(f)
-        self.class_icon:SetAnchor("TOPLEFT", 0, -5, "BOTTOMRIGHT")
+        self.class_icon:SetAnchor("TOPLEFT", 0, -4, "BOTTOMRIGHT")
     end
 
     local name = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     self.name = name
-    name:SetPoint("TOPLEFT", f, "TOPLEFT", 36, -3)
+    name:SetPoint("TOPLEFT", f, "TOPLEFT", 36, -2)
     name:SetTextScale(1.1)
 
     local hp = WoWXIV.UI.Gauge(f, 86)
@@ -237,7 +237,7 @@ function Member:__constructor(parent, unit)
     hp:SetBarColor(1, 1, 1)
     hp:SetShowOvershield(true)
     hp:SetShowValue(true)
-    hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 32, -11)
+    hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 32, -9)
 
     local mp = WoWXIV.UI.Gauge(f, 86)
     self.mp = mp
@@ -245,9 +245,9 @@ function Member:__constructor(parent, unit)
     mp:SetBarBackgroundColor(0.027, 0.161, 0.306)
     mp:SetBarColor(1, 1, 1)
     mp:SetShowValue(true)
-    mp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 136, -11)
+    mp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 136, -9)
 
-    self.buffbar = WoWXIV.UI.AuraBar("ALL", "TOPLEFT", 9, 1, f, 240, -1)
+    self.buffbar = WoWXIV.UI.AuraBar("ALL", "TOPLEFT", 9, 1, f, 240, 2)
     self.buffbar:SetUnit(unit)
 
     self:Refresh()
@@ -368,7 +368,7 @@ function PartyList:__constructor()
     f.owner = self
     f:Hide()
     f:SetPoint("TOPLEFT", 30, -24)
-    f:SetSize(256, 48)
+    f:SetSize(256, 44)
 
     self.bg_t = f:CreateTexture(nil, "BACKGROUND")
     self.bg_t:SetPoint("TOPLEFT")
@@ -486,7 +486,7 @@ function PartyList:SetParty(is_retry)
 
     local f = self.frame
     local col_width = narrow and 228 or 256
-    local row_height = 40
+    local row_height = 37
     local col_spacing = col_width + (narrow and 0 or 8)
     local width, height = 0, 0
     local x0, y0 = 0, -4
@@ -515,7 +515,7 @@ function PartyList:SetParty(is_retry)
             if bottom > height then height = bottom end
             if col+1 > ncols then ncols = col+1 end
             row = row+1
-            if narrow and row >= 20 then
+            if row >= 20 then
                 col = col+1
                 row = 0
             end
@@ -523,6 +523,7 @@ function PartyList:SetParty(is_retry)
             member:Hide()
         end
     end
+
     f:SetSize(width, height+4)
     self.bg_t:SetWidth(col_width)
     self.bg_b:SetWidth(col_width)
@@ -538,6 +539,9 @@ function PartyList:SetParty(is_retry)
         self.bg2_t:Hide()
         self.bg2_b:Hide()
     end
+
+    local abs_y = select(5, f:GetPoint(1))
+    WoWXIV.HateList.NotifyPartyListBottom(abs_y - f:GetHeight())
 end
 
 function PartyList:UpdateParty(unit, updateLabel)

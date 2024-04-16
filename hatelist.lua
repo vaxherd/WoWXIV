@@ -19,13 +19,13 @@ function Enemy:__constructor(parent, y)
 
     local f = CreateFrame("Frame", nil, parent)
     self.frame = f
-    f:SetSize(200, 30)
+    f:SetSize(200, 27)
     f:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, y)
     f:Hide()
 
     local hate_icon = f:CreateTexture(nil, "ARTWORK")
     self.hate_icon = hate_icon
-    hate_icon:SetPoint("TOPLEFT", f, "TOPLEFT")
+    hate_icon:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -3)
     hate_icon:SetSize(19, 19)
     hate_icon:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
 
@@ -39,7 +39,7 @@ function Enemy:__constructor(parent, y)
     hp:SetBoxColor(0.533, 0.533, 0.533)
     hp:SetBarBackgroundColor(0.118, 0.118, 0.118)
     hp:SetBarColor(1, 1, 1)
-    hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 19, -13)
+    hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 19, -10)
 end
 
 -- Pass unit_guid=nil (or no arguments) to clear a previously set enemy.
@@ -111,11 +111,13 @@ function HateList:__constructor()
     self.guids = {}    -- Mapping from enemy GUID to enemies[] slot
     self.unit_not_seen = {}  -- Safety net, see OnPeriodicUpdate()
 
+    self.base_y = -(UIParent:GetHeight()/2) -- May be pushed down by party list
+
     local f = CreateFrame("Frame", "WoWXIV_HateList", UIParent)
     self.frame = f
     f:Hide()
-    f:SetPoint("TOPLEFT", 30, -(UIParent:GetHeight()/2))
-    f:SetSize(200, 34)
+    f:SetPoint("TOPLEFT", 30, base_y)
+    f:SetSize(200, 31)
     f:SetScript("OnEvent", function(frame, ...) self:OnEvent(...) end)
 
     local bg_t = f:CreateTexture(nil, "BACKGROUND")
@@ -149,7 +151,7 @@ function HateList:__constructor()
     local highlight_c = f:CreateTexture(nil, "BACKGROUND", nil, 1)
     self.highlight_c = highlight_c
     highlight_c:SetPoint("TOP", highlight_t, "BOTTOM")
-    highlight_c:SetSize(f:GetWidth(), 24)
+    highlight_c:SetSize(f:GetWidth(), 27-6)
     highlight_c:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
     highlight_c:SetTexCoord(0, 1, 4/256.0, 7/256.0)
     highlight_c:SetVertexColor(1, 1, 1, 0.5)
@@ -165,7 +167,7 @@ function HateList:__constructor()
     highlight_b:Hide()
 
     for i = 1, 8 do
-        local y = -2-30*(i-1)
+        local y = -2-27*(i-1)
         tinsert(self.enemies, Enemy(f, y))
         tinsert(self.unit_not_seen, 0)
     end
@@ -392,7 +394,7 @@ end
 
 function HateList:ResizeFrame(count)
     if count > 0 then
-        self.frame:SetHeight(4+30*count)
+        self.frame:SetHeight(4+27*count)
         self.frame:Show()
     else
         self.frame:Hide()
@@ -414,13 +416,21 @@ function HateList:UpdateTargetHighlight()
         if enemy:UnitGUID() == target_guid then
             highlight_t:ClearAllPoints()
             highlight_t:SetPoint("TOPLEFT", self.frame, "TOPLEFT",
-                                 0, -1-30*(index-1))
+                                 0, -1-27*(index-1))
             highlight_t:Show()
             highlight_c:Show()
             highlight_b:Show()
             return
         end
     end
+end
+
+function HateList:SetMinTop(y)
+    if y > self.base_y then  -- Remember that Y coordinates are negative!
+        y = self.base_y
+    end
+    self.frame:ClearAllPoints()
+    self.frame:SetPoint("TOPLEFT", 30, y)
 end
 
 ---------------------------------------------------------------------------
@@ -434,4 +444,10 @@ end
 -- Enable or disable the enmity list display.
 function WoWXIV.HateList.Enable(enable)
     WoWXIV.HateList.list:Enable(enable)
+end
+
+-- Record the bottom Y coordinate of the party list.  Called from
+-- PartyList.SetParty() on party list update.
+function WoWXIV.HateList.NotifyPartyListBottom(y)
+    WoWXIV.HateList.list:SetMinTop(y-10)
 end
