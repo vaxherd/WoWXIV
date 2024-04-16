@@ -85,8 +85,8 @@ function Gauge:__constructor(parent, width)
     overshield_r:SetTexCoord(91/256.0, 96/256.0, 28/256.0, 35/256.0)
 
     self.value = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    self.value:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -14)
-    self.value:SetTextScale(1.3)
+    self.value:SetPoint("TOPRIGHT", f, "TOPRIGHT", -3, -13.5)
+    self.value:SetTextScale(1.25)
     if not self.show_value then
         self.value:Hide()
     end
@@ -136,7 +136,7 @@ function Gauge:SetShowValue(show, on_top)
         if on_top then
             self.value:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", -3, 10)
         else
-            self.value:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", -3, -14)
+            self.value:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", -3, -13.5)
         end
         self.value:Show()
     else
