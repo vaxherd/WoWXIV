@@ -104,7 +104,7 @@ function Gauge:SetAlpha(alpha)
     self.frame:SetAlpha(alpha)
 end
 
-function Gauge:SetPoint(...)
+function Gauge:SetSinglePoint(...)
     self.frame:ClearAllPoints()
     self.frame:SetPoint(...)
 end

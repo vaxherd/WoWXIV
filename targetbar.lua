@@ -39,7 +39,7 @@ function TargetBar:__constructor(is_focus)
         hp.value:SetText("0000000000")
         self.name_maxwidth = self.name_maxwidth - hp.value:GetWidth()
     end
-    hp:SetPoint("TOP", f, "TOP", 0, -8)
+    hp:SetSinglePoint("TOP", f, "TOP", 0, -8)
 
     local auras = WoWXIV.UI.AuraBar(
         "ALL", "TOPLEFT", is_focus and 6 or 16, is_focus and 1 or 5,
@@ -74,7 +74,7 @@ function TargetBar:__constructor(is_focus)
 
         local target_hp = WoWXIV.UI.Gauge(f, 128)
         self.target_hp = target_hp
-        target_hp:SetPoint("TOPLEFT", f, "TOPLEFT", 432, -8)
+        target_hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 432, -8)
         target_hp:Hide()
     end
 
