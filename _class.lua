@@ -89,6 +89,11 @@ must explicitly name the parent class when calling overridden methods.
 local _, module = ...
 module = module or {} -- so the file can also be loaded with a simple require()
 
+local super_error_msg = "__super() called from class with no superclass"
+local function super_error()
+    error(super_error_msg)
+end
+
 function module.class(parent)
     local classdef = {}
     local instance_metatable = {__index = classdef}
@@ -103,6 +108,7 @@ function module.class(parent)
         classdef.__super = function(...) parent.__constructor(...) end
         class_metatable.__index = parent
     else
+        classdef.__super = super_error
         -- Define a default constructor for base classes so the "new"
         -- operation doesn't need to check for its presence.
         classdef.__constructor = function() end
@@ -368,7 +374,7 @@ local tests = {
         local function f() return Class() end
         local result, errmsg = pcall(f)
         assert(result == false)
-        assert(errmsg:find("__super"))
+        assert(errmsg:find(super_error_msg, 1, true))
     end,
 
     NestedInherit = function()
