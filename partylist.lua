@@ -5,6 +5,7 @@ local class = WoWXIV.class
 
 local GameTooltip = GameTooltip
 local strfind = string.find
+local strsub = string.sub
 
 -- Role type constants returned from ClassIcon:Set().
 local ROLE_TANK = 1
@@ -250,6 +251,10 @@ function Member:__constructor(parent, unit)
     self.buffbar = WoWXIV.UI.AuraBar("ALL", "TOPLEFT", 9, 1, f, 240, 2)
     self.buffbar:SetUnit(unit)
 
+    -- Hack to expose targeted state to secure code
+    self.selected_frame = CreateFrame("Frame")
+    self.selected_frame:Hide()
+
     self:Refresh()
     self:Update()
 end
@@ -343,8 +348,10 @@ function Member:Update(updateLabel)
 
     if UnitIsUnit("target", self.unit=="vehicle" and "player" or self.unit) then
         self.highlight:Show()
+        self.selected_frame:Show()
     else
         self.highlight:Hide()
+        self.selected_frame:Hide()
     end
 end
 
@@ -360,15 +367,60 @@ function PartyList:__constructor()
     self.party = {}  -- mapping from unit token to Member instance
     self.pending_SetParty = false  -- see SetParty()
 
-    -- We could use our CreateEventFrame helper, but most events we're
-    -- interested in will follow the same code path, so we write our
-    -- own OnEvent handler to be concise.
-    local f = CreateFrame("Frame", "WoWXIV_PartyList", UIParent)
+    local f = CreateFrame("Button", "WoWXIV_PartyList", UIParent,
+                          --"SecureHandlerClickTemplate")
+                          --"SecureActionButtonTemplate")
+                          "SecureUnitButtonTemplate, SecureHandlerBaseTemplate")
     self.frame = f
     f.owner = self
     f:Hide()
     f:SetPoint("TOPLEFT", 30, -24)
     f:SetSize(256, 44)
+    f:SetAttribute("type", "target")
+    f:SetAttribute("unit", nil)
+    f:SetAttribute("unitlist", "")
+    f:RegisterForClicks("LeftButtonDown")
+    f:WrapScript(f, "OnClick", [[ -- (self, button, down)
+        if PlayerInCombat() then return false end  -- FIXME: can't call IsShown() in combat
+        local unitlist = self:GetAttribute("unitlist")
+        local first, prev, target
+        local pos = 1
+        while pos < #unitlist do
+            local delim = strfind(unitlist, " ", pos, true)
+            local unit = strsub(unitlist, pos, delim-1)
+            pos = delim+1
+            first = first or unit
+            local is_target = self:GetFrameRef("sel_"..unit):IsShown()
+            if is_target then
+                if button == "CycleBackward" then
+                    if prev then
+                        target = prev
+                    else
+                        while delim < #unitlist do
+                            pos = delim+1
+                            delim = strfind(unitlist, " ", pos, true)
+                        end
+                        target = strsub(unitlist, pos, delim-1)
+                    end
+                elseif pos < #unitlist then
+                    delim = strfind(unitlist, " ", pos, true)
+                    target = strsub(unitlist, pos, delim-1)
+                else
+                    target = first
+                end
+                break
+            end
+            prev = unit
+        end
+        if not target then
+            target = "player"
+        end
+        self:SetAttribute("unit", target)
+    ]])
+    SetOverrideBinding(f, false, "PADDDOWN",
+                       "CLICK WoWXIV_PartyList:CycleForward")
+    SetOverrideBinding(f, false, "PADDUP",
+                       "CLICK WoWXIV_PartyList:CycleBackward")
 
     self.bg_t = f:CreateTexture(nil, "BACKGROUND")
     self.bg_t:SetPoint("TOPLEFT")
@@ -400,6 +452,7 @@ function PartyList:__constructor()
 
     for _, unit in ipairs(PARTY_UNIT_TOKENS) do
         self.party[unit] = Member(f, unit)
+        f:SetFrameRef("sel_"..unit, self.party[unit].selected_frame)
     end
 
     function f:OnPartyChange()
@@ -485,6 +538,7 @@ function PartyList:SetParty(is_retry)
     end
 
     local f = self.frame
+    local unitlist = ""
     local col_width = narrow and 228 or 256
     local row_height = 37
     local col_spacing = col_width + (narrow and 0 or 8)
@@ -519,10 +573,17 @@ function PartyList:SetParty(is_retry)
                 col = col+1
                 row = 0
             end
+            if unit ~= "vehicle" then
+                unitlist = unitlist .. unit .. " "
+            end
         else
             member:Hide()
         end
     end
+    -- Note that unitlist ends with a trailing space; this is what we want,
+    -- as it provides a convenient delimiter for strfind() rather than
+    -- having to special-case the last entry in the list.
+    f:SetAttribute("unitlist", unitlist)
 
     f:SetSize(width, height+4)
     self.bg_t:SetWidth(col_width)
@@ -539,7 +600,6 @@ function PartyList:SetParty(is_retry)
         self.bg2_t:Hide()
         self.bg2_b:Hide()
     end
-
     local abs_y = select(5, f:GetPoint(1))
     WoWXIV.HateList.NotifyPartyListBottom(abs_y - f:GetHeight())
 end
