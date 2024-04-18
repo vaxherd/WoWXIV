@@ -28,6 +28,35 @@ end
 -- this workaround.
 local QuestItemButton = class()
 
+-- FIXME: The required target for quest items varies, and is not always
+-- obvious from the item data available via the API; for example, Azure
+-- Span sidequest "Setting the Defense" (ID 66489) has a quest item
+-- "Arch Instructor's Wand" (ID 192471) intended to be used on a targeted
+-- friendly NPC, but is neither "helpful" nor "harmful", while Rusziona's
+-- Whistle (202293) from Little Scales Daycare quest "What's a Duck?"
+-- (72459) is marked "helpful" but requires the player to be targeted in
+-- order to fire.  Ideally we would just call
+-- UseQuestLogSpecialItem(log_index), but that's a protected function and
+-- there's no secure action wrapper for it (as of 10.2.6), so for the
+-- meantime we record specific items whose required targets we know and
+-- use fallback logic for others.
+local ITEM_TARGET = {
+    -- Primordial Muck (59808: Muck It Up)
+    [177880] = "player",
+    -- Aqueous Material Accumulator (61189: Further Gelatinous Research)
+    [180876] = "player",
+    -- Fae Flute (61717: Gormling Piper: Tranquil Pools [and others])
+    [182189] = "",  -- FIXME: does not seem to work with any target
+    -- Assassin's Soulcloak (61765: Words of Warding)
+    [182303] = "player",
+    -- Niya's Staff (63840: They Grow Up So Quickly)
+    [186089] = "target",
+    -- Arch Instructor's Wand (66489: Setting the Defense)
+    [192471] = "target",
+    -- Rusziona's Whistle (72459: What's a Duck?)
+    [202293] = "player",
+}
+
 function QuestItemButton:__constructor()
     self.item = nil
     self.pending_update = false
@@ -37,17 +66,7 @@ function QuestItemButton:__constructor()
     self.frame = f
     f:SetAttribute("type", "item")
     f:SetAttribute("item", nil)
-    -- FIXME: Setting unit=target means we can't use ground-target items
-    -- without an arbitrary target selected (including soft targets), and
-    -- we can't use non-targeted items like Aqueous Material Accumulator
-    -- (item ID 180876, from Maldraxxus world quest "Further Gelatinous
-    -- Research", quest ID 61189), though targeting the player seems to
-    -- work in that case.  For now we use a kludge to detect cases likely
-    -- to need the player targeted, but we need to find a better solution
-    -- here.  Ideally we would just call UseQuestLogSpecialItem(log_index),
-    -- but that's a protected function and there's no secure action wrapper
-    -- for it (as of 10.2.6).
-    f:SetAttribute("unit", "target")
+    f:SetAttribute("unit", nil)
     f:RegisterForClicks("LeftButtonDown")
     -- FIXME: make this configurable
     SetOverrideBinding(f, false, "CTRL-PADLSTICK",
@@ -83,23 +102,17 @@ function QuestItemButton:UpdateQuestItem(is_retry)
         -- an inventory slot index), so we need to set the name instead.
         local name = GetItemInfo(item)
         self.frame:SetAttribute("item", name)
-        -- Some quest items need to be targeted on the player for the
-        -- item to activate.  This is our best guess at the condition
-        -- for the moment, though it's not perfect.  See e.g. Azure Span
-        -- sidequest "Setting the Defense" (ID 66489), in which an item
-        -- (Arch Instructor's Wand, ID 192471) intended to be used on
-        -- friendly NPCs matches this condition and thus can't be used
-        -- if we force unit="player" (though it's also usable with a
-        -- normal confirm button press).  Conversely, Rusziona's Whistle
-        -- (202293) from Little Scales Daycare quest "What's a Duck?"
-        -- (72459) requires the player to be targeted but is marked
-        -- "helpful"; similarly for Primordial Muck (177880) in
-        -- Revendreth world quest "Muck It Up".  Perhaps we just need an
-        -- exhaustive list?
-        if not C_Item.IsHelpfulItem(item) and not C_Item.IsHarmfulItem(item) then
-            self.frame:SetAttribute("unit", "player")
-        else
+        local known_target = ITEM_TARGET[item]
+        if known_target then
+            if #known_target then
+               self.frame:SetAttribute("unit", known_target)
+            else
+               self.frame:SetAttribute("unit", nil)
+            end
+        elseif C_Item.IsHelpfulItem(item) or C_Item.IsHarmfulItem(item) then
             self.frame:SetAttribute("unit", "target")
+        else
+            self.frame:SetAttribute("unit", "player")
         end
     else
         self.frame:SetAttribute("item", nil)
