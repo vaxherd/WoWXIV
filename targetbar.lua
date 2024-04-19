@@ -41,6 +41,13 @@ function TargetBar:__constructor(is_focus)
     end
     hp:SetSinglePoint("TOP", f, "TOP", 0, -8)
 
+    local mp = WoWXIV.UI.Gauge(f, f:GetWidth())
+    self.mp = mp
+    mp:SetBoxColor(0.9, 0.9, 0.9)
+    mp:SetBarBackgroundColor(0, 0, 0)
+    mp:SetBarColor(0.05, 0.45, 0.95)
+    mp:SetSinglePoint("TOP", f, "TOP", 0, -15)
+
     local auras = WoWXIV.UI.AuraBar(
         "ALL", "TOPLEFT", is_focus and 6 or 16, is_focus and 1 or 5,
         self.frame, 0, -22)
@@ -168,16 +175,27 @@ function TargetBar:RefreshUnit()
         return
     end
 
+    local f = self.frame
+    local auras = self.auras
     local own_only = (self.unit == "focus"
                       and WoWXIV_config["targetbar_focus_own_debuffs_only"]
                       or WoWXIV_config["targetbar_target_own_debuffs_only"])
-    self.auras:SetOwnDebuffsOnly(own_only)
-    self.auras:SetUnit(self.unit)
-    self.frame:Show()
+    auras:SetOwnDebuffsOnly(own_only)
+    auras:SetUnit(self.unit)
+    f:Show()
 
     local inactive
     self.hostile, inactive = SetColorsForUnit(self.unit, self.hp, self.name)
-    self.frame:SetAlpha(inactive and 0.5 or 1)
+    f:SetAlpha(inactive and 0.5 or 1)
+
+    local mp = self.mp
+    if UnitPowerMax(self.unit) > 0 then
+        mp:Show()
+        auras:SetRelPosition(0, -29)
+    else
+        mp:Hide()
+        auras:SetRelPosition(0, -22)
+    end
 
     self:Update()
 end
@@ -187,18 +205,19 @@ local typenames = {rare = "(Rare) ",
                    rareelite = "(Rare/Elite) ",
                    worldboss = "(World Boss) "}
 function TargetBar:Update()
-    if not UnitGUID(self.unit) then
+    local unit = self.unit
+    if not UnitGUID(unit) then
         self:SetNoUnit()
         return
     end
 
-    if self.hostile == 0 and UnitAffectingCombat(self.unit) then
+    if self.hostile == 0 and UnitAffectingCombat(unit) then
         self.hostile = 1
         self.hp:SetBoxColor(1, 0.604, 0.604)
         self.hp:SetBarBackgroundColor(0.302, 0.094, 0.094)
         self.hp:SetBarColor(1, 0.753, 0.761)
         self.name:SetTextColor(1, 0.753, 0.761)
-    elseif self.hostile > 0 and not UnitAffectingCombat(self.unit) then
+    elseif self.hostile > 0 and not UnitAffectingCombat(unit) then
         self.hostile = 0
         self.hp:SetBoxColor(0.925, 0.851, 0.557)
         self.hp:SetBarBackgroundColor(0.188, 0.165, 0.075)
@@ -206,12 +225,12 @@ function TargetBar:Update()
         self.name:SetTextColor(1, 0.973, 0.706)
     end
 
-    local name = UnitName(self.unit)
-    local lv = UnitLevel(self.unit)
-    local hp = UnitHealth(self.unit)
-    local hpmax = UnitHealthMax(self.unit)
+    local name = UnitName(unit)
+    local lv = UnitLevel(unit)
+    local hp = UnitHealth(unit)
+    local hpmax = UnitHealthMax(unit)
 
-    local type_str = (not self.is_focus) and typenames[UnitClassification(self.unit)] or ""
+    local type_str = (not self.is_focus) and typenames[UnitClassification(unit)] or ""
     local name_str = type_str .. name
     if hp < hpmax then
         local pct = math.floor(1000*hp/hpmax) / 10
@@ -229,10 +248,11 @@ function TargetBar:Update()
         name_label:SetText(name_str)
     end
 
-    self.hp:Update(hpmax, hp, UnitGetTotalAbsorbs(self.unit),
-                   UnitGetTotalHealAbsorbs(self.unit))
+    self.hp:Update(hpmax, hp, UnitGetTotalAbsorbs(unit),
+                   UnitGetTotalHealAbsorbs(unit))
+    self.mp:Update(UnitPowerMax(unit), UnitPower(unit))
 
-    if self.unit == "target" then
+    if unit == "target" then
         local target_id = UnitGUID("targettarget")
         local tname, thp, thpmax
         if target_id then
