@@ -17,17 +17,31 @@ function TargetBar:__constructor(is_focus)
                           is_focus and "WoWXIV_FocusBar" or "WoWXIV_TargetBar",
                           UIParent)
     self.frame = f
+    local name_size, hp_yofs
     if is_focus then
         f:SetSize(144, 80)
         f:SetPoint("TOP", UIParent, "TOP", -400, -20)
+        name_size = 1.0
+        icon_size = 17
+        hp_yofs = 5
     else
         f:SetSize(384, 80)
         f:SetPoint("TOP", UIParent, "TOP", 0, -20)
+        name_size = 1.1
+        icon_size = 20
+        hp_yofs = 8
     end
+    self.hp_yofs = hp_yofs
+
+    local class_icon = f:CreateTexture(nil, "ARTWORK")
+    self.class_icon = class_icon
+    class_icon:SetPoint("TOPRIGHT", f, "TOPLEFT", -3, -2)
+    class_icon:SetSize(icon_size, icon_size)
+    class_icon:Hide()
 
     local name = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     self.name = name
-    name:SetTextScale(is_focus and 1.0 or 1.1)
+    name:SetTextScale(name_size)
     name:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
     self.name_maxwidth = f:GetWidth()
 
@@ -39,18 +53,18 @@ function TargetBar:__constructor(is_focus)
         hp.value:SetText("0000000000")
         self.name_maxwidth = self.name_maxwidth - hp.value:GetWidth()
     end
-    hp:SetSinglePoint("TOP", f, "TOP", 0, -8)
+    hp:SetSinglePoint("TOP", f, "TOP", 0, -hp_yofs)
 
     local mp = WoWXIV.UI.Gauge(f, f:GetWidth())
     self.mp = mp
     mp:SetBoxColor(0.9, 0.9, 0.9)
     mp:SetBarBackgroundColor(0, 0, 0)
     mp:SetBarColor(0.05, 0.45, 0.95)
-    mp:SetSinglePoint("TOP", f, "TOP", 0, -15)
+    mp:SetSinglePoint("TOP", f, "TOP", 0, -(hp_yofs+7))
 
     local auras = WoWXIV.UI.AuraBar(
         "ALL", "TOPLEFT", is_focus and 6 or 16, is_focus and 1 or 5,
-        self.frame, 0, -22)
+        self.frame, 0, -(hp_yofs+14))
     self.auras = auras
 
     if not is_focus then
@@ -81,7 +95,7 @@ function TargetBar:__constructor(is_focus)
 
         local target_hp = WoWXIV.UI.Gauge(f, 128)
         self.target_hp = target_hp
-        target_hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 432, -8)
+        target_hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 432, -hp_yofs)
         target_hp:Hide()
     end
 
@@ -169,41 +183,49 @@ function TargetBar:SetNoUnit()
     end
 end
 
+local CLASS_ATLAS = {rare = "UI-HUD-UnitFrame-Target-PortraitOn-Boss-Rare-Star",
+                     elite = "nameplates-icon-elite-gold",
+                     rareelite = "nameplates-icon-elite-silver"}
 function TargetBar:RefreshUnit()
-    if not UnitGUID(self.unit) then
+    local unit = self.unit
+    if not UnitGUID(unit) then
         self:SetNoUnit()
         return
     end
 
     local f = self.frame
     local auras = self.auras
-    local own_only = (self.unit == "focus"
+    local own_only = (unit == "focus"
                       and WoWXIV_config["targetbar_focus_own_debuffs_only"]
                       or WoWXIV_config["targetbar_target_own_debuffs_only"])
     auras:SetOwnDebuffsOnly(own_only)
-    auras:SetUnit(self.unit)
+    auras:SetUnit(unit)
     f:Show()
 
     local inactive
-    self.hostile, inactive = SetColorsForUnit(self.unit, self.hp, self.name)
+    self.hostile, inactive = SetColorsForUnit(unit, self.hp, self.name)
     f:SetAlpha(inactive and 0.5 or 1)
 
+    local class_atlas = CLASS_ATLAS[UnitClassification(unit)]
+    if class_atlas then
+        self.class_icon:SetAtlas(class_atlas)
+        self.class_icon:Show()
+    else
+        self.class_icon:Hide()
+    end
+
     local mp = self.mp
-    if UnitPowerMax(self.unit) > 0 then
+    if UnitPowerMax(unit) > 0 then
         mp:Show()
-        auras:SetRelPosition(0, -29)
+        auras:SetRelPosition(0, -(self.hp_yofs+21))
     else
         mp:Hide()
-        auras:SetRelPosition(0, -22)
+        auras:SetRelPosition(0, -(self.hp_yofs+14))
     end
 
     self:Update()
 end
 
-local typenames = {rare = "(Rare) ",
-                   elite = "(Elite) ",
-                   rareelite = "(Rare/Elite) ",
-                   worldboss = "(World Boss) "}
 function TargetBar:Update()
     local unit = self.unit
     if not UnitGUID(unit) then
@@ -230,8 +252,7 @@ function TargetBar:Update()
     local hp = UnitHealth(unit)
     local hpmax = UnitHealthMax(unit)
 
-    local type_str = (not self.is_focus) and typenames[UnitClassification(unit)] or ""
-    local name_str = type_str .. name
+    local name_str = name
     if hp < hpmax then
         local pct = math.floor(1000*hp/hpmax) / 10
         if hp > 0 and pct < 0.1 then
