@@ -226,6 +226,7 @@ function FlyText:__constructor(type, ...)
         icon:SetTexture(spell_icon)
         if self.amount and self.amount > 0 then
             local stacks = w.stacks
+            stacks:Show()
             stacks:SetText(self.amount)
         end
         value:ClearAllPoints()
@@ -319,9 +320,9 @@ function FlyTextManager:__constructor(parent)
     local f = CreateFrame("Frame", "WoWXIV_FlyTextManager", nil)
     self.frame = f
     f.xiv_eventmap = {
-        PLAYER_MONEY = FlyTextManager.OnPlayerMoney,
         CHAT_MSG_LOOT = FlyTextManager.OnLootItem,
         CURRENCY_DISPLAY_UPDATE = FlyTextManager.OnCurrencyUpdate,
+        PLAYER_MONEY = FlyTextManager.OnPlayerMoney,
         -- Suppress aura events for the first 0.5 sec after entering a zone
         -- to avoid spam from permanent buffs (which are reapplied on
         -- entering each self zone).
@@ -387,11 +388,13 @@ function FlyTextManager:OnCombatLogEvent(event)
         self.hot = self.hot or {}
         self.hot[unit] = (self.hot[unit] or 0) + event.amount
     elseif event.subtype == "AURA_APPLIED" then
-        -- It doesn't look like APPLIED_DOSE is used for stacking buffs?
-        -- (and so we can't actually get the stack count)
         text = FlyText(
             event.aura_type=="BUFF" and FLYTEXT_BUFF_ADD or FLYTEXT_DEBUFF_ADD,
             unit, event.spell_id, event.spell_school)
+    elseif event.subtype == "AURA_APPLIED_DOSE" then
+        text = FlyText(
+            event.aura_type=="BUFF" and FLYTEXT_BUFF_ADD or FLYTEXT_DEBUFF_ADD,
+            unit, event.spell_id, event.spell_school, event.amount)
     elseif event.subtype == "AURA_REMOVED" then
         text = FlyText(
             event.aura_type=="BUFF" and FLYTEXT_BUFF_REMOVE or FLYTEXT_DEBUFF_REMOVE,
@@ -399,15 +402,6 @@ function FlyTextManager:OnCombatLogEvent(event)
     end
     if text then
         self:AddText(text, left_side)
-    end
-end
-
-function FlyTextManager:OnPlayerMoney()
-    local money = GetMoney()
-    local diff = money - self.last_money
-    self.last_money = money
-    if diff > 0 then
-        self:AddText(FlyText(FLYTEXT_LOOT_MONEY, diff))
     end
 end
 
@@ -502,6 +496,15 @@ function FlyTextManager:OnCurrencyUpdate(event, id, total, change)
     color = strsub(color, 5, 10)
     self:AddText(FlyText(FLYTEXT_LOOT_ITEM,
                          info.iconFileID, name, color, change))
+end
+
+function FlyTextManager:OnPlayerMoney()
+    local money = GetMoney()
+    local diff = money - self.last_money
+    self.last_money = money
+    if diff > 0 then
+        self:AddText(FlyText(FLYTEXT_LOOT_MONEY, diff))
+    end
 end
 
 function FlyTextManager:AddText(text, left_side)
