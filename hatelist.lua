@@ -33,6 +33,9 @@ function Enemy:__constructor(parent, y)
     self.name_label = name_label
     name_label:SetPoint("TOPLEFT", f, "TOPLEFT", 23, -1)
     name_label:SetTextScale(1.1)
+    name_label:SetWordWrap(false)
+    name_label:SetJustifyH("LEFT")
+    name_label:SetWidth(f:GetWidth())
 
     local hp = WoWXIV.UI.Gauge(f, 52)
     self.hp = hp

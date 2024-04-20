@@ -43,7 +43,9 @@ function TargetBar:__constructor(is_focus)
     self.name = name
     name:SetTextScale(name_size)
     name:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-    self.name_maxwidth = f:GetWidth()
+    name:SetWordWrap(false)
+    name:SetJustifyH("LEFT")
+    name:SetWidth(f:GetWidth())
 
     local hp = WoWXIV.UI.Gauge(f, f:GetWidth())
     self.hp = hp
@@ -51,7 +53,8 @@ function TargetBar:__constructor(is_focus)
         hp:SetShowValue(true, true)
         -- Minor hack to measure text width.
         hp.value:SetText("0000000000")
-        self.name_maxwidth = self.name_maxwidth - hp.value:GetWidth()
+        local SPACING = 5
+        name:SetWidth(f:GetWidth() - hp.value:GetWidth() - SPACING)
     end
     hp:SetSinglePoint("TOP", f, "TOP", 0, -hp_yofs)
 
@@ -264,10 +267,6 @@ function TargetBar:Update()
     end
     local name_label = self.name
     name_label:SetText(name_str)
-    while name_label:GetWidth() > self.name_maxwidth do
-        name_str = string.sub(name_str, 1, -5) .. "..."
-        name_label:SetText(name_str)
-    end
 
     self.hp:Update(hpmax, hp, UnitGetTotalAbsorbs(unit),
                    UnitGetTotalHealAbsorbs(unit))
