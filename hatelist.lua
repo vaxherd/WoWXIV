@@ -290,13 +290,13 @@ function HateList:OnAttack(event)
                 self:AddEnemy(source, event.source_name)
             end
          end
-    else
-        -- We should get a UNIT_HEALTH update as well, but those seem to
-        -- be delayed on occasion, so update health when we see hits here.
-        local index = self.guids[source]
-        if index then
-            self.enemies[index]:Update()
-        end
+    end
+    -- We should get UNIT_HEALTH updates for enemy health changes as well,
+    -- but those seem to be delayed on occasion, so update health when we
+    -- see hits here.
+    local index = self.guids[source]
+    if index then
+        self.enemies[index]:Update()
     end
 end
 
