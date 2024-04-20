@@ -218,7 +218,10 @@ function TargetBar:RefreshUnit()
     end
 
     local mp = self.mp
-    if UnitPowerMax(unit) > 0 then
+    local show_condition = WoWXIV_config["targetbar_power_condition"]
+    local show = (show_condition == "always" or
+                  (show_condition == "boss" and UnitIsBossMob(unit)))
+    if show then
         mp:Show()
         auras:SetRelPosition(0, -(self.hp_yofs+21))
     else
