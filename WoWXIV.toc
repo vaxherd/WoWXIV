@@ -20,4 +20,5 @@ targetbar.lua
 util.lua
 
 ui/aurabar.lua
+ui/castbar.lua
 ui/gauge.lua

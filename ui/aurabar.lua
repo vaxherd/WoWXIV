@@ -6,8 +6,6 @@ local class = WoWXIV.class
 UI.Aura = class()
 UI.AuraBar = class()
 
-local class = WoWXIV.class
-
 local GameTooltip = GameTooltip
 
 -- Maximum number of auras that can be applied to a unit.  This seems to
