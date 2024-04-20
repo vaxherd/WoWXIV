@@ -38,6 +38,8 @@ config_default["partylist_narrow_condition"] = "never"
 
 -- Target bar: hide the native target and focus frames?
 config_default["targetbar_hide_native"] = true
+-- Target bar: when to show target's power bar
+config_default["targetbar_power_condition"] = "boss"
 -- Target bar: show only own debuffs on target bar?
 config_default["targetbar_target_own_debuffs_only"] = false
 -- Target bar: show only own debuffs on focus bar?
@@ -224,15 +226,22 @@ function ConfigFrame:__constructor()
     self:AddHeader("Target bar settings")
     self:AddCheckButton("Hide native target frame |cffff0000(requires reload)|r",
                        "targetbar_hide_native")
+    self:AddRadioHeader("Show target's power bar:")
+    self:AddRadioButton("Never", "targetbar_power_condition", "never",
+                        WoWXIV.TargetBar.Refresh)
+    self:AddRadioButton("Always", "targetbar_power_condition", "always",
+                        WoWXIV.TargetBar.Refresh)
+    self:AddRadioButton("Only for bosses", "targetbar_power_condition", "boss",
+                        WoWXIV.TargetBar.Refresh)
     self:AddCheckButton("Show only own debuffs on target bar",
-                       "targetbar_target_own_debuffs_only",
-                       WoWXIV.TargetBar.Refresh)
+                        "targetbar_target_own_debuffs_only",
+                        WoWXIV.TargetBar.Refresh)
     self:AddCheckButton("Show only own debuffs on focus bar",
-                       "targetbar_focus_own_debuffs_only",
-                       WoWXIV.TargetBar.Refresh)
+                        "targetbar_focus_own_debuffs_only",
+                        WoWXIV.TargetBar.Refresh)
     self:AddCheckButton("Move top-center widget to bottom right |cffff0000(requires reload)|r",
-                       "targetbar_move_top_center",
-                       WoWXIV.TargetBar.Refresh)
+                        "targetbar_move_top_center",
+                        WoWXIV.TargetBar.Refresh)
     self:AddComment("(Eye of the Jailer, Heart of Amirdrassil health, etc.)")
 
     self.y = self.y - 20
