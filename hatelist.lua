@@ -16,6 +16,7 @@ function Enemy:__constructor(parent, y)
     self.guid = nil   -- GUID of currently monitored unit, nil if none
     self.name = ""    -- Name of unit (saved because we can't get it by GUID)
     self.token = nil  -- Token by which we can look up unit info, nil if none
+    self.cast = nil   -- GUID of current cast, or nil
 
     local f = CreateFrame("Frame", nil, parent)
     self.frame = f
@@ -42,18 +43,25 @@ function Enemy:__constructor(parent, y)
     hp:SetBoxColor(0.533, 0.533, 0.533)
     hp:SetBarBackgroundColor(0.118, 0.118, 0.118)
     hp:SetBarColor(1, 1, 1)
-    hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 19, -10)
+    hp:SetSinglePoint("TOPLEFT", 19, -10)
+
+    local cast_bar = WoWXIV.UI.CastBar(f, 110)
+    self.cast_bar = cast_bar
+    cast_bar:SetSinglePoint("TOPLEFT", 88, -4)
 end
 
 -- Pass unit_guid=nil (or no arguments) to clear a previously set enemy.
 function Enemy:SetUnit(unit_guid, name)
     self.guid = unit_guid
     if unit_guid then
+        self.token = UnitTokenFromGUID(unit_guid)
         self:Update(name)
         self.frame:Show()
     else
+        self.token = nil
         self.frame:Hide()
     end
+    self.cast_bar:SetUnit(self.token)
 end
 
 function Enemy:UnitGUID()
@@ -69,9 +77,11 @@ function Enemy:Update(new_name)
 
     if self.token and UnitGUID(self.token) ~= self.guid then
         self.token = nil
+        self.cast_bar:SetUnit(nil)
     end
     if not self.token then
         self.token = UnitTokenFromGUID(self.guid)
+        self.cast_bar:SetUnit(self.token)
     end
 
     if new_name then
