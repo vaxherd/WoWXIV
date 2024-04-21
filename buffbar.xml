@@ -1,6 +1,6 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
   <Button name="PlayerBuffTemplate" inherits="SecureActionButtonTemplate" virtual="true">
-    <Size x="24" y="40"/>
+    <Size x="24" y="37"/>
     <Attributes>
       <Attribute name="type2" value="cancelaura"/>
     </Attributes>
