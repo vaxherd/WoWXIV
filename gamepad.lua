@@ -9,8 +9,6 @@ local GetItemInfo = C_Item.GetItemInfo
 --    GamePadEmulateCtrl = PADLTRIGGER
 --    GamePadEmulateAlt = PADLSHOULDER
 
-------------------------------------------------------------------------
-
 -- Convenience function for checking the state of all modifiers:
 local function IsModifier(shift, ctrl, alt)
     local function bool(x) return x and x~=0 end
@@ -20,6 +18,7 @@ local function IsModifier(shift, ctrl, alt)
            eqv(alt, IsAltKeyDown())
 end
 
+------------------------------------------------------------------------
 
 -- Invisible button used to securely activate quest items.
 -- FIXME: It would be nice to make this visible, like the special action
@@ -185,6 +184,42 @@ end
 
 ------------------------------------------------------------------------
 
+local LeaveVehicleButton = class()
+
+function LeaveVehicleButton:__constructor()
+    local f = CreateFrame("Button", "WoWXIV_LeaveVehicleButton")
+    self.frame = f
+    f:SetScript("OnClick", function(_,...) self:OnClick(...) end)
+    -- FIXME: make this configurable
+    SetOverrideBinding(f, false, "ALT-PADRSTICK",
+                       "CLICK WoWXIV_LeaveVehicleButton:LeftButton")
+end
+
+function LeaveVehicleButton:OnClick(button, down)
+    -- Reproduce the behavior of MainMenuBarVehicleLeaveButton.
+    -- VehicleExit() and TaxiRequestEarlyLanding() both appear to not
+    -- be protected (as of 10.2.6), so we can just call these directly,
+    -- which is convenient because there are two different native
+    -- "leave" buttons (MainMenuBarVehicleLeaveButton for the small
+    -- button above action bars, OverrideActionBarLeaveFrameLeaveButton
+    -- for the button in the separate vehicle UI), and we can't bind
+    -- one input to both buttons at once.
+    if UnitOnTaxi("player") then
+        TaxiRequestEarlyLanding()
+        local native_button = MainMenuBarVehicleLeaveButton
+        if native_button then  -- sanity check
+            native_button:Disable()
+            native_button:SetHighlightTexture(
+                "Interface/Buttons/CheckButtonHilight", "ADD")
+            native_button:LockHighlight()
+        end
+    else
+        VehicleExit()
+    end
+end
+
+------------------------------------------------------------------------
+
 local GamePadListener = class()
 
 function GamePadListener:__constructor()
@@ -199,6 +234,13 @@ function GamePadListener:__constructor()
     f:SetPropagateKeyboardInput(true)
     f:SetScript("OnGamePadButtonDown", function(_,...) self:OnGamePadButton(...) end)
     f:SetScript("OnGamePadStick", function(_,...) self:OnGamePadStick(...) end)
+
+    -- Bind L1+R3 to exit the current vehicle.
+    -- FIXME: This only works for vehicles with a custom vehicle UI;
+    -- it doesn't trigger the exit button for e.g. taxis, which is a
+    -- different UI element (MainMenuBarVehicleLeaveButton).
+    SetOverrideBinding(f, false, "ALT-PADRSTICK",
+                       "CLICK OverrideActionBarLeaveFrameLeaveButton:LeftButton")
 end
 
 function GamePadListener:OnGamePadButton(button)
@@ -258,4 +300,5 @@ end
 function WoWXIV.Gamepad.Init()
     WoWXIV.Gamepad.listener = GamePadListener()
     WoWXIV.Gamepad.qib = QuestItemButton()
+    WoWXIV.Gamepad.qib = LeaveVehicleButton()
 end
