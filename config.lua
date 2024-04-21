@@ -38,12 +38,18 @@ config_default["partylist_narrow_condition"] = "never"
 
 -- Target bar: hide the native target and focus frames?
 config_default["targetbar_hide_native"] = true
--- Target bar: when to show target's power bar
-config_default["targetbar_power_condition"] = "boss"
--- Target bar: show only own debuffs on target bar?
-config_default["targetbar_target_own_debuffs_only"] = false
--- Target bar: show only own debuffs on focus bar?
-config_default["targetbar_focus_own_debuffs_only"] = false
+-- Target bar: show target's power bar?
+config_default["targetbar_power"] = true
+-- Target bar: only show target's power bar for bosses?
+config_default["targetbar_power_boss_only"] = true
+-- Target bar: show all debuffs (true) or only own debuffs (false)?
+config_default["targetbar_target_all_debuffs"] = true
+-- Target bar: limit to own debuffs in raids only?
+config_default["targetbar_target_all_debuffs_not_raid"] = true
+-- Target bar: show all debuffs on focus bar?
+config_default["targetbar_focus_all_debuffs"] = false
+-- Target bar: ... except in raids?
+config_default["targetbar_focus_all_debuffs_not_raid"] = false
 -- Target bar: move top-center info widget to bottom right?
 config_default["targetbar_move_top_center"] = true
 
@@ -104,17 +110,8 @@ function ConfigFrame:AddHorizontalBar(text)
     return texture
 end
 
--- Call as: AddCheckButton([indent,] text, setting, on_change)
-function ConfigFrame:AddCheckButton(arg1, ...)
-    local indent, text, setting, on_change
-    if type(arg1) == "number" then
-        indent = arg1
-        text, setting, on_change = ...
-    else
-        indent = 0
-        text = arg1
-        setting, on_change = ...
-    end
+function ConfigFrame:AddCheckButton(text, setting, on_change, depends_on)
+    local indent = depends_on and 1 or 0
     local f = self.native_frame
     local button = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
     self.y = self.y - 10
@@ -123,12 +120,30 @@ function ConfigFrame:AddCheckButton(arg1, ...)
     button.text:SetText(text)
     self.y = self.y - 20
     button:SetChecked(WoWXIV_config[setting])
+    function button:SetSensitive(sensitive)  -- SetEnable() plus color change
+        self:SetEnabled(sensitive)
+        -- SetEnabled() doesn't change the text color, so we have to do
+        -- that manually.
+        self.text:SetTextColor(
+            (sensitive and NORMAL_FONT_COLOR or DISABLED_FONT_COLOR):GetRGB())
+    end
     button:SetScript("OnClick", function(self)
         local new_value = not WoWXIV_config[setting]
         WoWXIV_config[setting] = new_value
         self:SetChecked(new_value)
+        for _, dep in ipairs(self.dependents) do
+            dep:SetSensitive(new_value)
+        end
         if on_change then on_change(new_value) end
     end)
+    button.dependents = {}
+    if depends_on then
+        local depends_on_button = self.buttons[depends_on]
+        assert(depends_on_button)
+        tinsert(depends_on_button.dependents, button)
+        button:SetSensitive(WoWXIV_config[depends_on])
+    end
+    self.buttons[setting] = button
     return button
 end
 
@@ -169,6 +184,8 @@ function ConfigFrame:AddRadioButton(text, setting, value, on_change)
 end
 
 function ConfigFrame:__constructor()
+    self.buttons = {}
+
     local f = CreateFrame("Frame", "WoWXIV_Config")
     self.native_frame = f
     self.x = 10
@@ -176,31 +193,30 @@ function ConfigFrame:__constructor()
 
     self:AddHeader("Buff/debuff bar settings")
     self:AddCheckButton("Show distance for Dragon Glyph Resonance",
-                       "buffbar_dragon_glyph_distance")
+                        "buffbar_dragon_glyph_distance")
     self:AddComment("Note: The game only updates the distance once every 5 seconds.")
 
     self:AddHeader("Enmity list settings")
     self:AddCheckButton("Enable enmity list",
-                       "hatelist_enable", WoWXIV.HateList.Enable)
+                        "hatelist_enable", WoWXIV.HateList.Enable)
 
     self:AddHeader("Fly text settings")
     self:AddCheckButton("Enable fly text (player only)", "flytext_enable",
-                        function(enable) self:SetEnableFlyText(enable) end)
-    self.flytext_hide_autoloot_button =
-        self:AddCheckButton(1, "Hide loot frame when autolooting",
-                           "flytext_hide_autoloot")
+                        WoWXIV.FlyText.Enable)
+    self:AddCheckButton("Hide loot frame when autolooting",
+                        "flytext_hide_autoloot", nil, "flytext_enable")
 
     self:AddHeader("Map settings")
     self:AddCheckButton("Show current coordinates under minimap",
-                       "map_show_coords_minimap",
-                       function(enable) WoWXIV.Map.SetShowCoords(WoWXIV_config["map_show_coords_worldmap"], enable) end)
+                        "map_show_coords_minimap",
+                        function(enable) WoWXIV.Map.SetShowCoords(WoWXIV_config["map_show_coords_worldmap"], enable) end)
     self:AddCheckButton("Show mouseover coordinates on world map",
-                       "map_show_coords_worldmap",
-                       function(enable) WoWXIV.Map.SetShowCoords(enable, WoWXIV_config["map_show_coords_minimap"]) end)
+                        "map_show_coords_worldmap",
+                        function(enable) WoWXIV.Map.SetShowCoords(enable, WoWXIV_config["map_show_coords_minimap"]) end)
 
     self:AddHeader("Party list settings")
     self:AddRadioHeader("Role/class coloring:",
-                       "partylist_role_bg", WoWXIV.PartyList.Refresh)
+                        "partylist_role_bg", WoWXIV.PartyList.Refresh)
     self:AddRadioButton("None", "partylist_colors", nil,
                         WoWXIV.PartyList.Refresh)
     self:AddRadioButton("Role color in background",
@@ -224,21 +240,26 @@ function ConfigFrame:__constructor()
                         WoWXIV.PartyList.Refresh)
 
     self:AddHeader("Target bar settings")
-    self:AddCheckButton("Hide native target frame |cffff0000(requires reload)|r",
-                       "targetbar_hide_native")
-    self:AddRadioHeader("Show target's power bar:")
-    self:AddRadioButton("Never", "targetbar_power_condition", "never",
+    self:AddCheckButton("Hide native target frames |cffff0000(requires reload)|r",
+                        "targetbar_hide_native")
+    self:AddCheckButton("Show target's power bar", "targetbar_power",
                         WoWXIV.TargetBar.Refresh)
-    self:AddRadioButton("Always", "targetbar_power_condition", "always",
+    self:AddCheckButton("Only for bosses", "targetbar_power_boss_only",
+                        WoWXIV.TargetBar.Refresh, "targetbar_power")
+    self:AddCheckButton("Show all debuffs on target bar",
+                        "targetbar_target_all_debuffs",
                         WoWXIV.TargetBar.Refresh)
-    self:AddRadioButton("Only for bosses", "targetbar_power_condition", "boss",
+    self:AddCheckButton("Except in raids",
+                        "targetbar_target_all_debuffs_not_raid",
+                        WoWXIV.TargetBar.Refresh,
+                        "targetbar_target_all_debuffs")
+    self:AddCheckButton("Show all debuffs on focus bar",
+                        "targetbar_focus_all_debuffs",
                         WoWXIV.TargetBar.Refresh)
-    self:AddCheckButton("Show only own debuffs on target bar",
-                        "targetbar_target_own_debuffs_only",
-                        WoWXIV.TargetBar.Refresh)
-    self:AddCheckButton("Show only own debuffs on focus bar",
-                        "targetbar_focus_own_debuffs_only",
-                        WoWXIV.TargetBar.Refresh)
+    self:AddCheckButton("Except in raids",
+                        "targetbar_focus_all_debuffs_not_raid",
+                        WoWXIV.TargetBar.Refresh,
+                        "targetbar_focus_all_debuffs")
     self:AddCheckButton("Move top-center widget to bottom right |cffff0000(requires reload)|r",
                         "targetbar_move_top_center",
                         WoWXIV.TargetBar.Refresh)
@@ -254,18 +275,6 @@ function ConfigFrame:__constructor()
                  "Author: vaxherd")
 
     f:SetHeight(-self.y + 10)
-
-    -- Set dependent option sensitivity appropriately.
-    self:SetEnableFlyText(WoWXIV_config["flytext_enable"])
-end
-
-function ConfigFrame:SetEnableFlyText(enable)
-    WoWXIV.FlyText.Enable(enable)
-    self.flytext_hide_autoloot_button:SetEnabled(enable)
-    -- SetEnabled() doesn't change the text color, so we have to do
-    -- that manually.
-    self.flytext_hide_autoloot_button.text:SetTextColor(
-        (enable and NORMAL_FONT_COLOR or DISABLED_FONT_COLOR):GetRGB())
 end
 
 ------------------------------------------------------------------------

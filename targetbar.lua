@@ -198,10 +198,12 @@ function TargetBar:RefreshUnit()
 
     local f = self.frame
     local auras = self.auras
-    local own_only = (unit == "focus"
-                      and WoWXIV_config["targetbar_focus_own_debuffs_only"]
-                      or WoWXIV_config["targetbar_target_own_debuffs_only"])
-    auras:SetOwnDebuffsOnly(own_only)
+    local all_debuffs_option = "targetbar_"..unit.."_all_debuffs"
+    local all_debuffs_raid_option = "targetbar_"..unit.."_all_debuffs_not_raid"
+    local all_debuffs = (WoWXIV_config[all_debuffs_option]
+                         and not (WoWXIV_config[all_debuffs_option]
+                                  and UnitInRaid("player")))
+    auras:SetOwnDebuffsOnly(not all_debuffs)
     auras:SetUnit(unit)
     f:Show()
 
@@ -218,9 +220,9 @@ function TargetBar:RefreshUnit()
     end
 
     local mp = self.mp
-    local show_condition = WoWXIV_config["targetbar_power_condition"]
-    local show = (show_condition == "always" or
-                  (show_condition == "boss" and UnitIsBossMob(unit)))
+    local show = (WoWXIV_config["targetbar_power"]
+                  and (not WoWXIV_config["targetbar_power_boss_only"]
+                       or UnitIsBossMob(unit)))
     if show then
         mp:Show()
         auras:SetRelPosition(0, -(self.hp_yofs+21))
