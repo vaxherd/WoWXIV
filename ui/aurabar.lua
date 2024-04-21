@@ -68,7 +68,7 @@ function Aura:__constructor(frame, is_secure_player_aura)
     else
         f = CreateFrame("Frame", nil, frame)
         f:Hide()
-        f:SetSize(24, 40)
+        f:SetSize(24, 37)
     end
 
     self.frame = f
@@ -85,26 +85,33 @@ function Aura:__constructor(frame, is_secure_player_aura)
     self.stacks = 0
     self.time_str = ""
     self.expires = 0
+    self.is_glyph_dist = false -- Is timer repurposed as dragon glyph distance?
 
-    self.icon = f:CreateTexture(nil, "ARTWORK")
-    self.icon:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -4)
-    self.icon:SetSize(24, 24)
+    local icon = f:CreateTexture(nil, "ARTWORK")
+    self.icon = icon
+    icon:SetSize(24, 24)
 
-    self.border = f:CreateTexture(nil, "OVERLAY")
-    self.border:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -3)
-    self.border:SetSize(22, 26)
-    self.border:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+    local border = f:CreateTexture(nil, "OVERLAY")
+    self.border = border
+    border:SetSize(22, 26)
+    border:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
 
-    self.stack_label = f:CreateFontString(nil, "OVERLAY", "NumberFont_Shadow_Med")
-    self.stack_label:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -2)
-    self.stack_label:SetTextScale(1)
-    self.stack_label:SetText("")
+    local dispel = f:CreateTexture(nil, "OVERLAY", nil, 1)
+    self.dispel = dispel
+    dispel:SetSize(28, 9)
+    dispel:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+    dispel:SetTexCoord(96/256.0, 124/256.0, 91/256.0, 100/256.0)
 
-    self.timer = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    self.timer:SetPoint("BOTTOM", f, "BOTTOM", 0, 3)
-    self.timer:SetTextScale(1)
-    self.timer:SetText("")
-    self.is_glyph_dist = false  -- Is timer repurposed as dragon glyph distance?
+    local stack_label = f:CreateFontString(nil, "OVERLAY", "NumberFont_Shadow_Med")
+    self.stack_label = stack_label
+    stack_label:SetTextScale(1)
+    stack_label:SetText("")
+
+    local timer = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    self.timer = timer
+    timer:SetPoint("BOTTOM", f, "BOTTOM", 0, 0)
+    timer:SetTextScale(1)
+    timer:SetText("")
 
     -- Use HookScript instead of SetScript in case the frame is a secure frame.
     f:HookScript("OnEnter", function() self:OnEnter() end)
@@ -257,27 +264,50 @@ function Aura:InternalUpdate(unit, data)
     self.spell_id = spell_id
     self.is_mine = is_mine
 
+    local f = self.frame
+    local icon = self.icon
+    local border = self.border
+    local dispel = self.dispel
+    local stack_label = self.stack_label
+    local timer = self.timer
+
     if icon_id ~= self.icon_id or is_helpful ~= self.is_helpful then
         if is_helpful then
-            self.icon:SetMask("Interface\\Addons\\WowXIV\\textures\\buff-mask.png")
-            self.border:SetTexCoord(99/256.0, 121/256.0, 14/256.0, 40/256.0)
+            icon:SetMask("Interface\\Addons\\WowXIV\\textures\\buff-mask.png")
+            border:SetTexCoord(99/256.0, 121/256.0, 14/256.0, 40/256.0)
+            icon:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -3)
+            border:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -2)
+            dispel:SetPoint("TOPLEFT", f, "TOPLEFT", -2, -25)
+            stack_label:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -1)
         else
-            self.icon:SetMask("Interface\\Addons\\WowXIV\\textures\\debuff-mask.png")
-            self.border:SetTexCoord(99/256.0, 121/256.0, 40/256.0, 14/256.0)
+            icon:SetMask("Interface\\Addons\\WowXIV\\textures\\debuff-mask.png")
+            border:SetTexCoord(99/256.0, 121/256.0, 40/256.0, 14/256.0)
+            icon:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -7)
+            border:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -6)
+            dispel:SetPoint("TOPLEFT", f, "TOPLEFT", -2, 0)
+            stack_label:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -1)
         end
-        self.icon:SetTexture(icon_id)  -- Must come _after_ SetMask()!
+        icon:SetTexture(icon_id)  -- Must come _after_ SetMask()!
         if not self.icon_id and not self.is_secure_player_aura then
-            self.frame:Show()
+            f:Show()
         end
         self.icon_id = icon_id
         self.is_helpful = is_helpful
     end
 
+    if (data.dispelName and ((UnitIsFriend("player", unit) and not is_helpful)
+                             or (UnitIsEnemy("player", unit) and is_helpful)))
+    then
+        dispel:Show()
+    else
+        dispel:Hide()
+    end
+
     if stacks ~= self.stacks then
         if stacks > 0 then
-            self.stack_label:SetText(stacks)
+            stack_label:SetText(stacks)
         else
-            self.stack_label:SetText("")
+            stack_label:SetText("")
         end
         self.stacks = stacks
     end
@@ -285,15 +315,15 @@ function Aura:InternalUpdate(unit, data)
     if expires > 0 then
         self.expires = expires
         if is_mine then
-            self.timer:SetTextColor(0.56, 1, 0.78)
+            timer:SetTextColor(0.56, 1, 0.78)
         else
-            self.timer:SetTextColor(1, 1, 1)
+            timer:SetTextColor(1, 1, 1)
         end
-        self.frame:SetScript("OnUpdate", function() self:OnUpdate() end)
+        f:SetScript("OnUpdate", function() self:OnUpdate() end)
     else
         self.expires = 0
         if self.icon_id == ICON_DRAGON_GLYPH_RESONANCE then
-            self.frame:SetScript("OnUpdate", function() self:OnUpdate() end)
+            f:SetScript("OnUpdate", function() self:OnUpdate() end)
         end
     end
 
