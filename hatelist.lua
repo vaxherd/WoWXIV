@@ -251,6 +251,7 @@ function HateList:OnEvent(event, unit)
             enemy:SetUnit(nil)
         end
         self:ResizeFrame(0)
+        self.guids = {}
         return
     end
 
