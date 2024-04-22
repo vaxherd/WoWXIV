@@ -295,6 +295,14 @@ function Aura:InternalUpdate(unit, data)
         self.is_helpful = is_helpful
     end
 
+    -- Some auras (e.g. the Enrage used by Emerald Dream rare mob Ristar
+    -- the Rabid, spell ID 374898) have dispelName set to "", at least
+    -- from the point of view of a Priest.  It's not clear if this is
+    -- just how enrages work, or if an empty-string dispelName indicates
+    -- "this aura is dispellable but not by you".  For now, we suppress
+    -- the indicator for empty strings pending further information.
+    -- (FIXME: more information needed)
+    local can_dispel = data.dispelName and data.dispelName ~= ""
     if (data.dispelName and ((UnitIsFriend("player", unit) and not is_helpful)
                              or (UnitIsEnemy("player", unit) and is_helpful)))
     then
