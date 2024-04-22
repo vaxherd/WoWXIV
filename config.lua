@@ -13,45 +13,47 @@ WoWXIV_config = WoWXIV_config or {}
 
 -- Default settings list.  Anything in here which is missing from
 -- WoWXIV_config after module load is inserted by the init routine.
-local config_default = {}
+local CONFIG_DEFAULT = {
 
--- Buff bars: show distance for dragon glyph?
-config_default["buffbar_dragon_glyph_distance"] = true
+    -- Buff bars: show distance for dragon glyph?
+    buffbar_dragon_glyph_distance = true,
 
--- Enmity list: enable?
-config_default["hatelist_enable"] = true
+    -- Enmity list: enable?
+    hatelist_enable = true,
 
--- Fly text: enable?
-config_default["flytext_enable"] = true
--- Fly text: if enabled, hide loot frame when autolooting?
-config_default["flytext_hide_autoloot"] = true
+    -- Fly text: enable?
+    flytext_enable = true,
+    -- Fly text: if enabled, hide loot frame when autolooting?
+    flytext_hide_autoloot = true,
 
--- Map: show current coordinates under minimap?
-config_default["map_show_coords_minimap"] = true
--- Map: show mouseover coordinates on world map?
-config_default["map_show_coords_worldmap"] = true
+    -- Map: show current coordinates under minimap?
+    map_show_coords_minimap = true,
+    -- Map: show mouseover coordinates on world map?
+    map_show_coords_worldmap = true,
 
--- Party list: where to use role/class colors
-config_default["partylist_colors"] = nil
--- Party list: when to use narrow format
-config_default["partylist_narrow_condition"] = "never"
+    -- Party list: where to use role/class colors
+    partylist_colors = nil,
+    -- Party list: when to use narrow format
+    partylist_narrow_condition = "never",
 
--- Target bar: hide the native target and focus frames?
-config_default["targetbar_hide_native"] = true
--- Target bar: show target's power bar?
-config_default["targetbar_power"] = true
--- Target bar: only show target's power bar for bosses?
-config_default["targetbar_power_boss_only"] = true
--- Target bar: show all debuffs (true) or only own debuffs (false)?
-config_default["targetbar_target_all_debuffs"] = true
--- Target bar: limit to own debuffs in raids only?
-config_default["targetbar_target_all_debuffs_not_raid"] = true
--- Target bar: show all debuffs on focus bar?
-config_default["targetbar_focus_all_debuffs"] = false
--- Target bar: ... except in raids?
-config_default["targetbar_focus_all_debuffs_not_raid"] = false
--- Target bar: move top-center info widget to bottom right?
-config_default["targetbar_move_top_center"] = true
+    -- Target bar: hide the native target and focus frames?
+    targetbar_hide_native = true,
+    -- Target bar: show target's power bar?
+    targetbar_power = true,
+    -- Target bar: only show target's power bar for bosses?
+    targetbar_power_boss_only = true,
+    -- Target bar: show all debuffs (true) or only own debuffs (false)?
+    targetbar_target_all_debuffs = true,
+    -- Target bar: limit to own debuffs in raids only?
+    targetbar_target_all_debuffs_not_raid = true,
+    -- Target bar: show all debuffs on focus bar?
+    targetbar_focus_all_debuffs = false,
+    -- Target bar: ... except in raids?
+    targetbar_focus_all_debuffs_not_raid = false,
+    -- Target bar: move top-center info widget to bottom right?
+    targetbar_move_top_center = true,
+
+}
 
 ------------------------------------------------------------------------
 
@@ -281,7 +283,7 @@ end
 
 -- Initialize configuration data and create the configuration window.
 function WoWXIV.Config.Create()
-    for k, v in pairs(config_default) do
+    for k, v in pairs(CONFIG_DEFAULT) do
         if WoWXIV_config[k] == nil then
             WoWXIV_config[k] = v
         end
