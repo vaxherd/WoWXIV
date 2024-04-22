@@ -7,12 +7,12 @@ local class = WoWXIV.class
 -- This is currently restored after parsing, so the value will always be
 -- nil here, but we write it this way as future-proofing against values
 -- being loaded sooner.
-WoWXIV_Config = WoWXIV_Config or {}
+WoWXIV_config = WoWXIV_config or {}
 
 ------------------------------------------------------------------------
 
 -- Default settings list.  Anything in here which is missing from
--- WoWXIV_Config after module load is inserted by the init routine.
+-- WoWXIV_config after module load is inserted by the init routine.
 local config_default = {}
 
 -- Buff bars: show distance for dragon glyph?
@@ -186,7 +186,7 @@ end
 function ConfigFrame:__constructor()
     self.buttons = {}
 
-    local f = CreateFrame("Frame", "WoWXIV_Config")
+    local f = CreateFrame("Frame", "WoWXIV_ConfigFrame")
     self.native_frame = f
     self.x = 10
     self.y = 10  -- Assuming an initial header.
