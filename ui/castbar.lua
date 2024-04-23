@@ -110,6 +110,13 @@ function CastBar:OnEvent(event, unit, cast_guid)
     event = strsub(event, 16, -1)  -- strip "UNIT_SPELLCAST_"
 
     if event == "START" then
+        -- We can apparently get a cast_guid of nil if the cast occurs just
+        -- as the enemy disengages (because of player death, despawn etc).
+        -- It's not clear whether this is designed behavior or a game bug,
+        -- but either way ignore it.  (We don't currently use the GUID
+        -- anyway, but this helps ensure that if we ever do want it, we
+        -- always get a value consistent with the server state.)
+        if not cast_guid then return end
         -- We don't use most of these, but we leave them in as convenient
         -- documentation of each return value.
         local name, display_name, icon, start_ms, end_ms, is_trade_skill,
