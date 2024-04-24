@@ -203,15 +203,185 @@ end
 
 ------------------------------------------------------------------------
 
+local CPGamepadBinding = class(ConfigPanelElement)
+
+CPGamepadBinding.active_binding = nil
+
+function CPGamepadBinding:__constructor(panel, x, y, text, setting, is_cvar,
+                                        on_change)
+    self.setting = setting
+    self.is_cvar = is_cvar
+    self.on_change = on_change
+
+    local f = CreateFrame("Frame", nil, panel.frame)
+    self.frame = f
+    f:SetPoint("TOPLEFT", x, y-10)
+    f:SetPoint("TOPRIGHT", -10, y-10)
+    f:SetHeight(25)
+
+    local label = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    self.label = label
+    label:SetPoint("LEFT")
+    label:SetText(text)
+
+    local button = CreateFrame("Button", nil, f, "UIMenuButtonStretchTemplate")
+    self.button = button
+    button:SetPoint("LEFT", 170, 0)
+    button:SetSize(120, f:GetHeight()+5)
+    button:SetScript("OnClick", function() self:OnClick() end)
+
+    local button_text =
+        button:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    self.button_text = button_text
+    button_text:SetPoint("CENTER")
+    self:UpdateButtonText()
+end
+
+function CPGamepadBinding:GetSpacing()
+    return self.frame:GetHeight()+5
+end
+
+function CPGamepadBinding:UpdateButtonText()
+    local binding
+    if self.is_cvar then
+        binding = C_CVar.GetCVar(self.setting)
+    else
+        binding = WoWXIV_config[self.setting]
+    end
+    if binding ~= "" then
+        self.button_text:SetTextColor(WHITE_FONT_COLOR:GetRGB())
+        self.button_text:SetText(GetBindingText(binding))
+    else
+        self.button_text:SetTextColor(GRAY_FONT_COLOR:GetRGB())
+        self.button_text:SetText(GetBindingText(binding))
+    end
+end
+
+function CPGamepadBinding:SetBinding(value, suppress_onchange)
+    assert(type(value) == "string")
+    local old_value
+    if self.is_cvar then
+        assert(not value:find("-"))
+        old_value = C_CVar.GetCVar(self.setting)
+        C_CVar.SetCVar(self.setting, value)
+    else
+        old_value = WoWXIV_config[self.setting]
+        WoWXIV_config[self.setting] = value
+    end
+    self:UpdateButtonText()
+    if not suppress_onchange and self.on_change then
+        self.on_change(value, old_value)
+    end
+end
+
+function CPGamepadBinding:Activate()
+    -- If the player is reckless enough to try changing their bindings in
+    -- the middle of combat, we can at least not exacerbate the problem by
+    -- throwing up a taint warning on top of it.
+    if InCombatLockdown() then return end
+
+    assert(not CPGamepadBinding.active_binding)
+    CPGamepadBinding.active_binding = self
+    self.frame:SetPropagateKeyboardInput(false)
+    self.frame:SetScript("OnGamePadButtonDown", function(_,...)
+                            self:OnGamePadButtonDown(...)
+                        end)
+    self.frame:SetScript("OnGamePadButtonUp", function(_,...)
+                            self:OnGamePadButtonUp(...)
+                        end)
+    self.frame:SetScript("OnKeyUp", function(_,...) self:OnKeyUp(...) end)
+    self.buttons_down = {}
+    self.new_binding = ""
+    self.button_text:SetTextColor(WHITE_FONT_COLOR:GetRGB())
+    self.button_text:SetText("Waiting...")
+end
+
+function CPGamepadBinding:Deactivate()
+    self.frame:SetPropagateKeyboardInput(true)
+    self.frame:SetScript("OnGamePadButtonDown", nil)
+    self.frame:SetScript("OnGamePadButtonUp", nil)
+    self.frame:SetScript("OnKeyUp", nil)
+    self.buttons_down = nil
+    assert(CPGamepadBinding.active_binding == self)
+    CPGamepadBinding.active_binding = nil
+end
+
+function CPGamepadBinding:OnClick()
+    if CPGamepadBinding.active_binding then
+        CPGamepadBinding.active_binding:Deactivate()
+    end
+    self:Activate()
+end
+
+function CPGamepadBinding:OnGamePadButtonDown(button)
+    -- We only accept the first (possibly modified) button, but we track
+    -- all pressed buttons and only release the input lock once all
+    -- buttons have been released.
+    for _,b in ipairs(self.buttons_down) do
+        assert(b ~= button)
+    end
+    tinsert(self.buttons_down, button)
+    if #self.buttons_down == 1 then
+        local modifiers = ""
+        if IsAltKeyDown() then modifiers = modifiers .. "ALT-" end
+        if IsControlKeyDown() then modifiers = modifiers .. "CTRL-" end
+        if IsShiftKeyDown() then modifiers = modifiers .. "SHIFT-" end
+        if self.is_cvar and modifiers ~= "" then
+            -- Modifier buttons (and apparently also click buttons) have
+            -- to be a single button, not a chord.
+            return
+        end
+        self.new_binding = modifiers .. button
+        self.button_text:SetText(GetBindingText(self.new_binding))
+    end
+end
+
+function CPGamepadBinding:OnGamePadButtonUp(button)
+    local found = false
+    for i,b in ipairs(self.buttons_down) do
+        if b == button then
+            tremove(self.buttons_down, i)
+            found = true
+            break
+        end
+    end
+    assert(found)
+    if #self.buttons_down == 0 and self.new_binding ~= "" then
+        self:Deactivate()
+        self:SetBinding(self.new_binding)
+    end
+end
+
+function CPGamepadBinding:OnKeyUp(key)
+    if key == "ESCAPE" then
+        self:Deactivate()
+        if not self.is_cvar then
+            self:SetBinding("")
+        end
+    end
+end
+
+------------------------------------------------------------------------
+
 local ConfigPanel = class()
 
 function ConfigPanel:__constructor()
     self.buttons = {}
+    self.cvar_bindings = {}
 
     local f = CreateFrame("Frame", "WoWXIV_ConfigPanel")
     self.frame = f
     self.x = 10
     self.y = 0
+
+    self:AddHeader("Gamepad bindings")
+    self:AddBindingCvar("Modifier button 1 (Shift)", "GamePadEmulateShift")
+    self:AddBindingCvar("Modifier button 2 (Ctrl)", "GamePadEmulateCtrl")
+    self:AddBindingCvar("Modifier button 3 (Alt)", "GamePadEmulateAlt")
+    self:AddBindingCvar("Confirm ground target", "GamePadCursorLeftClick")
+    self:AddBindingLocal("Use quest item", "gamepad_use_quest_item")
+    self:AddBindingLocal("Leave vehicle", "gamepad_leave_vehicle")
+    self.y = self.y - 10
 
     self:AddHeader("Buff/debuff bar settings")
     self:AddCheckButton("Show distance for Dragon Glyph Resonance",
@@ -364,6 +534,34 @@ function ConfigPanel:AddRadioGroup(header, setting, on_change, ...)
                                      text, group, value)
         self.y = self.y - button:GetSpacing()
     end
+end
+
+function ConfigPanel:AddBindingCvar(text, cvar)
+    local binding = CPGamepadBinding(
+        self, self.x+15, self.y, text, cvar, true,
+        function(value, old_value)
+            self:CheckBindingCollision(cvar, value, old_value)
+        end)
+    self.y = self.y - binding:GetSpacing()
+    self.cvar_bindings[cvar] = binding
+end
+
+function ConfigPanel:CheckBindingCollision(cvar, value, old_value)
+    for other_cvar, other_binding in pairs(self.cvar_bindings) do
+        if other_cvar ~= cvar then
+            local other_value = C_CVar.GetCVar(other_cvar)
+            if other_value == value then
+                other_binding:SetBinding(old_value, true)
+            end
+        end
+    end
+end
+
+function ConfigPanel:AddBindingLocal(text, setting)
+    local binding = CPGamepadBinding(self, self.x+15, self.y, text,
+                                     setting, false,
+                                     WoWXIV.Gamepad.UpdateBindings)
+    self.y = self.y - binding:GetSpacing()
 end
 
 ------------------------------------------------------------------------

@@ -608,7 +608,7 @@ end
 function LootHandler:OnEvent(event, ...)
     if event == "LOOT_READY" then
         -- The engine fires two LOOT_READY events, one before and one
-        -- after LOOT_OPENED.  
+        -- after LOOT_OPENED.
         if not self.looting then
             self.looting = true
             local autoloot = ...
