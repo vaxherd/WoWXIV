@@ -26,6 +26,7 @@ function GamepadBoundButton:__constructor(frame, binding_setting, command)
     self.binding_frame = frame
     self.binding_setting = binding_setting
     self.binding_command = command
+    self:UpdateBinding()
 end
 
 function GamepadBoundButton:UpdateBinding()
