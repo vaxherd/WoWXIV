@@ -5,6 +5,10 @@ local FCT = function(...)
     FCT = WoWXIV.FormatColoredText
     return FCT(...)
 end
+local function Red(s)    return FCT(s, RED_FONT_COLOR:GetRGB())        end
+local function Yellow(s) return FCT(s, YELLOW_FONT_COLOR:GetRGB())     end
+local function Green(s)  return FCT(s, GREEN_FONT_COLOR:GetRGB())      end
+local function Blue(s)   return FCT(s, BRIGHTBLUE_FONT_COLOR:GetRGB()) end
 
 ------------------------------------------------------------------------
 
@@ -114,22 +118,22 @@ end
 
 DefineCommand("isearch", {"is"}, function(arg)
     if not arg or arg == "" then
-        print("Usage: "..FCT("/isearch", YELLOW_FONT_COLOR:GetRGB()).." ("..FCT("/is", YELLOW_FONT_COLOR:GetRGB())..") "..FCT("Item Name", GREEN_FONT_COLOR:GetRGB()))
+        print("Usage: "..Yellow("/isearch").." ("..Yellow("/is")..") "..Green("Item Name"))
         print("    Searches your inventory and equipment for an item.")
         print("    The bank UI must be open to search bank bags.")
         print("    (The bank reagent bag is always available.)")
         print("    Similarly, the void storage UI must be open to search void storage.")
         print(" ")
         print("    Examples:")
-        print("        "..FCT("/isearch Dragonspring Water", YELLOW_FONT_COLOR:GetRGB()))
+        print("        "..Yellow("/isearch Dragonspring Water"))
         print("         → Lists all bags containing the item \"Dragonspring Water\".")
-        print("        "..FCT("/isearch Heart of Azeroth", YELLOW_FONT_COLOR:GetRGB()))
+        print("        "..Yellow("/isearch Heart of Azeroth"))
         print("         → Shows where your Heart of Azeroth is located, whether in bags or equipped.")
         return
     end
 
     local item_name = arg
-    print("Searching for " .. FCT(item_name, YELLOW_FONT_COLOR:GetRGB()))
+    print("Searching for " .. Yellow(item_name))
 
     local found = false
 
@@ -150,7 +154,7 @@ DefineCommand("isearch", {"is"}, function(arg)
             if bag.append_bagname then
                 bag_name = bag_name .. " (" .. C_Container.GetBagName(bag.id) .. ")"
             end
-            print(" → Found in " .. FCT(bag_name .. s, BRIGHTBLUE_FONT_COLOR:GetRGB()))
+            print(" → Found in " .. Blue(bag_name .. s))
             found = true
         end
     end
@@ -169,7 +173,7 @@ DefineCommand("isearch", {"is"}, function(arg)
             end
             if #found_slots > 0 then
                 local s = SlotsString(found_slots)
-                print(" → Found in " .. FCT("Void Storage tab " .. tab .. s, BRIGHTBLUE_FONT_COLOR:GetRGB()))
+                print(" → Found in " .. Blue("Void Storage tab " .. tab .. s))
                 found = true
             end
         end
@@ -182,14 +186,14 @@ DefineCommand("isearch", {"is"}, function(arg)
         if loc and loc:IsValid() then
             local name = C_Item.GetItemName(loc)
             if name:lower() == item_name:lower() then
-                print(" → Equipped on " .. FCT(slot.name, BRIGHTBLUE_FONT_COLOR:GetRGB()))
+                print(" → Equipped on " .. Blue(slot.name))
                 found = true
             end
         end
     end
 
     if not found then
-        print(FCT(" → Not found.", RED_FONT_COLOR:GetRGB()))
+        print(Red(" → Not found."))
     end
 end)
 
@@ -199,7 +203,7 @@ DefineCommand("wowxiv", {"xiv"}, function(arg)
     if not arg or arg == "" then
         WoWXIV.Config.Open()
     else
-        print("Usage: "..FCT("/wowxiv (/xiv)", YELLOW_FONT_COLOR:GetRGB()))
+        print("Usage: "..Yellow("/wowxiv (/xiv)"))
         print("   Opens the addon settings window.")
     end
 end)
