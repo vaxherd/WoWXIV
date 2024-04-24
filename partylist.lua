@@ -567,6 +567,7 @@ function PartyList:SetParty(is_retry)
             member:SetRelPosition(f, x, y)
             member:SetNarrow(narrow)
             member:Refresh()
+            member:Update()
             member:Show()
             local right = x + col_width
             local bottom = -y + row_height
