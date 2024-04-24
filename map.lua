@@ -66,7 +66,7 @@ function CoordinatesFrame:OnUpdate()
         return
     end
     f:SetAlpha(1)
-       
+
     local str_x = strformat("X:%.1f", x)
     local str_y = strformat("Y:%.1f", y)
     if str_x ~= self.text_x then

@@ -20,12 +20,29 @@ end
 
 ------------------------------------------------------------------------
 
+local GamepadBoundButton = class()
+
+function GamepadBoundButton:__constructor(frame, binding_setting, command)
+    self.binding_frame = frame
+    self.binding_setting = binding_setting
+    self.binding_command = command
+end
+
+function GamepadBoundButton:UpdateBinding()
+    ClearOverrideBindings(self.binding_frame)
+    SetOverrideBinding(self.binding_frame, false,
+                       WoWXIV_config[self.binding_setting],
+                       self.binding_command)
+end
+
+------------------------------------------------------------------------
+
 -- Invisible button used to securely activate quest items.
 -- FIXME: It would be nice to make this visible, like the special action
 -- button.  It would be even nicer if quest items consistently showed up
 -- in the special action button in the first place so we didn't need
 -- this workaround.
-local QuestItemButton = class()
+local QuestItemButton = class(GamepadBoundButton)
 
 -- FIXME: The required target for quest items varies, and is not always
 -- obvious from the item data available via the API; for example, Azure
@@ -40,50 +57,41 @@ local QuestItemButton = class()
 -- 10.2.6), so for the meantime we record specific items whose required
 -- targets we know and use fallback logic for others.
 local ITEM_TARGET = {
-    -- Benthic Sealant (56160: Plug the Geysers)
-    [168482] = "none",
-    -- Loremaster's Notebook (58471: Aggressive Notation)
-    [174197] = "target",
-    -- Primordial Muck (59808: Muck It Up)
-    [177880] = "player",
-    -- Resonating Anima Core (60609: Who Devours the Devourers?)
-    [180008] = "none",
-    -- Resonating Anima Mote (60609: Who Devours the Devourers?)
-    [180009] = "none",
-    -- Torch (60770: Squish and Burn)
-    [180274] = "none",
-    -- Aqueous Material Accumulator (61189: Further Gelatinous Research)
-    [180876] = "player",
-    -- Gormling in a Bag (61394: Gormling Toss: Tranquil Pools)
-    [181284] = "none",
-    -- Fae Flute (61717: Gormling Piper: Tranquil Pools)
-    [182189] = "player",
-    -- Assassin's Soulcloak (61765: Words of Warding)
-    [182303] = "player",
-    -- Gormling in a Bag (62051: Gormling Toss: Spirit Glen)
-    [182600] = "none",
-    -- Niya's Staff (63840: They Grow Up So Quickly)
-    [186089] = "target",
-    -- Ornithological Medical Kit (66071: Flying Rocs)
-    [189384] = "target",
-    -- Feather-Plucker 3300 (65374: It's Plucking Time)
-    [189454] = "target",
-    -- The Chirpsnide Auto-Excre-Collector (65490: Explosive Excrement)
-    [190188] = "player",
-    -- Im-PECK-able Screechflight Disguise (65778: Screechflight Potluck)
-    [191681] = "player",
-    -- Im-PECK-able Screechflight Disguise v2 (66299: The Awaited Egg-splosion)
-    [191763] = "player",
-    -- Arch Instructor's Wand (66489: Setting the Defense)
-    [192471] = "target",
-    -- Borrowed Breath (66180: Wake the Ancients)
-    [192555] = "player",
-    -- Trusty Dragonkin Rake (72991: Warm Dragonfruit Pie)
-    [193826] = "target",
-    -- Bottled Water Elemental (66998: Fighting Fire with... Water)
-    [194441] = "none",
-    -- Rusziona's Whistle (72459: What's a Duck?)
-    [202293] = "player",
+    [168482] = "none",    -- Benthic Sealant (56160: Plug the Geysers)
+    [174197] = "target",  -- Loremaster's Notebook (58471: Aggressive Notation)
+    [175827] = "player",  -- Ani-Matter Orb (57245: Ani-Matter Animator
+    [177836] = "target",  -- Wingpierce Javelin (59771: History of Corruption)
+    [177880] = "player",  -- Primordial Muck (59808: Muck It Up)
+    [180008] = "none",    -- Resonating Anima Core (60609: Who Devours the Devourers?)
+    [180009] = "none",    -- Resonating Anima Mote (60609: Who Devours the Devourers?)
+    [180274] = "none",    -- Torch (60770: Squish and Burn)
+    [180876] = "player",  -- Aqueous Material Accumulator (61189: Further Gelatinous Research)
+    [181284] = "none",    -- Gormling in a Bag (61394: Gormling Toss: Tranquil Pools)
+    [182189] = "player",  -- Fae Flute (61717: Gormling Piper: Tranquil Pools)
+    [182303] = "player",  -- Assassin's Soulcloak (61765: Words of Warding)
+    [182600] = "none",    -- Gormling in a Bag (62051: Gormling Toss: Spirit Glen)
+    [182611] = "player",  -- Fae Flute (62068: Gormling Piper: Crumbled Ridge)
+    [186089] = "target",  -- Niya's Staff (63840: They Grow Up So Quickly)
+    [189384] = "target",  -- Ornithological Medical Kit (66071: Flying Rocs)
+    [189454] = "target",  -- Feather-Plucker 3300 (65374: It's Plucking Time)
+    [190188] = "player",  -- The Chirpsnide Auto-Excre-Collector (65490: Explosive Excrement)
+    [191681] = "player",  -- Im-PECK-able Screechflight Disguise (65778: Screechflight Potluck)
+    [191763] = "player",  -- Im-PECK-able Screechflight Disguise v2 (66299: The Awaited Egg-splosion)
+    [192191] = "none",    -- Tuskarr Fishing Net (66411: Troubled Waters)
+    [192471] = "target",  -- Arch Instructor's Wand (66489: Setting the Defense)
+    [192555] = "player",  -- Borrowed Breath (66180: Wake the Ancients)
+    [193826] = "target",  -- Trusty Dragonkin Rake (72991: Warm Dragonfruit Pie)
+    [194441] = "none",    -- Bottled Water Elemental (66998: Fighting Fire with... Water)
+    [198855] = "none",    -- Throw Net (70438: Flying Fish [and other fish restock dailies])
+    [202293] = "player",  -- Rusziona's Whistle (72459: What's a Duck?)
+    [203013] = "player",  -- Niffen Incense (73408: Sniffen 'em Out!)
+    [203706] = "target",  -- Hurricane Scepter (74352: Whirling Zephyr)
+    [203731] = "target",  -- Enchanted Bandage (74570: Aid Our Wounded)
+    [204344] = "player",  -- Conductive Lodestone (74988: If You Can't Take the Heat)
+    [204365] = "player",  -- Bundle of Ebon Spears (74991: We Have Returned)
+    [205980] = "target",  -- Snail Lasso (72878: Slime Time Live)
+    [210227] = "target",  -- Q'onzu's Faerie Feather (76992: Fickle Judgment)
+    [211302] = "target",  -- Slumberfruit (76993: Turtle Power)
 }
 
 -- Special cases for quests which don't have items listed but really should.
@@ -110,9 +118,8 @@ function QuestItemButton:__constructor()
     f:SetAttribute("item", nil)
     f:SetAttribute("unit", nil)
     f:RegisterForClicks("LeftButtonDown")
-    -- FIXME: make this configurable
-    SetOverrideBinding(f, false, "CTRL-PADLSTICK",
-                       "CLICK WoWXIV_QuestItemButton:LeftButton")
+    self:__super(f, "gamepad_use_quest_item",
+                 "CLICK WoWXIV_QuestItemButton:LeftButton")
 
     f:RegisterUnitEvent("UNIT_QUEST_LOG_CHANGED", "player")
     f:RegisterEvent("BAG_UPDATE")  -- for QUEST_ITEM quests
@@ -184,15 +191,14 @@ end
 
 ------------------------------------------------------------------------
 
-local LeaveVehicleButton = class()
+local LeaveVehicleButton = class(GamepadBoundButton)
 
 function LeaveVehicleButton:__constructor()
     local f = CreateFrame("Button", "WoWXIV_LeaveVehicleButton")
     self.frame = f
     f:SetScript("OnClick", function(_,...) self:OnClick(...) end)
-    -- FIXME: make this configurable
-    SetOverrideBinding(f, false, "ALT-PADRSTICK",
-                       "CLICK WoWXIV_LeaveVehicleButton:LeftButton")
+    self:__super(f, "gamepad_leave_vehicle",
+                 "CLICK WoWXIV_LeaveVehicleButton:LeftButton")
 end
 
 function LeaveVehicleButton:OnClick(button, down)
@@ -234,13 +240,6 @@ function GamePadListener:__constructor()
     f:SetPropagateKeyboardInput(true)
     f:SetScript("OnGamePadButtonDown", function(_,...) self:OnGamePadButton(...) end)
     f:SetScript("OnGamePadStick", function(_,...) self:OnGamePadStick(...) end)
-
-    -- Bind L1+R3 to exit the current vehicle.
-    -- FIXME: This only works for vehicles with a custom vehicle UI;
-    -- it doesn't trigger the exit button for e.g. taxis, which is a
-    -- different UI element (MainMenuBarVehicleLeaveButton).
-    SetOverrideBinding(f, false, "ALT-PADRSTICK",
-                       "CLICK OverrideActionBarLeaveFrameLeaveButton:LeftButton")
 end
 
 function GamePadListener:OnGamePadButton(button)
@@ -300,5 +299,10 @@ end
 function WoWXIV.Gamepad.Init()
     WoWXIV.Gamepad.listener = GamePadListener()
     WoWXIV.Gamepad.qib = QuestItemButton()
-    WoWXIV.Gamepad.qib = LeaveVehicleButton()
+    WoWXIV.Gamepad.lvb = LeaveVehicleButton()
+end
+
+function WoWXIV.Gamepad.UpdateBindings()
+    WoWXIV.Gamepad.qib:UpdateBinding()
+    WoWXIV.Gamepad.lvb:UpdateBinding()
 end
