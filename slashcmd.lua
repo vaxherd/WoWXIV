@@ -222,7 +222,7 @@ local BAGS = {
     BAGDEF(Enum.BagIndex.BankBag_5, "Bank Bag 5", true, 36),
     BAGDEF(Enum.BagIndex.BankBag_6, "Bank Bag 6", true, 36),
     BAGDEF(Enum.BagIndex.BankBag_7, "Bank Bag 7", true, 36),
-    BAGDEF(Enum.BagIndex.Reagentbank, "Bank Reagent Bag", true, 98),
+    BAGDEF(Enum.BagIndex.Reagentbank, "Bank Reagent Bag", false, 98),
 }
 
 -- Void storage is handled by a separate subsystem, which just needs the
@@ -289,42 +289,50 @@ DefineCommand("isearch", {"is"}, Green("ItemName"),
         {"Searches your inventory and equipment for an item.",
          "The bank UI must be open to search bank bags other than the bank reagent bag.",
          "Similarly, the void storage UI must be open to search void storage.",
+         "Bag items equipped in inventory or bank slots are not listed.",
          "",
          "Examples:",
-         "    "..Yellow("/isearch Dragonspring Water"),
-         "     → Lists all bags containing the item \"Dragonspring Water\".",
          "    "..Yellow("/isearch Heart of Azeroth"),
-         "     → Shows where your Heart of Azeroth is located, whether in bags or equipped."},
+         "     → Shows where your Heart of Azeroth is stored or equipped.",
+         "    "..Yellow("/isearch wildercloth"),
+         "     → Finds all items with \"Wildercloth\" in the name, excluding any Wildercloth Bags equipped as inventory or bank bags."},
 function(arg)
     if not arg or arg == "" then
         print(Red("No item name given. Try \"/? isearch\" for help."))
         return
     end
 
-    local item_name = arg
-    print("Searching for " .. Yellow(item_name))
+    print("Searching for " .. Yellow(arg))
+    search_key = arg:lower()
 
-    local found = false
+    local results = {}
 
     for _, bag in ipairs(BAGS) do
         local found_slots = {}
-        for i = 1, bag.max_slots do
-            local loc = ItemLocation:CreateFromBagAndSlot(bag.id, i)
+        for slot = 1, bag.max_slots do
+            local loc = ItemLocation:CreateFromBagAndSlot(bag.id, slot)
             if loc and loc:IsValid() then
                 local name = C_Item.GetItemName(loc)
-                if name:lower() == item_name:lower() then
-                    tinsert(found_slots, i)
+                if name:lower():find(search_key, 1, true) then
+                    found_slots[name] = found_slots[name] or {}
+                    tinsert(found_slots[name], slot)
                 end
             end
         end
-        if #found_slots > 0 then
-            local s = SlotsString(found_slots)
+        -- Careful here: the "#" operator only works on lists, i.e.
+        -- tables whose keys are consecutive integers starting at 1.
+        -- Lua doesn't seem to have a direct way to test an arbitrary
+        -- table for emptiness, but next() will do the trick.
+        -- Lua really is not a great language, but it's what we've got...
+        if next(found_slots, nil) then
             local bag_name = bag.name
             if bag.append_bagname then
                 bag_name = bag_name .. " (" .. C_Container.GetBagName(bag.id) .. ")"
             end
-            print(" → Found in " .. Blue(bag_name .. s))
-            found = true
+            for item, slots in pairs(found_slots) do
+                local s = SlotsString(slots)
+                tinsert(results, {item, " found in " .. Blue(bag_name .. s)})
+            end
         end
     end
 
@@ -335,15 +343,18 @@ function(arg)
                 local item = GetVoidItemInfo(tab, slot)
                 if item then
                     local name = C_Item.GetItemInfo(item)
-                    if name and name:lower() == item_name:lower() then
-                        tinsert(found_slots, slot)
+                    if name and name:lower():find(search_key, 1, true) then
+                        found_slots[name] = found_slots[name] or {}
+                        tinsert(found_slots[name], slot)
                     end
                 end
             end
-            if #found_slots > 0 then
-                local s = SlotsString(found_slots)
-                print(" → Found in " .. Blue("Void Storage tab " .. tab .. s))
-                found = true
+            if next(found_slots, nil) then
+                local bag_name = "Void Storage tab " .. tab
+                for item, slots in pairs(found_slots) do
+                    local s = SlotsString(slots)
+                    tinsert(results, {item, " found in " .. Blue(bag_name .. s)})
+                end
             end
         end
     end
@@ -354,15 +365,25 @@ function(arg)
         local loc = ItemLocation:CreateFromEquipmentSlot(slot_info)
         if loc and loc:IsValid() then
             local name = C_Item.GetItemName(loc)
-            if name:lower() == item_name:lower() then
-                print(" → Equipped on " .. Blue(slot.name))
-                found = true
+            if name:lower():find(search_key, 1, true) then
+                tinsert(results, {name, " equipped on " .. Blue(slot.name)})
             end
         end
     end
 
-    if not found then
-        print(Red(" → Not found."))
+    if #results > 0 then
+        -- Lua apparently does not have a stable sort method, so we have
+        -- to ensure stability manually.
+        for i, v in ipairs(results) do
+            tinsert(v, i)
+        end
+        table.sort(results, function(a,b) return a[1] < b[1] or (a[1] == b[1] and a[#a] < b[#b]) end)
+        for _, result in ipairs(results) do
+            local name, location = unpack(result)
+            print(" → " .. Yellow(name) .. location)
+        end
+    else
+        print(Red(" → No matching items found."))
     end
 end)
 
