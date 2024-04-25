@@ -38,11 +38,7 @@ end
 
 ------------------------------------------------------------------------
 
--- Invisible button used to securely activate quest items.
--- FIXME: It would be nice to make this visible, like the special action
--- button.  It would be even nicer if quest items consistently showed up
--- in the special action button in the first place so we didn't need
--- this workaround.
+-- Custom button used to securely activate quest items.
 local QuestItemButton = class(GamepadBoundButton)
 
 -- FIXME: The required target for quest items varies, and is not always
@@ -52,11 +48,12 @@ local QuestItemButton = class(GamepadBoundButton)
 -- friendly NPC, but is neither "helpful" nor "harmful", while Rusziona's
 -- Whistle (202293) from Little Scales Daycare quest "What's a Duck?"
 -- (72459) is marked "helpful" but requires the player to be targeted in
--- order to fire.  Yet other items explicitly require a target of "none".
--- Ideally we would just call UseQuestLogSpecialItem(log_index), but that's
--- a protected function and there's no secure action wrapper for it (as of
--- 10.2.6), so for the meantime we record specific items whose required
--- targets we know and use fallback logic for others.
+-- order to fire.  Yet other items explicitly require a target of "none",
+-- notably those which use the ground target cursor.  Ideally we would
+-- just call UseQuestLogSpecialItem(log_index), but that's a protected
+-- function and there's no secure action wrapper for it (as of 10.2.6),
+-- so for the meantime we record specific items whose required targets we
+-- know and use fallback logic for others.
 local ITEM_TARGET = {
     [168482] = "none",    -- Benthic Sealant (56160: Plug the Geysers)
     [174197] = "target",  -- Loremaster's Notebook (58471: Aggressive Notation)
@@ -84,12 +81,14 @@ local ITEM_TARGET = {
     [193826] = "target",  -- Trusty Dragonkin Rake (72991: Warm Dragonfruit Pie)
     [194441] = "none",    -- Bottled Water Elemental (66998: Fighting Fire with... Water)
     [198855] = "none",    -- Throw Net (70438: Flying Fish [and other fish restock dailies])
+    [200153] = "target",  -- Aylaag Skinning Shear (70990: If There's Wool There's a Way)
     [202293] = "player",  -- Rusziona's Whistle (72459: What's a Duck?)
     [203013] = "player",  -- Niffen Incense (73408: Sniffen 'em Out!)
     [203706] = "target",  -- Hurricane Scepter (74352: Whirling Zephyr)
     [203731] = "target",  -- Enchanted Bandage (74570: Aid Our Wounded)
     [204344] = "player",  -- Conductive Lodestone (74988: If You Can't Take the Heat)
     [204365] = "player",  -- Bundle of Ebon Spears (74991: We Have Returned)
+    [204698] = "none",    -- Cataloging Camera (73044: Cataloging Horror)
     [205980] = "target",  -- Snail Lasso (72878: Slime Time Live)
     [210227] = "target",  -- Q'onzu's Faerie Feather (76992: Fickle Judgment)
     [211302] = "target",  -- Slumberfruit (76993: Turtle Power)
@@ -112,9 +111,23 @@ function QuestItemButton:__constructor()
     self.pending_update = false
     self.last_update = 0
 
-    local f = CreateFrame("Button", "WoWXIV_QuestItemButton", nil,
-                          "SecureActionButtonTemplate")
+    local f = CreateFrame("Button", "WoWXIV_QuestItemButton", UIParent,
+                          "SecureActionButtonTemplate, FadeableFrameTemplate")
     self.frame = f
+    -- Place the button between the chat box and action bar.  (This size
+    -- just fits with the default UI scale at resolution 2560x1440.)
+    f:SetPoint("BOTTOM", -470, 10)
+    f:SetSize(224, 112)
+    f:SetAlpha(0)
+    local holder = f:CreateTexture(nil, "ARTWORK")
+    self.holder = holder
+    holder:SetAllPoints()
+    holder:SetTexture("Interface/ExtraButton/Default")
+    local icon = f:CreateTexture(nil, "BACKGROUND")
+    self.icon = icon
+    icon:SetPoint("CENTER", 0, -1.5)
+    icon:SetSize(42, 42)
+
     f:SetAttribute("type", "item")
     f:SetAttribute("item", nil)
     f:SetAttribute("unit", nil)
@@ -185,8 +198,19 @@ function QuestItemButton:UpdateQuestItem(event, is_retry)
         else
             self.frame:SetAttribute("unit", "player")
         end
+        local icon_id = (select(10, C_Item.GetItemInfo(item))
+                         or "Interface/ICONS/INV_Misc_QuestionMark")
+        self.icon:SetTexture(icon_id)
+        if self.frame:GetAlpha() < 1 and (self.frame.fadeout:IsPlaying() or not self.frame.fadein:IsPlaying()) then
+            self.frame.fadeout:Stop()
+            self.frame.fadein:Play()
+        end
     else
         self.frame:SetAttribute("item", nil)
+        if self.frame:GetAlpha() > 0 and (self.frame.fadein:IsPlaying() or not self.frame.fadeout:IsPlaying()) then
+            self.frame.fadein:Stop()
+            self.frame.fadeout:Play()
+        end
     end
 end
 

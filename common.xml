@@ -1,0 +1,19 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+  <!-- Based on Blizzard's ExtraActionBar -->
+  <Frame name="FadeableFrameTemplate" virtual="true">
+    <Animations>
+      <AnimationGroup parentKey="fadein">
+        <Alpha fromAlpha="0" toAlpha="1" duration="0.3" order="1"/>
+        <Scripts>
+          <OnFinished>self:GetParent():SetAlpha(1)</OnFinished>
+        </Scripts>
+      </AnimationGroup>
+      <AnimationGroup parentKey="fadeout">
+        <Alpha fromAlpha="1" toAlpha="0" duration="0.3" order="1"/>
+        <Scripts>
+          <OnFinished>self:GetParent():SetAlpha(0)</OnFinished>
+        </Scripts>
+      </AnimationGroup>
+    </Animations>
+  </Frame>
+</Ui>
