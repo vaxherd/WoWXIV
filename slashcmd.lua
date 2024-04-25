@@ -203,26 +203,26 @@ end)
 -- multiple bags of the same name and (2) it doesn't work for special bags
 -- like the main bank bag, so we use our own names here (but still append
 -- the bag item name for player-created bags).
-function BAGDEF(id, name, append_bagname, max_slots)
+function BAGDEF(id, name, append_bagname, in_combined)
     return {id = id, name = name, append_bagname = append_bagname,
-            max_slots = max_slots}
+            in_combined = in_combined or false}
 end
 local BAGS = {
-    BAGDEF(Enum.BagIndex.Backpack, "Backpack", false, 20),
-    BAGDEF(Enum.BagIndex.Bag_1, "Bag 1", true, 36),
-    BAGDEF(Enum.BagIndex.Bag_2, "Bag 2", true, 36),
-    BAGDEF(Enum.BagIndex.Bag_3, "Bag 3", true, 36),
-    BAGDEF(Enum.BagIndex.Bag_4, "Bag 4", true, 36),
-    BAGDEF(Enum.BagIndex.ReagentBag, "Reagent Bag", false, 38),
-    BAGDEF(Enum.BagIndex.Bank, "Bank", false, 28),
-    BAGDEF(Enum.BagIndex.BankBag_1, "Bank Bag 1", true, 36),
-    BAGDEF(Enum.BagIndex.BankBag_2, "Bank Bag 2", true, 36),
-    BAGDEF(Enum.BagIndex.BankBag_3, "Bank Bag 3", true, 36),
-    BAGDEF(Enum.BagIndex.BankBag_4, "Bank Bag 4", true, 36),
-    BAGDEF(Enum.BagIndex.BankBag_5, "Bank Bag 5", true, 36),
-    BAGDEF(Enum.BagIndex.BankBag_6, "Bank Bag 6", true, 36),
-    BAGDEF(Enum.BagIndex.BankBag_7, "Bank Bag 7", true, 36),
-    BAGDEF(Enum.BagIndex.Reagentbank, "Bank Reagent Bag", false, 98),
+    BAGDEF(Enum.BagIndex.Backpack, "Backpack", false, true),
+    BAGDEF(Enum.BagIndex.Bag_1, "Bag 1", true, true),
+    BAGDEF(Enum.BagIndex.Bag_2, "Bag 2", true, true),
+    BAGDEF(Enum.BagIndex.Bag_3, "Bag 3", true, true),
+    BAGDEF(Enum.BagIndex.Bag_4, "Bag 4", true, true),
+    BAGDEF(Enum.BagIndex.ReagentBag, "Reagent Bag", false),
+    BAGDEF(Enum.BagIndex.Bank, "Bank", false),
+    BAGDEF(Enum.BagIndex.BankBag_1, "Bank Bag 1", true),
+    BAGDEF(Enum.BagIndex.BankBag_2, "Bank Bag 2", true),
+    BAGDEF(Enum.BagIndex.BankBag_3, "Bank Bag 3", true),
+    BAGDEF(Enum.BagIndex.BankBag_4, "Bank Bag 4", true),
+    BAGDEF(Enum.BagIndex.BankBag_5, "Bank Bag 5", true),
+    BAGDEF(Enum.BagIndex.BankBag_6, "Bank Bag 6", true),
+    BAGDEF(Enum.BagIndex.BankBag_7, "Bank Bag 7", true),
+    BAGDEF(Enum.BagIndex.Reagentbank, "Bank Reagent Bag", false),
 }
 
 -- Void storage is handled by a separate subsystem, which just needs the
@@ -285,11 +285,24 @@ local function SlotsString(slots)
     return s
 end
 
+-- FIXME: surely there must be a way to get the combined state directly
+-- rather than this hack of listening for changes (which doesn't work on
+-- module load anyway)?
+local isearch_combined_bags = false
+-- Note that this code is all deferred, so we can create the frame inline
+-- rather than wrapping it in a function to be called later.
+local isearch_event_frame = WoWXIV.CreateEventFrame("WoWXIV_IsearchEventFrame")
+isearch_event_frame:RegisterEvent("USE_COMBINED_BAGS_CHANGED")
+function isearch_event_frame:USE_COMBINED_BAGS_CHANGED(enabled)
+    isearch_combined_bags = enabled
+end
+
 DefineCommand("isearch", {"is"}, Green("ItemName"),
         {"Searches your inventory and equipment for an item.",
          "The bank UI must be open to search bank bags other than the bank reagent bag.",
          "Similarly, the void storage UI must be open to search void storage.",
          "Bag items equipped in inventory or bank slots are not listed.",
+         "When using a combined backpack, slots count from the bottom right: slot 10 is the bottom left corner, 31 is the right side of the 4th row from the bottom, and so on.",
          "",
          "Examples:",
          "    "..Yellow("/isearch Heart of Azeroth"),
@@ -307,16 +320,24 @@ function(arg)
 
     local results = {}
 
-    for _, bag in ipairs(BAGS) do
+    if isearch_combined_bags then
         local found_slots = {}
-        for slot = 1, bag.max_slots do
-            local loc = ItemLocation:CreateFromBagAndSlot(bag.id, slot)
-            if loc and loc:IsValid() then
-                local name = C_Item.GetItemName(loc)
-                if name:lower():find(search_key, 1, true) then
-                    found_slots[name] = found_slots[name] or {}
-                    tinsert(found_slots[name], slot)
+        local offset = 0
+        for i = #BAGS, 1, -1 do
+            local bag = BAGS[i]
+            if bag.in_combined then
+                local bag_size = C_Container.GetContainerNumSlots(bag.id)
+                for slot = 1, bag_size do
+                    local loc = ItemLocation:CreateFromBagAndSlot(bag.id, slot)
+                    if loc and loc:IsValid() then
+                        local name = C_Item.GetItemName(loc)
+                        if name:lower():find(search_key, 1, true) then
+                            found_slots[name] = found_slots[name] or {}
+                            tinsert(found_slots[name], offset + slot)
+                        end
+                    end
                 end
+                offset = offset + bag_size
             end
         end
         -- Careful here: the "#" operator only works on lists, i.e.
@@ -325,13 +346,36 @@ function(arg)
         -- table for emptiness, but next() will do the trick.
         -- Lua really is not a great language, but it's what we've got...
         if next(found_slots, nil) then
-            local bag_name = bag.name
-            if bag.append_bagname then
-                bag_name = bag_name .. " (" .. C_Container.GetBagName(bag.id) .. ")"
-            end
             for item, slots in pairs(found_slots) do
                 local s = SlotsString(slots)
-                tinsert(results, {item, " found in " .. Blue(bag_name .. s)})
+                tinsert(results, {item, " found in " .. Blue("Combined Backpack" .. s)})
+            end
+        end
+    end
+
+    for _, bag in ipairs(BAGS) do
+        if not (isearch_combined_bags and bag.in_combined) then
+            local found_slots = {}
+            local bag_size = C_Container.GetContainerNumSlots(bag.id)
+            for slot = 1, bag_size do
+                local loc = ItemLocation:CreateFromBagAndSlot(bag.id, slot)
+                if loc and loc:IsValid() then
+                    local name = C_Item.GetItemName(loc)
+                    if name:lower():find(search_key, 1, true) then
+                        found_slots[name] = found_slots[name] or {}
+                        tinsert(found_slots[name], slot)
+                    end
+                end
+            end
+            if next(found_slots, nil) then
+                local bag_name = bag.name
+                if bag.append_bagname then
+                    bag_name = bag_name .. " (" .. C_Container.GetBagName(bag.id) .. ")"
+                end
+                for item, slots in pairs(found_slots) do
+                    local s = SlotsString(slots)
+                    tinsert(results, {item, " found in " .. Blue(bag_name .. s)})
+                end
             end
         end
     end
