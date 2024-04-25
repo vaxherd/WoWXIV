@@ -9,6 +9,7 @@ _class.lua
 buffbar.lua
 buffbar.xml
 combat.lua
+common.xml
 config.lua
 flytext.lua
 gamepad.lua
