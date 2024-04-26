@@ -316,6 +316,8 @@ function FlyTextManager:__constructor(parent)
     self.zone_entered = 0
     self.last_money = GetMoney()
     self.last_item_icon = nil
+    self.last_aura_text = nil
+    self.last_aura_filtered = false
 
     local f = CreateFrame("Frame", "WoWXIV_FlyTextManager", nil)
     self.frame = f
@@ -368,6 +370,7 @@ function FlyTextManager:OnCombatLogEvent(event)
 
     local text = nil
     local left_side = false
+    local is_aura = false
     if event.subtype == "DAMAGE" then
         text = FlyText(FLYTEXT_DAMAGE_DIRECT, unit, event.spell_id,
                        event.spell_school, event.amount, event.critical)
@@ -388,21 +391,67 @@ function FlyTextManager:OnCombatLogEvent(event)
         self.hot = self.hot or {}
         self.hot[unit] = (self.hot[unit] or 0) + event.amount
     elseif event.subtype == "AURA_APPLIED" then
-        text = FlyText(
-            event.aura_type=="BUFF" and FLYTEXT_BUFF_ADD or FLYTEXT_DEBUFF_ADD,
-            unit, event.spell_id, event.spell_school)
+        is_aura = true
+        self:DoAura((event.aura_type=="BUFF" and FLYTEXT_BUFF_ADD
+                                             or FLYTEXT_DEBUFF_ADD),
+                    unit, event.spell_id, event.spell_school)
     elseif event.subtype == "AURA_APPLIED_DOSE" then
-        text = FlyText(
-            event.aura_type=="BUFF" and FLYTEXT_BUFF_ADD or FLYTEXT_DEBUFF_ADD,
-            unit, event.spell_id, event.spell_school, event.amount)
+        is_aura = true
+        self:DoAura((event.aura_type=="BUFF" and FLYTEXT_BUFF_ADD
+                                             or FLYTEXT_DEBUFF_ADD),
+                    unit, event.spell_id, event.spell_school, event.amount)
     elseif event.subtype == "AURA_REMOVED" then
-        text = FlyText(
-            event.aura_type=="BUFF" and FLYTEXT_BUFF_REMOVE or FLYTEXT_DEBUFF_REMOVE,
-            unit, event.spell_id, event.spell_school)
+        is_aura = true
+        self:DoAura((event.aura_type=="BUFF" and FLYTEXT_BUFF_REMOVE
+                                             or FLYTEXT_DEBUFF_REMOVE),
+                    unit, event.spell_id, event.spell_school)
+    end
+    if not is_aura and self.last_aura_text then
+        if not self.last_aura_filtered then
+            self:AddText(self.last_aura_text, false)
+        end
+        self.last_aura_text = nil
     end
     if text then
         self:AddText(text, left_side)
     end
+end
+
+-- Helper to filter out redundant aura events.  We particularly check for
+-- two patterns:
+--    1) Removal of buff followed immediately by reapplication.  This
+--       often occurs on zone or subzone transitions - the "Sign of
+--       Awakened Storms" reputation bonus buff in Dragonflight season 4
+--       is a particularly egregious example, being cycled like this
+--       frequently and even multiple times at once when entering the
+--       Zskera Vault.
+--    2) Repeated APPLIED_DOSE events on the same buff.  This is notably
+--       seen with the "Feral Awakening" buff in the Superbloom event,
+--       where the application counter is used to show the amount of Bloom
+--       obtained by the player.  Bloom is typically gained in increments
+--       of 5 or 10 at a time, for which the game triggers a +1 dose event
+--       immediately followed by an event which adds the remaining amount.
+function FlyTextManager:DoAura(...)
+    local text = FlyText(...)
+    local last = self.last_aura_text
+    local filter_this = false
+    if last then
+        local filter_last = false
+        if last.unit == text.unit and last.spell_id == text.spell_id then
+            if last.type == FLYTEXT_BUFF_REMOVE and text.type == FLYTEXT_BUFF_ADD then
+                filter_last = true
+                filter_this = true
+            elseif last.type == FLYTEXT_BUFF_ADD and text.type == FLYTEXT_BUFF_ADD then
+                filter_last = true
+            end
+        end
+        if not filter_last and not self.last_aura_filtered then
+            self:AddText(self.last_aura_text, false)
+            self.last_aura_text = nil
+        end
+    end
+    self.last_aura_text = text
+    self.last_aura_filtered = filter_this
 end
 
 -- Returns: type, id, color, count [, name]
@@ -529,6 +578,13 @@ function FlyTextManager:AddText(text, left_side)
 end
 
 function FlyTextManager:OnUpdate()
+    if self.last_aura_text then
+        if not self.last_aura_filtered then
+            self:AddText(self.last_aura_text, false)
+        end
+        self.last_aura_text = nil
+    end
+
     if self.dot then
         for unit, amount in pairs(self.dot) do
             text = FlyText(FLYTEXT_DAMAGE_PASSIVE, unit, amount)
