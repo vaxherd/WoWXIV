@@ -20,6 +20,8 @@ local CONFIG_DEFAULT = {
 
     -- Enmity list: enable?
     hatelist_enable = true,
+    -- Enmity list: show rare/elite icon?
+    hatelist_show_classification = true,
 
     -- Fly text: enable?
     flytext_enable = true,
@@ -391,6 +393,9 @@ function ConfigPanel:__constructor()
     self:AddHeader("Enmity list settings")
     self:AddCheckButton("Enable enmity list",
                         "hatelist_enable", WoWXIV.HateList.Enable)
+    self:AddCheckButton("Show enemy classification (rare/elite) next to name",
+                        "hatelist_show_classification",
+                        WoWXIV.HateList.Refresh, "hatelist_enable")
 
     self:AddHeader("Fly text settings")
     self:AddCheckButton("Enable fly text (player only)", "flytext_enable",
