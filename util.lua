@@ -55,3 +55,19 @@ function WoWXIV.FormatColoredText(text, r, g, b)
     return ("|cFF%02X%02X%02X%s|r"):format(
         ColorTo255(r), ColorTo255(g), ColorTo255(b), text)
 end
+
+------------------------------------------------------------------------
+-- Enemy classification icon lookup
+------------------------------------------------------------------------
+
+local CLASS_ATLAS = {rare = "UI-HUD-UnitFrame-Target-PortraitOn-Boss-Rare-Star",
+                     elite = "nameplates-icon-elite-gold",
+                     rareelite = "nameplates-icon-elite-silver"}
+
+-- Return the texture atlas ID of the classification icon for the given
+-- unit's classification (rare, elite, etc.), or nil if no icon should
+-- be displayed for the unit.  The unit must be a standard unit token
+-- (like "target" or "boss1").
+function WoWXIV.UnitClassificationIcon(unit)
+    return CLASS_ATLAS[UnitClassification(unit)]
+end

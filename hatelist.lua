@@ -68,6 +68,10 @@ function Enemy:UnitGUID()
     return self.guid
 end
 
+function Enemy:UnitName()
+    return self.name
+end
+
 function Enemy:CopyFrom(other)
     self:SetUnit(other.guid, other.name)
 end
@@ -86,7 +90,22 @@ function Enemy:Update(new_name)
 
     if new_name then
         self.name = new_name
-        self.name_label:SetText(new_name)
+        local name_markup = new_name
+        local class_atlas =
+            (self.token and WoWXIV_config["hatelist_show_classification"]
+             and WoWXIV.UnitClassificationIcon(self.token) or nil)
+        if class_atlas then
+            -- CreateAtlasMarkup() is defined in Blizzard's
+            -- Interface/SharedXML/TextureUtil.lua
+            local atlas_markup = CreateAtlasMarkup(class_atlas, 14, 14)
+            -- It would be nice to insert a thin space here (a normal space
+            -- is a bit overkill), but the default font unfortunately
+            -- doesn't support U+2009 and friends, and it's not worth the
+            -- effort of creating and managing an independent texture for
+            -- the icon, so we suffer it being a bit tightly spaced.
+            name_markup = atlas_markup .. name_markup
+        end
+        self.name_label:SetText(name_markup)
     end
 
     -- Despite API documentation claiming that UnitDetailedThreatSituation()
@@ -205,7 +224,7 @@ function HateList:Enable(enable)
         CLM.RegisterEventSubtype(self, self.OnAttack, "PERIODIC_DAMAGE")
         CLM.RegisterEventSubtype(self, self.OnAttack, "MISS")
         CLM.RegisterEventCategory(self, self.OnUnitGone, "UNIT")
-        self:Refresh()
+        self:Refresh(true)
     else
         f:Hide()
         f:UnregisterAllEvents()
@@ -213,9 +232,17 @@ function HateList:Enable(enable)
     end
 end
 
-function HateList:Refresh()
-    self.guids = {}
-    self:InternalRefresh(1)
+function HateList:Refresh(rescan)
+    if rescan then
+        self.guids = {}
+        self:InternalRefresh(1)
+    else
+        for _, enemy in ipairs(self.enemies) do
+            if enemy:UnitGUID() then
+                enemy:Update(enemy:UnitName())
+            end
+        end
+    end
 end
 
 function HateList:InternalRefresh(index)
@@ -458,6 +485,14 @@ end
 -- Enable or disable the enmity list display.
 function WoWXIV.HateList.Enable(enable)
     WoWXIV.HateList.list:Enable(enable)
+end
+
+-- Refresh the enmity list to reflect changed settings.
+-- Pass rescan=true to clear the list and rescan for enemies; if false
+-- or omitted, the list content will be preserved and only the display
+-- content of enemies already on the list will be refreshed.
+function WoWXIV.HateList.Refresh(rescan)
+    WoWXIV.HateList.list:Refresh(rescan)
 end
 
 -- Record the bottom Y coordinate of the party list.  Called from

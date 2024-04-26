@@ -186,9 +186,6 @@ function TargetBar:SetNoUnit()
     end
 end
 
-local CLASS_ATLAS = {rare = "UI-HUD-UnitFrame-Target-PortraitOn-Boss-Rare-Star",
-                     elite = "nameplates-icon-elite-gold",
-                     rareelite = "nameplates-icon-elite-silver"}
 function TargetBar:RefreshUnit()
     local unit = self.unit
     if not UnitGUID(unit) then
@@ -211,7 +208,7 @@ function TargetBar:RefreshUnit()
     self.hostile, inactive = SetColorsForUnit(unit, self.hp, self.name)
     f:SetAlpha(inactive and 0.5 or 1)
 
-    local class_atlas = CLASS_ATLAS[UnitClassification(unit)]
+    local class_atlas = WoWXIV.UnitClassificationIcon(unit)
     if class_atlas then
         self.class_icon:SetAtlas(class_atlas)
         self.class_icon:Show()
