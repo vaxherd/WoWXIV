@@ -2,7 +2,12 @@ local _, WoWXIV = ...
 WoWXIV.Gamepad = {}
 
 local class = WoWXIV.class
+
+local GameTooltip = GameTooltip
+local GetItemCount = C_Item.GetItemCount
 local GetItemInfo = C_Item.GetItemInfo
+local IsHarmfulItem = C_Item.IsHarmfulItem
+local IsHelpfulItem = C_Item.IsHelpfulItem
 
 -- This addon assumes the following console variable settings:
 --    GamePadEmulateShift = PADRTRIGGER
@@ -60,6 +65,7 @@ local ITEM_TARGET = {
     [175827] = "player",  -- Ani-Matter Orb (57245: Ani-Matter Animator
     [177836] = "target",  -- Wingpierce Javelin (59771: History of Corruption)
     [177880] = "player",  -- Primordial Muck (59808: Muck It Up)
+    [178464] = "player",  -- Discarded Harp (60188: Go Beyond! [Lonely Matriarch])
     [180008] = "none",    -- Resonating Anima Core (60609: Who Devours the Devourers?)
     [180009] = "none",    -- Resonating Anima Mote (60609: Who Devours the Devourers?)
     [180274] = "none",    -- Torch (60770: Squish and Burn)
@@ -83,6 +89,7 @@ local ITEM_TARGET = {
     [198855] = "none",    -- Throw Net (70438: Flying Fish [and other fish restock dailies])
     [200153] = "target",  -- Aylaag Skinning Shear (70990: If There's Wool There's a Way)
     [202293] = "player",  -- Rusziona's Whistle (72459: What's a Duck?)
+    [202642] = "target",  -- Proto-Killing Spear (73194: Up Close and Personal)
     [203013] = "player",  -- Niffen Incense (73408: Sniffen 'em Out!)
     [203706] = "target",  -- Hurricane Scepter (74352: Whirling Zephyr)
     [203731] = "target",  -- Enchanted Bandage (74570: Aid Our Wounded)
@@ -96,6 +103,13 @@ local ITEM_TARGET = {
 
 -- Special cases for quests which don't have items listed but really should.
 local QUEST_ITEM = {
+    -- Marasmius daily quest: Go Beyond! [Lonely Matriarch]
+    [60188] = {
+        map = 1565,  -- Ardenweald
+        items = {
+            178464,  -- Discarded Harp
+        }
+    },
     -- Ardenweald world quest: Who Devours the Devourers?
     [60609] = {
         map = 1565,  -- Ardenweald
@@ -103,7 +117,7 @@ local QUEST_ITEM = {
             180008,  -- Resonating Anima Core
             180009,  -- Resonating Anima Mote
         }
-    }
+    },
 }
 
 function QuestItemButton:__constructor()
@@ -138,7 +152,33 @@ function QuestItemButton:__constructor()
     f:RegisterUnitEvent("UNIT_QUEST_LOG_CHANGED", "player")
     f:RegisterEvent("BAG_UPDATE")  -- for QUEST_ITEM quests
     f:SetScript("OnEvent", function() self:UpdateQuestItem() end)
+    f:SetScript("OnEnter", function() self:OnEnter() end)
+    f:SetScript("OnLeave", function() self:OnLeave() end)
     self:UpdateQuestItem()
+end
+
+function QuestItemButton:OnEnter()
+    if GameTooltip:IsForbidden() then return end
+    if not self.frame:IsVisible() then return end
+    GameTooltip:SetOwner(self.frame, "ANCHOR_TOP")
+    self:UpdateTooltip()
+end
+
+function QuestItemButton:OnLeave()
+    if GameTooltip:IsForbidden() then return end
+    GameTooltip:Hide()
+end
+
+function QuestItemButton:UpdateTooltip()
+    if GameTooltip:IsForbidden() or GameTooltip:GetOwner() ~= self.frame then
+        return
+    end
+    if self.item then
+        GameTooltip:SetItemByID(self.item)
+        GameTooltip:Show()
+    else
+        GameTooltip:Hide()
+    end
 end
 
 function QuestItemButton:UpdateQuestItem(event, is_retry)
@@ -158,7 +198,7 @@ function QuestItemButton:UpdateQuestItem(event, is_retry)
         if C_QuestLog.IsOnQuest(quest) then
             if C_Map.GetBestMapForUnit("player") == info.map then
                 for _, quest_item in ipairs(info.items) do
-                    if C_Item.GetItemCount(quest_item) > 0 then
+                    if GetItemCount(quest_item) > 0 then
                         item = quest_item
                         break
                     end
@@ -179,6 +219,7 @@ function QuestItemButton:UpdateQuestItem(event, is_retry)
             end
         end
     end
+
     if item then
         -- Note that we have to use the "item:" format rather than just
         -- the numeric item ID, because the latter would be treated as an
@@ -193,12 +234,12 @@ function QuestItemButton:UpdateQuestItem(event, is_retry)
             else
                self.frame:SetAttribute("unit", nil)
             end
-        elseif C_Item.IsHelpfulItem(item) or C_Item.IsHarmfulItem(item) then
+        elseif IsHelpfulItem(item) or IsHarmfulItem(item) then
             self.frame:SetAttribute("unit", "target")
         else
             self.frame:SetAttribute("unit", "player")
         end
-        local icon_id = (select(10, C_Item.GetItemInfo(item))
+        local icon_id = (select(10, GetItemInfo(item))
                          or "Interface/ICONS/INV_Misc_QuestionMark")
         self.icon:SetTexture(icon_id)
         if self.frame:GetAlpha() < 1 and (self.frame.fadeout:IsPlaying() or not self.frame.fadein:IsPlaying()) then
@@ -212,6 +253,9 @@ function QuestItemButton:UpdateQuestItem(event, is_retry)
             self.frame.fadeout:Play()
         end
     end
+
+    self.item = item
+    self:UpdateTooltip()
 end
 
 ------------------------------------------------------------------------
