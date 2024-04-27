@@ -13,10 +13,9 @@ local bor = bit.bor
 local Enemy = class()
 
 function Enemy:__constructor(parent, y)
-    self.guid = nil   -- GUID of currently monitored unit, nil if none
-    self.name = ""    -- Name of unit (saved because we can't get it by GUID)
-    self.token = nil  -- Token by which we can look up unit info, nil if none
-    self.cast = nil   -- GUID of current cast, or nil
+    self.guid = nil     -- GUID of currently monitored unit, nil if none
+    self.name = ""      -- Name of unit (saved because we can't get it by GUID)
+    self.token = nil    -- Token by which we can look up unit info, nil if none
 
     local f = CreateFrame("Frame", nil, parent)
     self.frame = f
@@ -54,7 +53,7 @@ end
 function Enemy:SetUnit(unit_guid, name)
     self.guid = unit_guid
     if unit_guid then
-        self.token = UnitTokenFromGUID(unit_guid)
+        self.token = nil  -- Force check in Update().
         self:Update(name)
         self.frame:Show()
     else
@@ -79,13 +78,20 @@ end
 function Enemy:Update(new_name)
     if not self.guid then return end
 
-    if self.token and UnitGUID(self.token) ~= self.guid then
-        self.token = nil
-        self.cast_bar:SetUnit(nil)
-    end
-    if not self.token then
+    if not self.token or UnitGUID(self.token) ~= self.guid then
         self.token = UnitTokenFromGUID(self.guid)
         self.cast_bar:SetUnit(self.token)
+    end
+    if self.token then
+        self.frame:SetAlpha(1.0)
+        self.hate_icon:Show()
+        self.hp:Show()
+        self.cast_bar:Show()
+    else
+        self.frame:SetAlpha(0.5)
+        self.hate_icon:Hide()
+        self.hp:Hide()
+        self.cast_bar:Hide()
     end
 
     if new_name then
@@ -314,16 +320,18 @@ end
 function HateList:OnAttack(event)
     local source = event.source
     local dest = event.dest
-    if UnitIsUnit(source, "player") or UnitIsUnit(source, "vehicle") then
+    local player_guid = UnitGUID("player")
+    local vehicle_guid = UnitGUID("vehicle")
+    if source == player_guid or source == vehicle_guid then
         local index = self.guids[dest]
         if index then
-            self.enemies[index]:Update(self)
-        elseif band(event.dest_flags, bor(UnitFlags.REACTION_HOSTILE, UnitFlags.REACTION_NEUTRAL)) then
+            self.enemies[index]:Update()
+        elseif band(event.dest_flags, bor(UnitFlags.REACTION_HOSTILE, UnitFlags.REACTION_NEUTRAL)) ~= 0 then
             self:AddEnemy(dest, event.dest_name)
         end
-    elseif UnitIsUnit(dest, "player") or UnitIsUnit(dest, "vehicle") then
+    elseif dest == player_guid or dest == vehicle_guid then
         -- Don't add charmed (etc) party members into list.
-        if band(event.source_flags, UnitFlags.AFFILIATION_OUTSIDER) then
+        if band(event.source_flags, UnitFlags.AFFILIATION_OUTSIDER) ~= 0 then
             if not self.guids[source] then
                 self:AddEnemy(source, event.source_name)
             end
