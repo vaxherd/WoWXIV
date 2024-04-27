@@ -23,9 +23,9 @@ local CONFIG_DEFAULT = {
     -- Enmity list: show rare/elite icon?
     hatelist_show_classification = true,
 
-    -- Fly text: enable?
+    -- Flying text: enable?
     flytext_enable = true,
-    -- Fly text: if enabled, hide loot frame when autolooting?
+    -- Flying text: if enabled, hide loot frame when autolooting?
     flytext_hide_autoloot = true,
 
     -- Map: show current coordinates under minimap?
@@ -397,8 +397,8 @@ function ConfigPanel:__constructor()
                         "hatelist_show_classification",
                         WoWXIV.HateList.Refresh, "hatelist_enable")
 
-    self:AddHeader("Fly text settings")
-    self:AddCheckButton("Enable fly text (player only)", "flytext_enable",
+    self:AddHeader("Flying text settings")
+    self:AddCheckButton("Enable flying text (player only)", "flytext_enable",
                         WoWXIV.FlyText.Enable)
     self:AddCheckButton("Hide loot frame when autolooting",
                         "flytext_hide_autoloot", nil, "flytext_enable")
