@@ -12,7 +12,7 @@ local strfind = string.find
 
 local FlyText = class()
 
--- Length of time a fly text will be displayed (seconds).
+-- Length of time a flying text string will be displayed (seconds).
 local FLYTEXT_TIME = 4.5
 
 -- Default scale factor for text.
@@ -115,7 +115,7 @@ function FlyText:FreePooledFrame(f)
     tinsert(self.frame_pool, f)
 end
 
--- Static method: Return scroll offset per second for fly text.
+-- Static method: Return scroll offset per second for flying text.
 function FlyText:GetDY()
     return -(UIParent:GetHeight()*0.3 / FLYTEXT_TIME)
 end
@@ -365,7 +365,7 @@ function FlyTextManager:OnCombatLogEvent(event)
     if unit == UnitGUID("player") or (UnitInVehicle("player") and unit == UnitGUID("vehicle")) then
         unit = "player"
     else
-        return  -- Can't draw fly text for non-player units.
+        return  -- Can't draw flying text for non-player units.
     end
 
     local text = nil
@@ -521,7 +521,7 @@ function FlyTextManager:OnCurrencyUpdate(event, id, total, change)
     -- values such as talent points) are internally tracked as
     -- "currencies"; notably, the player's time in a dragon race is
     -- recorded using four "currencies", for the whole number, tenths,
-    -- hundredths, and thousands of seconds.  We only want to show fly
+    -- hundredths, and thousands of seconds.  We only want to show flying
     -- text for things the game would normally report with a log message,
     -- so we exclude anything without an icon or with a "hidden" notation
     -- in the name; there unfortunately doesn't seem to be an explicit
@@ -690,14 +690,14 @@ end
 
 ------------------------------------------------------------------------
 
--- Create the fly-text manager.
+-- Create the flying text manager.
 function WoWXIV.FlyText.CreateManager()
     WoWXIV.FlyText.manager = FlyTextManager()
     WoWXIV.FlyText.loot_handler = LootHandler()
     WoWXIV.FlyText.Enable(WoWXIV_config["flytext_enable"])
 end
 
--- Enable or disable fly-text display.
+-- Enable or disable flying text display.
 function WoWXIV.FlyText.Enable(enable)
     if WoWXIV.FlyText.manager then
         WoWXIV.FlyText.manager:Enable(enable)
