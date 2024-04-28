@@ -44,8 +44,7 @@ function CastBar:__constructor(parent, width)
 
     local label_bg = f:CreateTexture(nil, "BACKGROUND")
     self.label_bg = label_bg
-    label_bg:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    label_bg:SetTexCoord(0, 1, 0/256.0, 11/256.0)
+    WoWXIV.SetUITexture(label_bg, 0, 256, 0, 11)
     label_bg:SetVertexColor(0, 0, 0, 1)
     label_bg:SetPoint("TOPRIGHT", 1, 2)
     label_bg:SetHeight(16)

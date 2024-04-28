@@ -94,13 +94,12 @@ function Aura:__constructor(frame, is_secure_player_aura)
     local border = f:CreateTexture(nil, "OVERLAY")
     self.border = border
     border:SetSize(22, 26)
-    border:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+    WoWXIV.SetUITexture(border)
 
     local dispel = f:CreateTexture(nil, "OVERLAY", nil, 1)
     self.dispel = dispel
     dispel:SetSize(28, 9)
-    dispel:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    dispel:SetTexCoord(96/256.0, 124/256.0, 91/256.0, 100/256.0)
+    WoWXIV.SetUITexture(dispel, 96, 124, 91, 100)
 
     local stack_label = f:CreateFontString(nil, "OVERLAY", "NumberFont_Shadow_Med")
     self.stack_label = stack_label
@@ -273,15 +272,15 @@ function Aura:InternalUpdate(unit, data)
 
     if icon_id ~= self.icon_id or is_helpful ~= self.is_helpful then
         if is_helpful then
-            icon:SetMask("Interface\\Addons\\WowXIV\\textures\\buff-mask.png")
-            border:SetTexCoord(99/256.0, 121/256.0, 14/256.0, 40/256.0)
+            icon:SetMask("Interface/Addons/WowXIV/textures/buff-mask.png")
+            WoWXIV.SetUITexCoord(border, 99, 121, 14, 40)
             icon:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -3)
             border:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -2)
             dispel:SetPoint("TOPLEFT", f, "TOPLEFT", -2, -25)
             stack_label:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -1)
         else
-            icon:SetMask("Interface\\Addons\\WowXIV\\textures\\debuff-mask.png")
-            border:SetTexCoord(99/256.0, 121/256.0, 40/256.0, 14/256.0)
+            icon:SetMask("Interface/Addons/WowXIV/textures/debuff-mask.png")
+            WoWXIV.SetUITexCoord(border, 99, 121, 40, 14)
             icon:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -7)
             border:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -6)
             dispel:SetPoint("TOPLEFT", f, "TOPLEFT", -2, 0)

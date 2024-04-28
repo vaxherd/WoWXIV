@@ -57,7 +57,27 @@ function WoWXIV.FormatColoredText(text, r, g, b)
 end
 
 ------------------------------------------------------------------------
--- Enemy classification icon lookup
+-- Shared UI texture access
+------------------------------------------------------------------------
+
+-- Set the given Texture instance to reference the shared UI texture,
+-- and optionally set the texture coordinates (as for SetUITexCoord()).
+function WoWXIV.SetUITexture(texture, u0, u1, v0, v1)
+    texture:SetTexture("Interface/Addons/WowXIV/textures/ui.png")
+    if v1 then
+        texture:SetTexCoord(u0/256.0, u1/256.0, v0/256.0, v1/256.0)
+    end
+end
+
+-- Set the texture coordinate range for the given Texture instance,
+-- assuming that the shared UI texture is in used.  Texture coordinates
+-- are given in texels based on a 256x256-sized texture.
+function WoWXIV.SetUITexCoord(texture, u0, u1, v0, v1)
+    texture:SetTexCoord(u0/256.0, u1/256.0, v0/256.0, v1/256.0)
+end
+
+------------------------------------------------------------------------
+-- Miscellaneous
 ------------------------------------------------------------------------
 
 local CLASS_ATLAS = {rare = "UI-HUD-UnitFrame-Target-PortraitOn-Boss-Rare-Star",

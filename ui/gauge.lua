@@ -26,20 +26,17 @@ function Gauge:__constructor(parent, width)
     self.box_l = box_l
     box_l:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -2)
     box_l:SetSize(6, 15)
-    box_l:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    box_l:SetTexCoord(0/256.0, 6/256.0, 11/256.0, 26/256.0)
+    WoWXIV.SetUITexture(box_l, 0, 6, 11, 26)
     local box_c = f:CreateTexture(nil, "BORDER")
     self.box_c = box_c
     box_c:SetPoint("TOPLEFT", f, "TOPLEFT", 6, -2)
     box_c:SetSize(width-2, 15)
-    box_c:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    box_c:SetTexCoord(6/256.0, 90/256.0, 11/256.0, 26/256.0)
+    WoWXIV.SetUITexture(box_c, 6, 90, 11, 26)
     local box_r = f:CreateTexture(nil, "BORDER")
     self.box_r = box_r
     box_r:SetPoint("TOPLEFT", f, "TOPLEFT", width+4, -2)
     box_r:SetSize(6, 15)
-    box_r:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    box_r:SetTexCoord(90/256.0, 96/256.0, 11/256.0, 26/256.0)
+    WoWXIV.SetUITexture(box_r, 90, 96, 11, 26)
 
     local bar_bg = f:CreateTexture(nil, "BORDER")
     self.bar_bg = bar_bg
@@ -69,20 +66,17 @@ function Gauge:__constructor(parent, width)
     self.overshield_l = overshield_l
     overshield_l:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
     overshield_l:SetSize(5, 7)
-    overshield_l:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    overshield_l:SetTexCoord(0/256.0, 5/256.0, 28/256.0, 35/256.0)
+    WoWXIV.SetUITexture(overshield_l, 0, 5, 28, 35)
     local overshield_c = f:CreateTexture(nil, "OVERLAY")
     self.overshield_c = overshield_c
     overshield_c:SetPoint("TOPLEFT", overshield_l, "TOPRIGHT")
     overshield_c:SetSize(width, 7)
-    overshield_c:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    overshield_c:SetTexCoord(5/256.0, 91/256.0, 28/256.0, 35/256.0)
+    WoWXIV.SetUITexture(overshield_c, 5, 91, 28, 35)
     local overshield_r = f:CreateTexture(nil, "OVERLAY")
     self.overshield_r = overshield_r
     overshield_r:SetPoint("TOPLEFT", overshield_c, "TOPRIGHT")
     overshield_r:SetSize(5, 7)
-    overshield_r:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    overshield_r:SetTexCoord(91/256.0, 96/256.0, 28/256.0, 35/256.0)
+    WoWXIV.SetUITexture(overshield_r, 91, 96, 28, 35)
 
     self.value = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     self.value:SetPoint("TOPRIGHT", f, "TOPRIGHT", -3, -13.5)
