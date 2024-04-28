@@ -215,11 +215,11 @@ function FlyText:__constructor(type, ...)
         icon:SetSize(24, 24)
         local border = w.border
         border:SetSize(22, 26)
-        if type == FLYTEXT_BUFF_ADD then
+        if type == FLYTEXT_BUFF_ADD or type == FLYTEXT_BUFF_REMOVE then
             icon:SetMask("Interface/Addons/WowXIV/textures/buff-mask.png")
             WoWXIV.SetUITexture(border, 99, 121, 14, 40)
         else
-            icon:SetMask("Interface/Addons/WowXIV/textures/buff-mask.png")
+            icon:SetMask("Interface/Addons/WowXIV/textures/debuff-mask.png")
             WoWXIV.SetUITexture(border, 99, 121, 40, 14)
         end
         icon:SetTexture(spell_icon)
