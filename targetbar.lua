@@ -78,16 +78,14 @@ function TargetBar:__constructor(is_focus)
         self.target_arrow1 = target_arrow1
         target_arrow1:SetPoint("TOPLEFT", f, "TOPLEFT", ARROW_X, ARROW1_Y)
         target_arrow1:SetSize(28, 28)
-        target_arrow1:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-        target_arrow1:SetTexCoord(224/256.0, 252/256.0, 16/256.0, 44/256.0)
+        WoWXIV.SetUITexture(target_arrow1, 224, 252, 16, 44)
         target_arrow1:Hide()
 
         local target_arrow2 = f:CreateTexture(nil, "ARTWORK")
         self.target_arrow2 = target_arrow2
         target_arrow2:SetPoint("TOPLEFT", f, "TOPLEFT", ARROW_X, ARROW2_Y)
         target_arrow2:SetSize(22, 18)
-        target_arrow2:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-        target_arrow2:SetTexCoord(224/256.0, 246/256.0, 45/256.0, 63/256.0)
+        WoWXIV.SetUITexture(target_arrow2, 224, 246, 45, 63)
         target_arrow2:Hide()
 
         local target_name = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")

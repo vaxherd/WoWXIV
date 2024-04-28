@@ -27,7 +27,7 @@ function Enemy:__constructor(parent, y)
     self.hate_icon = hate_icon
     hate_icon:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -3)
     hate_icon:SetSize(19, 19)
-    hate_icon:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+    WoWXIV.SetUITexture(hate_icon)
 
     local name_label = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     self.name_label = name_label
@@ -132,7 +132,7 @@ function Enemy:Update(new_name)
             hate_level = 0
         end
         local u = hate_level*20
-        self.hate_icon:SetTexCoord(u/256.0, (u+19)/256.0, 38/256.0, 57/256.0)
+        WoWXIV.SetUITexCoord(self.hate_icon, u, u+19, 38, 57)
     end
 
     -- Despite the name, this function returns a real number from 0.0 to 1.0,
@@ -162,43 +162,37 @@ function HateList:__constructor()
     self.bg_t = bg_t
     bg_t:SetPoint("TOP", f)
     bg_t:SetSize(f:GetWidth(), 4)
-    bg_t:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    bg_t:SetTexCoord(0, 1, 0/256.0, 4/256.0)
+    WoWXIV.SetUITexture(bg_t, 0, 256, 0, 4)
     bg_t:SetVertexColor(0, 0, 0, 1)
     local bg_b = f:CreateTexture(nil, "BACKGROUND")
     self.bg_b = bg_b
     bg_b:SetPoint("BOTTOM", f)
     bg_b:SetSize(f:GetWidth(), 4)
-    bg_b:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    bg_b:SetTexCoord(0, 1, 7/256.0, 11/256.0)
+    WoWXIV.SetUITexture(bg_b, 0, 256, 7, 11)
     bg_b:SetVertexColor(0, 0, 0, 1)
     local bg_c = f:CreateTexture(nil, "BACKGROUND")
     self.bg_c = bg_c
     bg_c:SetPoint("TOPLEFT", bg_t, "BOTTOMLEFT")
     bg_c:SetPoint("BOTTOMRIGHT", bg_b, "TOPRIGHT")
-    bg_c:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    bg_c:SetTexCoord(0, 1, 4/256.0, 7/256.0)
+    WoWXIV.SetUITexture(bg_c, 0, 256, 4, 7)
     bg_c:SetVertexColor(0, 0, 0, 1)
 
     local highlight_t = f:CreateTexture(nil, "BACKGROUND", nil, 1)
     self.highlight_t = highlight_t
     highlight_t:SetSize(f:GetWidth(), 4)
-    highlight_t:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    highlight_t:SetTexCoord(0, 1, 0/256.0, 4/256.0)
+    WoWXIV.SetUITexture(highlight_t, 0, 256, 0, 4)
     highlight_t:SetVertexColor(1, 1, 1, 0.5)
     local highlight_c = f:CreateTexture(nil, "BACKGROUND", nil, 1)
     self.highlight_c = highlight_c
     highlight_c:SetPoint("TOP", highlight_t, "BOTTOM")
     highlight_c:SetSize(f:GetWidth(), 27-6)
-    highlight_c:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    highlight_c:SetTexCoord(0, 1, 4/256.0, 7/256.0)
+    WoWXIV.SetUITexture(highlight_c, 0, 256, 4, 7)
     highlight_c:SetVertexColor(1, 1, 1, 0.5)
     local highlight_b = f:CreateTexture(nil, "BACKGROUND", nil, 1)
     self.highlight_b = highlight_b
     highlight_b:SetPoint("TOP", highlight_c, "BOTTOM")
     highlight_b:SetSize(f:GetWidth(), 4)
-    highlight_b:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    highlight_b:SetTexCoord(0, 1, 7/256.0, 11/256.0)
+    WoWXIV.SetUITexture(highlight_b, 0, 256, 7, 11)
     highlight_b:SetVertexColor(1, 1, 1, 0.5)
     highlight_t:Hide()
     highlight_c:Hide()

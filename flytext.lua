@@ -215,13 +215,12 @@ function FlyText:__constructor(type, ...)
         icon:SetSize(24, 24)
         local border = w.border
         border:SetSize(22, 26)
-        border:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
         if type == FLYTEXT_BUFF_ADD then
-            icon:SetMask("Interface\\Addons\\WowXIV\\textures\\buff-mask.png")
-            border:SetTexCoord(99/256.0, 121/256.0, 14/256.0, 40/256.0)
+            icon:SetMask("Interface/Addons/WowXIV/textures/buff-mask.png")
+            WoWXIV.SetUITexture(border, 99, 121, 14, 40)
         else
-            icon:SetMask("Interface\\Addons\\WowXIV\\textures\\buff-mask.png")
-            border:SetTexCoord(99/256.0, 121/256.0, 40/256.0, 14/256.0)
+            icon:SetMask("Interface/Addons/WowXIV/textures/buff-mask.png")
+            WoWXIV.SetUITexture(border, 99, 121, 40, 14)
         end
         icon:SetTexture(spell_icon)
         if self.amount and self.amount > 0 then

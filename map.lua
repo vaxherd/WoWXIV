@@ -24,8 +24,7 @@ function CoordinatesFrame:__constructor(parent, coord_source)
     local bg = f:CreateTexture(nil, "BACKGROUND")
     self.bg = bg
     bg:SetAllPoints(f)
-    bg:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
-    bg:SetTexCoord(0, 1, 0/256.0, 11/256.0)
+    WoWXIV.SetUITexture(bg, 0, 256, 0, 11)
     bg:SetVertexColor(0, 0, 0, 0.75)
 
     local label_x = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
