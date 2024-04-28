@@ -131,8 +131,8 @@ function Enemy:Update(new_name)
         else
             hate_level = 0
         end
-        local u = hate_level*20
-        WoWXIV.SetUITexCoord(self.hate_icon, u, u+19, 38, 57)
+        local v = 16 + hate_level*30
+        WoWXIV.SetUITexCoord(self.hate_icon, 128, 157, v, v+29)
     end
 
     -- Despite the name, this function returns a real number from 0.0 to 1.0,
