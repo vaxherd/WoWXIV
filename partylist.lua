@@ -52,14 +52,19 @@ function ClassIcon:__constructor(parent)
     f:HookScript("OnEnter", function() self:OnEnter() end)
     f:HookScript("OnLeave", function() self:OnLeave() end)
 
-    self.bg = f:CreateTexture(nil, "BORDER")
-    self.bg:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-    self.bg:SetSize(31, 31)
-    self.bg:SetTexture("Interface\\Addons\\WowXIV\\textures\\ui.png")
+    self.ring = f:CreateTexture(nil, "OVERLAY")
+    self.ring:SetPoint("TOPLEFT", -4, 4)
+    self.ring:SetSize(40, 40)
+    self.ring:SetTexture("Interface/MINIMAP/minimap-trackingborder")
+    self.ring:SetTexCoord(0, 40/64.0, 0, 38/64.0)
 
     self.icon = f:CreateTexture(nil, "ARTWORK")
-    self.icon:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -4)
-    self.icon:SetSize(22, 22)
+    self.icon:SetPoint("TOPLEFT", 1.5, -2)
+    self.icon:SetSize(29, 29)
+    -- The name makes it look like this is a temporary or placeholder file,
+    -- but this is the actual mask texture used in the generic "ringed
+    -- button" template (RingedFrameWithTooltipTemplate).
+    self.icon:SetMask("Interface/CHARACTERFRAME/TempPortraitAlphaMask")
 end
 
 function ClassIcon:OnEnter()
@@ -108,6 +113,7 @@ function ClassIcon:Set(unit)
         class_name, class, class_id = UnitClass(unit)
         local spec_index
         if class_id and unit == "player" then
+            -- FIXME: is there no way to get other players' specs?
             spec_index = GetSpecialization()
         end
         local spec_id, spec_icon
@@ -121,30 +127,18 @@ function ClassIcon:Set(unit)
         if role == "TANK" then
             role_id = ROLE_TANK
             role_name = " (Tank)"
-            self.bg:Show()
-            self.bg:SetTexCoord(128/256.0, 159/256.0, 16/256.0, 47/256.0)
-            self.icon:SetVertexColor(1, 1, 1, 0.4)
         elseif role == "HEALER" then
             role_id = ROLE_HEALER
             role_name = " (Healer)"
-            self.bg:Show()
-            self.bg:SetTexCoord(160/256.0, 191/256.0, 16/256.0, 47/256.0)
-            self.icon:SetVertexColor(1, 1, 1, 0.4)
         elseif role == "DAMAGER" then
             role_id = ROLE_DPS
             role_name = " (DPS)"
-            self.bg:Show()
-            self.bg:SetTexCoord(192/256.0, 223/256.0, 16/256.0, 47/256.0)
-            self.icon:SetVertexColor(1, 1, 1, 0.4)
         else
             role_id = nil
             role_name = ""
-            self.bg:Hide()
-            self.icon:SetVertexColor(1, 1, 1, 1)
         end
         if spec_id then
             self.icon:SetTexture(spec_icon)
-            self.icon:SetTexCoord(0, 1, 0, 1)
         else
             local atlas = class and GetClassAtlas(class) or nil
             if atlas then
@@ -223,7 +217,7 @@ function Member:__constructor(parent, unit)
 
     if self.unit ~= "vehicle" then
         self.class_icon = ClassIcon(f)
-        self.class_icon:SetAnchor("TOPLEFT", 0, -4, "BOTTOMRIGHT")
+        self.class_icon:SetAnchor("TOPLEFT", 0, -3, "BOTTOMRIGHT")
     end
 
     local name = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
