@@ -80,6 +80,7 @@ local ITEM_TARGET = {
     [182457] = "none",    -- Mirror Fragment (61967: Remedial Lessons)
     [182600] = "none",    -- Gormling in a Bag (62051: Gormling Toss: Spirit Glen)
     [182611] = "player",  -- Fae Flute (62068: Gormling Piper: Crumbled Ridge)
+    [183725] = "none",    -- Moth Net (62459: Go Beyond!)
     [184876] = "none",    -- Cohesion Crystal [63455: Dead On Their Feet]
     [186089] = "target",  -- Niya's Staff (63840: They Grow Up So Quickly)
     [189384] = "target",  -- Ornithological Medical Kit (66071: Flying Rocs)
