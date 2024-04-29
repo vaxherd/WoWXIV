@@ -276,7 +276,7 @@ function Aura:InternalUpdate(unit, data)
             WoWXIV.SetUITexCoord(border, 99, 121, 14, 40)
             icon:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -3)
             border:SetPoint("TOPLEFT", f, "TOPLEFT", 1, -2)
-            dispel:SetPoint("TOPLEFT", f, "TOPLEFT", -2, -25)
+            dispel:SetPoint("TOPLEFT", f, "TOPLEFT", -2, -22)
             stack_label:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -1)
         else
             icon:SetMask("Interface/Addons/WowXIV/textures/debuff-mask.png")
