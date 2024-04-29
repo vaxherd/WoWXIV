@@ -196,7 +196,7 @@ function(arg)
     print(arg)
 end)
 
----------------- /isearch (/is)
+---------------- /itemsearch (/isearch, /is)
 
 -- WoW provides the C_Container.GetBagName() API to get the bag item name
 -- for a bag slot, but (1) that doesn't let us differentiate between
@@ -297,7 +297,7 @@ function isearch_event_frame:USE_COMBINED_BAGS_CHANGED(enabled)
     isearch_combined_bags = enabled
 end
 
-DefineCommand("isearch", {"is"}, Green("ItemName"),
+DefineCommand("itemsearch", {"isearch", "is"}, Green("ItemName"),
         {"Searches your inventory and equipment for an item.",
          "The bank UI must be open to search bank bags other than the bank reagent bag.",
          "Similarly, the void storage UI must be open to search void storage.",
@@ -305,13 +305,13 @@ DefineCommand("isearch", {"is"}, Green("ItemName"),
          "When using a combined backpack, slots count from the bottom right: slot 10 is the bottom left corner, 31 is the right side of the 4th row from the bottom, and so on.",
          "",
          "Examples:",
-         "    "..Yellow("/isearch Heart of Azeroth"),
+         "    "..Yellow("/itemsearch Heart of Azeroth"),
          "     → Shows where your Heart of Azeroth is stored or equipped.",
-         "    "..Yellow("/isearch wildercloth"),
+         "    "..Yellow("/itemsearch wildercloth"),
          "     → Finds all items with \"Wildercloth\" in the name, excluding any Wildercloth Bags equipped as inventory or bank bags."},
 function(arg)
     if not arg or arg == "" then
-        print(Red("No item name given. Try \"/? isearch\" for help."))
+        print(Red("No item name given. Try \"/? itemsearch\" for help."))
         return
     end
 
