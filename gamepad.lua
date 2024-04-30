@@ -105,6 +105,7 @@ local ITEM_TARGET = {
     [204365] = "player",  -- Bundle of Ebon Spears (74991: We Have Returned)
     [204698] = "none",    -- Cataloging Camera (73044: Cataloging Horror)
     [205980] = "target",  -- Snail Lasso (72878: Slime Time Live)
+    [208841] = "none",    -- True Sight (76550: True Sight)
     [210227] = "target",  -- Q'onzu's Faerie Feather (76992: Fickle Judgment)
     [211302] = "target",  -- Slumberfruit (76993: Turtle Power)
 }
@@ -149,6 +150,10 @@ function QuestItemButton:__constructor()
     self.icon = icon
     icon:SetPoint("CENTER", 0, -1.5)
     icon:SetSize(42, 42)
+    local cooldown = CreateFrame("Cooldown", "WoWXIV_QuestItemButtonCooldown",
+                                 f, "CooldownFrameTemplate")
+    self.cooldown = cooldown
+    cooldown:SetAllPoints(icon)
 
     f:SetAttribute("type", "item")
     f:SetAttribute("item", nil)
@@ -159,6 +164,7 @@ function QuestItemButton:__constructor()
 
     f:RegisterUnitEvent("UNIT_QUEST_LOG_CHANGED", "player")
     f:RegisterEvent("BAG_UPDATE")  -- for QUEST_ITEM quests
+    f:RegisterEvent("BAG_UPDATE_COOLDOWN")
     f:SetScript("OnEvent", function() self:UpdateQuestItem() end)
     f:SetScript("OnEnter", function() self:OnEnter() end)
     f:SetScript("OnLeave", function() self:OnLeave() end)
@@ -254,6 +260,8 @@ function QuestItemButton:UpdateQuestItem(event, is_retry)
             self.frame.fadeout:Stop()
             self.frame.fadein:Play()
         end
+        local start, duration = C_Item.GetItemCooldown(item)
+        self.cooldown:SetCooldown(start, duration)
     else
         self.frame:SetAttribute("item", nil)
         if self.frame:GetAlpha() > 0 and (self.frame.fadein:IsPlaying() or not self.frame.fadeout:IsPlaying()) then
