@@ -326,8 +326,20 @@ function HateList:OnAttack(event)
     elseif dest == player_guid or dest == vehicle_guid then
         -- Don't add charmed (etc) party members into list.
         if band(event.source_flags, UnitFlags.AFFILIATION_OUTSIDER) ~= 0 then
-            if not self.guids[source] then
-                self:AddEnemy(source, event.source_name)
+            -- Avoid adding dead enemies into the list.  This is annoyingly
+            -- complicated because UnitIsDead() only accepts tokens, not
+            -- GUIDs, and dead enemies generally don't have tokens.
+            local allow
+            local token = UnitTokenFromGUID(source)
+            if token then
+                allow = not UnitIsDead(token)
+            else
+                allow = event.subtype ~= "PERIODIC_DAMAGE"
+            end
+            if allow then
+                if not self.guids[source] then
+                    self:AddEnemy(source, event.source_name)
+                end
             end
          end
     end
