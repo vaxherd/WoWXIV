@@ -107,6 +107,7 @@ local ITEM_TARGET = {
     [183725] = "none",    -- Moth Net (62459: Go Beyond!)
     [184876] = "none",    -- Cohesion Crystal [63455: Dead On Their Feet]
     [186089] = "target",  -- Niya's Staff (63840: They Grow Up So Quickly)
+    [186199] = "target",  -- Lady Moonberry's Wand (63971: Snail Stomping)
     [189384] = "target",  -- Ornithological Medical Kit (66071: Flying Rocs)
     [189454] = "target",  -- Feather-Plucker 3300 (65374: It's Plucking Time)
     [190188] = "player",  -- The Chirpsnide Auto-Excre-Collector (65490: Explosive Excrement)
@@ -372,6 +373,7 @@ function MenuCursor:__constructor()
     f:RegisterEvent("QUEST_COMPLETE")
     f:RegisterEvent("QUEST_DETAIL")
     f:RegisterEvent("QUEST_FINISHED")
+    f:RegisterEvent("QUEST_GREETING")
     f:RegisterEvent("QUEST_PROGRESS")
     f:SetAttribute("type1", "click")
     f:SetAttribute("clickbutton", nil)
@@ -503,6 +505,31 @@ function MenuCursor:OnEvent(event, ...)
         self.focus = nil
         self:UpdateCursor()
 
+    elseif event == "QUEST_GREETING" then
+        assert(QuestFrame:IsVisible())
+        self.focus = QuestFrame
+        self.cancel_func = function()
+            CloseQuest()
+            self.focus = nil
+        end
+        local goodbye = QuestFrameGreetingGoodbyeButton
+        self.targets = {[goodbye] = {can_activate = true}}
+        local first_button, last_button = nil, nil
+        for button in QuestFrameGreetingPanel.titleButtonPool:EnumerateActive() do
+            self.targets[button] = {can_activate = true}
+            local y = button:GetTop()
+            if not first_button then
+                first_button = button
+                last_button = button
+            else
+                if y > first_button:GetTop() then first_button = button end
+                if y < last_button:GetTop() then last_button = button end
+            end
+        end
+        self.targets[first_button or goodbye].is_default = true
+        self.cur_target = nil
+        self:UpdateCursor()
+
     elseif event == "QUEST_PROGRESS" then
         assert(QuestFrame:IsVisible())
         self.focus = QuestFrame
@@ -581,7 +608,9 @@ function MenuCursor:UpdateCursor(in_combat)
             end
         end
     else
-        f:Hide()
+        if f:IsShown() then  -- avoid unnecessary taint warnings
+            f:Hide()
+        end
         f:SetScript("OnUpdate", nil)
         ClearOverrideBindings(f)
         if cur_target and self.targets[cur_target].set_tooltip then
