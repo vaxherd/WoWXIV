@@ -494,7 +494,9 @@ end
 function FlyTextManager:OnLootItem(event, msg)
     -- Filter out loot from other party members.
     -- FIXME: locale-dependent, is there a better way?
-    if strsub(msg, 1, 11) ~= "You receive" then return end
+    if strsub(msg, 1, 11) ~= "You receive" and strsub(msg, 1, 10) ~= "You create" then
+        return
+    end
 
     local type, id, color, count, name = ParseLootMsg(msg)
     if type ~= "item" then return end
