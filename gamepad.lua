@@ -439,14 +439,7 @@ function MenuCursor:OnEvent(event, ...)
                 end
             end
         end
-        if first_button then
-            self.targets[first_button].is_default = true
-            -- FIXME: we wouldn't need this if Move() checked the shortest
-            -- distance to any point on the frame instead of just the left edge
-            self.targets[goodbye].up = last_button
-        else
-            self.targets[goodbye].is_default = true
-        end
+        self.targets[first_button or goodbye].is_default = true
         self.cur_target = nil
         self:UpdateCursor()
 
@@ -626,41 +619,7 @@ function MenuCursor:Move(dx, dy, dir)
         -- and "key not in table".
         new_target = params[dir]
     else
-        local cur_x = cur_target:GetLeft()
-        local cur_y = cur_target:GetTop()
-        -- We attempt to choose the "best" movement target by selecting the
-        -- target that (1) has the minimum angle from the movement direction
-        -- and (2) within all targets matching (1), has the minimum parallel
-        -- distance from the current cursor position.  Targets not in the
-        -- movement direction (i.e., more than 90 degrees from the movement
-        -- vector) are excluded.
-        local best = nil
-        for frame, params in pairs(self.targets) do
-            if ((dx < 0 and frame:GetLeft() < cur_x)
-             or (dx > 0 and frame:GetLeft() > cur_x)
-             or (dy > 0 and frame:GetTop() > cur_y)
-             or (dy < 0 and frame:GetTop() < cur_y))
-            then
-                local frame_dx = math.abs(frame:GetLeft() - cur_x)
-                local frame_dy = math.abs(frame:GetTop() - cur_y)
-                local best_dx = best and math.abs(best:GetLeft() - cur_x)
-                local best_dy = best and math.abs(best:GetTop() - cur_y)
-                local frame_dpar = dx~=0 and frame_dx or frame_dy  -- parallel
-                local frame_dperp = dx~=0 and frame_dy or frame_dx -- perpendicular
-                local best_dpar = dx~=0 and best_dx or best_dy
-                local best_dperp = dx~=0 and best_dy or best_dx
-                if not best then
-                    best_dpar, best_dperp = 1, 1e10  -- almost but not quite 90deg
-                end
-                if (frame_dperp / frame_dpar < best_dperp / best_dpar
-                    or (frame_dperp / frame_dpar == best_dperp / best_dpar
-                        and frame_dpar < best_dpar))
-                then
-                    best = frame
-                end
-            end
-        end
-        new_target = best
+        new_target = self:NextTarget(dx, dy)
     end
     if new_target then
         if cur_target and self.targets[cur_target].set_tooltip then
@@ -671,6 +630,78 @@ function MenuCursor:Move(dx, dy, dir)
         self.cur_target = new_target
         self:UpdateCursor()
     end
+end
+
+function MenuCursor:NextTarget(dx, dy)
+    local cur_x0, cur_y0, cur_w, cur_h = self.cur_target:GetRect()
+    local cur_x1 = cur_x0 + cur_w
+    local cur_y1 = cur_y0 + cur_h
+    local cur_cx = (cur_x0 + cur_x1) / 2
+    local cur_cy = (cur_y0 + cur_y1) / 2
+    -- We attempt to choose the "best" movement target by selecting the
+    -- target that (1) has the minimum angle from the movement direction
+    -- and (2) within all targets matching (1), has the minimum parallel
+    -- distance from the current cursor position.  Targets not in the
+    -- movement direction (i.e., more than 90 degrees from the movement
+    -- vector) are excluded.  When calculating the angle and distance,
+    -- we use the shortest distance between the edges of the two frames;
+    -- if the frames overlap, we instead use the distance between the
+    -- center of each frame
+    local best, best_dx, best_dy = nil, nil, nil
+    for frame, params in pairs(self.targets) do
+        local f_x0, f_y0, f_w, f_h = frame: GetRect()
+        local f_x1 = f_x0 + f_w
+        local f_y1 = f_y0 + f_h
+        local frame_dx, frame_dy
+        local overlap = true
+        if f_x1 < cur_x0 then
+            overlap = false
+            frame_dx = f_x1 - cur_x0
+        elseif f_x0 > cur_x1 then
+            overlap = false
+            frame_dx = f_x0 - cur_x1
+        else
+            frame_dx = 0
+        end
+        if f_y1 < cur_y0 then
+            overlap = false
+            frame_dy = f_y1 - cur_y0
+        elseif f_y0 > cur_y1 then
+            overlap = false
+            frame_dy = f_y0 - cur_y1
+        elseif not overlap then  -- i.e., disjoint on the X axis
+            frame_dy = 0
+        else  -- frames overlap
+            local f_cx = (f_x0 + f_x1) / 2
+            local f_cy = (f_y0 + f_y1) / 2
+            frame_dx = f_cx - cur_cx
+            frame_dy = f_cy - cur_cy
+        end
+        if ((dx < 0 and frame_dx < 0)
+         or (dx > 0 and frame_dx > 0)
+         or (dy > 0 and frame_dy > 0)
+         or (dy < 0 and frame_dy < 0))
+        then
+            frame_dx = math.abs(frame_dx)
+            frame_dy = math.abs(frame_dy)
+            local frame_dpar = dx~=0 and frame_dx or frame_dy  -- parallel
+            local frame_dperp = dx~=0 and frame_dy or frame_dx -- perpendicular
+            local best_dpar = dx~=0 and best_dx or best_dy
+            local best_dperp = dx~=0 and best_dy or best_dx
+            if not best then
+                best_dpar, best_dperp = 1, 1e10  -- almost but not quite 90deg
+            end
+            if (frame_dperp / frame_dpar < best_dperp / best_dpar
+                or (frame_dperp / frame_dpar == best_dperp / best_dpar
+                    and frame_dpar < best_dpar))
+            then
+                best = frame
+                best_dx = frame_dx
+                best_dy = frame_dy
+            end
+        end
+    end
+    return best
 end
 
 function MenuCursor:OnUpdate()
