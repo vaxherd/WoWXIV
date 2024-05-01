@@ -15,6 +15,15 @@ WoWXIV_config = WoWXIV_config or {}
 -- WoWXIV_config after module load is inserted by the init routine.
 local CONFIG_DEFAULT = {
 
+    -- Gamepad binding: use quest item
+    gamepad_use_quest_item = "CTRL-PADLSTICK",
+    -- Gamepad binding: leave vehicle
+    gamepad_leave_vehicle = "ALT-PADRSTICK",
+    -- Gamepad binding: toggle first-person camera
+    gamepad_toggle_fpv = "PADRSTICK",
+    -- Gamepad binding: zoom modifier for right stick
+    gamepad_zoom_modifier = "ALT",
+
     -- Buff bars: show distance for dragon glyph?
     buffbar_dragon_glyph_distance = true,
 
@@ -383,6 +392,12 @@ function ConfigPanel:__constructor()
     self:AddBindingCvar("Confirm ground target", "GamePadCursorLeftClick")
     self:AddBindingLocal("Use quest item", "gamepad_use_quest_item")
     self:AddBindingLocal("Leave vehicle", "gamepad_leave_vehicle")
+    self:AddBindingLocal("Toggle first-person view", "gamepad_toggle_fpv")
+    self:AddRadioGroup("Zoom modifier (with right stick up/down):",
+                       "gamepad_zoom_modifier", WoWXIV.PartyList.Refresh,
+                       "Shift", "SHIFT",
+                       "Ctrl", "CTRL",
+                       "Alt", "ALT")
     self.y = self.y - 10
 
     self:AddHeader("Buff/debuff bar settings")
