@@ -15,6 +15,10 @@ WoWXIV_config = WoWXIV_config or {}
 -- WoWXIV_config after module load is inserted by the init routine.
 local CONFIG_DEFAULT = {
 
+    -- Gamepad binding: menu cursor confirm
+    gamepad_menu_confirm = "PAD2",
+    -- Gamepad binding: menu cursor cancel
+    gamepad_menu_cancel = "PAD1",
     -- Gamepad binding: use quest item
     gamepad_use_quest_item = "CTRL-PADLSTICK",
     -- Gamepad binding: leave vehicle
@@ -390,6 +394,8 @@ function ConfigPanel:__constructor()
     self:AddBindingCvar("Modifier button 2 (Ctrl)", "GamePadEmulateCtrl")
     self:AddBindingCvar("Modifier button 3 (Alt)", "GamePadEmulateAlt")
     self:AddBindingCvar("Confirm ground target", "GamePadCursorLeftClick")
+    self:AddBindingLocal("Confirm menu selection", "gamepad_menu_confirm")
+    self:AddBindingLocal("Cancel menu selection", "gamepad_menu_cancel")
     self:AddBindingLocal("Use quest item", "gamepad_use_quest_item")
     self:AddBindingLocal("Leave vehicle", "gamepad_leave_vehicle")
     self:AddBindingLocal("Toggle first-person view", "gamepad_toggle_fpv")

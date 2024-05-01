@@ -124,6 +124,7 @@ local ITEM_TARGET = {
     [202642] = "target",  -- Proto-Killing Spear (73194: Up Close and Personal)
     [202714] = "target",  -- M.U.S.T (73221: A Clear State of Mind)
     [203013] = "player",  -- Niffen Incense (73408: Sniffen 'em Out!)
+    [203182] = "none",    -- Fish Food (72651: Carp Care)
     [203706] = "target",  -- Hurricane Scepter (74352: Whirling Zephyr)
     [203731] = "target",  -- Enchanted Bandage (74570: Aid Our Wounded)
     [204344] = "player",  -- Conductive Lodestone (74988: If You Can't Take the Heat)
@@ -336,6 +337,352 @@ end
 
 ------------------------------------------------------------------------
 
+local MenuCursor = class()
+
+function MenuCursor:__constructor()
+    -- Is the player currently using gamepad input?  (Mirrors the
+    -- GAME_PAD_ACTIVE_CHANGED event.)
+    self.gamepad_active = false
+    -- Frame which currently has the cursor's input focus, nil if none.
+    self.focus = nil
+
+    -- The following are only used when self.focus is not nil:
+
+    -- List of subframes which are valid targets for cursor movement.
+    self.targets = nil
+    -- Subframe which the cursor is currently targeting.
+    self.cur_target = nil
+    -- Function to call when the cancel button is presed.
+    self.cancel_func = nil
+
+    -- This is a SecureActionButtonTemplate only so that we can
+    -- indirectly click the button pointed to by the cursor.
+    local f = CreateFrame("Button", "WoWXIV_MenuCursor", UIParent,
+                          "SecureActionButtonTemplate")
+    self.frame = f
+    f:Hide()
+    f:SetFrameStrata("TOOLTIP")  -- Make sure it stays on top.
+    f:SetSize(32, 32)
+    f:SetScript("OnEvent", function(_,...) self:OnEvent(...) end)
+    f:RegisterEvent("GAME_PAD_ACTIVE_CHANGED")
+    f:RegisterEvent("PLAYER_REGEN_DISABLED")
+    f:RegisterEvent("PLAYER_REGEN_ENABLED")
+    f:RegisterEvent("GOSSIP_CLOSED")
+    f:RegisterEvent("GOSSIP_SHOW")
+    f:RegisterEvent("QUEST_COMPLETE")
+    f:RegisterEvent("QUEST_DETAIL")
+    f:RegisterEvent("QUEST_FINISHED")
+    f:RegisterEvent("QUEST_PROGRESS")
+    f:SetAttribute("type1", "click")
+    f:SetAttribute("clickbutton", nil)
+    f:HookScript("OnClick", function(_,...) self:OnClick(...) end)
+    f:RegisterForClicks("AnyDown")
+
+    local texture = f:CreateTexture(nil, "ARTWORK")
+    self.texture = texture
+    texture:SetAllPoints()
+    texture:SetTexture("Interface/CURSOR/Point")  -- Default mouse cursor image
+    -- Flip it horizontally to distinguish it from the mouse cursor.
+    texture:SetTexCoord(1, 0, 0, 1)
+end
+
+function MenuCursor:OnEvent(event, ...)
+    if event == "GAME_PAD_ACTIVE_CHANGED" then
+        local active = ...
+        self.gamepad_active = active
+        self:UpdateCursor()
+
+    elseif event == "PLAYER_REGEN_DISABLED" then
+        self:UpdateCursor(true)
+
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        self:UpdateCursor(false)
+
+    elseif event == "GOSSIP_CLOSED" then
+        assert(self.focus == nil or self.focus == GossipFrame)
+        self.focus = nil
+        self:UpdateCursor()
+
+    elseif event == "GOSSIP_SHOW" then
+        if not GossipFrame:IsVisible() then
+            return  -- Flight map, etc.
+        end
+        self.focus = GossipFrame
+        self.cancel_func = function()
+            HideUIPanel(GossipFrame)
+            self.focus = nil
+        end
+        local goodbye = GossipFrame.GreetingPanel.GoodbyeButton
+        self.targets = {[goodbye] = {can_activate = true}}
+        -- FIXME: This logic to find the quest / dialogue option buttons is
+        -- a bit kludgey and certainly won't work if the list is scrolled
+        -- to the point where some elements move offscreen.  Is there any
+        -- better way to get the positions of individual scroll list elements?
+        local subframes = {GossipFrame.GreetingPanel.ScrollBox.ScrollTarget:GetChildren()}
+        local first_button, last_button = nil, nil
+        for index, f in ipairs(subframes) do
+            if f.GetElementData then
+                local data = f:GetElementData()
+                if (data.availableQuestButton or
+                    data.activeQuestButton or
+                    data.titleOptionButton)
+                then
+                    self.targets[f] = {can_activate = true}
+                    local y = f:GetTop()
+                    if not first_button then
+                        first_button = f
+                        last_button = f
+                    else
+                        if y > first_button:GetTop() then first_button = f end
+                        if y < last_button:GetTop() then last_button = f end
+                    end
+                end
+            end
+        end
+        if first_button then
+            self.targets[first_button].is_default = true
+            -- FIXME: we wouldn't need this if Move() checked the shortest
+            -- distance to any point on the frame instead of just the left edge
+            self.targets[goodbye].up = last_button
+        else
+            self.targets[goodbye].is_default = true
+        end
+        self.cur_target = nil
+        self:UpdateCursor()
+
+    elseif event == "QUEST_COMPLETE" then
+        assert(QuestFrame:IsVisible())
+        self.focus = QuestFrame
+        self.cancel_func = function()
+            CloseQuest()
+            self.focus = nil
+        end
+        self.targets = {
+            -- We explicitly suppress right movement to avoid the cursor
+            -- jumping up to the rewards line (which is still available
+            -- with "up" movement).
+            [QuestFrameCompleteQuestButton] =
+                {is_default = true, can_activate = true, right = false}
+        }
+        for i = 1, 99 do
+            local name = "QuestInfoRewardsFrameQuestInfoItem" .. i
+            local reward_frame = _G[name]
+            if not reward_frame or not reward_frame:IsShown() then break end
+            self.targets[reward_frame] = {
+                can_activate = GetNumQuestChoices() > 1,
+                set_tooltip = function()
+                    QuestInfoRewardItemCodeTemplate_OnEnter(reward_frame)
+                end}
+        end
+        self.cur_target = nil
+        self:UpdateCursor()
+
+    elseif event == "QUEST_DETAIL" then
+        if not QuestFrame:IsVisible() then
+            -- FIXME: some map-based quests (e.g. Blue Dragonflight campaign)
+            -- start a quest directly from the map; we should support those too
+            return
+        end
+        self.focus = QuestFrame
+        self.cancel_func = function()
+            CloseQuest()
+            self.focus = nil
+        end
+        self.targets = {
+            [QuestFrameAcceptButton] = {can_activate = true,
+                                        is_default = true},
+            [QuestFrameDeclineButton] = {can_activate = true},
+        }
+        for i = 1, 99 do
+            local name = "QuestInfoRewardsFrameQuestInfoItem" .. i
+            local reward_frame = _G[name]
+            if not reward_frame or not reward_frame:IsShown() then break end
+            self.targets[reward_frame] = {
+                set_tooltip = function()
+                    QuestInfoRewardItemCodeTemplate_OnEnter(reward_frame)
+                end}
+        end
+        self.cur_target = nil
+        self:UpdateCursor()
+
+    elseif event == "QUEST_FINISHED" then
+        assert(self.focus == nil or self.focus == QuestFrame)
+        self.focus = nil
+        self:UpdateCursor()
+
+    elseif event == "QUEST_PROGRESS" then
+        assert(QuestFrame:IsVisible())
+        self.focus = QuestFrame
+        self.cancel_func = function()
+            CloseQuest()
+            self.focus = nil
+        end
+        local can_complete = QuestFrameCompleteButton:IsEnabled()
+        self.targets = {
+            [QuestFrameCompleteButton] = {can_activate = true,
+                                          is_default = can_complete},
+            [QuestFrameGoodbyeButton] = {can_activate = true,
+                                         is_default = not can_complete},
+        }
+        self.cur_target = nil
+        self:UpdateCursor()
+    end
+end
+
+function MenuCursor:UpdateCursor(in_combat)
+    if in_combat == nil then
+        in_combat = InCombatLockdown()
+    end
+    local f = self.frame
+
+    if self.focus and not self.focus:IsVisible() then
+        self.focus = nil
+    end
+
+    local cur_target = self.cur_target
+    if self.focus and self.gamepad_active and not in_combat then
+        if not cur_target then
+            for frame, params in pairs(self.targets) do
+                if params.is_default then
+                    cur_target = frame
+                    break
+                end
+            end
+            if not cur_target then
+                error("MenuCursor: no default target")
+                cur_target = next(self.targets)
+            end
+            self.cur_target = cur_target
+        end
+        f:ClearAllPoints()
+        -- Work around frame reference limitations on secure buttons
+        --f:SetPoint("TOPRIGHT", cur_target, "LEFT")
+        local x = cur_target:GetLeft()
+        local _, y = cur_target:GetCenter()
+        f:SetPoint("TOPRIGHT", UIParent, "TOPLEFT", x, y-UIParent:GetHeight())
+        if not f:IsShown() then
+            f:Show()
+            f:SetScript("OnUpdate", function() self:OnUpdate() end)
+            self:OnUpdate()
+            SetOverrideBinding(f, true, "PADDUP",
+                               "CLICK WoWXIV_MenuCursor:DPadUp")
+            SetOverrideBinding(f, true, "PADDDOWN",
+                               "CLICK WoWXIV_MenuCursor:DPadDown")
+            SetOverrideBinding(f, true, "PADDLEFT",
+                               "CLICK WoWXIV_MenuCursor:DPadLeft")
+            SetOverrideBinding(f, true, "PADDRIGHT",
+                               "CLICK WoWXIV_MenuCursor:DPadRight")
+            SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_confirm"],
+                               "CLICK WoWXIV_MenuCursor:LeftButton")
+            SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
+                               "CLICK WoWXIV_MenuCursor:Cancel")
+        end
+        if self.targets[cur_target].can_activate then
+            f:SetAttribute("clickbutton", cur_target)
+        else
+            f:SetAttribute("clickbutton", nil)
+        end
+        if self.targets[cur_target].set_tooltip then
+            if not GameTooltip:IsForbidden() then
+                self.targets[cur_target].set_tooltip()
+            end
+        end
+    else
+        f:Hide()
+        f:SetScript("OnUpdate", nil)
+        ClearOverrideBindings(f)
+        if cur_target and self.targets[cur_target].set_tooltip then
+            if not GameTooltip:IsForbidden() then
+                GameTooltip:Hide()
+            end
+        end
+    end
+end
+
+function MenuCursor:OnClick(button, down)
+    if button == "DPadUp" then
+        self:Move(0, 1, "up")
+    elseif button == "DPadDown" then
+        self:Move(0, -1, "down")
+    elseif button == "DPadLeft" then
+        self:Move(-1, 0, "left")
+    elseif button == "DPadRight" then
+        self:Move(1, 0, "right")
+    elseif button == "LeftButton" then  -- i.e., confirm
+        -- Handled by SecureActionButtonTemplate
+    elseif button == "Cancel" then
+        self:cancel_func()
+        self:UpdateCursor()
+    end
+end
+
+function MenuCursor:Move(dx, dy, dir)
+    local cur_target = self.cur_target
+    local params = self.targets[cur_target]
+    if params[dir] ~= nil then
+        -- A value of false indicates "suppress movement in this
+        -- direction".  We have to use false and not nil because
+        -- Lua can't distinguish between "key in table with nil value"
+        -- and "key not in table".
+        new_target = params[dir]
+    else
+        local cur_x = cur_target:GetLeft()
+        local cur_y = cur_target:GetTop()
+        -- We attempt to choose the "best" movement target by selecting the
+        -- target that (1) has the minimum angle from the movement direction
+        -- and (2) within all targets matching (1), has the minimum parallel
+        -- distance from the current cursor position.  Targets not in the
+        -- movement direction (i.e., more than 90 degrees from the movement
+        -- vector) are excluded.
+        local best = nil
+        for frame, params in pairs(self.targets) do
+            if ((dx < 0 and frame:GetLeft() < cur_x)
+             or (dx > 0 and frame:GetLeft() > cur_x)
+             or (dy > 0 and frame:GetTop() > cur_y)
+             or (dy < 0 and frame:GetTop() < cur_y))
+            then
+                local frame_dx = math.abs(frame:GetLeft() - cur_x)
+                local frame_dy = math.abs(frame:GetTop() - cur_y)
+                local best_dx = best and math.abs(best:GetLeft() - cur_x)
+                local best_dy = best and math.abs(best:GetTop() - cur_y)
+                local frame_dpar = dx~=0 and frame_dx or frame_dy  -- parallel
+                local frame_dperp = dx~=0 and frame_dy or frame_dx -- perpendicular
+                local best_dpar = dx~=0 and best_dx or best_dy
+                local best_dperp = dx~=0 and best_dy or best_dx
+                if not best then
+                    best_dpar, best_dperp = 1, 1e10  -- almost but not quite 90deg
+                end
+                if (frame_dperp / frame_dpar < best_dperp / best_dpar
+                    or (frame_dperp / frame_dpar == best_dperp / best_dpar
+                        and frame_dpar < best_dpar))
+                then
+                    best = frame
+                end
+            end
+        end
+        new_target = best
+    end
+    if new_target then
+        if cur_target and self.targets[cur_target].set_tooltip then
+            if not GameTooltip:IsForbidden() then
+                GameTooltip:Hide()
+            end
+        end
+        self.cur_target = new_target
+        self:UpdateCursor()
+    end
+end
+
+function MenuCursor:OnUpdate()
+    local t = GetTime()
+    t = t - math.floor(t)
+    local xofs = -4 * math.sin(t * math.pi)
+    self.texture:ClearPointsOffset()
+    self.texture:AdjustPointsOffset(xofs, 0)
+end
+
+------------------------------------------------------------------------
+
 local GamePadListener = class()
 
 function GamePadListener:__constructor()
@@ -412,6 +759,7 @@ function WoWXIV.Gamepad.Init()
     WoWXIV.Gamepad.listener = GamePadListener()
     WoWXIV.Gamepad.qib = QuestItemButton()
     WoWXIV.Gamepad.lvb = LeaveVehicleButton()
+    WoWXIV.Gamepad.cursor = MenuCursor()
 end
 
 function WoWXIV.Gamepad.UpdateBindings()
