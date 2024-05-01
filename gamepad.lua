@@ -3,16 +3,14 @@ WoWXIV.Gamepad = {}
 
 local class = WoWXIV.class
 
+local strsub = string.sub
 local GameTooltip = GameTooltip
 local GetItemCount = C_Item.GetItemCount
 local GetItemInfo = C_Item.GetItemInfo
 local IsHarmfulItem = C_Item.IsHarmfulItem
 local IsHelpfulItem = C_Item.IsHelpfulItem
 
--- This addon assumes the following console variable settings:
---    GamePadEmulateShift = PADRTRIGGER
---    GamePadEmulateCtrl = PADLTRIGGER
---    GamePadEmulateAlt = PADLSHOULDER
+------------------------------------------------------------------------
 
 -- Convenience function for checking the state of all modifiers:
 local function IsModifier(shift, ctrl, alt)
@@ -21,6 +19,32 @@ local function IsModifier(shift, ctrl, alt)
     return eqv(shift, IsShiftKeyDown()) and
            eqv(ctrl, IsControlKeyDown()) and
            eqv(alt, IsAltKeyDown())
+end
+
+-- Convenience function for translating a modifier prefix on an input
+-- specification into modifier flags:
+local function ExtractModifiers(spec)
+    local alt, ctrl, shift = 0, 0, 0
+    if strsub(spec, 1, 4) == "ALT-" then
+        alt = 1
+        spec = strsub(spec, 5, -1)
+    end
+    if strsub(spec, 1, 5) == "CTRL-" then
+        ctrl = 1
+        spec = strsub(spec, 6, -1)
+    end
+    if strsub(spec, 1, 6) == "SHIFT-" then
+        shift = 1
+        spec = strsub(spec, 7, -1)
+    end
+    return shift, ctrl, alt, spec
+end
+
+-- Convenience function for checking whether a button press combined with
+-- current modifiers matches an input specifier:
+local function MatchModifiedButton(button, spec)
+    local shift, ctrl, alt, raw_spec = ExtractModifiers(spec)
+    return IsModifier(shift, ctrl, alt) and button == raw_spec
 end
 
 ------------------------------------------------------------------------
@@ -98,6 +122,7 @@ local ITEM_TARGET = {
     [200747] = "none",    -- Zikkori's Water Siphoning Device (70994: Drainage Solutions)
     [202293] = "player",  -- Rusziona's Whistle (72459: What's a Duck?)
     [202642] = "target",  -- Proto-Killing Spear (73194: Up Close and Personal)
+    [202714] = "target",  -- M.U.S.T (73221: A Clear State of Mind)
     [203013] = "player",  -- Niffen Incense (73408: Sniffen 'em Out!)
     [203706] = "target",  -- Hurricane Scepter (74352: Whirling Zephyr)
     [203731] = "target",  -- Enchanted Bandage (74570: Aid Our Wounded)
@@ -328,8 +353,8 @@ function GamePadListener:__constructor()
 end
 
 function GamePadListener:OnGamePadButton(button)
-    -- Use R3 to toggle first-person view.
-    if button == "PADRSTICK" and IsModifier(0,0,0) then
+    -- Check for first-person view toggle.
+    if MatchModifiedButton(button, WoWXIV_config["gamepad_toggle_fpv"]) then
         if self.fpv_saved_zoom then
             -- CameraZoomOut() operates from the current zoom value, not
             -- the target value, so we need to check whether we're still
@@ -352,9 +377,11 @@ function GamePadListener:OnGamePadButton(button)
 end
 
 function GamePadListener:OnGamePadStick(stick, x, y)
-    -- Handle zooming with L1 + camera up/down.
+    -- Handle zooming with modifier + camera up/down.
     if stick == "Camera" then
-        if IsModifier(0,0,1) then  -- L1 assumed to be assigned to Alt
+        local shift, ctrl, alt =
+            ExtractModifiers(WoWXIV_config["gamepad_zoom_modifier"] .. "-")
+        if IsModifier(shift, ctrl, alt) then
             if not self.zoom_saved_pitch_speed then
                 self.zoom_saved_pitch_speed =
                     C_CVar.GetCVar("GamePadCameraPitchSpeed")
