@@ -107,6 +107,7 @@ local ITEM_TARGET = {
     [183725] = "none",    -- Moth Net (62459: Go Beyond!)
     [184876] = "none",    -- Cohesion Crystal [63455: Dead On Their Feet]
     [186089] = "target",  -- Niya's Staff (63840: They Grow Up So Quickly)
+    [186097] = "none",    -- Heirmir's Runeblade (63945: The Soul Blade)
     [186199] = "target",  -- Lady Moonberry's Wand (63971: Snail Stomping)
     [189384] = "target",  -- Ornithological Medical Kit (66071: Flying Rocs)
     [189454] = "target",  -- Feather-Plucker 3300 (65374: It's Plucking Time)
@@ -401,7 +402,8 @@ function MenuCursor:OnEvent(event, ...)
         self:UpdateCursor(false)
 
     elseif event == "GOSSIP_CLOSED" then
-        assert(self.focus == nil or self.focus == GossipFrame)
+        assert(self.focus == nil or self.focus == GossipFrame
+               or self.focus == QuestFrame)  -- e.g. Marasmius dailies
         self.focus = nil
         self:UpdateCursor()
 
@@ -661,50 +663,55 @@ function MenuCursor:Move(dx, dy, dir)
     end
 end
 
+local function round(x) return math.floor(x+0.5) end
 function MenuCursor:NextTarget(dx, dy)
     local cur_x0, cur_y0, cur_w, cur_h = self.cur_target:GetRect()
     local cur_x1 = cur_x0 + cur_w
     local cur_y1 = cur_y0 + cur_h
     local cur_cx = (cur_x0 + cur_x1) / 2
     local cur_cy = (cur_y0 + cur_y1) / 2
-    -- We attempt to choose the "best" movement target by selecting the
-    -- target that (1) has the minimum angle from the movement direction
-    -- and (2) within all targets matching (1), has the minimum parallel
-    -- distance from the current cursor position.  Targets not in the
-    -- movement direction (i.e., more than 90 degrees from the movement
-    -- vector) are excluded.  When calculating the angle and distance,
-    -- we use the shortest distance between the edges of the two frames;
-    -- if the frames overlap, we instead use the distance between the
-    -- center of each frame
+    --[[
+         We attempt to choose the "best" movement target by selecting the
+         target that (1) has the minimum angle from the movement direction
+         and (2) within all targets matching (1), has the minimum parallel
+         distance from the current cursor position.  Targets not in the
+         movement direction (i.e., at least 90 degrees from the movement
+         vector) are excluded.
+
+         When calculating the angle and distance, we use the shortest
+         distance between line segments through each frame perpendicular
+         to the direction of movement: thus, for example, when moving
+         vertically, we take the shortest distance between the horizontal
+         center line of each frame.  Note that we do not need to consider
+         overlap, since cases in which the segments overlap will be
+         treated as "not in the direction of movement".
+    ]]--
     local best, best_dx, best_dy = nil, nil, nil
     for frame, params in pairs(self.targets) do
-        local f_x0, f_y0, f_w, f_h = frame: GetRect()
+        local f_x0, f_y0, f_w, f_h = frame:GetRect()
         local f_x1 = f_x0 + f_w
         local f_y1 = f_y0 + f_h
+        local f_cx = (f_x0 + f_x1) / 2
+        local f_cy = (f_y0 + f_y1) / 2
         local frame_dx, frame_dy
-        local overlap = true
-        if f_x1 < cur_x0 then
-            overlap = false
-            frame_dx = f_x1 - cur_x0
-        elseif f_x0 > cur_x1 then
-            overlap = false
-            frame_dx = f_x0 - cur_x1
-        else
-            frame_dx = 0
-        end
-        if f_y1 < cur_y0 then
-            overlap = false
-            frame_dy = f_y1 - cur_y0
-        elseif f_y0 > cur_y1 then
-            overlap = false
-            frame_dy = f_y0 - cur_y1
-        elseif not overlap then  -- i.e., disjoint on the X axis
-            frame_dy = 0
-        else  -- frames overlap
-            local f_cx = (f_x0 + f_x1) / 2
-            local f_cy = (f_y0 + f_y1) / 2
+        if dx ~= 0 then
             frame_dx = f_cx - cur_cx
+            if f_y1 < cur_y0 then
+                frame_dy = f_y1 - cur_y0
+            elseif f_y0 > cur_y1 then
+                frame_dy = f_y0 - cur_y1
+            else
+                frame_dy = 0
+            end
+        else
             frame_dy = f_cy - cur_cy
+            if f_x1 < cur_x0 then
+                frame_dx = f_x1 - cur_x0
+            elseif f_x0 > cur_x1 then
+                frame_dx = f_x0 - cur_x1
+            else
+                frame_dx = 0
+            end
         end
         if ((dx < 0 and frame_dx < 0)
          or (dx > 0 and frame_dx > 0)
