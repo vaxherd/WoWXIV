@@ -549,6 +549,27 @@ function MenuCursor:OnEvent(event, ...)
             [QuestFrameGoodbyeButton] = {can_activate = true,
                                          is_default = not can_complete},
         }
+        for i = 1, 99 do
+            local name = "QuestProgressItem" .. i
+            local item_frame = _G[name]
+            if not item_frame or not item_frame:IsShown() then break end
+            self.targets[item_frame] = {
+                -- This logic is coded directly into the XML templates as
+                -- part (but not all) of the OnEnter handler, so we have to
+                -- reimplement it ourselves.
+                set_tooltip = function()
+                    if GameTooltip:IsForbidden() then return end
+                    if item_frame.objectType == "item" then
+                        GameTooltip:SetOwner(item_frame, "ANCHOR_RIGHT")
+                        GameTooltip:SetQuestItem(item_frame.type, item_frame:GetID())
+                        GameTooltip_ShowCompareItem(GameTooltip)
+                    elseif item_frame.objectType == "currency" then
+                        GameTooltip:SetOwner(item_frame, "ANCHOR_RIGHT")
+                        GameTooltip:SetQuestCurrency(item_frame.type, item_frame:GetID())
+                    end
+                end,
+            }
+        end
         self.cur_target = nil
         self:UpdateCursor()
     end
