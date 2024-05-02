@@ -317,6 +317,7 @@ function FlyTextManager:__constructor(parent)
     self.last_item_icon = nil
     self.last_aura_text = nil
     self.last_aura_filtered = false
+    self.last_currency = nil
 
     local f = CreateFrame("Frame", "WoWXIV_FlyTextManager", nil)
     self.frame = f
@@ -507,12 +508,36 @@ function FlyTextManager:OnLootItem(event, msg)
     end
 end
 
+-- For duplicate currency event check, see below.
+local CURRENCY_PAIRS = {
+    {2805, 2806},  -- Whelpling's Awakened Crest
+    {2807, 2808},  -- Drake's Awakened Crest
+    {2810, 2809},  -- Wyrm's Awakened Crest
+    {2811, 2812},  -- Aspect's Awakened Crest
+}
+local CURRENCY_PAIR_MAP = {}
+for _, pair in ipairs(CURRENCY_PAIRS) do
+    CURRENCY_PAIR_MAP[pair[1]] = pair[2]
+    CURRENCY_PAIR_MAP[pair[2]] = pair[1]
+end
+
 function FlyTextManager:OnCurrencyUpdate(event, id, total, change)
     -- We seem to get an empty event on startup.
     if not id then return end
     -- Only report gains of currency, since losses are usually due to
     -- explicit player action.
     if change <= 0 then return end
+
+    -- Omit duplicates which arise from receiving upgrade currency that
+    -- doesn't count against weekly limits (e.g., the Drake's Crests
+    -- awarded from completing Blue Dragonflight campaign questlines).
+    if self.last_currency then
+        local last_id, last_change = unpack(self.last_currency)
+        self.last_currency = nil
+        if id == CURRENCY_PAIR_MAP[last_id] and change == last_change then
+            return
+        end
+    end
 
     local info = C_CurrencyInfo.GetCurrencyInfo(id)
     if not info then return end  -- Sanity check.
@@ -546,6 +571,9 @@ function FlyTextManager:OnCurrencyUpdate(event, id, total, change)
     color = strsub(color, 5, 10)
     self:AddText(FlyText(FLYTEXT_LOOT_ITEM,
                          info.iconFileID, name, color, change))
+    if CURRENCY_PAIR_MAP[id] then
+        self.last_currency = {id, change}
+    end
 end
 
 function FlyTextManager:OnPlayerMoney()
