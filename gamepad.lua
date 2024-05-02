@@ -122,6 +122,7 @@ local ITEM_TARGET = {
     [198855] = "none",    -- Throw Net (70438: Flying Fish [and other fish restock dailies])
     [200153] = "target",  -- Aylaag Skinning Shear (70990: If There's Wool There's a Way)
     [200747] = "none",    -- Zikkori's Water Siphoning Device (70994: Drainage Solutions)
+    [202271] = "target",  -- Pouch of Gold Coins (72530: Anyway, I Started Bribing)
     [202293] = "player",  -- Rusziona's Whistle (72459: What's a Duck?)
     [202642] = "target",  -- Proto-Killing Spear (73194: Up Close and Personal)
     [202714] = "target",  -- M.U.S.T (73221: A Clear State of Mind)
@@ -469,7 +470,8 @@ function MenuCursor:OnEvent(event, ...)
                 can_activate = GetNumQuestChoices() > 1,
                 set_tooltip = function()
                     QuestInfoRewardItemCodeTemplate_OnEnter(reward_frame)
-                end}
+                end,
+            }
         end
         self.cur_target = nil
         self:UpdateCursor()
@@ -497,7 +499,8 @@ function MenuCursor:OnEvent(event, ...)
             self.targets[reward_frame] = {
                 set_tooltip = function()
                     QuestInfoRewardItemCodeTemplate_OnEnter(reward_frame)
-                end}
+                end,
+            }
         end
         self.cur_target = nil
         self:UpdateCursor()
@@ -612,9 +615,9 @@ function MenuCursor:UpdateCursor(in_combat)
     else
         if f:IsShown() then  -- avoid unnecessary taint warnings
             f:Hide()
+            ClearOverrideBindings(f)
         end
         f:SetScript("OnUpdate", nil)
-        ClearOverrideBindings(f)
         if cur_target and self.targets[cur_target].set_tooltip then
             if not GameTooltip:IsForbidden() then
                 GameTooltip:Hide()
