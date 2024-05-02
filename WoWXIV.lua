@@ -7,6 +7,8 @@
 local module_name
 module_name, WoWXIV = ...
 
+WoWXIV.VERSION = "0.0"
+
 WoWXIV.startup_frame = CreateFrame("Frame", "WoWXIV_StartupFrame")
 WoWXIV.startup_frame:RegisterEvent("ADDON_LOADED")
 WoWXIV.startup_frame:SetScript("OnEvent", function(self, event, arg1, ...)
