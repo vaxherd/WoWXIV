@@ -479,7 +479,7 @@ function ConfigPanel:__constructor()
     self:AddText("WoWXIV is designed to change several aspects of the " ..
                  "WoW user interface to mimic the UI of Final Fantasy XIV, " ..
                  "along with a few general quality-of-life tweaks.|n|n" ..
-                 "Author: vaxherd")
+                 "Author: vaxherd|nVersion: "..WoWXIV.VERSION)
 
     f:SetHeight(-self.y + 10)
 end

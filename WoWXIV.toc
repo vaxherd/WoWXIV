@@ -1,7 +1,7 @@
 ## Interface: 100206
 ## Title: WoWXIV
 ## Author: vaxherd
-## Version: 0.1
+## Version: 0.0
 ## SavedVariables: WoWXIV_config
 ## SavedVariablesPerCharacter: WoWXIV_isearch_cache
 
