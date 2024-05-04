@@ -72,7 +72,7 @@ function TargetBar:__constructor(is_focus)
         f, 0, -(hp_yofs+14))
     self.auras = auras
 
-    local cast_bar = WoWXIV.UI.CastBar(f, f:GetWidth())
+    local cast_bar = WoWXIV.UI.CastBar(f, f:GetWidth(), not is_focus)
     self.cast_bar = cast_bar
     cast_bar:SetSinglePoint("TOP")
     cast_bar:SetBoxColor(0.88, 0.62, 0.17)
