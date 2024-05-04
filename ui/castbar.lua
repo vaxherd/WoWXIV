@@ -11,13 +11,16 @@ local strsub = string.sub
 
 local CastBar = UI.CastBar
 
-function CastBar:__constructor(parent, width)
+function CastBar:__constructor(parent, width, with_interruptible)
     self.width = width
+    self.with_interruptible = with_interruptible
     self.unit = nil    -- Unit token of unit being monitored, or nil if none
-    self.cast = nil    -- Current cast GUID, or nil if none
+    self.name = nil    -- Name of current cast, nil if no cast is active
     self.is_channel = false -- Is this a normal cast (false) or channel (true)?
     self.start = 0     -- Start timestamp of current cast
     self.duration = 0  -- Expected duration of current cast
+    self.interruptible = false  -- Is current cast interruptible?
+    self.interrupt_start = nil  -- Interruptible animation start timestamp
 
     local f = CreateFrame("Frame", nil, parent)
     self.frame = f
@@ -49,6 +52,33 @@ function CastBar:__constructor(parent, width)
     label_bg:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", 1, -14)
     label_bg:SetHeight(16)
     label_bg:Hide()
+
+    if with_interruptible then
+        local box_c = bar:GetBoxTexture()
+        local interrupt_c_width = box_c:GetWidth()
+        self.interrupt_c_width = interrupt_c_width
+
+        local interrupt_c = f:CreateTexture(nil, "BORDER")
+        self.interrupt_c = interrupt_c
+        interrupt_c:SetPoint("CENTER", box_c, "CENTER")
+        interrupt_c:SetSize(interrupt_c_width, 15)
+        WoWXIV.SetUITexture(interrupt_c, 6, 90, 37, 52)
+        interrupt_c:Hide()
+
+        local interrupt_l = f:CreateTexture(nil, "BORDER")
+        self.interrupt_l = interrupt_l
+        interrupt_l:SetPoint("RIGHT", interrupt_c, "LEFT")
+        interrupt_l:SetSize(6, 15)
+        WoWXIV.SetUITexture(interrupt_l, 0, 6, 37, 52)
+        interrupt_l:Hide()
+
+        local interrupt_r = f:CreateTexture(nil, "BORDER")
+        self.interrupt_r = interrupt_r
+        interrupt_r:SetPoint("LEFT", interrupt_c, "RIGHT")
+        interrupt_r:SetSize(6, 15)
+        WoWXIV.SetUITexture(interrupt_r, 90, 96, 37, 52)
+        interrupt_r:Hide()
+    end
 end
 
 function CastBar:Show()
@@ -68,8 +98,13 @@ function CastBar:SetSinglePoint(...)
     self.frame:SetPoint(...)
 end
 
-function CastBar:SetBoxColor(...)
-    self.bar:SetBoxColor(...)
+function CastBar:SetBoxColor(r, g, b)
+    self.bar:SetBoxColor(r, g, b)
+    if self.with_interruptible then
+        self.interrupt_c:SetVertexColor(r, g, b)
+        self.interrupt_l:SetVertexColor(r, g, b)
+        self.interrupt_r:SetVertexColor(r, g, b)
+    end
 end
 
 function CastBar:SetBarBackgroundColor(...)
@@ -124,31 +159,29 @@ function CastBar:OnEvent(event, unit)
               cast_guid, not_interruptible, spell_id, is_empowered,
               empower_stages = UnitCastingInfo(unit)
         if not cast_guid then return end  -- Enemy is already gone, etc.
+        -- We can't manipulate the display state directly here because
+        -- we sometimes get STOP/START pairs during the cast (seems to
+        -- happen particularly often with CHANNEL_START), so instead we
+        -- just set fields and use OnUpdate() to apply the changes.
+        -- What a well-programmed game this is...
+        self.name = display_name
         self.is_channel = false
         self.start = start_ms / 1000
         self.duration = (end_ms - start_ms) / 1000
-        self.bar:Update(1, 0)
-        self.bar:Show()
-        self.label:SetText(display_name)
-        self.label:Show()
-        self.label_bg:SetWidth(self.label:GetStringWidth() + 10*self.label:GetTextScale())
-        self.label_bg:Show()
+        self.interruptible = not not_interruptible
         self.frame:SetScript("OnUpdate", function() self:OnUpdate() end)
 
     elseif event == "CHANNEL_START" then
         -- Return values are as for UnitCastingInfo(), except that the
         -- cast GUID return value is omitted because channeling doesn't
         -- have a GUID.
-        local _, display_name, _, start_ms, end_ms = UnitChannelInfo(unit)
+        local _, display_name, _, start_ms, end_ms, _, not_interruptible =
+            UnitChannelInfo(unit)
+        self.name = display_name
         self.is_channel = true
         self.start = start_ms / 1000
         self.duration = (end_ms - start_ms) / 1000
-        self.bar:Update(1, 1)
-        self.bar:Show()
-        self.label:SetText(display_name)
-        self.label:Show()
-        self.label_bg:SetWidth(self.label:GetWidth() + 10*self.label:GetTextScale())
-        self.label_bg:Show()
+        self.interruptible = not not_interruptible
         self.frame:SetScript("OnUpdate", function() self:OnUpdate() end)
 
     elseif event == "DELAYED" then
@@ -156,18 +189,79 @@ function CastBar:OnEvent(event, unit)
         self.start = new_start
         self.duration = new_end - new_start
 
+    elseif event == "INTERRUPTIBLE" then
+        self.interruptible = true
+
+    elseif event == "NOT_INTERRUPTIBLE" then
+        self.interruptible = false
+
     elseif event == "STOP" or event == "CHANNEL_STOP" then
-        self.bar:Hide()
-        self.label:Hide()
-        self.label_bg:Hide()
-        self.frame:SetScript("OnUpdate", nil)
+        self.name = nil
 
     end
 end
 
 function CastBar:OnUpdate()
+    local bar = self.bar
+    local label = self.label
+    local label_bg = self.label_bg
+
+    if not self.name then
+        bar:Hide()
+        label:Hide()
+        label_bg:Hide()
+        if self.with_interruptible then
+            self.interruptible = false
+            self.interrupt_c:Hide()
+            self.interrupt_l:Hide()
+            self.interrupt_r:Hide()
+        end
+        self.frame:SetScript("OnUpdate", nil)
+        return
+    end
+
     local completion = (GetTime() - self.start) / self.duration
+    if completion < 0 then completion = 0 end
     if completion > 1 then completion = 1 end
     if self.is_channel then completion = 1 - completion end
-    self.bar:Update(1, completion)
+    bar:Update(1, completion)
+    if self.name ~= label:GetText() then
+        label:SetText(self.name)
+        label_bg:SetWidth(label:GetStringWidth() + 10*label:GetTextScale())
+    end
+    if not label:IsShown() then
+        bar:Show()
+        label:Show()
+        label_bg:Show()
+    end
+    if self.with_interruptible then
+        local interruptible = self.interruptible
+        local interrupt_c = self.interrupt_c
+        local interrupt_l = self.interrupt_l
+        local interrupt_r = self.interrupt_r
+        if not self.interruptible then
+            if interrupt_c:IsShown() then
+                interrupt_c:Hide()
+                interrupt_l:Hide()
+                interrupt_r:Hide()
+            end
+        else
+            if not interrupt_c:IsShown() then
+                self.interrupt_start = GetTime()
+                self.interrupt_c:Show()
+                self.interrupt_l:Show()
+                self.interrupt_r:Show()
+            end
+            local t = (GetTime() - self.interrupt_start) / 0.75
+            t = t - math.floor(t)
+            local scale = 1 + 2*t
+            local alpha = 1 - t*t
+            interrupt_c:SetSize(self.interrupt_c_width + 18*(scale-1), 15*scale)
+            interrupt_c:SetAlpha(alpha)
+            interrupt_l:SetSize(6*scale, 15*scale)
+            interrupt_l:SetAlpha(alpha)
+            interrupt_r:SetSize(6*scale, 15*scale)
+            interrupt_r:SetAlpha(alpha)
+        end
+    end
 end
