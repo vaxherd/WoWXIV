@@ -86,6 +86,11 @@ function Gauge:__constructor(parent, width)
     end
 end
 
+-- For use by cast bar interruptible effect.
+function Gauge:GetBoxTexture()
+    return self.box_c
+end
+
 function Gauge:Show()
     self.frame:Show()
 end
