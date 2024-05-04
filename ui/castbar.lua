@@ -29,12 +29,12 @@ function CastBar:__constructor(parent, width)
     bar:SetBoxColor(0.533, 0.533, 0.533)
     bar:SetBarBackgroundColor(0.118, 0.118, 0.118)
     bar:SetBarColor(0.8, 0.8, 0.8)
-    bar:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 0, -6)
+    bar:SetSinglePoint("TOPLEFT", 0, -6)
     bar:Hide()
 
     local label = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     self.label = label
-    label:SetPoint("TOPRIGHT", -4, 0)
+    label:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", -4, -12)
     label:SetTextScale(1)
     label:SetTextColor(1, 1, 1)
     label:SetWordWrap(false)
@@ -46,7 +46,7 @@ function CastBar:__constructor(parent, width)
     self.label_bg = label_bg
     WoWXIV.SetUITexture(label_bg, 0, 256, 0, 11)
     label_bg:SetVertexColor(0, 0, 0, 1)
-    label_bg:SetPoint("TOPRIGHT", 1, 2)
+    label_bg:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", 1, -14)
     label_bg:SetHeight(16)
     label_bg:Hide()
 end
@@ -76,8 +76,14 @@ function CastBar:SetBarBackgroundColor(...)
     self.bar:SetBarBackgroundColor(...)
 end
 
-function CastBar:SetBarColor(...)
-    self.bar:SetBarColor(...)
+function CastBar:SetBarColor(r, g, b)
+    self.bar:SetBarColor(r, g, b)
+    self.label:SetTextColor(r, g, b)
+end
+
+function CastBar:SetTextScale(scale)
+    self.label:SetTextScale(scale)
+    self.label_bg:SetHeight(16*scale)
 end
 
 function CastBar:SetUnit(unit)
@@ -125,7 +131,7 @@ function CastBar:OnEvent(event, unit)
         self.bar:Show()
         self.label:SetText(display_name)
         self.label:Show()
-        self.label_bg:SetWidth(self.label:GetStringWidth() + 10)
+        self.label_bg:SetWidth(self.label:GetStringWidth() + 10*self.label:GetTextScale())
         self.label_bg:Show()
         self.frame:SetScript("OnUpdate", function() self:OnUpdate() end)
 
@@ -141,7 +147,7 @@ function CastBar:OnEvent(event, unit)
         self.bar:Show()
         self.label:SetText(display_name)
         self.label:Show()
-        self.label_bg:SetWidth(self.label:GetWidth())
+        self.label_bg:SetWidth(self.label:GetWidth() + 10*self.label:GetTextScale())
         self.label_bg:Show()
         self.frame:SetScript("OnUpdate", function() self:OnUpdate() end)
 

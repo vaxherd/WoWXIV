@@ -15,7 +15,7 @@ that of Final Fantasy XIV.  Specific features include:
 - FFXIV-style party and enmity lists, including a condensed party list
   display more suitable for raids
 
-- FFXIV-style top-of-screen health/aura bars for target and focus
+- FFXIV-style top-of-screen health/aura/cast bars for target and focus
   (with an option to move other top-of-screen widgets out of the way)
 
 - FFXIV-style "flying text" showing damage, healing, buffs/debuffs, and
