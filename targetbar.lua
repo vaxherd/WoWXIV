@@ -5,7 +5,7 @@ local class = WoWXIV.class
 
 ------------------------------------------------------------------------
 
-local ARROW_X, ARROW1_Y, ARROW2_Y = 391, -4, -9
+local ARROW_X, ARROW1_Y, ARROW2_Y = 391, -29, -34
 
 local TargetBar = class()
 
@@ -17,32 +17,34 @@ function TargetBar:__constructor(is_focus)
                           is_focus and "WoWXIV_FocusBar" or "WoWXIV_TargetBar",
                           UIParent)
     self.frame = f
-    local name_size, hp_yofs
+    local name_size, icon_size, cast_text_scale, hp_yofs
     if is_focus then
         f:SetSize(144, 80)
-        f:SetPoint("TOP", UIParent, "TOP", -400, -20)
+        f:SetPoint("TOP", -400, -14)
         name_size = 1.0
         icon_size = 17
-        hp_yofs = 5
+        cast_text_scale = 1
+        hp_yofs = 27
     else
         f:SetSize(384, 80)
-        f:SetPoint("TOP", UIParent, "TOP", 0, -20)
+        f:SetPoint("TOP", 0, -8)
         name_size = 1.1
         icon_size = 20
-        hp_yofs = 8
+        cast_text_scale = 1.4
+        hp_yofs = 33
     end
     self.hp_yofs = hp_yofs
 
     local class_icon = f:CreateTexture(nil, "ARTWORK")
     self.class_icon = class_icon
-    class_icon:SetPoint("TOPRIGHT", f, "TOPLEFT", -3, -2)
+    class_icon:SetPoint("TOPRIGHT", f, "TOPLEFT", -3, -26)
     class_icon:SetSize(icon_size, icon_size)
     class_icon:Hide()
 
     local name = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     self.name = name
     name:SetTextScale(name_size)
-    name:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+    name:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 0, -(hp_yofs+5))
     name:SetWordWrap(false)
     name:SetJustifyH("LEFT")
     name:SetWidth(f:GetWidth())
@@ -56,19 +58,26 @@ function TargetBar:__constructor(is_focus)
         local SPACING = 5
         name:SetWidth(f:GetWidth() - hp.value:GetWidth() - SPACING)
     end
-    hp:SetSinglePoint("TOP", f, "TOP", 0, -hp_yofs)
+    hp:SetSinglePoint("TOP", 0, -hp_yofs)
 
     local mp = WoWXIV.UI.Gauge(f, f:GetWidth())
     self.mp = mp
     mp:SetBoxColor(0.9, 0.9, 0.9)
     mp:SetBarBackgroundColor(0, 0, 0)
     mp:SetBarColor(0.05, 0.45, 0.95)
-    mp:SetSinglePoint("TOP", f, "TOP", 0, -(hp_yofs+7))
+    mp:SetSinglePoint("TOP", 0, -(hp_yofs+7))
 
     local auras = WoWXIV.UI.AuraBar(
         "ALL", "TOPLEFT", is_focus and 6 or 16, is_focus and 1 or 5,
-        self.frame, 0, -(hp_yofs+14))
+        f, 0, -(hp_yofs+14))
     self.auras = auras
+
+    local cast_bar = WoWXIV.UI.CastBar(f, f:GetWidth())
+    self.cast_bar = cast_bar
+    cast_bar:SetSinglePoint("TOP")
+    cast_bar:SetBoxColor(0.88, 0.62, 0.17)
+    cast_bar:SetBarColor(1, 1, 0.94)
+    cast_bar:SetTextScale(cast_text_scale)
 
     if not is_focus then
         self.target_id = nil
@@ -76,14 +85,14 @@ function TargetBar:__constructor(is_focus)
 
         local target_arrow1 = f:CreateTexture(nil, "ARTWORK")
         self.target_arrow1 = target_arrow1
-        target_arrow1:SetPoint("TOPLEFT", f, "TOPLEFT", ARROW_X, ARROW1_Y)
+        target_arrow1:SetPoint("TOPLEFT", ARROW_X, ARROW1_Y)
         target_arrow1:SetSize(28, 28)
         WoWXIV.SetUITexture(target_arrow1, 224, 252, 16, 44)
         target_arrow1:Hide()
 
         local target_arrow2 = f:CreateTexture(nil, "ARTWORK")
         self.target_arrow2 = target_arrow2
-        target_arrow2:SetPoint("TOPLEFT", f, "TOPLEFT", ARROW_X, ARROW2_Y)
+        target_arrow2:SetPoint("TOPLEFT", ARROW_X, ARROW2_Y)
         target_arrow2:SetSize(22, 18)
         WoWXIV.SetUITexture(target_arrow2, 224, 246, 45, 63)
         target_arrow2:Hide()
@@ -91,12 +100,12 @@ function TargetBar:__constructor(is_focus)
         local target_name = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
         self.target_name = target_name
         target_name:SetTextScale(1.1)
-        target_name:SetPoint("TOPLEFT", f, "TOPLEFT", 436, 0)
+        target_name:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 436, -(hp_yofs+5))
         target_name:Hide()
 
         local target_hp = WoWXIV.UI.Gauge(f, 128)
         self.target_hp = target_hp
-        target_hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 432, -hp_yofs)
+        target_hp:SetSinglePoint("TOPLEFT", 432, -hp_yofs)
         target_hp:Hide()
     end
 
@@ -192,14 +201,26 @@ function TargetBar:RefreshUnit()
     end
 
     local f = self.frame
+    local opt_prefix = "targetbar_"..unit
+
     local auras = self.auras
-    local all_debuffs_option = "targetbar_"..unit.."_all_debuffs"
-    local all_debuffs_raid_option = "targetbar_"..unit.."_all_debuffs_not_raid"
+    local all_debuffs_option = opt_prefix.."_all_debuffs"
+    local all_debuffs_raid_option = opt_prefix.."_all_debuffs_not_raid"
     local all_debuffs = (WoWXIV_config[all_debuffs_option]
                          and not (WoWXIV_config[all_debuffs_option]
                                   and UnitInRaid("player")))
     auras:SetOwnDebuffsOnly(not all_debuffs)
     auras:SetUnit(unit)
+
+    local cast_bar = self.cast_bar
+    if WoWXIV_config[opt_prefix.."_cast_bar"] then
+        cast_bar:SetUnit(unit)
+        cast_bar:Show()
+    else
+        cast_bar:SetUnit(nil)
+        cast_bar:Show(hide)
+    end
+
     f:Show()
 
     local inactive
@@ -294,8 +315,7 @@ function TargetBar:Update()
 
                 local target_arrow1 = self.target_arrow1
                 target_arrow1:ClearAllPoints()
-                target_arrow1:SetPoint("TOPLEFT", self.frame, "TOPLEFT",
-                                       ARROW_X, ARROW1_Y)
+                target_arrow1:SetPoint("TOPLEFT", ARROW_X, ARROW1_Y)
                 target_arrow1:Show()
 
                 local target_arrow2 = self.target_arrow2
@@ -348,8 +368,7 @@ function TargetBar:OnUpdate()
 
     local target_arrow1 = self.target_arrow1
     target_arrow1:ClearAllPoints()
-    target_arrow1:SetPoint("TOPLEFT", self.frame, "TOPLEFT",
-                           ARROW_X+xofs, ARROW1_Y)
+    target_arrow1:SetPoint("TOPLEFT", ARROW_X+xofs, ARROW1_Y)
     self.target_arrow2:SetAlpha(alpha)
 end
 

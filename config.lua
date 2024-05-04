@@ -61,10 +61,14 @@ local CONFIG_DEFAULT = {
     targetbar_target_all_debuffs = true,
     -- Target bar: limit to own debuffs in raids only?
     targetbar_target_all_debuffs_not_raid = true,
+    -- Target bar: show cast bar?
+    targetbar_target_cast_bar = true,
     -- Target bar: show all debuffs on focus bar?
     targetbar_focus_all_debuffs = false,
     -- Target bar: ... except in raids?
     targetbar_focus_all_debuffs_not_raid = false,
+    -- Target bar: show cast bar for focus?
+    targetbar_focus_cast_bar = true,
     -- Target bar: move top-center info widget to bottom right?
     targetbar_move_top_center = true,
 
@@ -460,6 +464,9 @@ function ConfigPanel:__constructor()
                         "targetbar_target_all_debuffs_not_raid",
                         WoWXIV.TargetBar.Refresh,
                         "targetbar_target_all_debuffs")
+    self:AddCheckButton("Show cast bar on target bar",
+                        "targetbar_target_cast_bar",
+                        WoWXIV.TargetBar.Refresh)
     self:AddCheckButton("Show all debuffs on focus bar",
                         "targetbar_focus_all_debuffs",
                         WoWXIV.TargetBar.Refresh)
@@ -467,6 +474,9 @@ function ConfigPanel:__constructor()
                         "targetbar_focus_all_debuffs_not_raid",
                         WoWXIV.TargetBar.Refresh,
                         "targetbar_focus_all_debuffs")
+    self:AddCheckButton("Show cast bar on focus bar",
+                        "targetbar_focus_cast_bar",
+                        WoWXIV.TargetBar.Refresh)
     self:AddCheckButton("Move top-center widget to bottom right |cffff0000(requires reload)|r",
                         "targetbar_move_top_center",
                         WoWXIV.TargetBar.Refresh)
