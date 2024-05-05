@@ -612,7 +612,7 @@ function WoWXIV.Config.Create()
     end
 
     local config_panel = ConfigPanel()
-    WoWXIV.Config.panel = config_paneel
+    WoWXIV.Config.panel = config_panel
     local f = config_panel.frame
 
     local container = CreateFrame("ScrollFrame", "WoWXIV_ConfigScroller", nil,
