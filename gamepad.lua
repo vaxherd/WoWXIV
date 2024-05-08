@@ -398,6 +398,9 @@ function MenuCursor:__constructor()
     if CovenantSanctumFrame then
         self:OnEvent("ADDON_LOADED", "Blizzard_CovenantSanctum")
     end
+    if PlayerChoiceFrame then
+        self:OnEvent("ADDON_LOADED", "Blizzard_PlayerChoice")
+    end
 
     local texture = f:CreateTexture(nil, "ARTWORK")
     self.texture = texture
@@ -419,6 +422,16 @@ function MenuCursor:OnEvent(event, ...)
             end)
             hooksecurefunc(CovenantSanctumFrame, "SetShown", function(_,shown)
                 self:OnEvent("CovenantSanctumFrame_SetShown", shown)
+            end)
+        elseif name == "Blizzard_PlayerChoice" then
+            hooksecurefunc(PlayerChoiceFrame, "Show", function()
+                self:OnEvent("PlayerChoiceFrame_SetShown", true)
+            end)
+            hooksecurefunc(PlayerChoiceFrame, "Hide", function()
+                self:OnEvent("PlayerChoiceFrame_SetShown", false)
+            end)
+            hooksecurefunc(PlayerChoiceFrame, "SetShown", function(_,shown)
+                self:OnEvent("PlayerChoiceFrame_SetShown", shown)
             end)
         end
 
@@ -668,6 +681,46 @@ function MenuCursor:OnEvent(event, ...)
         self.cur_target = nil
         self:UpdateCursor()
 
+    elseif event == "PlayerChoiceFrame_SetShown" then
+        local shown = ...
+        if shown then
+            if PlayerChoiceFrame.optionFrameTemplate ~= "PlayerChoiceNormalOptionTemplate" then
+                return  -- Only handle formats we've explicitly verified.
+            end
+            assert(PlayerChoiceFrame:IsVisible())
+            self.focus = PlayerChoiceFrame
+            self.cancel_func = function()
+                self.cur_target:OnLeave()
+                PlayerChoiceFrame:Hide()
+                self.focus = nil
+            end
+            self.targets = {}
+            local leftmost = nil
+            for option in PlayerChoiceFrame.optionPools:EnumerateActiveByTemplate(PlayerChoiceFrame.optionFrameTemplate) do
+                for button in option.OptionButtonsContainer.buttonPool:EnumerateActive() do
+                    self.targets[button] = {
+                        can_activate = true, send_enter_leave = true}
+                    if not leftmost or button:GetLeft() < leftmost:GetLeft() then
+                        leftmost = button
+                    end
+                end
+            end
+            if leftmost then  -- i.e., if we found any buttons
+                self.cur_target = leftmost
+                leftmost:OnEnter()
+            else
+                self.focus = nil
+            end
+            self:UpdateCursor()
+        else
+            assert(self.focus == nil or self.focus == PlayerChoiceFrame)
+            if self.focus then
+                self.cur_target:OnLeave()
+                self.focus = nil
+                self:UpdateCursor()
+            end
+        end
+
     end
 end
 
@@ -695,6 +748,9 @@ function MenuCursor:UpdateCursor(in_combat)
                 cur_target = next(self.targets)
             end
             self.cur_target = cur_target
+            if self.targets[cur_target].send_enter_leave then
+                cur_target:OnEnter()
+            end
         end
         f:ClearAllPoints()
         -- Work around frame reference limitations on secure buttons
@@ -777,13 +833,22 @@ function MenuCursor:Move(dx, dy, dir)
         new_target = self:NextTarget(dx, dy)
     end
     if new_target then
-        if cur_target and self.targets[cur_target].set_tooltip then
-            if not GameTooltip:IsForbidden() then
-                GameTooltip:Hide()
+        if cur_target then
+            local params = self.targets[cur_target]
+            if params.set_tooltip then
+                if not GameTooltip:IsForbidden() then
+                    GameTooltip:Hide()
+                end
+            end
+            if params.send_enter_leave then
+                cur_target:OnLeave()
             end
         end
         self.cur_target = new_target
         self:UpdateCursor()
+        if self.targets[new_target].send_enter_leave then
+            new_target:OnEnter()
+        end
     end
 end
 
