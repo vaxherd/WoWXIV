@@ -97,6 +97,7 @@ local ITEM_TARGET = {
     [180008] = "none",    -- Resonating Anima Core (60609: Who Devours the Devourers?)
     [180009] = "none",    -- Resonating Anima Mote (60609: Who Devours the Devourers?)
     [180274] = "none",    -- Torch (60770: Squish and Burn)
+    [180607] = "none",    -- Cypher of Blinding (61075: A Spark of Light)
     [180876] = "player",  -- Aqueous Material Accumulator (61189: Further Gelatinous Research)
     [181284] = "none",    -- Gormling in a Bag (61394: Gormling Toss: Tranquil Pools)
     [182189] = "player",  -- Fae Flute (61717: Gormling Piper: Tranquil Pools)
@@ -104,7 +105,8 @@ local ITEM_TARGET = {
     [182457] = "none",    -- Mirror Fragment (61967: Remedial Lessons)
     [182600] = "none",    -- Gormling in a Bag (62051: Gormling Toss: Spirit Glen)
     [182611] = "player",  -- Fae Flute (62068: Gormling Piper: Crumbled Ridge)
-    [183725] = "none",    -- Moth Net (62459: Go Beyond!)
+    [183725] = "none",    -- Moth Net (62459: Go Beyond! [Selenia Moth])
+    [184513] = "none",    -- Containment Orb (63040: Guaranteed Delivery)
     [184876] = "none",    -- Cohesion Crystal [63455: Dead On Their Feet]
     [186089] = "target",  -- Niya's Staff (63840: They Grow Up So Quickly)
     [186097] = "none",    -- Heirmir's Runeblade (63945: The Soul Blade)
@@ -118,9 +120,11 @@ local ITEM_TARGET = {
     [192191] = "none",    -- Tuskarr Fishing Net (66411: Troubled Waters)
     [192471] = "target",  -- Arch Instructor's Wand (66489: Setting the Defense)
     [192555] = "player",  -- Borrowed Breath (66180: Wake the Ancients)
+    [193212] = "none",    -- Marmoni Rescue Pack (66833: Marmoni in Distress)
     [193826] = "target",  -- Trusty Dragonkin Rake (72991: Warm Dragonfruit Pie)
     [194441] = "none",    -- Bottled Water Elemental (66998: Fighting Fire with... Water)
     [198855] = "none",    -- Throw Net (70438: Flying Fish [and other fish restock dailies])
+    [199928] = "none",    -- Flamethrower Torch (70856: Kill it with Fire)
     [200153] = "target",  -- Aylaag Skinning Shear (70990: If There's Wool There's a Way)
     [200747] = "none",    -- Zikkori's Water Siphoning Device (70994: Drainage Solutions)
     [202271] = "target",  -- Pouch of Gold Coins (72530: Anyway, I Started Bribing)
@@ -137,8 +141,10 @@ local ITEM_TARGET = {
     [205980] = "target",  -- Snail Lasso (72878: Slime Time Live)
     [208206] = "none",    -- Teleportation Crystal (77408: Prophecy Stirs)
     [208841] = "none",    -- True Sight (76550: True Sight)
+    [208983] = "none",    -- Yvelyn's Assistance (76520: A Shared Dream)
     [210227] = "target",  -- Q'onzu's Faerie Feather (76992: Fickle Judgment)
     [211302] = "target",  -- Slumberfruit (76993: Turtle Power)
+    [223988] = "skip",    -- Dalaran Hearthstone (79009: The Harbinger)
 }
 
 -- Special cases for quests which don't have items listed but really should.
@@ -260,6 +266,10 @@ function QuestItemButton:UpdateQuestItem(event, is_retry)
                 -- GetItemInfoFromHyperlink() is defined in Blizzard's
                 -- SharedXML/LinkUtil.lua
                 item = GetItemInfoFromHyperlink(link)
+                -- Explicitly exclude certain items from the button
+                -- (generally items we don't want to use by accident,
+                -- like warp items for scenario starting quests)
+                if ITEM_TARGET[item] == "skip" then item = nil end
                 if item then break end
             end
         end
@@ -369,6 +379,7 @@ function MenuCursor:__constructor()
     f:SetFrameStrata("TOOLTIP")  -- Make sure it stays on top.
     f:SetSize(32, 32)
     f:SetScript("OnEvent", function(_,...) self:OnEvent(...) end)
+    f:RegisterEvent("ADDON_LOADED")
     f:RegisterEvent("GAME_PAD_ACTIVE_CHANGED")
     f:RegisterEvent("PLAYER_REGEN_DISABLED")
     f:RegisterEvent("PLAYER_REGEN_ENABLED")
@@ -384,6 +395,10 @@ function MenuCursor:__constructor()
     f:HookScript("OnClick", function(_,...) self:OnClick(...) end)
     f:RegisterForClicks("AnyDown")
 
+    if CovenantSanctumFrame then
+        self:OnEvent("ADDON_LOADED", "Blizzard_CovenantSanctum")
+    end
+
     local texture = f:CreateTexture(nil, "ARTWORK")
     self.texture = texture
     texture:SetAllPoints()
@@ -393,7 +408,21 @@ function MenuCursor:__constructor()
 end
 
 function MenuCursor:OnEvent(event, ...)
-    if event == "GAME_PAD_ACTIVE_CHANGED" then
+    if event == "ADDON_LOADED" then
+        local name = ...
+        if name == "Blizzard_CovenantSanctum" then
+            hooksecurefunc(CovenantSanctumFrame, "Show", function()
+                self:OnEvent("CovenantSanctumFrame_SetShown", true)
+            end)
+            hooksecurefunc(CovenantSanctumFrame, "Hide", function()
+                self:OnEvent("CovenantSanctumFrame_SetShown", false)
+            end)
+            hooksecurefunc(CovenantSanctumFrame, "SetShown", function(_,shown)
+                self:OnEvent("CovenantSanctumFrame_SetShown", shown)
+            end)
+        end
+
+    elseif event == "GAME_PAD_ACTIVE_CHANGED" then
         local active = ...
         self.gamepad_active = active
         self:UpdateCursor()
@@ -574,6 +603,71 @@ function MenuCursor:OnEvent(event, ...)
         end
         self.cur_target = nil
         self:UpdateCursor()
+
+    elseif event == "CovenantSanctumFrame_SetShown" then
+        local shown = ...
+        if shown then
+            assert(CovenantSanctumFrame:IsVisible())
+            self.focus = CovenantSanctumFrame
+            self.cancel_func = function()
+                CovenantSanctumFrame:Hide()
+                self.focus = nil
+            end
+            local function ChooseTalent(button)
+                button:OnMouseDown()
+                self:OnEvent("CovenantSanctumFrame_ChooseTalent", button)
+            end
+            self.targets = {
+                [CovenantSanctumFrame.UpgradesTab.TravelUpgrade] =
+                    {set_tooltip = function(self) self:OnEnter() end,
+                     on_click = function(self) ChooseTalent(self) end},
+                [CovenantSanctumFrame.UpgradesTab.DiversionUpgrade] =
+                    {set_tooltip = function(self) self:OnEnter() end,
+                     on_click = function(self) ChooseTalent(self) end},
+                [CovenantSanctumFrame.UpgradesTab.AdventureUpgrade] =
+                    {set_tooltip = function(self) self:OnEnter() end,
+                     on_click = function(self) ChooseTalent(self) end},
+                [CovenantSanctumFrame.UpgradesTab.UniqueUpgrade] =
+                    {set_tooltip = function(self) self:OnEnter() end,
+                     on_click = function(self) ChooseTalent(self) end},
+                [CovenantSanctumFrame.UpgradesTab.DepositButton] =
+                    {set_tooltip = function(self)  -- copied from XML
+                         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                         GameTooltip_SetTitle(GameTooltip, COVENANT_SANCTUM_DEPOSIT_TOOLTIP)
+                         GameTooltip:Show()
+                     end,
+                     can_activate = true, is_default = true},
+            }
+            self.cur_target = nil
+            self:UpdateCursor()
+        else
+            assert(self.focus == nil or self.focus == CovenantSanctumFrame)
+            self.focus = nil
+            self:UpdateCursor()
+        end
+
+    elseif event == "CovenantSanctumFrame_ChooseTalent" then
+        local upgrade_button = ...
+        local saved_targets = self.targets
+        local saved_cur_target = self.cur_target
+        local saved_cancel_func = self.cancel_func
+        self.cancel_func = function()
+            self.targets = saved_targets
+            self.cur_target = saved_cur_target
+            self.cancel_func = saved_cancel_func
+            self:UpdateCursor()
+        end
+        self.targets = {
+            [CovenantSanctumFrame.UpgradesTab.TalentsList.UpgradeButton] =
+                {can_activate = true, is_default = true},
+        }
+        for frame in CovenantSanctumFrame.UpgradesTab.TalentsList.talentPool:EnumerateActive() do
+            self.targets[frame] =
+                {set_tooltip = function(self) self:OnEnter() end}
+        end
+        self.cur_target = nil
+        self:UpdateCursor()
+
     end
 end
 
@@ -630,9 +724,11 @@ function MenuCursor:UpdateCursor(in_combat)
         else
             f:SetAttribute("clickbutton", nil)
         end
-        if self.targets[cur_target].set_tooltip then
-            if not GameTooltip:IsForbidden() then
-                self.targets[cur_target].set_tooltip()
+        if not GameTooltip:IsForbidden() then
+            if self.targets[cur_target].set_tooltip then
+                self.targets[cur_target].set_tooltip(cur_target)
+            else
+                GameTooltip:Hide()
             end
         end
     else
@@ -659,7 +755,9 @@ function MenuCursor:OnClick(button, down)
     elseif button == "DPadRight" then
         self:Move(1, 0, "right")
     elseif button == "LeftButton" then  -- i.e., confirm
-        -- Handled by SecureActionButtonTemplate
+        -- Click event passed down by SecureActionButtonTemplate
+        local params = self.targets[self.cur_target]
+        if params.on_click then params.on_click(self.cur_target) end
     elseif button == "Cancel" then
         self:cancel_func()
         self:UpdateCursor()
