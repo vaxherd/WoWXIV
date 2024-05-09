@@ -84,6 +84,11 @@ local QuestItemButton = class(GamepadBoundButton)
 -- so for the meantime we record specific items whose required targets we
 -- know and use fallback logic for others.
 local ITEM_TARGET = {
+    [ 72018] = "none",    -- Discarded Weapon (29510: Putting Trash to Good Use)
+    [ 72048] = "none",    -- Darkmoon Banner Kit (29520: Banners, Banners Everywhere!)
+    [ 72049] = "none",    -- Darkmoon Banner (29520: Banners, Banners Everywhere!)
+    [ 72056] = "none",    -- Plump Frogs (29509: Putting the Crunch in the Frog)
+    [ 72057] = "none",    -- Breaded Frog (29509: Putting the Crunch in the Frog)
     [168482] = "none",    -- Benthic Sealant (56160: Plug the Geysers)
     [173691] = "target",  -- Anima Drainer (57932: Resource Drain)
     [173692] = "target",  -- Nemea's Javelin (58040: With Lance and Larion)
@@ -123,9 +128,11 @@ local ITEM_TARGET = {
     [193212] = "none",    -- Marmoni Rescue Pack (66833: Marmoni in Distress)
     [193826] = "target",  -- Trusty Dragonkin Rake (72991: Warm Dragonfruit Pie)
     [194441] = "none",    -- Bottled Water Elemental (66998: Fighting Fire with... Water)
+    [197805] = "target",  -- Suspicious Persons Scanner (69888: Unusual Suspects)
     [198855] = "none",    -- Throw Net (70438: Flying Fish [and other fish restock dailies])
     [199928] = "none",    -- Flamethrower Torch (70856: Kill it with Fire)
     [200153] = "target",  -- Aylaag Skinning Shear (70990: If There's Wool There's a Way)
+    [200526] = "none",    -- Steria's Charm of Invisibility (70338: They Took the Kits)
     [200747] = "none",    -- Zikkori's Water Siphoning Device (70994: Drainage Solutions)
     [202271] = "target",  -- Pouch of Gold Coins (72530: Anyway, I Started Bribing)
     [202293] = "player",  -- Rusziona's Whistle (72459: What's a Duck?)
@@ -367,7 +374,11 @@ function MenuCursor:__constructor()
     self.targets = nil
     -- Subframe which the cursor is currently targeting.
     self.cur_target = nil
-    -- Function to call when the cancel button is presed.
+    -- Last targeted subframe, used when the cursor is temporarily hidden
+    -- (such as due to mouse movement).
+    self.saved_target = nil
+    -- Function to call when the cancel button is pressed.  If nil,
+    -- calls self.focus:Hide() and clears self.focus to nil.
     self.cancel_func = nil
 
     -- This is a SecureActionButtonTemplate only so that we can
@@ -378,6 +389,8 @@ function MenuCursor:__constructor()
     f:Hide()
     f:SetFrameStrata("TOOLTIP")  -- Make sure it stays on top.
     f:SetSize(32, 32)
+    f:SetScript("OnShow", function() self:OnShow() end)
+    f:SetScript("OnHide", function() self:OnHide() end)
     f:SetScript("OnEvent", function(_,...) self:OnEvent(...) end)
     f:RegisterEvent("ADDON_LOADED")
     f:RegisterEvent("GAME_PAD_ACTIVE_CHANGED")
@@ -390,6 +403,8 @@ function MenuCursor:__constructor()
     f:RegisterEvent("QUEST_FINISHED")
     f:RegisterEvent("QUEST_GREETING")
     f:RegisterEvent("QUEST_PROGRESS")
+    f:RegisterEvent("SHIPMENT_CRAFTER_CLOSED")
+    f:RegisterEvent("SHIPMENT_CRAFTER_OPENED")
     f:SetAttribute("type1", "click")
     f:SetAttribute("clickbutton", nil)
     f:HookScript("OnClick", function(_,...) self:OnClick(...) end)
@@ -408,6 +423,15 @@ function MenuCursor:__constructor()
     texture:SetTexture("Interface/CURSOR/Point")  -- Default mouse cursor image
     -- Flip it horizontally to distinguish it from the mouse cursor.
     texture:SetTexCoord(1, 0, 0, 1)
+end
+
+-- Generic cancel_func to close a UI frame.  Equivalent to the default
+-- cancel behavior but with calling HideUIPanel(focus) instead of
+-- focus:Hide().
+function MenuCursor:CancelUIPanel()
+    local frame = self.focus
+    self:ClearFocus()
+    HideUIPanel(frame)
 end
 
 function MenuCursor:OnEvent(event, ...)
@@ -449,20 +473,19 @@ function MenuCursor:OnEvent(event, ...)
     elseif event == "GOSSIP_CLOSED" then
         assert(self.focus == nil or self.focus == GossipFrame
                or self.focus == QuestFrame)  -- e.g. Marasmius dailies
-        self.focus = nil
+        self:ClearFocus()
         self:UpdateCursor()
 
     elseif event == "GOSSIP_SHOW" then
         if not GossipFrame:IsVisible() then
             return  -- Flight map, etc.
         end
-        self.focus = GossipFrame
-        self.cancel_func = function()
-            HideUIPanel(GossipFrame)
-            self.focus = nil
-        end
+        
+        self:SetFocus(GossipFrame)
+        self.cancel_func = function() self:CancelUIPanel() end
         local goodbye = GossipFrame.GreetingPanel.GoodbyeButton
-        self.targets = {[goodbye] = {can_activate = true}}
+        self.targets = {[goodbye] = {can_activate = true,
+                                     lock_highlight = true}}
         -- FIXME: This logic to find the quest / dialogue option buttons is
         -- a bit kludgey and certainly won't work if the list is scrolled
         -- to the point where some elements move offscreen.  Is there any
@@ -476,7 +499,8 @@ function MenuCursor:OnEvent(event, ...)
                     data.activeQuestButton or
                     data.titleOptionButton)
                 then
-                    self.targets[f] = {can_activate = true}
+                    self.targets[f] = {can_activate = true,
+                                       lock_highlight = true}
                     local y = f:GetTop()
                     if not first_button then
                         first_button = f
@@ -489,22 +513,22 @@ function MenuCursor:OnEvent(event, ...)
             end
         end
         self.targets[first_button or goodbye].is_default = true
-        self.cur_target = nil
         self:UpdateCursor()
 
     elseif event == "QUEST_COMPLETE" then
         assert(QuestFrame:IsVisible())
-        self.focus = QuestFrame
+        self:SetFocus(QuestFrame)
         self.cancel_func = function()
+            self:ClearFocus()
             CloseQuest()
-            self.focus = nil
         end
         self.targets = {
             -- We explicitly suppress right movement to avoid the cursor
             -- jumping up to the rewards line (which is still available
             -- with "up" movement).
             [QuestFrameCompleteQuestButton] =
-                {is_default = true, can_activate = true, right = false}
+                {is_default = true, can_activate = true, lock_highlight = true,
+                 right = false}
         }
         for i = 1, 99 do
             local name = "QuestInfoRewardsFrameQuestInfoItem" .. i
@@ -517,7 +541,6 @@ function MenuCursor:OnEvent(event, ...)
                 end,
             }
         end
-        self.cur_target = nil
         self:UpdateCursor()
 
     elseif event == "QUEST_DETAIL" then
@@ -526,15 +549,17 @@ function MenuCursor:OnEvent(event, ...)
             -- start a quest directly from the map; we should support those too
             return
         end
-        self.focus = QuestFrame
+        self:SetFocus(QuestFrame)
         self.cancel_func = function()
+            self:ClearFocus()
             CloseQuest()
-            self.focus = nil
         end
         self.targets = {
             [QuestFrameAcceptButton] = {can_activate = true,
+                                        lock_highlight = true,
                                         is_default = true},
-            [QuestFrameDeclineButton] = {can_activate = true},
+            [QuestFrameDeclineButton] = {can_activate = true,
+                                        lock_highlight = true},
         }
         for i = 1, 99 do
             local name = "QuestInfoRewardsFrameQuestInfoItem" .. i
@@ -546,26 +571,27 @@ function MenuCursor:OnEvent(event, ...)
                 end,
             }
         end
-        self.cur_target = nil
         self:UpdateCursor()
 
     elseif event == "QUEST_FINISHED" then
         assert(self.focus == nil or self.focus == QuestFrame)
-        self.focus = nil
+        self:ClearFocus()
         self:UpdateCursor()
 
     elseif event == "QUEST_GREETING" then
         assert(QuestFrame:IsVisible())
-        self.focus = QuestFrame
+        self:SetFocus(QuestFrame)
         self.cancel_func = function()
+            self:ClearFocus()
             CloseQuest()
-            self.focus = nil
         end
         local goodbye = QuestFrameGreetingGoodbyeButton
-        self.targets = {[goodbye] = {can_activate = true}}
+        self.targets = {[goodbye] = {can_activate = true,
+                                     lock_highlight = true}}
         local first_button, last_button = nil, nil
         for button in QuestFrameGreetingPanel.titleButtonPool:EnumerateActive() do
-            self.targets[button] = {can_activate = true}
+            self.targets[button] = {can_activate = true,
+                                    lock_highlight = true}
             local y = button:GetTop()
             if not first_button then
                 first_button = button
@@ -576,21 +602,22 @@ function MenuCursor:OnEvent(event, ...)
             end
         end
         self.targets[first_button or goodbye].is_default = true
-        self.cur_target = nil
         self:UpdateCursor()
 
     elseif event == "QUEST_PROGRESS" then
         assert(QuestFrame:IsVisible())
-        self.focus = QuestFrame
+        self:SetFocus(QuestFrame)
         self.cancel_func = function()
+            self:ClearFocus()
             CloseQuest()
-            self.focus = nil
         end
         local can_complete = QuestFrameCompleteButton:IsEnabled()
         self.targets = {
             [QuestFrameCompleteButton] = {can_activate = true,
+                                          lock_highlight = true,
                                           is_default = can_complete},
             [QuestFrameGoodbyeButton] = {can_activate = true,
+                                         lock_highlight = true,
                                          is_default = not can_complete},
         }
         for i = 1, 99 do
@@ -614,18 +641,47 @@ function MenuCursor:OnEvent(event, ...)
                 end,
             }
         end
-        self.cur_target = nil
+        self:UpdateCursor()
+
+    elseif event == "SHIPMENT_CRAFTER_CLOSED" then
+        assert(self.focus == nil or self.focus == GarrisonCapacitiveDisplayFrame)
+        self:ClearFocus()
+        self:UpdateCursor()
+
+    elseif event == "SHIPMENT_CRAFTER_OPENED" then
+        assert(GarrisonCapacitiveDisplayFrame:IsVisible())
+        -- This event can fire before the frame content is loaded (notably
+        -- the first time the frame is opened after a /reload), in which
+        -- case we get an incorrect initial position for the menu cursor.
+        -- Ideally we should pick up on button position changes whenever
+        -- they occur (FIXME: is there a generic event or hook for that?),
+        -- but as a substitute we wait here until the description text is
+        -- available, at which point the frame will be correctly sized.
+        if not GarrisonCapacitiveDisplayFrame.CapacitiveDisplay.Description:GetText() then
+            C_Timer.After(0, function() self:OnEvent(event) end)
+            return
+        end
+        self:SetFocus(GarrisonCapacitiveDisplayFrame)
+        self.cancel_func = function() self:CancelUIPanel() end
+        self.targets = {
+            [GarrisonCapacitiveDisplayFrame.CreateAllWorkOrdersButton] =
+                {can_activate = true, lock_highlight = true},
+            [GarrisonCapacitiveDisplayFrame.DecrementButton] =
+                {can_activate = true, lock_highlight = true},
+            [GarrisonCapacitiveDisplayFrame.IncrementButton] =
+                {can_activate = true, lock_highlight = true},
+            [GarrisonCapacitiveDisplayFrame.StartWorkOrderButton] =
+                {can_activate = true, lock_highlight = true,
+                 is_default = true},
+        }
         self:UpdateCursor()
 
     elseif event == "CovenantSanctumFrame_SetShown" then
         local shown = ...
         if shown then
             assert(CovenantSanctumFrame:IsVisible())
-            self.focus = CovenantSanctumFrame
-            self.cancel_func = function()
-                CovenantSanctumFrame:Hide()
-                self.focus = nil
-            end
+            self:SetFocus(CovenantSanctumFrame)
+            self.cancel_func = nil
             local function ChooseTalent(button)
                 button:OnMouseDown()
                 self:OnEvent("CovenantSanctumFrame_ChooseTalent", button)
@@ -649,13 +705,13 @@ function MenuCursor:OnEvent(event, ...)
                          GameTooltip_SetTitle(GameTooltip, COVENANT_SANCTUM_DEPOSIT_TOOLTIP)
                          GameTooltip:Show()
                      end,
-                     can_activate = true, is_default = true},
+                     can_activate = true, lock_highlight = true,
+                     is_default = true},
             }
-            self.cur_target = nil
             self:UpdateCursor()
         else
             assert(self.focus == nil or self.focus == CovenantSanctumFrame)
-            self.focus = nil
+            self:ClearFocus()
             self:UpdateCursor()
         end
 
@@ -668,11 +724,11 @@ function MenuCursor:OnEvent(event, ...)
             self.targets = saved_targets
             self.cur_target = saved_cur_target
             self.cancel_func = saved_cancel_func
-            self:UpdateCursor()
         end
         self.targets = {
             [CovenantSanctumFrame.UpgradesTab.TalentsList.UpgradeButton] =
-                {can_activate = true, is_default = true},
+                {can_activate = true, lock_highlight = true,
+                 is_default = true},
         }
         for frame in CovenantSanctumFrame.UpgradesTab.TalentsList.talentPool:EnumerateActive() do
             self.targets[frame] =
@@ -684,43 +740,99 @@ function MenuCursor:OnEvent(event, ...)
     elseif event == "PlayerChoiceFrame_SetShown" then
         local shown = ...
         if shown then
-            if PlayerChoiceFrame.optionFrameTemplate ~= "PlayerChoiceNormalOptionTemplate" then
-                return  -- Only handle formats we've explicitly verified.
+            local KNOWN_FORMATS = {  -- Only handle formats we've explicitly verified.
+                -- Emissary boost choice, Last Hurrah quest choice, etc.
+                PlayerChoiceNormalOptionTemplate = true,
+                -- Cobalt anima powers Superbloom dreamfruit, etc.
+                PlayerChoiceGenericPowerChoiceOptionTemplate = true,
+                -- Torghast anima powers
+                PlayerChoiceTorghastOptionTemplate = true,
+            }
+            if not KNOWN_FORMATS[PlayerChoiceFrame.optionFrameTemplate] then
+                return  
             end
             assert(PlayerChoiceFrame:IsVisible())
-            self.focus = PlayerChoiceFrame
-            self.cancel_func = function()
-                self.cur_target:OnLeave()
-                PlayerChoiceFrame:Hide()
-                self.focus = nil
-            end
+            self:SetFocus(PlayerChoiceFrame)
+            self.cancel_func = nil
             self.targets = {}
             local leftmost = nil
             for option in PlayerChoiceFrame.optionPools:EnumerateActiveByTemplate(PlayerChoiceFrame.optionFrameTemplate) do
                 for button in option.OptionButtonsContainer.buttonPool:EnumerateActive() do
-                    self.targets[button] = {
-                        can_activate = true, send_enter_leave = true}
+                    self.targets[button] = {can_activate = true,
+                                            lock_highlight = true}
+                    if PlayerChoiceFrame.optionFrameTemplate == "PlayerChoiceTorghastOptionTemplate" then
+                        self.targets[button].set_tooltip = function()
+                            if option.OptionText:IsTruncated() then
+                                option:OnEnter()
+                            end
+                        end
+                    else
+                        self.targets[button].send_enter_leave = true
+                    end
                     if not leftmost or button:GetLeft() < leftmost:GetLeft() then
                         leftmost = button
                     end
                 end
             end
             if leftmost then  -- i.e., if we found any buttons
-                self.cur_target = leftmost
-                leftmost:OnEnter()
+                self:SetTarget(leftmost)
             else
-                self.focus = nil
+                self:ClearFocus()
             end
             self:UpdateCursor()
         else
             assert(self.focus == nil or self.focus == PlayerChoiceFrame)
-            if self.focus then
-                self.cur_target:OnLeave()
-                self.focus = nil
-                self:UpdateCursor()
-            end
+            self:ClearFocus()
+            self:UpdateCursor()
         end
 
+    end
+end
+
+function MenuCursor:SetFocus(frame)
+    self.focus = frame
+    self.cur_target = nil
+    self.saved_target = nil
+end
+
+function MenuCursor:ClearFocus()
+    self:SetTarget(nil)
+    self.focus = nil
+end
+
+function MenuCursor:SetTarget(target)
+    local old_target = self.cur_target
+    if old_target then
+        local params = self.targets[old_target]
+        if params.lock_highlight then
+            old_target:UnlockHighlight()
+        end
+        if params.send_enter_leave then
+            old_target:OnLeave()
+        end
+        if params.set_tooltip then
+            if not GameTooltip:IsForbidden() then
+                GameTooltip:Hide()
+            end
+        end
+    end
+
+    self.cur_target = target
+    if target then
+        local params = self.targets[target]
+        if params.lock_highlight then
+            target:LockHighlight()
+        end
+        if params.send_enter_leave then
+            target:OnEnter()
+        end
+        if not GameTooltip:IsForbidden() then
+            if self.targets[target].set_tooltip then
+                self.targets[target].set_tooltip(target)
+            else
+                GameTooltip:Hide()
+            end
+        end
     end
 end
 
@@ -731,74 +843,84 @@ function MenuCursor:UpdateCursor(in_combat)
     local f = self.frame
 
     if self.focus and not self.focus:IsVisible() then
-        self.focus = nil
+        self:ClearFocus()
     end
 
-    local cur_target = self.cur_target
+    local target = self.cur_target
     if self.focus and self.gamepad_active and not in_combat then
-        if not cur_target then
-            for frame, params in pairs(self.targets) do
-                if params.is_default then
-                    cur_target = frame
-                    break
+        if not target then
+            if self.saved_target then
+                target = self.saved_target
+            else
+                for frame, params in pairs(self.targets) do
+                    if params.is_default then
+                        target = frame
+                        break
+                    end
+                end
+                if not target then
+                    error("MenuCursor: no default target")
+                    -- We make this a fatal error for now, but it would be
+                    -- less intrusive to fall back to an arbitrary target,
+                    -- hence we leave in this (currently unreachable) line.
+                    target = next(self.targets)
                 end
             end
-            if not cur_target then
-                error("MenuCursor: no default target")
-                cur_target = next(self.targets)
-            end
-            self.cur_target = cur_target
-            if self.targets[cur_target].send_enter_leave then
-                cur_target:OnEnter()
-            end
+            self:SetTarget(target)
         end
         f:ClearAllPoints()
         -- Work around frame reference limitations on secure buttons
-        --f:SetPoint("TOPRIGHT", cur_target, "LEFT")
-        local x = cur_target:GetLeft()
-        local _, y = cur_target:GetCenter()
+        --f:SetPoint("TOPRIGHT", target, "LEFT")
+        local x = target:GetLeft()
+        local _, y = target:GetCenter()
         f:SetPoint("TOPRIGHT", UIParent, "TOPLEFT", x, y-UIParent:GetHeight())
         if not f:IsShown() then
             f:Show()
             f:SetScript("OnUpdate", function() self:OnUpdate() end)
             self:OnUpdate()
-            SetOverrideBinding(f, true, "PADDUP",
-                               "CLICK WoWXIV_MenuCursor:DPadUp")
-            SetOverrideBinding(f, true, "PADDDOWN",
-                               "CLICK WoWXIV_MenuCursor:DPadDown")
-            SetOverrideBinding(f, true, "PADDLEFT",
-                               "CLICK WoWXIV_MenuCursor:DPadLeft")
-            SetOverrideBinding(f, true, "PADDRIGHT",
-                               "CLICK WoWXIV_MenuCursor:DPadRight")
-            SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_confirm"],
-                               "CLICK WoWXIV_MenuCursor:LeftButton")
-            SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
-                               "CLICK WoWXIV_MenuCursor:Cancel")
         end
-        if self.targets[cur_target].can_activate then
-            f:SetAttribute("clickbutton", cur_target)
+        if self.targets[target].can_activate then
+            f:SetAttribute("clickbutton", target)
         else
             f:SetAttribute("clickbutton", nil)
         end
         if not GameTooltip:IsForbidden() then
-            if self.targets[cur_target].set_tooltip then
-                self.targets[cur_target].set_tooltip(cur_target)
+            if self.targets[target].set_tooltip then
+                self.targets[target].set_tooltip(target)
             else
                 GameTooltip:Hide()
             end
         end
     else
+        if self.cur_target then
+            self.saved_target = self.cur_target
+            self:SetTarget(nil)
+        end
         if f:IsShown() then  -- avoid unnecessary taint warnings
             f:Hide()
-            ClearOverrideBindings(f)
         end
         f:SetScript("OnUpdate", nil)
-        if cur_target and self.targets[cur_target].set_tooltip then
-            if not GameTooltip:IsForbidden() then
-                GameTooltip:Hide()
-            end
-        end
     end
+end
+
+function MenuCursor:OnShow()
+    local f = self.frame
+    SetOverrideBinding(f, true, "PADDUP",
+                       "CLICK WoWXIV_MenuCursor:DPadUp")
+    SetOverrideBinding(f, true, "PADDDOWN",
+                       "CLICK WoWXIV_MenuCursor:DPadDown")
+    SetOverrideBinding(f, true, "PADDLEFT",
+                       "CLICK WoWXIV_MenuCursor:DPadLeft")
+    SetOverrideBinding(f, true, "PADDRIGHT",
+                       "CLICK WoWXIV_MenuCursor:DPadRight")
+    SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_confirm"],
+                       "CLICK WoWXIV_MenuCursor:LeftButton")
+    SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
+                       "CLICK WoWXIV_MenuCursor:Cancel")
+end
+
+function MenuCursor:OnHide()
+    ClearOverrideBindings(self.frame)
 end
 
 function MenuCursor:OnClick(button, down)
@@ -811,11 +933,21 @@ function MenuCursor:OnClick(button, down)
     elseif button == "DPadRight" then
         self:Move(1, 0, "right")
     elseif button == "LeftButton" then  -- i.e., confirm
-        -- Click event passed down by SecureActionButtonTemplate
-        local params = self.targets[self.cur_target]
-        if params.on_click then params.on_click(self.cur_target) end
+        -- Click event is passed to target by SecureActionButtonTemplate.
+        -- This code is called afterward, so it's possible that the target
+        -- already closed our focus frame; avoid erroring in that case.
+        if self.focus then
+            local params = self.targets[self.cur_target]
+            if params.on_click then params.on_click(self.cur_target) end
+        end
     elseif button == "Cancel" then
-        self:cancel_func()
+        if self.cancel_func then
+            self:cancel_func()
+        else
+            local frame = self.focus
+            self:ClearFocus()
+            frame:Hide()
+        end
         self:UpdateCursor()
     end
 end
@@ -833,22 +965,8 @@ function MenuCursor:Move(dx, dy, dir)
         new_target = self:NextTarget(dx, dy)
     end
     if new_target then
-        if cur_target then
-            local params = self.targets[cur_target]
-            if params.set_tooltip then
-                if not GameTooltip:IsForbidden() then
-                    GameTooltip:Hide()
-                end
-            end
-            if params.send_enter_leave then
-                cur_target:OnLeave()
-            end
-        end
-        self.cur_target = new_target
+        self:SetTarget(new_target)
         self:UpdateCursor()
-        if self.targets[new_target].send_enter_leave then
-            new_target:OnEnter()
-        end
     end
 end
 
