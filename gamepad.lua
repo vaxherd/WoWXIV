@@ -89,11 +89,13 @@ local ITEM_TARGET = {
     [ 72049] = "none",    -- Darkmoon Banner (29520: Banners, Banners Everywhere!)
     [ 72056] = "none",    -- Plump Frogs (29509: Putting the Crunch in the Frog)
     [ 72057] = "none",    -- Breaded Frog (29509: Putting the Crunch in the Frog)
+    [157540] = "none",    -- Battered S.E.L.F.I.E. Camera (51092: Picturesque Boralus)
     [168482] = "none",    -- Benthic Sealant (56160: Plug the Geysers)
     [173691] = "target",  -- Anima Drainer (57932: Resource Drain)
     [173692] = "target",  -- Nemea's Javelin (58040: With Lance and Larion)
     [174043] = "none",    -- Phylactery of Arin'gore (61708: Drawing Out the Poison)
     [174197] = "target",  -- Loremaster's Notebook (58471: Aggressive Notation)
+    [175055] = "none",    -- H'partho's Whistle (58830: Aqir Instincts)
     [175827] = "player",  -- Ani-Matter Orb (57245: Ani-Matter Animator
     [177836] = "target",  -- Wingpierce Javelin (59771: History of Corruption)
     [177880] = "player",  -- Primordial Muck (59808: Muck It Up)
@@ -113,21 +115,41 @@ local ITEM_TARGET = {
     [183725] = "none",    -- Moth Net (62459: Go Beyond! [Selenia Moth])
     [184513] = "none",    -- Containment Orb (63040: Guaranteed Delivery)
     [184876] = "none",    -- Cohesion Crystal [63455: Dead On Their Feet]
+    [185949] = "target",  -- Korayn's Spear (The Skyhunt)
     [186089] = "target",  -- Niya's Staff (63840: They Grow Up So Quickly)
     [186097] = "none",    -- Heirmir's Runeblade (63945: The Soul Blade)
     [186199] = "target",  -- Lady Moonberry's Wand (63971: Snail Stomping)
     [187999] = "none",    -- Fishing Portal (65102: Fish Eyes)
+    [188134] = "player",  -- Bronze Timepiece (65118: How to Glide with Your Dragon)
+    [188139] = "player",  -- Bronze Timepiece (65120: How to Dive with Your Dragon)
+    [188169] = "player",  -- Bronze Timepiece (65133: How to Use Momentum with Your Dragon)
     [189384] = "target",  -- Ornithological Medical Kit (66071: Flying Rocs)
     [189454] = "target",  -- Feather-Plucker 3300 (65374: It's Plucking Time)
     [190188] = "player",  -- The Chirpsnide Auto-Excre-Collector (65490: Explosive Excrement)
+    [191160] = "none",    -- Sweetsuckle Bloom (66020: Omens and Incense)
     [191681] = "player",  -- Im-PECK-able Screechflight Disguise (65778: Screechflight Potluck)
     [191763] = "player",  -- Im-PECK-able Screechflight Disguise v2 (66299: The Awaited Egg-splosion)
+    [191952] = "none",    -- Ley Scepter (65709: Arcane Pruning)
+    [191953] = "none",    -- Bag of Helpful Goods (65709: Arcane Pruning)
+    [191978] = "none",    -- Bag of Helpful Goods (65852: Straight to the Top)
     [192191] = "none",    -- Tuskarr Fishing Net (66411: Troubled Waters)
+    [192436] = "target",  -- Ruby Spear (66122: Proto-Fight)
+    [192465] = "none",    -- Wulferd's Award-Winning Camera (66524: Amateur Photography / 66525: Competitive Photography / 66527: Professional Photography / 66529: A Thousand Words)
     [192471] = "target",  -- Arch Instructor's Wand (66489: Setting the Defense)
+    [192475] = "none",    -- R.A.D.D.E.R.E.R. (66428: Friendship For Granted)
+    [192545] = "none",    -- Primal Flame Fragment (66439: Rapid Fire Plans)
     [192555] = "player",  -- Borrowed Breath (66180: Wake the Ancients)
+    [192743] = "target",  -- Wild Bushfruit (65907: Favorite Fruit)
+    [193064] = "target",  -- Smoke Diffuser (66734: Leave Bee Alone)
     [193212] = "none",    -- Marmoni Rescue Pack (66833: Marmoni in Distress)
-    [193826] = "target",  -- Trusty Dragonkin Rake (72991: Warm Dragonfruit Pie)
+    [193826] = "none",    -- Trusty Dragonkin Rake (66827: Flowers of our Labor / 72991: Warm Dragonfruit Pie)
+    [193892] = "target",  -- Wish's Whistle (66680: Counting Sheep)
+    [193917] = "target",  -- Rejuvenating Draught (65996: Veteran Reinforcements)
+    [193918] = "none",    -- Jar of Fireflies (66830: Hornswoggled!)
+    [194434] = "target",  -- Pungent Salve (66893: Beaky Reclamation)
     [194441] = "none",    -- Bottled Water Elemental (66998: Fighting Fire with... Water)
+    [194447] = "target",  -- Totem of Respite (66656: Definitely Eternal Slumber)
+    [194891] = "target",  -- Arcane Hook (65752: Arcane Annoyances)
     [197805] = "target",  -- Suspicious Persons Scanner (69888: Unusual Suspects)
     [198855] = "none",    -- Throw Net (70438: Flying Fish [and other fish restock dailies])
     [199928] = "none",    -- Flamethrower Torch (70856: Kill it with Fire)
@@ -136,8 +158,10 @@ local ITEM_TARGET = {
     [200747] = "none",    -- Zikkori's Water Siphoning Device (70994: Drainage Solutions)
     [202271] = "target",  -- Pouch of Gold Coins (72530: Anyway, I Started Bribing)
     [202293] = "player",  -- Rusziona's Whistle (72459: What's a Duck?)
+    [202409] = "none",    -- Zalethgos's Whistle (73007: New Lenses)
     [202642] = "target",  -- Proto-Killing Spear (73194: Up Close and Personal)
     [202714] = "target",  -- M.U.S.T (73221: A Clear State of Mind)
+    [202874] = "target",  -- Healing Draught (73398: Too Far Forward)
     [203013] = "player",  -- Niffen Incense (73408: Sniffen 'em Out!)
     [203182] = "none",    -- Fish Food (72651: Carp Care)
     [203706] = "target",  -- Hurricane Scepter (74352: Whirling Zephyr)
@@ -146,10 +170,14 @@ local ITEM_TARGET = {
     [204365] = "player",  -- Bundle of Ebon Spears (74991: We Have Returned)
     [204698] = "none",    -- Cataloging Camera (73044: Cataloging Horror)
     [205980] = "target",  -- Snail Lasso (72878: Slime Time Live)
+    [208181] = "skip",    -- Shandris's Scouting Report (76317: Call of the Dream)
+    [208182] = "player",  -- Bronze Timepiece (77345: The Need For Higher Velocities)
     [208206] = "none",    -- Teleportation Crystal (77408: Prophecy Stirs)
     [208841] = "none",    -- True Sight (76550: True Sight)
     [208983] = "none",    -- Yvelyn's Assistance (76520: A Shared Dream)
+    [210014] = "none",    -- Mysterious Ageless Seeds (77209: Seed Legacy)
     [210227] = "target",  -- Q'onzu's Faerie Feather (76992: Fickle Judgment)
+    [210454] = "skip",    -- Spare Hologem (78068: An Artificer's Appeal)
     [211302] = "target",  -- Slumberfruit (76993: Turtle Power)
     [223988] = "skip",    -- Dalaran Hearthstone (79009: The Harbinger)
 }
@@ -167,8 +195,15 @@ local QUEST_ITEM = {
     [60609] = {
         map = 1565,  -- Ardenweald
         items = {
-            180008,  -- Resonating Anima Core
-            180009,  -- Resonating Anima Mote
+            180008,       -- Resonating Anima Core
+            {180009, 5},  -- Resonating Anima Mote
+        }
+    },
+    -- Waking Shores sidequest: Rapid Fire Plans
+    [66439] = {
+        map = 2022,  -- Waking Shores
+        items = {
+            {192545, 8},  -- Primal Flame Fragment
         }
     },
 }
@@ -256,7 +291,11 @@ function QuestItemButton:UpdateQuestItem(event, is_retry)
         if C_QuestLog.IsOnQuest(quest) then
             if C_Map.GetBestMapForUnit("player") == info.map then
                 for _, quest_item in ipairs(info.items) do
-                    if GetItemCount(quest_item) > 0 then
+                    local amount = 1
+                    if type(quest_item) == "table" then
+                        quest_item, amount = unpack(quest_item)
+                    end
+                    if GetItemCount(quest_item) >= amount then
                         item = quest_item
                         break
                     end
