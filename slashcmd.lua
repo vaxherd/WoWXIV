@@ -224,6 +224,49 @@ function(arg)
     WoWXIV.Config.Open()
 end)
 
+---------------- (debugging stuff)
+
+if WoWXIV_config["DEBUG"] then
+
+    StaticPopupDialogs["XIV_TEST1"] = {
+        text = "Is this a test?",
+        button1 = YES,
+        button2 = NO,
+        OnAccept = function() print("XIV_TEST1: accept") end,
+        OnCancel = function() print("XIV_TEST1: cancel") end,
+    }
+    StaticPopupDialogs["XIV_TEST2"] = {
+        text = "Are you sure?",
+        button1 = YES,
+        button2 = NO,
+        OnAccept = function() print("XIV_TEST2: accept") end,
+        OnCancel = function() print("XIV_TEST2: cancel") end,
+    }
+    StaticPopupDialogs["XIV_TEST3"] = {
+        text = "Are you really, REALLY sure?",
+        button1 = "Yes!!",
+        button2 = "No...",
+        button3 = "Mrgl?",
+        OnAccept = function() print("XIV_TEST3: accept") end,
+        OnCancel = function() print("XIV_TEST3: cancel") end,
+        OnAlt = function()
+            print("XIV_TEST3: alt")
+            StaticPopup_Hide("XIV_TEST2")
+        end,
+    }
+
+    DefineCommand("xivd", nil, nil, "WoWXIV debugging command.",
+    function(arg)
+        local showhide = StaticPopup_Show
+        if arg:sub(1,1) == "-" then
+            showhide = StaticPopup_Hide
+            arg = arg:sub(2,-1)
+        end
+        showhide("XIV_TEST"..arg)
+    end)
+
+end  -- if WoWXIV_config["DEBUG"]
+
 ---------------- (end of commands)
 
 end  -- DefineAllCommands()
