@@ -548,7 +548,6 @@ function MenuCursor:OnEvent(event, ...)
         if not GossipFrame:IsVisible() then
             return  -- Flight map, etc.
         end
-        
         self:SetFocus(GossipFrame)
         self.cancel_func = self.CancelUIPanel
         local goodbye = GossipFrame.GreetingPanel.GoodbyeButton
@@ -863,6 +862,9 @@ end
 -- Set the focus frame to the given frame.  Any previous focus frame is
 -- cleared.
 function MenuCursor:SetFocus(frame)
+    if self.focus then
+        self:ClearFocus()
+    end
     self.focus = frame
     self.cur_target = nil
     self.saved_target = nil
