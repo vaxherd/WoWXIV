@@ -406,6 +406,8 @@ function MenuCursor:__constructor()
     self.gamepad_active = false
     -- Frame which currently has the cursor's input focus, nil if none.
     self.focus = nil
+    -- Stack of saved focus frames, used with PushFocus() and PopFocus().
+    self.focus_stack = {}
 
     -- The following are only used when self.focus is not nil:
 
@@ -416,9 +418,12 @@ function MenuCursor:__constructor()
     -- Last targeted subframe, used when the cursor is temporarily hidden
     -- (such as due to mouse movement).
     self.saved_target = nil
-    -- Function to call when the cancel button is pressed.  If nil,
-    -- calls self.focus:Hide() and clears self.focus to nil.
+    -- Function to call when the cancel button is pressed (receives self
+    -- as an argument).  If nil, no action is taken.
     self.cancel_func = nil
+    -- Subframe (button) to be clicked on a gamepad cancel button press,
+    -- or nil for none.  If set, cancel_func is ignored.
+    self.cancel_button = nil
 
     -- This is a SecureActionButtonTemplate only so that we can
     -- indirectly click the button pointed to by the cursor.
@@ -445,10 +450,18 @@ function MenuCursor:__constructor()
     f:RegisterEvent("SHIPMENT_CRAFTER_CLOSED")
     f:RegisterEvent("SHIPMENT_CRAFTER_OPENED")
     f:SetAttribute("type1", "click")
-    f:SetAttribute("clickbutton", nil)
+    f:SetAttribute("type2", "click")
+    f:SetAttribute("clickbutton1", nil)
+    f:SetAttribute("clickbutton2", nil)
     f:HookScript("OnClick", function(_,...) self:OnClick(...) end)
     f:RegisterForClicks("AnyDown")
 
+    for i = 1, STATICPOPUP_NUMDIALOGS do
+        local frame_name = "StaticPopup" .. i
+        local frame = _G[frame_name]
+        assert(frame)
+        self:HookShow(frame, "StaticPopup_SetShown")
+    end
     if CovenantSanctumFrame then
         self:OnEvent("ADDON_LOADED", "Blizzard_CovenantSanctum")
     end
@@ -464,38 +477,51 @@ function MenuCursor:__constructor()
     texture:SetTexCoord(1, 0, 0, 1)
 end
 
--- Generic cancel_func to close a UI frame.  Equivalent to the default
--- cancel behavior but with calling HideUIPanel(focus) instead of
--- focus:Hide().
+-- Hook a frame's Show/Hide/SetShown methods, calling OnEvent() with tne
+-- given event name and the show/hide status (true = show, false = hide)
+-- whenever one of the methods is called.  The frame itself is passed as
+-- a second argument to the event, for use when handling multiple related
+-- frames with a single event (like StaticPopups).
+function MenuCursor:HookShow(frame, event)
+    hooksecurefunc(frame, "Show", function()
+        self:OnEvent(event, true, frame)
+    end)
+    hooksecurefunc(frame, "Hide", function()
+        self:OnEvent(event, false, frame)
+    end)
+    hooksecurefunc(frame, "SetShown", function(_, shown)
+        self:OnEvent(event, shown, frame)
+    end)
+end
+
+-- Generic cancel_func to close a frame.
+function MenuCursor:CancelFrame()
+    local frame = self.focus
+    self:ClearFocus()
+    frame:Hide()
+end
+
+-- Generic cancel_func to close a UI frame.  Equivalent to CancelFrame()
+-- but with calling HideUIPanel(focus) instead of focus:Hide().
 function MenuCursor:CancelUIPanel()
     local frame = self.focus
     self:ClearFocus()
     HideUIPanel(frame)
 end
 
+-- Shared cancel_func used for quest frames.
+function MenuCursor:CancelQuestFrame()
+    self:ClearFocus()
+    CloseQuest()
+end
+
 function MenuCursor:OnEvent(event, ...)
     if event == "ADDON_LOADED" then
         local name = ...
         if name == "Blizzard_CovenantSanctum" then
-            hooksecurefunc(CovenantSanctumFrame, "Show", function()
-                self:OnEvent("CovenantSanctumFrame_SetShown", true)
-            end)
-            hooksecurefunc(CovenantSanctumFrame, "Hide", function()
-                self:OnEvent("CovenantSanctumFrame_SetShown", false)
-            end)
-            hooksecurefunc(CovenantSanctumFrame, "SetShown", function(_,shown)
-                self:OnEvent("CovenantSanctumFrame_SetShown", shown)
-            end)
+            self:HookShow(CovenantSanctumFrame, "CovenantSanctumFrame_SetShown")
         elseif name == "Blizzard_PlayerChoice" then
-            hooksecurefunc(PlayerChoiceFrame, "Show", function()
-                self:OnEvent("PlayerChoiceFrame_SetShown", true)
-            end)
-            hooksecurefunc(PlayerChoiceFrame, "Hide", function()
-                self:OnEvent("PlayerChoiceFrame_SetShown", false)
-            end)
-            hooksecurefunc(PlayerChoiceFrame, "SetShown", function(_,shown)
-                self:OnEvent("PlayerChoiceFrame_SetShown", shown)
-            end)
+            self:HookShow(PlayerChoiceFrame, "PlayerChoiceFrame_SetShown")
         end
 
     elseif event == "GAME_PAD_ACTIVE_CHANGED" then
@@ -510,10 +536,13 @@ function MenuCursor:OnEvent(event, ...)
         self:UpdateCursor(false)
 
     elseif event == "GOSSIP_CLOSED" then
-        assert(self.focus == nil or self.focus == GossipFrame
-               or self.focus == QuestFrame)  -- e.g. Marasmius dailies
-        self:ClearFocus()
-        self:UpdateCursor()
+        -- This event can fire even when the gossip window was never opened
+        -- (generally when a menu opens instead), so don't assume we're in
+        -- gossip menu state.
+        if self.focus == GossipFrame then
+            self:ClearFocus()
+            self:UpdateCursor()
+        end
 
     elseif event == "GOSSIP_SHOW" then
         if not GossipFrame:IsVisible() then
@@ -521,7 +550,7 @@ function MenuCursor:OnEvent(event, ...)
         end
         
         self:SetFocus(GossipFrame)
-        self.cancel_func = function() self:CancelUIPanel() end
+        self.cancel_func = self.CancelUIPanel
         local goodbye = GossipFrame.GreetingPanel.GoodbyeButton
         self.targets = {[goodbye] = {can_activate = true,
                                      lock_highlight = true}}
@@ -557,10 +586,7 @@ function MenuCursor:OnEvent(event, ...)
     elseif event == "QUEST_COMPLETE" then
         assert(QuestFrame:IsVisible())
         self:SetFocus(QuestFrame)
-        self.cancel_func = function()
-            self:ClearFocus()
-            CloseQuest()
-        end
+        self.cancel_func = self.CancelQuestFrame
         self.targets = {
             -- We explicitly suppress right movement to avoid the cursor
             -- jumping up to the rewards line (which is still available
@@ -589,10 +615,7 @@ function MenuCursor:OnEvent(event, ...)
             return
         end
         self:SetFocus(QuestFrame)
-        self.cancel_func = function()
-            self:ClearFocus()
-            CloseQuest()
-        end
+        self.cancel_func = self.CancelQuestFrame
         self.targets = {
             [QuestFrameAcceptButton] = {can_activate = true,
                                         lock_highlight = true,
@@ -620,10 +643,7 @@ function MenuCursor:OnEvent(event, ...)
     elseif event == "QUEST_GREETING" then
         assert(QuestFrame:IsVisible())
         self:SetFocus(QuestFrame)
-        self.cancel_func = function()
-            self:ClearFocus()
-            CloseQuest()
-        end
+        self.cancel_func = self.CancelQuestFrame
         local goodbye = QuestFrameGreetingGoodbyeButton
         self.targets = {[goodbye] = {can_activate = true,
                                      lock_highlight = true}}
@@ -646,10 +666,7 @@ function MenuCursor:OnEvent(event, ...)
     elseif event == "QUEST_PROGRESS" then
         assert(QuestFrame:IsVisible())
         self:SetFocus(QuestFrame)
-        self.cancel_func = function()
-            self:ClearFocus()
-            CloseQuest()
-        end
+        self.cancel_func = self.CancelQuestFrame
         local can_complete = QuestFrameCompleteButton:IsEnabled()
         self.targets = {
             [QuestFrameCompleteButton] = {can_activate = true,
@@ -689,19 +706,8 @@ function MenuCursor:OnEvent(event, ...)
 
     elseif event == "SHIPMENT_CRAFTER_OPENED" then
         assert(GarrisonCapacitiveDisplayFrame:IsVisible())
-        -- This event can fire before the frame content is loaded (notably
-        -- the first time the frame is opened after a /reload), in which
-        -- case we get an incorrect initial position for the menu cursor.
-        -- Ideally we should pick up on button position changes whenever
-        -- they occur (FIXME: is there a generic event or hook for that?),
-        -- but as a substitute we wait here until the description text is
-        -- available, at which point the frame will be correctly sized.
-        if not GarrisonCapacitiveDisplayFrame.CapacitiveDisplay.Description:GetText() then
-            C_Timer.After(0, function() self:OnEvent(event) end)
-            return
-        end
         self:SetFocus(GarrisonCapacitiveDisplayFrame)
-        self.cancel_func = function() self:CancelUIPanel() end
+        self.cancel_func = self.CancelUIPanel
         self.targets = {
             [GarrisonCapacitiveDisplayFrame.CreateAllWorkOrdersButton] =
                 {can_activate = true, lock_highlight = true},
@@ -720,7 +726,7 @@ function MenuCursor:OnEvent(event, ...)
         if shown then
             assert(CovenantSanctumFrame:IsVisible())
             self:SetFocus(CovenantSanctumFrame)
-            self.cancel_func = nil
+            self.cancel_func = self.CancelFrame
             local function ChooseTalent(button)
                 button:OnMouseDown()
                 self:OnEvent("CovenantSanctumFrame_ChooseTalent", button)
@@ -792,7 +798,7 @@ function MenuCursor:OnEvent(event, ...)
             end
             assert(PlayerChoiceFrame:IsVisible())
             self:SetFocus(PlayerChoiceFrame)
-            self.cancel_func = nil
+            self.cancel_func = self.CancelFrame
             self.targets = {}
             local leftmost = nil
             for option in PlayerChoiceFrame.optionPools:EnumerateActiveByTemplate(PlayerChoiceFrame.optionFrameTemplate) do
@@ -825,18 +831,104 @@ function MenuCursor:OnEvent(event, ...)
             self:UpdateCursor()
         end
 
+    elseif event == "StaticPopup_SetShown" then
+        local shown, frame = ...
+        if shown then
+            if self.focus == frame then return end  -- Sanity check
+            self:PushFocus(frame)
+            self.targets = {}
+            local leftmost = nil
+            for i = 1, 5 do
+                local name = i==5 and "extraButton" or "button"..i
+                local button = frame[name]
+                assert(button)
+                if button:IsShown() then
+                    self.targets[button] = {can_activate = true,
+                                            lock_highlight = true}
+                    if not leftmost or button:GetLeft() < leftmost:GetLeft() then
+                        leftmost = button
+                    end
+                end
+            end
+            if leftmost then  -- i.e., if we found any buttons
+                self:SetTarget(leftmost)
+                if frame.button2:IsShown() then
+                    self.cancel_button = frame.button2
+                end
+            else
+                self:PopFocus(frame)
+            end
+            self:UpdateCursor()
+        else
+            self:PopFocus(frame)
+            self:UpdateCursor()
+        end
+
     end
 end
 
+-- Set the focus frame to the given frame.  Any previous focus frame is
+-- cleared.
 function MenuCursor:SetFocus(frame)
     self.focus = frame
     self.cur_target = nil
     self.saved_target = nil
+    self.cancel_func = nil
+    self.cancel_button = nil
 end
 
+-- Clear any current focus frame, hiding the menu cursor if it is displayed.
 function MenuCursor:ClearFocus()
     self:SetTarget(nil)
     self.focus = nil
+end
+
+-- Set the focus frame to the given frame, saving the current focus frame
+-- state so that it will be restored on a call to PopFocus().
+function MenuCursor:PushFocus(frame)
+    if self.focus then
+        local focus_state = {
+            frame = self.focus, 
+            targets = self.targets,
+            cur_target = self.cur_target,
+            saved_target = self.saved_target,
+            cancel_func = self.cancel_func,
+            cancel_button = self.cancel_button,
+        }
+        tinsert(self.focus_stack, focus_state)
+        self:SetTarget(nil)  -- clear current button's highlight/tooltip
+    end
+    self:SetFocus(frame)
+end
+
+-- Pop the given frame from the focus stack, if it exists in the stack.
+-- If the frame is the top frame, the previous focus state is restored.
+-- If the frame is in the stack but not on top (such as if multiple
+-- frames are hidden at once but not in the reverse order of being shown),
+-- it is removed from the stack but the focus state remains unchanged.
+function MenuCursor:PopFocus(frame)
+    if self.focus == frame then
+        if #self.focus_stack > 0 then
+            self:SetTarget(nil)
+            local focus_state = tremove(self.focus_stack)
+            self.focus = focus_state.frame
+            self.targets = focus_state.targets
+            self.saved_target = focus_state.saved_target
+            self.cancel_func = focus_state.cancel_func
+            self.cancel_button = focus_state.cancel_button
+            self:SetTarget(focus_state.cur_target)
+        else
+            self:ClearFocus()
+        end
+        self:UpdateCursor()
+    else
+        for i, focus_state in ipairs(self.focus_stack) do
+            if focus_state.frame == frame then
+                tremove(self.focus_stack, i)
+                break
+            end
+        end
+    end
 end
 
 function MenuCursor:SetTarget(target)
@@ -907,21 +999,23 @@ function MenuCursor:UpdateCursor(in_combat)
             end
             self:SetTarget(target)
         end
-        f:ClearAllPoints()
-        -- Work around frame reference limitations on secure buttons
-        --f:SetPoint("TOPRIGHT", target, "LEFT")
-        local x = target:GetLeft()
-        local _, y = target:GetCenter()
-        f:SetPoint("TOPRIGHT", UIParent, "TOPLEFT", x, y-UIParent:GetHeight())
+        self:SetCursorPoint(target)
+        if self.targets[target].can_activate then
+            f:SetAttribute("clickbutton1", target)
+        else
+            f:SetAttribute("clickbutton1", nil)
+        end
+        if self.cancel_button then
+            f:SetAttribute("clickbutton2", self.cancel_button)
+        else
+            f:SetAttribute("clickbutton2", nil)
+        end
         if not f:IsShown() then
             f:Show()
             f:SetScript("OnUpdate", function() self:OnUpdate() end)
             self:OnUpdate()
-        end
-        if self.targets[target].can_activate then
-            f:SetAttribute("clickbutton", target)
         else
-            f:SetAttribute("clickbutton", nil)
+            self:SetCancelBinding()
         end
         if not GameTooltip:IsForbidden() then
             if self.targets[target].set_tooltip then
@@ -942,6 +1036,16 @@ function MenuCursor:UpdateCursor(in_combat)
     end
 end
 
+function MenuCursor:SetCursorPoint(target)
+    local f = self.frame
+    f:ClearAllPoints()
+    -- Work around frame reference limitations on secure buttons
+    --f:SetPoint("TOPRIGHT", target, "LEFT")
+    local x = target:GetLeft()
+    local _, y = target:GetCenter()
+    f:SetPoint("TOPRIGHT", UIParent, "TOPLEFT", x, y-UIParent:GetHeight())
+end
+
 function MenuCursor:OnShow()
     local f = self.frame
     SetOverrideBinding(f, true, "PADDUP",
@@ -954,8 +1058,18 @@ function MenuCursor:OnShow()
                        "CLICK WoWXIV_MenuCursor:DPadRight")
     SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_confirm"],
                        "CLICK WoWXIV_MenuCursor:LeftButton")
-    SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
-                       "CLICK WoWXIV_MenuCursor:Cancel")
+    self:SetCancelBinding()
+end
+
+function MenuCursor:SetCancelBinding()
+    local f = self.frame
+    if self.cancel_button then
+        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
+                           "CLICK WoWXIV_MenuCursor:RightButton")
+    else
+        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
+                           "CLICK WoWXIV_MenuCursor:Cancel")
+    end
 end
 
 function MenuCursor:OnHide()
@@ -982,10 +1096,6 @@ function MenuCursor:OnClick(button, down)
     elseif button == "Cancel" then
         if self.cancel_func then
             self:cancel_func()
-        else
-            local frame = self.focus
-            self:ClearFocus()
-            frame:Hide()
         end
         self:UpdateCursor()
     end
@@ -1087,6 +1197,16 @@ function MenuCursor:NextTarget(dx, dy)
 end
 
 function MenuCursor:OnUpdate()
+    --[[
+         Calling out to fetch the target's position and resetting the
+         cursor anchor points every frame is not ideal, but we need to
+         keep the cursor position updated when buttons change positions,
+         such as:
+            - Scrolling of gossip/quest text
+            - BfA troop recruit frame on first open after /reload
+            - Upgrade confirmation dialog for Shadowlands covenant sanctum
+    ]]--
+    self:SetCursorPoint(self.cur_target)
     local t = GetTime()
     t = t - math.floor(t)
     local xofs = -4 * math.sin(t * math.pi)
