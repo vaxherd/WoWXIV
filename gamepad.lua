@@ -424,6 +424,13 @@ function MenuCursor:__constructor()
     -- Subframe (button) to be clicked on a gamepad cancel button press,
     -- or nil for none.  If set, cancel_func is ignored.
     self.cancel_button = nil
+    -- Should the current button be highlighted if enabled?
+    -- (This is a cache of the current button's lock_highlight parameter.)
+    self.want_highlight = true
+    -- Is the current button highlighted via lock_highlight?
+    -- (This is a cache to avoid unnecessary repeated calls to the
+    -- button's LockHighlight() method in OnUpdate().)
+    self.highlight_locked = false
 
     -- This is a SecureActionButtonTemplate only so that we can
     -- indirectly click the button pointed to by the cursor.
@@ -870,6 +877,8 @@ function MenuCursor:SetFocus(frame)
     self.saved_target = nil
     self.cancel_func = nil
     self.cancel_button = nil
+    self.want_highlight = false
+    self.highlight_locked = false
 end
 
 -- Clear any current focus frame, hiding the menu cursor if it is displayed.
@@ -931,6 +940,10 @@ function MenuCursor:SetTarget(target)
     if old_target then
         local params = self.targets[old_target]
         if params.lock_highlight then
+            -- We could theoretically check highlight_locked here, but
+            -- it should be safe to unconditionally unlock (we take the
+            -- lock_highlight parameter as an indication that we have
+            -- exclusive control over the highlight lock).
             old_target:UnlockHighlight()
         end
         if params.send_enter_leave then
@@ -944,10 +957,16 @@ function MenuCursor:SetTarget(target)
     end
 
     self.cur_target = target
+    self.want_highlight = false
+    self.highlight_locked = false
     if target then
         local params = self.targets[target]
         if params.lock_highlight then
-            target:LockHighlight()
+            self.want_highlight = true
+            if target:IsEnabled() then
+                self.highlight_locked = true
+                target:LockHighlight()
+            end
         end
         if params.send_enter_leave then
             target:OnEnter()
@@ -1192,6 +1211,8 @@ function MenuCursor:NextTarget(dx, dy)
 end
 
 function MenuCursor:OnUpdate()
+    local target = self.cur_target
+
     --[[
          Calling out to fetch the target's position and resetting the
          cursor anchor points every frame is not ideal, but we need to
@@ -1201,12 +1222,25 @@ function MenuCursor:OnUpdate()
             - BfA troop recruit frame on first open after /reload
             - Upgrade confirmation dialog for Shadowlands covenant sanctum
     ]]--
-    self:SetCursorPoint(self.cur_target)
+    self:SetCursorPoint(target)
+
     local t = GetTime()
     t = t - math.floor(t)
     local xofs = -4 * math.sin(t * math.pi)
     self.texture:ClearPointsOffset()
     self.texture:AdjustPointsOffset(xofs, 0)
+
+    if self.want_highlight and not self.highlight_locked then
+        -- The button was previously disabled.  See if it is now enabled,
+        -- such as in the Revival Catalyst confirmation dialog after the
+        -- 5-second delay ends.  (The reverse case of an enabled button
+        -- being disabled is also theoretically possible, but we ignore
+        -- that case pending evidence that it can occur in practice.)
+        if target:IsEnabled() then
+            self.highlight_locked = true
+            target:LockHighlight()
+        end
+    end
 end
 
 ------------------------------------------------------------------------
