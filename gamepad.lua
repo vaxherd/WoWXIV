@@ -762,14 +762,8 @@ function MenuCursor:OnEvent(event, ...)
 
     elseif event == "CovenantSanctumFrame_ChooseTalent" then
         local upgrade_button = ...
-        local saved_targets = self.targets
-        local saved_cur_target = self.cur_target
-        local saved_cancel_func = self.cancel_func
-        self.cancel_func = function()
-            self.targets = saved_targets
-            self.cur_target = saved_cur_target
-            self.cancel_func = saved_cancel_func
-        end
+        self:PushFocus(self.focus)
+        self.cancel_func = function(self) self:PopFocus(self.focus) end
         self.targets = {
             [CovenantSanctumFrame.UpgradesTab.TalentsList.UpgradeButton] =
                 {can_activate = true, lock_highlight = true,
@@ -779,7 +773,6 @@ function MenuCursor:OnEvent(event, ...)
             self.targets[frame] =
                 {set_tooltip = function(self) self:OnEnter() end}
         end
-        self.cur_target = nil
         self:UpdateCursor()
 
     elseif event == "PlayerChoiceFrame_SetShown" then
