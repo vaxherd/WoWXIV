@@ -625,18 +625,32 @@ function MenuCursor:OnEvent(event, ...)
             button1 = QuestFrameAcceptButton
             button2 = QuestFrameDeclineButton
         end
-        local last_l, last_r, this_l
+        local rewards = {}
         for i = 1, 99 do
             local name = "QuestInfoRewardsFrameQuestInfoItem" .. i
             local reward_frame = _G[name]
             if not reward_frame or not reward_frame:IsShown() then break end
+            tinsert(rewards, {reward_frame, false})
+        end
+        for reward_frame in QuestInfoRewardsFrame.reputationRewardPool:EnumerateActive() do
+            tinsert(rewards, {reward_frame, true})
+        end
+        local last_l, last_r, this_l
+        for _,v in ipairs(rewards) do
+            local reward_frame, is_rep = unpack(v)
             self.targets[reward_frame] = {
                 up = false, down = false, left = false, right = false,
                 scroll_frame = QuestDetailScrollFrame,
-                set_tooltip = function()
-                    QuestInfoRewardItemCodeTemplate_OnEnter(reward_frame)
-                end,
             }
+            -- Reputation reward frames have the usual OnEnter/OnLeave
+            -- handlers, but item rewards need manual handling.
+            if is_rep then
+                self.targets[reward_frame].send_enter_leave = true
+            else
+                self.targets[reward_frame].set_tooltip = function()
+                    QuestInfoRewardItemCodeTemplate_OnEnter(reward_frame)
+                end
+            end
             if this_l and reward_frame:GetTop() == this_l:GetTop() then
                 -- Item is in the right column.
                 if last_r then
@@ -1014,11 +1028,9 @@ function MenuCursor:SetTarget(target)
         if params.send_enter_leave then
             target:OnEnter()
         end
-        if not GameTooltip:IsForbidden() then
-            if self.targets[target].set_tooltip then
+        if params.set_tooltip then
+            if not GameTooltip:IsForbidden() then
                 self.targets[target].set_tooltip(target)
-            else
-                GameTooltip:Hide()
             end
         end
     end
@@ -1073,13 +1085,6 @@ function MenuCursor:UpdateCursor(in_combat)
             self:OnUpdate()
         else
             self:SetCancelBinding()
-        end
-        if not GameTooltip:IsForbidden() then
-            if self.targets[target].set_tooltip then
-                self.targets[target].set_tooltip(target)
-            else
-                GameTooltip:Hide()
-            end
         end
     else
         if self.cur_target then
