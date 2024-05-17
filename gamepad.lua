@@ -164,6 +164,7 @@ local ITEM_TARGET = {
     [202874] = "target",  -- Healing Draught (73398: Too Far Forward)
     [203013] = "player",  -- Niffen Incense (73408: Sniffen 'em Out!)
     [203182] = "none",    -- Fish Food (72651: Carp Care)
+    [203621] = "none",    -- Posidriss's Whistle (73014: A Green Who Can't Sleep?)
     [203706] = "target",  -- Hurricane Scepter (74352: Whirling Zephyr)
     [203731] = "target",  -- Enchanted Bandage (74570: Aid Our Wounded)
     [204344] = "player",  -- Conductive Lodestone (74988: If You Can't Take the Heat)
@@ -177,7 +178,7 @@ local ITEM_TARGET = {
     [208983] = "none",    -- Yvelyn's Assistance (76520: A Shared Dream)
     [210014] = "none",    -- Mysterious Ageless Seeds (77209: Seed Legacy)
     [210227] = "target",  -- Q'onzu's Faerie Feather (76992: Fickle Judgment)
-    [210454] = "skip",    -- Spare Hologem (78068: An Artificer's Appeal)
+    [210454] = "skip",    -- Spare Hologem (78068: An Artificer's Appeal / 78070: Pressing Deadlines / 78075: Moving Past / 78081: Pain Recedes)
     [211302] = "target",  -- Slumberfruit (76993: Turtle Power)
     [223988] = "skip",    -- Dalaran Hearthstone (79009: The Harbinger)
 }
@@ -589,55 +590,97 @@ function MenuCursor:OnEvent(event, ...)
         self.targets[first_button or goodbye].is_default = true
         self:UpdateCursor()
 
-    elseif event == "QUEST_COMPLETE" then
-        assert(QuestFrame:IsVisible())
-        self:SetFocus(QuestFrame)
-        self.cancel_func = self.CancelQuestFrame
-        self.targets = {
-            -- We explicitly suppress right movement to avoid the cursor
-            -- jumping up to the rewards line (which is still available
-            -- with "up" movement).
-            [QuestFrameCompleteQuestButton] =
-                {is_default = true, can_activate = true, lock_highlight = true,
-                 right = false}
-        }
-        for i = 1, 99 do
-            local name = "QuestInfoRewardsFrameQuestInfoItem" .. i
-            local reward_frame = _G[name]
-            if not reward_frame or not reward_frame:IsShown() then break end
-            self.targets[reward_frame] = {
-                can_activate = GetNumQuestChoices() > 1,
-                set_tooltip = function()
-                    QuestInfoRewardItemCodeTemplate_OnEnter(reward_frame)
-                end,
-            }
-        end
-        self:UpdateCursor()
-
-    elseif event == "QUEST_DETAIL" then
-        if not QuestFrame:IsVisible() then
+    elseif event == "QUEST_COMPLETE" or event == "QUEST_DETAIL" then
+        if event == "QUEST_DETAIL" then
             -- FIXME: some map-based quests (e.g. Blue Dragonflight campaign)
             -- start a quest directly from the map; we should support those too
-            return
+            if not QuestFrame:IsVisible() then return end
+        else
+            assert(QuestFrame:IsVisible())
         end
         self:SetFocus(QuestFrame)
         self.cancel_func = self.CancelQuestFrame
-        self.targets = {
-            [QuestFrameAcceptButton] = {can_activate = true,
-                                        lock_highlight = true,
-                                        is_default = true},
-            [QuestFrameDeclineButton] = {can_activate = true,
-                                        lock_highlight = true},
-        }
+        local button1, button2
+        if event == "QUEST_COMPLETE" then
+            self.targets = {
+                [QuestFrameCompleteQuestButton] = {
+                    up = false, down = false, left = false, right = false,
+                    can_activate = true, lock_highlight = true,
+                    is_default = true}
+            }
+            button1 = QuestFrameCompleteQuestButton
+            button2 = nil
+        else
+            self.targets = {
+                [QuestFrameAcceptButton] = {
+                    up = false, down = false, left = false,
+                    right = QuestFrameDeclineButton,
+                    can_activate = true, lock_highlight = true,
+                    is_default = true},
+                [QuestFrameDeclineButton] = {
+                    up = false, down = false, right = false,
+                    left = QuestFrameAcceptButton,
+                    can_activate = true, lock_highlight = true},
+            }
+            button1 = QuestFrameAcceptButton
+            button2 = QuestFrameDeclineButton
+        end
+        local last_l, last_r, this_l
         for i = 1, 99 do
             local name = "QuestInfoRewardsFrameQuestInfoItem" .. i
             local reward_frame = _G[name]
             if not reward_frame or not reward_frame:IsShown() then break end
             self.targets[reward_frame] = {
+                up = false, down = false, left = false, right = false,
+                scroll_frame = QuestDetailScrollFrame,
                 set_tooltip = function()
                     QuestInfoRewardItemCodeTemplate_OnEnter(reward_frame)
                 end,
             }
+            if this_l and reward_frame:GetTop() == this_l:GetTop() then
+                -- Item is in the right column.
+                if last_r then
+                    self.targets[last_r].down = reward_frame
+                    self.targets[reward_frame].up = last_r
+                elseif last_l then
+                    self.targets[reward_frame].up = last_l
+                end
+                self.targets[this_l].right = reward_frame
+                self.targets[reward_frame].left = this_l
+                last_l, last_r = this_l, reward_frame
+                this_l = nil
+            else
+                -- Item is in the left column.
+                if this_l then
+                    last_l, last_r = this_l, nil
+                end
+                if last_l then
+                    self.targets[last_l].down = reward_frame
+                    self.targets[reward_frame].up = last_l
+                end
+                if last_r then
+                    -- This will be overwritten if we find another item
+                    -- on the same line.
+                    self.targets[last_r].down = reward_frame
+                end
+                this_l = reward_frame
+            end
+        end
+        if this_l then
+            last_l, last_r = this_l, nil
+        end
+        if last_l then
+            self.targets[last_l].down = button1
+            self.targets[button1].up = last_l
+            if button2 then
+                self.targets[button2].up = last_l
+            end
+        end
+        if last_r then
+            self.targets[last_r].down = button2 or button1
+            if button2 then
+                self.targets[button2].up = last_r
+            end
         end
         self:UpdateCursor()
 
@@ -1128,6 +1171,26 @@ function MenuCursor:Move(dx, dy, dir)
         new_target = self:NextTarget(dx, dy)
     end
     if new_target then
+        local scroll_frame = self.targets[new_target].scroll_frame
+        if scroll_frame then
+            local scroll_top = -(scroll_frame:GetTop())
+            local scroll_bottom = -(scroll_frame:GetBottom())
+            local scroll_height = scroll_bottom - scroll_top
+            local top = -(new_target:GetTop()) - scroll_top
+            local bottom = -(new_target:GetBottom()) - scroll_top
+            local MARGIN = 20
+            local scroll_target
+            if top < MARGIN then
+                scroll_target = MARGIN - top
+            elseif bottom > scroll_height - MARGIN then
+                scroll_target = bottom - (scroll_height - MARGIN)
+            end
+            if scroll_target then
+                if scroll_target < 0 then scroll_target = 0 end
+                -- SetVerticalScroll() automatically clamps to child height.
+                scroll_frame:SetVerticalScroll(scroll_target)
+            end
+        end
         self:SetTarget(new_target)
         self:UpdateCursor()
     end
