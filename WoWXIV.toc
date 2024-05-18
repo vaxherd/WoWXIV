@@ -22,6 +22,9 @@ targetbar.lua
 util.lua
 
 gamepad/gamepad.lua
+gamepad/leavevehicle.lua
+gamepad/menucursor.lua
+gamepad/questitem.lua
 
 ui/aurabar.lua
 ui/castbar.lua
