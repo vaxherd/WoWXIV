@@ -13,7 +13,6 @@ combat.lua
 common.xml
 config.lua
 flytext.lua
-gamepad.lua
 hatelist.lua
 isearch.lua
 map.lua
@@ -21,6 +20,8 @@ partylist.lua
 slashcmd.lua
 targetbar.lua
 util.lua
+
+gamepad/gamepad.lua
 
 ui/aurabar.lua
 ui/castbar.lua
