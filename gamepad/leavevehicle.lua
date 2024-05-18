@@ -26,7 +26,7 @@ end
 
 function LeaveVehicleButton:OnClick(button, down)
     -- VehicleExit() and TaxiRequestEarlyLanding() both appear to not
-    -- be protected (as of 10.2.6), so we can just call these directly,
+    -- be protected (as of 10.2.7), so we can just call these directly,
     -- reproducing the behavior of the two native buttons.
     if UnitOnTaxi("player") then
         TaxiRequestEarlyLanding()
