@@ -57,19 +57,9 @@ function MenuCursor:__constructor()
     f:SetScript("OnShow", function() self:OnShow() end)
     f:SetScript("OnHide", function() self:OnHide() end)
     f:SetScript("OnEvent", function(_,...) self:OnEvent(...) end)
-    f:RegisterEvent("ADDON_LOADED")
     f:RegisterEvent("GAME_PAD_ACTIVE_CHANGED")
     f:RegisterEvent("PLAYER_REGEN_DISABLED")
     f:RegisterEvent("PLAYER_REGEN_ENABLED")
-    f:RegisterEvent("GOSSIP_CLOSED")
-    f:RegisterEvent("GOSSIP_SHOW")
-    f:RegisterEvent("QUEST_COMPLETE")
-    f:RegisterEvent("QUEST_DETAIL")
-    f:RegisterEvent("QUEST_FINISHED")
-    f:RegisterEvent("QUEST_GREETING")
-    f:RegisterEvent("QUEST_PROGRESS")
-    f:RegisterEvent("SHIPMENT_CRAFTER_CLOSED")
-    f:RegisterEvent("SHIPMENT_CRAFTER_OPENED")
     f:SetAttribute("type1", "click")
     f:SetAttribute("type2", "click")
     f:SetAttribute("clickbutton1", nil)
@@ -77,36 +67,8 @@ function MenuCursor:__constructor()
     f:HookScript("OnClick", function(_,...) self:OnClick(...) end)
     f:RegisterForClicks("AnyDown")
 
-    for i = 1, STATICPOPUP_NUMDIALOGS do
-        local frame_name = "StaticPopup" .. i
-        local frame = _G[frame_name]
-        assert(frame)
-        self:HookShow(frame, "StaticPopup")
-    end
-    -- We could react to PLAYER_INTERACTION_MANAGER_FRAME_{SHOW,HIDE}
-    -- with arg1 == Enum.PlayerInteractionType.MailInfo (17) for mailbox
-    -- handling, but we don't currently have any support for the send UI,
-    -- so we isolate our handling to the inbox frame.
-    self:HookShow(InboxFrame, "InboxFrame")
-    for i = 1, 7 do
-        local frame_name = "MailItem" .. i .. "Button"
-        local frame = _G[frame_name]
-        assert(frame)
-        self:HookShow(frame, "MailItemButton")
-    end
-    self:HookShow(OpenMailFrame, "OpenMailFrame")
-    for i = 1, 16 do
-        local frame_name = "OpenMailAttachmentButton" .. i
-        local frame = _G[frame_name]
-        assert(frame)
-        self:HookShow(frame, "OpenMailAttachmentButton")
-    end
-    self:HookShow(OpenMailMoneyButton, "OpenMailMoneyButton")
-    if CovenantSanctumFrame then
-        self:OnEvent("ADDON_LOADED", "Blizzard_CovenantSanctum")
-    end
-    if PlayerChoiceFrame then
-        self:OnEvent("ADDON_LOADED", "Blizzard_PlayerChoice")
+    for _,handler in pairs(MenuCursor.handlers) do
+        handler(self)
     end
 
     local texture = f:CreateTexture(nil, "ARTWORK")
@@ -131,6 +93,11 @@ function MenuCursor:OnEvent(event, arg1, ...)
     end
 end
 
+-- Handler for input type changes.
+function MenuCursor:GAME_PAD_ACTIVE_CHANGED(active)
+    self.gamepad_active = active
+    self:UpdateCursor()
+end
 
 -- Handlers for entering and leaving combat, to hide or show the cursor
 -- respectively.
@@ -139,12 +106,6 @@ function MenuCursor:PLAYER_REGEN_DISABLED()
 end
 function MenuCursor:PLAYER_REGEN_ENABLED()
     self:UpdateCursor(false)
-end
-
--- Handler for input type changes.
-function MenuCursor:GAME_PAD_ACTIVE_CHANGED(active)
-    self.gamepad_active = active
-    self:UpdateCursor()
 end
 
 -- Set the focus frame to the given frame.  Any previous focus frame is
@@ -598,7 +559,17 @@ end
 -- Individual frame handlers
 ------------------------------------------------------------------------
 
+-- All functions defined in this table will be called from the MenuCursor
+-- constructor (key value is irrelevant).
+MenuCursor.handlers = {}
+
 -------- Gossip (NPC dialogue) frame
+
+function MenuCursor.handlers.GossipFrame(cursor)
+    local f = cursor.frame
+    f:RegisterEvent("GOSSIP_CLOSED")
+    f:RegisterEvent("GOSSIP_SHOW")
+end
 
 function MenuCursor:GOSSIP_CLOSED()
     -- This event can fire even when the gossip window was never opened
@@ -651,6 +622,15 @@ end
 
 
 -------- Quest info frame
+
+function MenuCursor.handlers.QuestFrame(cursor)
+    local f = cursor.frame
+    f:RegisterEvent("QUEST_COMPLETE")
+    f:RegisterEvent("QUEST_DETAIL")
+    f:RegisterEvent("QUEST_FINISHED")
+    f:RegisterEvent("QUEST_GREETING")
+    f:RegisterEvent("QUEST_PROGRESS")
+end
 
 function MenuCursor:QUEST_GREETING()
     assert(QuestFrame:IsVisible())
@@ -836,6 +816,12 @@ end
 
 -------- BfA troop recruitment frame
 
+function MenuCursor.handlers.TroopRecruitmentFrame(cursor)
+    local f = cursor.frame
+    f:RegisterEvent("SHIPMENT_CRAFTER_CLOSED")
+    f:RegisterEvent("SHIPMENT_CRAFTER_OPENED")
+end
+
 function MenuCursor:SHIPMENT_CRAFTER_OPENED()
     assert(GarrisonCapacitiveDisplayFrame:IsVisible())
     self:SetFocus(GarrisonCapacitiveDisplayFrame)
@@ -862,6 +848,13 @@ end
 
 
 -------- Shadowlands covenant sanctum frame
+
+function MenuCursor.handlers.CovenantSanctumFrame(cursor)
+    cursor.frame:RegisterEvent("ADDON_LOADED")
+    if CovenantSanctumFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_CovenantSanctum")
+    end
+end
 
 function MenuCursor:ADDON_LOADED__Blizzard_CovenantSanctum()
     self:HookShow(CovenantSanctumFrame, "CovenantSanctumFrame")
@@ -924,6 +917,13 @@ end
 
 -------- Generic player choice frame
 
+function MenuCursor.handlers.PlayerChoiceFrame(cursor)
+    cursor.frame:RegisterEvent("ADDON_LOADED")
+    if PlayerChoiceFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_PlayerChoice")
+    end
+end
+
 function MenuCursor:ADDON_LOADED__Blizzard_PlayerChoice()
     self:HookShow(PlayerChoiceFrame, "PlayerChoiceFrame_SetShown")
 end
@@ -980,6 +980,15 @@ end
 
 -------- Static popup dialogs
 
+function MenuCursor.handlers.StaticPopup(cursor)
+    for i = 1, STATICPOPUP_NUMDIALOGS do
+        local frame_name = "StaticPopup" .. i
+        local frame = _G[frame_name]
+        assert(frame)
+        cursor:HookShow(frame, "StaticPopup")
+    end
+end
+
 function MenuCursor:StaticPopup_Show(frame)
     if self.focus == frame then return end  -- Sanity check
     self:PushFocus(frame)
@@ -1015,6 +1024,28 @@ end
 
 
 -------- Mail inbox
+
+function MenuCursor.handlers.InboxFrame(cursor)
+    -- We could react to PLAYER_INTERACTION_MANAGER_FRAME_{SHOW,HIDE}
+    -- with arg1 == Enum.PlayerInteractionType.MailInfo (17) for mailbox
+    -- handling, but we don't currently have any support for the send UI,
+    -- so we isolate our handling to the inbox frame.
+    cursor:HookShow(InboxFrame, "InboxFrame")
+    for i = 1, 7 do
+        local frame_name = "MailItem" .. i .. "Button"
+        local frame = _G[frame_name]
+        assert(frame)
+        cursor:HookShow(frame, "MailItemButton")
+    end
+    cursor:HookShow(OpenMailFrame, "OpenMailFrame")
+    for i = 1, 16 do
+        local frame_name = "OpenMailAttachmentButton" .. i
+        local frame = _G[frame_name]
+        assert(frame)
+        cursor:HookShow(frame, "OpenMailAttachmentButton")
+    end
+    cursor:HookShow(OpenMailMoneyButton, "OpenMailMoneyButton")
+end
 
 function MenuCursor:InboxFrame_Show()
     assert(InboxFrame:IsShown())
