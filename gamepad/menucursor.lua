@@ -83,6 +83,25 @@ function MenuCursor:__constructor()
         assert(frame)
         self:HookShow(frame, "StaticPopup")
     end
+    -- We could react to PLAYER_INTERACTION_MANAGER_FRAME_{SHOW,HIDE}
+    -- with arg1 == Enum.PlayerInteractionType.MailInfo (17) for mailbox
+    -- handling, but we don't currently have any support for the send UI,
+    -- so we isolate our handling to the inbox frame.
+    self:HookShow(InboxFrame, "InboxFrame")
+    for i = 1, 7 do
+        local frame_name = "MailItem" .. i .. "Button"
+        local frame = _G[frame_name]
+        assert(frame)
+        self:HookShow(frame, "MailItemButton")
+    end
+    self:HookShow(OpenMailFrame, "OpenMailFrame")
+    for i = 1, 16 do
+        local frame_name = "OpenMailAttachmentButton" .. i
+        local frame = _G[frame_name]
+        assert(frame)
+        self:HookShow(frame, "OpenMailAttachmentButton")
+    end
+    self:HookShow(OpenMailMoneyButton, "OpenMailMoneyButton")
     if CovenantSanctumFrame then
         self:OnEvent("ADDON_LOADED", "Blizzard_CovenantSanctum")
     end
@@ -992,4 +1011,199 @@ end
 function MenuCursor:StaticPopup_Hide(frame)
     self:PopFocus(frame)
     self:UpdateCursor()
+end
+
+
+-------- Mail inbox
+
+function MenuCursor:InboxFrame_Show()
+    assert(InboxFrame:IsShown())
+    self:SetFocus(InboxFrame)
+    -- We specifically hook the inbox frame, so we need a custom handler
+    -- to hide the proper frame on cancel.
+    self.cancel_func = function(self)
+        self:ClearFocus()
+        HideUIPanel(MailFrame)
+    end
+    self.targets = {
+        [OpenAllMail] = {can_activate = true, lock_highlight = true,
+                         is_default = true},
+        [InboxPrevPageButton] = {can_activate = true, lock_highlight = true},
+        [InboxNextPageButton] = {can_activate = true, lock_highlight = true},
+    }
+    for i = 1, 7 do
+        local button = _G["MailItem"..i.."Button"]
+        assert(button)
+        if button:IsShown() then
+            self:MailItemButton_Show(button)
+        end
+    end
+    self:InboxFrame_UpdateMovement()
+    self:UpdateCursor()
+end
+
+function MenuCursor:InboxFrame_Hide()
+    assert(self.focus == nil or self.focus == MailFrame)
+    self:ClearFocus()
+    self:UpdateCursor()
+end
+
+function MenuCursor:MailItemButton_Show(frame)
+    if self.focus ~= InboxFrame then return end
+    self.targets[frame] = {
+        can_activate = true, lock_highlight = true,
+        set_tooltip = function()
+            InboxFrameItem_OnEnter(frame)
+        end,
+    }
+    self:InboxFrame_UpdateMovement()
+end
+
+function MenuCursor:MailItemButton_Hide(frame)
+    if self.focus ~= InboxFrame then return end
+    if self.cur_target == frame then
+        self:Move(0, -1, "down")
+    end
+    self.targets[frame] = nil
+    self:InboxFrame_UpdateMovement()
+end
+
+function MenuCursor:InboxFrame_UpdateMovement(frame)
+   -- Ensure "up" from all bottom-row buttons goes to the bottommost mail item
+   -- (by default, OpenAll and NextPage will go to the top item due to a lower
+   -- angle of movement).
+   local last_item = false
+   for i = 1, 7 do
+       local button = _G["MailItem"..i.."Button"]
+       if button:IsShown() then
+           if not last_item or button:GetTop() < last_item:GetTop() then
+               last_item = button
+           end
+       end
+   end
+   self.targets[OpenAllMail].up = last_item
+   self.targets[InboxPrevPageButton].up = last_item
+   self.targets[InboxNextPageButton].up = last_item
+end
+
+function MenuCursor:OpenMailFrame_Show()
+    assert(OpenMailFrame:IsShown())
+    self:PushFocus(OpenMailFrame)
+    self.cancel_button = OpenMailCancelButton
+    -- The cancel button is positioned slightly out of line with the other
+    -- two, so we have to set explicit movement here to avoid unexpected
+    -- behavior (e.g. up from "delete" moving to "close").
+    self.targets = {
+        [OpenMailReplyButton] = {can_activate = true, lock_highlight = true,
+                                 up = false, down = false},
+        [OpenMailDeleteButton] = {can_activate = true, lock_highlight = true,
+                                  up = false, down = false},
+        [OpenMailCancelButton] = {can_activate = true, lock_highlight = true,
+                                  up = false, down = false}
+    }
+    local have_report_spam = OpenMailReportSpamButton:IsShown()
+    if have_report_spam then
+        self.targets[OpenMailReportSpamButton] = {can_activate = true,
+                                                  lock_highlight = true}
+    end
+    local first_attachment = nil
+    for i = 1, 16 do
+        local button = _G["OpenMailAttachmentButton"..i]
+        assert(button)
+        if button:IsShown() then
+            self:OpenMailAttachmentButton_Show(button)
+            if not first_attachment then first_attachment = button end
+        end
+    end
+    if OpenMailMoneyButton:IsShown() then
+        self:OpenMailMoneyButton_Show(OpenMailMoneyButton)
+        if not first_attachment then first_attachment = OpenMailMoneyButton end
+    end
+    if first_attachment then
+        self:SetTarget(first_attachment)
+        self.targets[OpenMailReplyButton].up = first_attachment
+        self.targets[OpenMailDeleteButton].up = first_attachment
+        self.targets[OpenMailCancelButton].up = first_attachment
+        if have_report_spam then
+            self.targets[OpenMailReportSpamButton].down = first_attachment
+        end
+    else
+        self:SetTarget(OpenMailCancelButton)
+        if have_report_spam then
+            self.targets[OpenMailReportSpamButton].down = OpenMailCancelButton
+        end
+    end
+    self:UpdateCursor()
+end
+
+function MenuCursor:OpenMailFrame_Hide()
+    assert(self.focus == nil or self.focus == InboxFrame
+           or self.focus == OpenMailFrame)
+    if self.focus == OpenMailFrame then
+        self:PopFocus(OpenMailFrame)
+        self:UpdateCursor()
+    end
+end
+
+function MenuCursor:OpenMailAttachmentButton_Show(frame)
+    if self.focus ~= OpenMailFrame then return end
+    self.targets[frame] = {
+        can_activate = true, lock_highlight = true,
+        set_tooltip = function(self)
+            OpenMailAttachment_OnEnter(frame, frame:GetID())
+        end,
+    }
+end
+
+function MenuCursor:OpenMailAttachmentButton_Hide(frame)
+    if self.focus ~= OpenMailFrame then return end
+    if self.cur_target == frame then
+        local new_target = nil
+        local id = frame:GetID() - 1
+        while id >= 1 and not new_target do
+            local button = _G["OpenMailAttachmentButton"..id]
+            if button:IsShown() then new_target = button end
+            id = id - 1
+        end
+        id = frame:GetID() + 1
+        while id <= 16 and not new_target do
+            local button = _G["OpenMailAttachmentButton"..id]
+            if button:IsShown() then new_target = button end
+            id = id + 1
+        end
+        if not new_target and OpenMailMoneyButton:IsShown() then
+            new_target = OpenMailMoneyButton
+        end
+        self:SetTarget(new_target or OpenMailDeleteButton)
+    end
+    self.targets[frame] = nil
+end
+
+function MenuCursor:OpenMailMoneyButton_Show(frame)
+    if self.focus ~= OpenMailFrame then return end
+    self.targets[frame] = {
+        can_activate = true, lock_highlight = true,
+        set_tooltip = function(self)  -- hardcoded in FrameXML
+            if OpenMailFrame.money then
+                GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
+                SetTooltipMoney(GameTooltip, OpenMailFrame.money)
+                GameTooltip:Show()
+            end
+        end,
+    }
+end
+
+function MenuCursor:OpenMailAttachmentButton_Hide(frame)
+    if self.focus ~= OpenMailFrame then return end
+    if self.cur_target == frame then
+        local new_target = nil
+        local id = 16
+        while id >= 1 and not new_target do
+            local button = _G["OpenMailAttachmentButton"..id]
+            if button:IsShown() then new_target = button end
+            id = id - 1
+        end
+        self:SetTarget(new_target or OpenMailDeleteButton)
+    end
+    self.targets[frame] = nil
 end
