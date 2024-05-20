@@ -908,8 +908,7 @@ function MenuCursor:CovenantSanctumFrame_ChooseTalent(upgrade_button)
              is_default = true},
     }
     for frame in CovenantSanctumFrame.UpgradesTab.TalentsList.talentPool:EnumerateActive() do
-        self.targets[frame] =
-            {set_tooltip = function(self) self:OnEnter() end}
+        self.targets[frame] = {set_tooltip = frame.OnEnter}
     end
     self:UpdateCursor()
 end
@@ -1168,8 +1167,8 @@ function MenuCursor:OpenMailFrame_Show()
 end
 
 function MenuCursor:OpenMailFrame_Hide()
-    assert(self.focus == nil or self.focus == InboxFrame
-           or self.focus == OpenMailFrame)
+    -- This appears to fire sporadically when any other UI frame is shown,
+    -- so don't assume anything about the current state.
     if self.focus == OpenMailFrame then
         self:PopFocus(OpenMailFrame)
         self:UpdateCursor()
