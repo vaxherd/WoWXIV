@@ -924,7 +924,7 @@ function MenuCursor.handlers.PlayerChoiceFrame(cursor)
 end
 
 function MenuCursor:ADDON_LOADED__Blizzard_PlayerChoice()
-    self:HookShow(PlayerChoiceFrame, "PlayerChoiceFrame_SetShown")
+    self:HookShow(PlayerChoiceFrame, "PlayerChoiceFrame")
 end
 
 function MenuCursor:PlayerChoiceFrame_Show()
@@ -971,9 +971,10 @@ function MenuCursor:PlayerChoiceFrame_Show()
 end
 
 function MenuCursor:PlayerChoiceFrame_Hide()
-    assert(self.focus == nil or self.focus == PlayerChoiceFrame)
-    self:ClearFocus()
-    self:UpdateCursor()
+    if self.focus == PlayerChoiceFrame then
+        self:ClearFocus()
+        self:UpdateCursor()
+    end
 end
 
 
