@@ -5,7 +5,8 @@ local Gamepad = WoWXIV.Gamepad
 local class = WoWXIV.class
 
 local GameTooltip = GameTooltip
-local function round(x) return math.floor(x+0.5) end
+local floor = math.floor
+local function round(x) return floor(x+0.5) end
 
 ------------------------------------------------------------------------
 -- Core implementation
@@ -748,6 +749,7 @@ function MenuCursor:DoQuestDetail(is_complete)
         local reward_frame, is_rep = unpack(v)
         self.targets[reward_frame] = {
             up = false, down = false, left = false, right = false,
+            can_activate = not is_rep,
             scroll_frame = QuestDetailScrollFrame,
         }
         -- Reputation reward frames have the usual OnEnter/OnLeave
