@@ -1074,7 +1074,7 @@ function MenuCursor:InboxFrame_Show()
 end
 
 function MenuCursor:InboxFrame_Hide()
-    assert(self.focus == nil or self.focus == MailFrame)
+    assert(self.focus == nil or self.focus == InboxFrame)
     self:ClearFocus()
     self:UpdateCursor()
 end
