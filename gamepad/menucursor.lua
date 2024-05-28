@@ -865,7 +865,7 @@ end
 function MenuCursor:CovenantSanctumFrame_Show()
     assert(CovenantSanctumFrame:IsVisible())
     self:SetFocus(CovenantSanctumFrame)
-    self.cancel_func = self.CancelFrame
+    self.cancel_func = self.CancelUIPanel
     local function ChooseTalent(button)
         button:OnMouseDown()
         self:OnEvent("CovenantSanctumFrame_ChooseTalent", button)
@@ -943,7 +943,7 @@ function MenuCursor:PlayerChoiceFrame_Show()
     end
     assert(PlayerChoiceFrame:IsVisible())
     self:SetFocus(PlayerChoiceFrame)
-    self.cancel_func = self.CancelFrame
+    self.cancel_func = self.CancelUIPanel
     self.targets = {}
     local leftmost = nil
     for option in PlayerChoiceFrame.optionPools:EnumerateActiveByTemplate(PlayerChoiceFrame.optionFrameTemplate) do
