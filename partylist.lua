@@ -6,6 +6,7 @@ local class = WoWXIV.class
 local GameTooltip = GameTooltip
 local strfind = string.find
 local strsub = string.sub
+local tinsert = tinsert
 
 -- Role type constants returned from ClassIcon:Set().
 local ROLE_TANK = 1
@@ -186,6 +187,10 @@ function Member:__constructor(parent, unit)
     self.narrow = false
     self.missing = false
 
+    -- Cached ID and spec/role of current unit to avoid expensive refreshes.
+    self.current_id = nil
+    self.current_spec_role = nil
+
     -- Use SecureUnitButtonTemplate to allow targeting the member on click.
     -- Note that SecureActionButtonTemplate doesn't work here for some reason;
     -- the button still responds to clicks (as can be verified by hooking the
@@ -264,6 +269,10 @@ function Member:Hide()
     self.shown = false
 end
 
+function Member:IsShown()
+    return self.shown
+end
+
 function Member:SetRelPosition(parent, x, y)
     self.frame:ClearAllPoints()
     self.frame:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
@@ -296,7 +305,6 @@ function Member:SetNarrow(narrow)
         self.buffbar:SetRelPosition(240, -1)
     end
     self.buffbar:Refresh()
-    self:Refresh()
 end
 
 function Member:SetMissing(missing)
@@ -310,11 +318,21 @@ function Member:SetMissing(missing)
 end
 
 function Member:Refresh()
-    self.name:SetText(NameForUnit(self.unit, not self.narrow))
+    local unit = self.unit
+
+    local id = UnitGUID(unit)
+    if not id then return end
+    local spec_role = (unit=="player" and GetSpecialization()
+                                      or UnitGroupRolesAssigned(unit))
+    if id == self.current_id and spec_role == self.current_spec_role then
+        return
+    end
+    self.current_id = id
+    self.current_spec_role = spec_role
 
     local role_id, class
-    if self.unit ~= "vehicle" then
-        role_id, class = self.class_icon:Set(self.unit)
+    if unit ~= "vehicle" then
+        role_id, class = self.class_icon:Set(unit)
     end
     local role_color = role_id and ROLE_COLORS[role_id]
     local class_bg_color = class and CLASS_BG_COLORS[class]
@@ -331,19 +349,21 @@ function Member:Refresh()
     end
     self.bg:SetVertexColor((bg_color or DEFAULT_BG_COLOR):GetRGBA())
     self.name:SetTextColor((name_color or NORMAL_FONT_COLOR):GetRGB())
+    self:Update(true)
 end
 
 function Member:Update(updateLabel)
-    self.hp:Update(UnitHealthMax(self.unit), UnitHealth(self.unit),
-                   UnitGetTotalAbsorbs(self.unit),
-                   UnitGetTotalHealAbsorbs(self.unit))
-    self.mp:Update(UnitPowerMax(self.unit), UnitPower(self.unit))
+    local unit = self.unit
+    self.hp:Update(UnitHealthMax(unit), UnitHealth(unit),
+                   UnitGetTotalAbsorbs(unit),
+                   UnitGetTotalHealAbsorbs(unit))
+    self.mp:Update(UnitPowerMax(unit), UnitPower(unit))
 
     if updateLabel then
-        self.name:SetText(NameForUnit(self.unit, not self.narrow))
+        self.name:SetText(NameForUnit(unit, not self.narrow))
     end
 
-    if UnitIsUnit("target", self.unit=="vehicle" and "player" or self.unit) then
+    if UnitIsUnit("target", unit=="vehicle" and "player" or unit) then
         self.highlight:Show()
         self.selected_frame:Show()
     else
@@ -574,7 +594,6 @@ function PartyList:SetParty(is_retry)
             member:SetRelPosition(f, x, y)
             member:SetNarrow(narrow)
             member:Refresh()
-            member:Update()
             member:Show()
             local right = x + col_width
             local bottom = -y + row_height
