@@ -629,7 +629,7 @@ end
 function WoWXIV.PartyList.Create()
     WoWXIV.PartyList.list = PartyList()
     WoWXIV.HideBlizzardFrame(PartyFrame)
-    WoWXIV.HideBlizzardFrame(RaidFrame)
+    WoWXIV.HideBlizzardFrame(CompactRaidFrameContainer)
 end
 
 -- Refresh the party list.  Must be called to pick up config changes.
