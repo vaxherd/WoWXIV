@@ -518,13 +518,16 @@ function PartyList:SetParty(is_retry)
     end
     self.pending_SetParty = false
 
+    local player_id = UnitGUID("player")
+    local is_raid = UnitInRaid("player")
+
     local narrow_condition = WoWXIV_config["partylist_narrow_condition"]
     local narrow
     if narrow_condition == "always" then
         narrow = true
-    elseif narrow_condition == "raid" and UnitInRaid("player") then
+    elseif narrow_condition == "raid" and is_raid then
         narrow = true
-    elseif narrow_condition == "raidlarge" and UnitInRaid("player") then
+    elseif narrow_condition == "raidlarge" and is_raid then
         local raid_size = 1
         for i = 1, 40 do
             if UnitGUID("raid"..i) then raid_size = raid_size+1 end
@@ -546,12 +549,24 @@ function PartyList:SetParty(is_retry)
         local member = self.party[unit]
         assert(member)
         local id = UnitGUID(unit)
-        if unit == "vehicle" then
-            -- Vehicles with "[DNT]" in the name are used when player
-            -- movement is locked in certain events, such as the Ruby
-            -- Lifeshrine sidequest "Stay a While".
-            local name = UnitName(unit)
-            if name and strfind(name, "%[DNT]") then id = nil end
+        if is_raid then
+            -- raidN tokens cover _all_ raid members, including the player
+            -- and the player's raid group (party1-4), so avoid duplicates.
+            if strsub(unit, 1, 4) == "raid" then
+                if id == player_id then id = nil end
+            else
+                if unit ~= "player" then id = nil end
+            end
+        else  -- not in a raid
+            if unit == "vehicle" then
+                -- Vehicles with "[DNT]" in the name are used when player
+                -- movement is locked in certain events, such as the Ruby
+                -- Lifeshrine sidequest "Stay a While".  These are
+                -- presumably internal objects not intended to be shown
+                -- to the player, so hide them from the list.
+                local name = UnitName(unit)
+                if name and strfind(name, "%[DNT]") then id = nil end
+            end
         end
         if id then
             local x = x0 + col*(col_spacing)
