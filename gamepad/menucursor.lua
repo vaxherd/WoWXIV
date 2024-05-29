@@ -750,7 +750,8 @@ function MenuCursor:DoQuestDetail(is_complete)
         self.targets[reward_frame] = {
             up = false, down = false, left = false, right = false,
             can_activate = not is_rep,
-            scroll_frame = QuestDetailScrollFrame,
+            scroll_frame = (is_complete and QuestRewardScrollFrame
+                                         or QuestDetailScrollFrame),
         }
         -- Reputation reward frames have the usual OnEnter/OnLeave
         -- handlers, but item rewards need manual handling.
