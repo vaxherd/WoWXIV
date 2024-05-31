@@ -1441,3 +1441,46 @@ function MenuCursor:MerchantFrame_UpdateMovement()
         end
     end
 end
+
+
+-------- Profession training menu
+
+function MenuCursor.handlers.ClassTrainerFrame(cursor)
+    cursor.frame:RegisterEvent("ADDON_LOADED")
+    if ClassTrainerFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_TrainerUI")
+    end
+end
+
+function MenuCursor:ADDON_LOADED__Blizzard_TrainerUI()
+    self:HookShow(ClassTrainerFrame, "ClassTrainerFrame")
+end
+
+function MenuCursor:ClassTrainerFrame_Show()
+    assert(ClassTrainerFrame:IsShown())
+    self:SetFocus(ClassTrainerFrame)
+    self.cancel_func = self.CancelUIPanel
+    self.targets = {
+        [ClassTrainerFrameSkillStepButton] = {
+            can_activate = true, lock_highlight = true,
+            up = ClassTrainerTrainButton},
+        [ClassTrainerTrainButton] = {
+            can_activate = true, lock_highlight = true, is_default = true,
+            down = ClassTrainerFrameSkillStepButton},
+    }
+    self:UpdateCursor()
+    -- FIXME: also allow moving through list (ClassTrainerFrame.ScrollBox)
+    -- (this is a temporary hack to ensure we can still train)
+    C_Timer.After(0, function()
+        for _, frame in ClassTrainerFrame.ScrollBox:EnumerateFrames() do
+            ClassTrainerSkillButton_OnClick(frame, "LeftButton")
+            break
+        end
+    end)
+end
+
+function MenuCursor:ClassTrainerFrame_Hide()
+    assert(self.focus == nil or self.focus == ClassTrainerFrame)
+    self:ClearFocus()
+    self:UpdateCursor()
+end
