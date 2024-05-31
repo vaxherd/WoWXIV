@@ -181,6 +181,9 @@ local function NameForUnit(unit, with_level)
     return name
 end
 
+-- Height of a single party member entry.
+Member.HEIGHT = 37
+
 function Member:__constructor(parent, unit)
     self.unit = unit
     self.shown = false
@@ -203,7 +206,7 @@ function Member:__constructor(parent, unit)
     f:SetAttribute("unit", unit=="vehicle" and "player" or unit)
     f:RegisterForClicks("LeftButtonDown")
     f:Hide()
-    f:SetSize(256, 37)
+    f:SetSize(256, self.HEIGHT)
 
     local bg = f:CreateTexture(nil, "BACKGROUND")
     self.bg = bg
@@ -560,7 +563,7 @@ function PartyList:SetParty(is_retry)
     local f = self.frame
     local unitlist = ""
     local col_width = narrow and 228 or 256
-    local row_height = 37
+    local row_height = Member.HEIGHT
     local col_spacing = col_width + (narrow and 0 or 8)
     local width, height = 0, 0
     local x0, y0 = 0, -4
@@ -624,7 +627,7 @@ function PartyList:SetParty(is_retry)
         self.bg2_t:SetWidth(col_width)
         self.bg2_b:SetWidth(col_width)
         self.bg2_b:ClearAllPoints()
-        local col2_y = y0 + row*(-40)
+        local col2_y = y0 + row*(-row_height)
         self.bg2_b:SetPoint("BOTTOMRIGHT", 0, height - (-col2_y))
         self.bg2_t:Show()
         self.bg2_b:Show()
