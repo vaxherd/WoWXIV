@@ -46,6 +46,8 @@ local CONFIG_DEFAULT = {
     -- Map: show mouseover coordinates on world map?
     map_show_coords_worldmap = true,
 
+    -- Party list: when to enable
+    partylist_enable = "solo,party,raid",
     -- Party list: where to use role/class colors
     partylist_colors = "none",
     -- Party list: when to use narrow format
@@ -438,6 +440,13 @@ function ConfigPanel:__constructor()
                         function(enable) WoWXIV.Map.SetShowCoords(enable, WoWXIV_config["map_show_coords_minimap"]) end)
 
     self:AddHeader("Party list settings")
+    self:AddRadioGroup("Enable party list: |cffff0000(requires reload)|r",
+                       "partylist_enable", nil,
+                       "Never", "none",
+                       "Party only", "party",
+                       "Solo and party only", "solo,party",
+                       "Party and raid", "party,raid",
+                       "Always (solo, party, and raid)", "solo,party,raid")
     self:AddRadioGroup("Role/class coloring:",
                        "partylist_colors", WoWXIV.PartyList.Refresh,
                        "None", "none",

@@ -39,6 +39,14 @@ end
 -- Default party member background color (black).
 local DEFAULT_BG_COLOR = CreateColor(0, 0, 0)
 
+-- Party list enable conditions.
+-- These could technically be updated dynamically without a reload,
+-- but we can't dynamically unhide the native party/raid frames, so
+-- for consistency we make these set-on-load as well.
+local enable_solo
+local enable_party
+local enable_raid
+
 --------------------------------------------------------------------------
 
 local ClassIcon = class()
@@ -384,6 +392,7 @@ for i = 1, 4 do tinsert(PARTY_UNIT_TOKENS, "party"..i) end
 for i = 1, 40 do tinsert(PARTY_UNIT_TOKENS, "raid"..i) end
 
 function PartyList:__constructor()
+    self.enabled = false  -- currently enabled?
     self.party = {}  -- mapping from unit token to Member instance
     self.pending_SetParty = false  -- see SetParty()
 
@@ -542,7 +551,24 @@ function PartyList:SetParty(is_retry)
     self.pending_SetParty = false
 
     local player_id = UnitGUID("player")
+    local is_party = UnitInParty("player")
     local is_raid = UnitInRaid("player")
+
+    local enable
+    if is_raid then
+        enable = enable_raid
+    elseif is_party then
+        enable = enable_party
+    else
+        enable = enable_solo
+    end
+    self.enabled = enable
+    if enable then
+        self.frame:Show()
+    else
+        self.frame:Hide()
+        return
+    end
 
     local narrow_condition = WoWXIV_config["partylist_narrow_condition"]
     local narrow
@@ -640,6 +666,7 @@ function PartyList:SetParty(is_retry)
 end
 
 function PartyList:UpdateParty(unit, updateLabel)
+    if not self.enabled then return end
     local member = self.party[unit]
     if not member then return end
     member:Update(updateLabel)
@@ -650,8 +677,17 @@ end
 -- Create the global party list instance.
 function WoWXIV.PartyList.Create()
     WoWXIV.PartyList.list = PartyList()
-    WoWXIV.HideBlizzardFrame(PartyFrame)
-    WoWXIV.HideBlizzardFrame(CompactRaidFrameContainer)
+    
+    local enable = "," .. WoWXIV_config["partylist_enable"] .. ","
+    enable_solo  = (strfind(enable, ",solo,") ~= nil)
+    enable_party = (strfind(enable, ",party,") ~= nil)
+    enable_raid  = (strfind(enable, ",raid,") ~= nil)
+    if enable_party then
+        WoWXIV.HideBlizzardFrame(PartyFrame)
+    end
+    if enable_raid then
+        WoWXIV.HideBlizzardFrame(CompactRaidFrameContainer)
+    end
 end
 
 -- Refresh the party list.  Must be called to pick up config changes.
