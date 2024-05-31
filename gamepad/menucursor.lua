@@ -1102,22 +1102,22 @@ function MenuCursor:MailItemButton_Hide(frame)
     self:InboxFrame_UpdateMovement()
 end
 
-function MenuCursor:InboxFrame_UpdateMovement(frame)
-   -- Ensure "up" from all bottom-row buttons goes to the bottommost mail item
-   -- (by default, OpenAll and NextPage will go to the top item due to a lower
-   -- angle of movement).
-   local last_item = false
-   for i = 1, 7 do
-       local button = _G["MailItem"..i.."Button"]
-       if button:IsShown() then
-           if not last_item or button:GetTop() < last_item:GetTop() then
-               last_item = button
-           end
-       end
-   end
-   self.targets[OpenAllMail].up = last_item
-   self.targets[InboxPrevPageButton].up = last_item
-   self.targets[InboxNextPageButton].up = last_item
+function MenuCursor:InboxFrame_UpdateMovement()
+    -- Ensure "up" from all bottom-row buttons goes to the bottommost mail item
+    -- (by default, OpenAll and NextPage will go to the top item due to a lower
+    -- angle of movement).
+    local last_item = false
+    for i = 1, 7 do
+        local button = _G["MailItem"..i.."Button"]
+        if button:IsShown() then
+            if not last_item or button:GetTop() < last_item:GetTop() then
+                last_item = button
+            end
+        end
+    end
+    self.targets[OpenAllMail].up = last_item
+    self.targets[InboxPrevPageButton].up = last_item
+    self.targets[InboxNextPageButton].up = last_item
 end
 
 function MenuCursor:OpenMailFrame_Show()
@@ -1227,7 +1227,7 @@ function MenuCursor:OpenMailMoneyButton_Show(frame)
     }
 end
 
-function MenuCursor:OpenMailAttachmentButton_Hide(frame)
+function MenuCursor:OpenMailMoneyButton_Hide(frame)
     if self.focus ~= OpenMailFrame then return end
     if self.cur_target == frame then
         local new_target = nil
@@ -1240,4 +1240,204 @@ function MenuCursor:OpenMailAttachmentButton_Hide(frame)
         self:SetTarget(new_target or OpenMailDeleteButton)
     end
     self.targets[frame] = nil
+end
+
+
+-------- Shop menu
+
+function MenuCursor.handlers.MerchantFrame(cursor)
+    cursor:HookShow(MerchantFrame, "MerchantFrame")
+    cursor:HookShow(MerchantSellAllJunkButton, "MerchantSellTab")
+    for i = 1, 12 do
+        local frame_name = "MerchantItem" .. i .. "ItemButton"
+        local frame = _G[frame_name]
+        assert(frame)
+        cursor:HookShow(frame, "MerchantItemButton")
+    end
+end
+
+function MenuCursor:MerchantFrame_Show()
+    assert(MerchantFrame:IsShown())
+    assert(MerchantFrame.selectedTab == 1)
+    self:SetFocus(MerchantFrame)
+    self.cancel_func = self.CancelUIPanel
+    self:MerchantFrame_UpdateTargets()
+    if self.targets[MerchantItem1ItemButton] then
+        self:SetTarget(MerchantItem1ItemButton)
+    else
+        self:SetTarget(MerchantSellAllJunkButton)
+    end
+    self:MerchantFrame_UpdateMovement()
+    self:UpdateCursor()
+end
+
+function MenuCursor:MerchantFrame_Hide()
+    assert(self.focus == nil or self.focus == MerchantFrame)
+    self:ClearFocus()
+    self:UpdateCursor()
+end
+
+function MenuCursor:MerchantSellTab_Show()
+    if self.focus ~= MerchantFrame then return end
+    self:MerchantFrame_UpdateTargets()
+    self:MerchantFrame_UpdateMovement()
+end
+
+function MenuCursor:MerchantSellTab_Hide()
+    if self.focus ~= MerchantFrame then return end
+    self:MerchantFrame_UpdateTargets()
+    self:MerchantFrame_UpdateMovement()
+end
+
+function MenuCursor:MerchantItemButton_Show(frame, skip_update)
+    if self.focus ~= MerchantFrame then return end
+    self.targets[frame] = {
+        lock_highlight = true,
+        -- Pass a confirm action down as a right click because left-click
+        -- activates the item drag functionality.  (On the buyback tab,
+        -- right and left click do the same thing, so we don't need a
+        -- special case for that.)
+        on_click = function()
+            MerchantItemButton_OnClick(frame, "RightButton")
+        end,
+        set_tooltip = function()
+            MerchantItemButton_OnEnter(frame)
+        end,
+    }
+    -- Suppress updates when called from UpdateBuybackInfo().
+    if MerchantSellAllJunkButton:IsShown() ~= (MerchantFrame.selectedTab==1) then
+        skip_update = true
+    end
+    if not skip_update then
+        self:MerchantFrame_UpdateMovement()
+    end
+end
+
+function MenuCursor:MerchantItemButton_Hide(frame)
+    if self.focus ~= MerchantFrame then return end
+    if self.cur_target == frame then
+        local prev_id = frame:GetID() - 1
+        local prev_frame = _G["MerchantItem" .. prev_id .. "ItemButton"]
+        if prev_frame and prev_frame:IsShown() then
+            self:SetTarget(prev_frame)
+        else
+            self:Move(0, -1, "down")
+        end
+    end
+    self.targets[frame] = nil
+    if MerchantSellAllJunkButton:IsShown() ~= (MerchantFrame.selectedTab==1) then
+        skip_update = true
+    end
+    if not skip_update then
+        self:MerchantFrame_UpdateMovement()
+    end
+end
+
+function MenuCursor:MerchantFrame_UpdateTargets()
+    self.targets = {
+        [MerchantFrameTab1] = {can_activate = true},
+        [MerchantFrameTab2] = {can_activate = true},
+    }
+    if MerchantFrame.selectedTab == 1 then
+        self.targets[MerchantSellAllJunkButton] = {
+            can_activate = true, lock_highlight = true,
+            down = MerchantFrameTab2}
+        self.targets[MerchantBuyBackItemItemButton] = {
+            can_activate = true, lock_highlight = true,
+            up = MerchantNextPageButton, down = MerchantFrameTab2}
+        if MerchantPrevPageButton:IsShown() then
+            self.targets[MerchantPrevPageButton] = {
+                can_activate = true, lock_highlight = true,
+                down = MerchantSellAllJunkButton}
+            self.targets[MerchantNextPageButton] = {
+                can_activate = true, lock_highlight = true,
+                down = MerchantBuyBackItemItemButton}
+            self.targets[MerchantSellAllJunkButton].up = MerchantPrevPageButton
+            self.targets[MerchantBuyBackItemItemButton].up = MerchantNextPageButton
+        end
+        if MerchantRepairItemButton:IsShown() then
+            self.targets[MerchantRepairItemButton] = {
+                lock_highlight = true, down = MerchantFrameTab1}
+            self.targets[MerchantRepairAllButton] = {
+                can_activate = true, lock_highlight = true,
+                down = MerchantFrameTab2}
+            if MerchantPrevPageButton:IsShown() then
+                self.targets[MerchantRepairItemButton].up = MerchantPrevPageButton
+                self.targets[MerchantRepairAllButton].up = MerchantPrevPageButton
+            end
+            self.targets[MerchantFrameTab1].up = MerchantRepairItemButton
+            self.targets[MerchantFrameTab2].up = MerchantRepairAllButton
+        else
+            self.targets[MerchantFrameTab1].up = MerchantSellAllJunkButton
+            self.targets[MerchantFrameTab2].up = MerchantSellAllJunkButton
+        end
+    end
+    local initial = nil
+    for i = 1, 12 do
+        local holder = _G["MerchantItem"..i]
+        local button = _G["MerchantItem"..i.."ItemButton"]
+        assert(button)
+        if holder:IsShown() and button:IsShown() then
+            self:MerchantItemButton_Show(button, true)
+            if not initial then
+                initial = button
+            end
+        end
+    end
+end
+
+function MenuCursor:MerchantFrame_UpdateMovement()
+    -- Ensure correct up/down behavior, as for mail inbox.
+    if self.focus ~= MerchantFrame then
+        return  -- Deal with calls during frame setup on UI reload.
+    end
+    local last_left, last_right = false, false
+    for i = 1, 12 do
+        local holder = _G["MerchantItem"..i]
+        local button = _G["MerchantItem"..i.."ItemButton"]
+        if holder:IsShown() and button:IsShown() then
+            if not last_left or button:GetTop() < last_left:GetTop() then
+                last_left = button
+                last_right = button
+            elseif button:GetTop() == last_left:GetTop() and button:GetLeft() > last_left:GetLeft() then
+                last_right = button
+            end
+        end
+    end
+    if MerchantPrevPageButton:IsShown() then
+        self.targets[MerchantPrevPageButton].up = last_left
+        self.targets[MerchantNextPageButton].up = last_right
+        if last_left then
+            self.targets[last_left].down = MerchantPrevPageButton
+            if last_right ~= last_left then
+                self.targets[last_right].down = MerchantNextPageButton
+            end
+        end
+    elseif MerchantSellAllJunkButton:IsShown() then
+        local left
+        if MerchantRepairItemButton:IsShown() then
+            self.targets[MerchantRepairItemButton].up = last_left
+            self.targets[MerchantRepairAllButton].up = last_left
+            left = MerchantRepairItemButton
+        else
+            left = MerchantSellAllJunkButton
+        end
+        self.targets[MerchantSellAllJunkButton].up = last_left
+        self.targets[MerchantBuyBackItemItemButton].up = last_right
+        if last_left then
+            self.targets[last_left].down = left
+            if last_right ~= last_left then
+                self.targets[last_right].down = MerchantBuyBackItemItemButton
+            end
+        end
+    elseif MerchantFrameTab1:IsShown() then
+        self.targets[MerchantFrameTab1].up = last_left
+        self.targets[MerchantFrameTab2].up = last_right
+        if last_left then
+            self.targets[last_left].down = MerchantFrameTab1
+            if last_right ~= last_left then
+                self.targets[last_right].down = MerchantFrameTab2
+            end
+        end
+    end
 end
