@@ -316,6 +316,9 @@ function Member:SetNarrow(narrow)
         self.buffbar:SetRelPosition(240, -1)
     end
     self.buffbar:Refresh()
+    if UnitGUID(self.unit) then
+        self:UpdateLabel()
+    end
 end
 
 function Member:SetMissing(missing)
@@ -371,7 +374,7 @@ function Member:Update(updateLabel)
     self.mp:Update(UnitPowerMax(unit), UnitPower(unit))
 
     if updateLabel then
-        self.name:SetText(NameForUnit(unit, not self.narrow))
+        self:UpdateLabel()
     end
 
     if UnitIsUnit("target", unit=="vehicle" and "player" or unit) then
@@ -381,6 +384,10 @@ function Member:Update(updateLabel)
         self.highlight:Hide()
         self.selected_frame:Hide()
     end
+end
+
+function Member:UpdateLabel()
+    self.name:SetText(NameForUnit(self.unit, not self.narrow))
 end
 
 ---------------------------------------------------------------------------
