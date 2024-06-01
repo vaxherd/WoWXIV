@@ -741,22 +741,7 @@ function MenuCursor:QUEST_PROGRESS()
         local name = "QuestProgressItem" .. i
         local item_frame = _G[name]
         if not item_frame or not item_frame:IsShown() then break end
-        self.targets[item_frame] = {
-            -- This logic is coded directly into the XML templates as
-            -- part (but not all) of the OnEnter handler, so we have to
-            -- reimplement it ourselves.
-            set_tooltip = function()
-                if GameTooltip:IsForbidden() then return end
-                if item_frame.objectType == "item" then
-                    GameTooltip:SetOwner(item_frame, "ANCHOR_RIGHT")
-                    GameTooltip:SetQuestItem(item_frame.type, item_frame:GetID())
-                    GameTooltip_ShowCompareItem(GameTooltip)
-                elseif item_frame.objectType == "currency" then
-                    GameTooltip:SetOwner(item_frame, "ANCHOR_RIGHT")
-                    GameTooltip:SetQuestCurrency(item_frame.type, item_frame:GetID())
-                end
-            end,
-        }
+        self.targets[item_frame] = {send_enter_leave = true}
     end
     self:UpdateCursor()
 end
@@ -816,19 +801,10 @@ function MenuCursor:DoQuestDetail(is_complete)
         local reward_frame, is_rep = unpack(v)
         self.targets[reward_frame] = {
             up = false, down = false, left = false, right = false,
-            can_activate = not is_rep,
+            can_activate = not is_rep, send_enter_leave = true,
             scroll_frame = (is_complete and QuestRewardScrollFrame
                                          or QuestDetailScrollFrame),
         }
-        -- Reputation reward frames have the usual OnEnter/OnLeave
-        -- handlers, but item rewards need manual handling.
-        if is_rep then
-            self.targets[reward_frame].send_enter_leave = true
-        else
-            self.targets[reward_frame].set_tooltip = function()
-                QuestInfoRewardItemCodeTemplate_OnEnter(reward_frame)
-            end
-        end
         if this_l and reward_frame:GetTop() == this_l:GetTop() then
             -- Item is in the right column.
             if last_r then
@@ -940,25 +916,20 @@ function MenuCursor:CovenantSanctumFrame_Show()
     end
     self.targets = {
         [CovenantSanctumFrame.UpgradesTab.TravelUpgrade] =
-            {set_tooltip = function(self) self:OnEnter() end,
+            {send_enter_leave = true,
              on_click = function(self) ChooseTalent(self) end},
         [CovenantSanctumFrame.UpgradesTab.DiversionUpgrade] =
-            {set_tooltip = function(self) self:OnEnter() end,
+            {send_enter_leave = true,
              on_click = function(self) ChooseTalent(self) end},
         [CovenantSanctumFrame.UpgradesTab.AdventureUpgrade] =
-            {set_tooltip = function(self) self:OnEnter() end,
+            {send_enter_leave = true,
              on_click = function(self) ChooseTalent(self) end},
         [CovenantSanctumFrame.UpgradesTab.UniqueUpgrade] =
-            {set_tooltip = function(self) self:OnEnter() end,
+            {send_enter_leave = true,
              on_click = function(self) ChooseTalent(self) end},
         [CovenantSanctumFrame.UpgradesTab.DepositButton] =
-            {set_tooltip = function(self)  -- copied from XML
-                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                 GameTooltip_SetTitle(GameTooltip, COVENANT_SANCTUM_DEPOSIT_TOOLTIP)
-                 GameTooltip:Show()
-             end,
-             can_activate = true, lock_highlight = true,
-             is_default = true},
+            {can_activate = true, lock_highlight = true,
+             send_enter_leave = true, is_default = true},
     }
     self:UpdateCursor()
 end
@@ -978,7 +949,7 @@ function MenuCursor:CovenantSanctumFrame_ChooseTalent(upgrade_button)
              is_default = true},
     }
     for frame in CovenantSanctumFrame.UpgradesTab.TalentsList.talentPool:EnumerateActive() do
-        self.targets[frame] = {set_tooltip = frame.OnEnter}
+        self.targets[frame] = {send_enter_leave = true}
     end
     self:UpdateCursor()
 end
@@ -1153,10 +1124,7 @@ function MenuCursor:MailItemButton_Show(frame)
     if self.focus ~= InboxFrame then return end
     self.targets[frame] = {
         can_activate = true, lock_highlight = true,
-        set_tooltip = function()
-            InboxFrameItem_OnEnter(frame)
-        end,
-    }
+        send_enter_leave = true},
     self:InboxFrame_UpdateMovement()
 end
 
@@ -1250,10 +1218,7 @@ function MenuCursor:OpenMailAttachmentButton_Show(frame)
     if self.focus ~= OpenMailFrame then return end
     self.targets[frame] = {
         can_activate = true, lock_highlight = true,
-        set_tooltip = function(self)
-            OpenMailAttachment_OnEnter(frame, frame:GetID())
-        end,
-    }
+        send_enter_leave = true}
 end
 
 function MenuCursor:OpenMailAttachmentButton_Hide(frame)
@@ -1359,16 +1324,13 @@ end
 function MenuCursor:MerchantItemButton_Show(frame, skip_update)
     if self.focus ~= MerchantFrame then return end
     self.targets[frame] = {
-        lock_highlight = true,
+        lock_highlight = true, send_enter_leave = true,
         -- Pass a confirm action down as a right click because left-click
         -- activates the item drag functionality.  (On the buyback tab,
         -- right and left click do the same thing, so we don't need a
         -- special case for that.)
         on_click = function()
             MerchantItemButton_OnClick(frame, "RightButton")
-        end,
-        set_tooltip = function()
-            MerchantItemButton_OnEnter(frame)
         end,
     }
     -- Suppress updates when called from UpdateBuybackInfo().
@@ -1408,9 +1370,10 @@ function MenuCursor:MerchantFrame_UpdateTargets()
     if MerchantFrame.selectedTab == 1 then
         self.targets[MerchantSellAllJunkButton] = {
             can_activate = true, lock_highlight = true,
-            down = MerchantFrameTab2}
+            send_enter_leave = true, down = MerchantFrameTab2}
         self.targets[MerchantBuyBackItemItemButton] = {
             can_activate = true, lock_highlight = true,
+            send_enter_leave = true,
             up = MerchantNextPageButton, down = MerchantFrameTab2}
         if MerchantPrevPageButton:IsShown() then
             self.targets[MerchantPrevPageButton] = {
@@ -1424,10 +1387,11 @@ function MenuCursor:MerchantFrame_UpdateTargets()
         end
         if MerchantRepairItemButton:IsShown() then
             self.targets[MerchantRepairItemButton] = {
-                lock_highlight = true, down = MerchantFrameTab1}
+                lock_highlight = true, send_enter_leave = true,
+                down = MerchantFrameTab1}
             self.targets[MerchantRepairAllButton] = {
                 can_activate = true, lock_highlight = true,
-                down = MerchantFrameTab2}
+                send_enter_leave = true, down = MerchantFrameTab2}
             if MerchantPrevPageButton:IsShown() then
                 self.targets[MerchantRepairItemButton].up = MerchantPrevPageButton
                 self.targets[MerchantRepairAllButton].up = MerchantPrevPageButton
@@ -1580,7 +1544,7 @@ function MenuCursor:SpellBookProfessionFrame_Hide() end
 function MenuCursor:SpellBookFrame_Show() end
 
 function MenuCursor:SpellBookSpellIconsFrame_Show()
-    assert(SpellBookFrame:IsShown())
+    if not SpellBookFrame:IsShown() then return end
     if self.focus ~= SpellBookFrame then
         self:PushFocus(SpellBookFrame)
         self.cancel_func = self.HideUIPanel
@@ -1761,10 +1725,8 @@ function MenuCursor:ProfessionsFrame_RefreshTargets(initial_element)
             local slot = CraftingPage[slot_id]
             if slot:IsShown() then
                 self.targets[slot] = {
-                    lock_highlight = true, up = false, down = false,
-                    set_tooltip = function(frame)
-                        PaperDollItemSlotButton_OnEnter(frame, true)
-                    end}
+                    lock_highlight = true, send_enter_leave = true,
+                    up = false, down = false}
             end
         end
         local RecipeScroll = CraftingPage.RecipeList.ScrollBox
