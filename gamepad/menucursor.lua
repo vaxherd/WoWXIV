@@ -26,7 +26,35 @@ function MenuCursor:__constructor()
 
     -- The following are only used when self.focus is not nil:
 
-    -- List of subframes which are valid targets for cursor movement.
+    -- Table of valid targets for cursor movement.  Each key is a frame
+    -- (except as noted for scroll_box below), and each value is a subtable
+    -- with the following possible elements:
+    --    - can_activate: If true, a confirm input on this frame causes a
+    --         left-click action to be sent to the frame.
+    --    - is_default: If true, a call to UpdateCursor() when no frame is
+    --         targeted will cause this frame to be targeted.
+    --    - is_scroll_box: If non-nil, the key is a pseudo-frame for the
+    --         corresponding scroll list element returned by
+    --         MenuCursor:PseudoFrameForScrollElement().
+    --    - lock_highlight: If true, the frame's LockHighlight() and
+    --         UnlockHighlight() methods will be called when the frame is
+    --         targeted and untargeted, respectively.
+    --    - on_click: If non-nil a function to be called when the element
+    --         is activated.  When set with can_activate, this is called
+    --         after the click event is passed down to the frame.
+    --    - scroll_frame: If non-nil, a ScrollFrame which should be scrolled
+    --         to make the element visible when targeted..
+    --    - send_enter_leave: If true, the frame's OnEnter and OnLeave
+    --         srcipts will be called when the frame is targeted and
+    --         untargeted, respectively.
+    --    - set_tooltip: If non-nil, a function which will be called when
+    --         the frame is targeted to set an appropriate tooltip.  In
+    --         this case, GameTooltip:Hide() will be called when the frame
+    --         is untargeted.
+    --    - up, down, left, right: If non-nil, specifies the frame to be
+    --         targeted on the corresponding movement input from this frame.
+    --         A value of false prevents movement in the corresponding
+    --         direction.
     self.targets = nil
     -- Subframe which the cursor is currently targeting.
     self.cur_target = nil
@@ -184,15 +212,16 @@ function MenuCursor:SetTarget(target)
     local old_target = self.cur_target
     if old_target then
         local params = self.targets[old_target]
+        local frame = self:GetTargetFrame(old_target)
         if params.lock_highlight then
             -- We could theoretically check highlight_locked here, but
             -- it should be safe to unconditionally unlock (we take the
             -- lock_highlight parameter as an indication that we have
             -- exclusive control over the highlight lock).
-            old_target:UnlockHighlight()
+            frame:UnlockHighlight()
         end
         if params.send_enter_leave then
-            old_target:OnLeave()
+            frame:GetScript("OnLeave")(frame)
         end
         if params.set_tooltip then
             if not GameTooltip:IsForbidden() then
@@ -205,16 +234,22 @@ function MenuCursor:SetTarget(target)
     self.want_highlight = false
     self.highlight_locked = false
     if target then
+        local frame = target
         local params = self.targets[target]
+        assert(params)
+        if params.is_scroll_box then
+            frame = frame.box:FindFrame(frame.box:FindElementData(frame.index))
+            assert(frame)
+        end
         if params.lock_highlight then
             self.want_highlight = true
-            if target:IsEnabled() then
+            if frame:IsEnabled() then
                 self.highlight_locked = true
-                target:LockHighlight()
+                frame:LockHighlight()
             end
         end
         if params.send_enter_leave then
-            target:OnEnter()
+            frame:GetScript("OnEnter")(frame)
         end
         if params.set_tooltip then
             if not GameTooltip:IsForbidden() then
@@ -257,9 +292,11 @@ function MenuCursor:UpdateCursor(in_combat)
             end
             self:SetTarget(target)
         end
-        self:SetCursorPoint(target)
-        if self.targets[target].can_activate then
-            f:SetAttribute("clickbutton1", target)
+        local params = self.targets[target]
+        local target_frame = self:GetTargetFrame(target)
+        self:SetCursorPoint(target_frame)
+        if params.can_activate then
+            f:SetAttribute("clickbutton1", target_frame)
         else
             f:SetAttribute("clickbutton1", nil)
         end
@@ -290,6 +327,7 @@ end
 -- Per-frame update routine which implements cursor bouncing.
 function MenuCursor:OnUpdate()
     local target = self.cur_target
+    local target_frame = self:GetTargetFrame(target)
 
     --[[
          Calling out to fetch the target's position and resetting the
@@ -300,7 +338,7 @@ function MenuCursor:OnUpdate()
             - BfA troop recruit frame on first open after /reload
             - Upgrade confirmation dialog for Shadowlands covenant sanctum
     ]]--
-    self:SetCursorPoint(target)
+    self:SetCursorPoint(target_frame)
 
     local t = GetTime()
     t = t - math.floor(t)
@@ -314,9 +352,9 @@ function MenuCursor:OnUpdate()
         -- 5-second delay ends.  (The reverse case of an enabled button
         -- being disabled is also theoretically possible, but we ignore
         -- that case pending evidence that it can occur in practice.)
-        if target:IsEnabled() then
+        if target_frame:IsEnabled() then
             self.highlight_locked = true
-            target:LockHighlight()
+            target_frame:LockHighlight()
         end
     end
 end
@@ -411,8 +449,9 @@ function MenuCursor:Move(dx, dy, dir)
         new_target = self:NextTarget(dx, dy)
     end
     if new_target then
-        local scroll_frame = self.targets[new_target].scroll_frame
-        if scroll_frame then
+        local new_params = self.targets[new_target]
+        if new_params.scroll_frame then
+            local scroll_frame = new_params.scroll_frame
             local scroll_top = -(scroll_frame:GetTop())
             local scroll_bottom = -(scroll_frame:GetBottom())
             local scroll_height = scroll_bottom - scroll_top
@@ -430,6 +469,8 @@ function MenuCursor:Move(dx, dy, dir)
                 -- SetVerticalScroll() automatically clamps to child height.
                 scroll_frame:SetVerticalScroll(scroll_target)
             end
+        elseif new_params.is_scroll_box then
+            new_target.box:ScrollToElementDataIndex(new_target.index)
         end
         self:SetTarget(new_target)
         self:UpdateCursor()
@@ -462,52 +503,54 @@ function MenuCursor:NextTarget(dx, dy)
     ]]--
     local best, best_dx, best_dy = nil, nil, nil
     for frame, params in pairs(self.targets) do
-        local f_x0, f_y0, f_w, f_h = frame:GetRect()
-        local f_x1 = f_x0 + f_w
-        local f_y1 = f_y0 + f_h
-        local f_cx = (f_x0 + f_x1) / 2
-        local f_cy = (f_y0 + f_y1) / 2
-        local frame_dx, frame_dy
-        if dx ~= 0 then
-            frame_dx = f_cx - cur_cx
-            if f_y1 < cur_y0 then
-                frame_dy = f_y1 - cur_y0
-            elseif f_y0 > cur_y1 then
-                frame_dy = f_y0 - cur_y1
+        if frame.GetRect then  -- skip scroll list elements
+            local f_x0, f_y0, f_w, f_h = frame:GetRect()
+            local f_x1 = f_x0 + f_w
+            local f_y1 = f_y0 + f_h
+            local f_cx = (f_x0 + f_x1) / 2
+            local f_cy = (f_y0 + f_y1) / 2
+            local frame_dx, frame_dy
+            if dx ~= 0 then
+                frame_dx = f_cx - cur_cx
+                if f_y1 < cur_y0 then
+                    frame_dy = f_y1 - cur_y0
+                elseif f_y0 > cur_y1 then
+                    frame_dy = f_y0 - cur_y1
+                else
+                    frame_dy = 0
+                end
             else
-                frame_dy = 0
+                frame_dy = f_cy - cur_cy
+                if f_x1 < cur_x0 then
+                    frame_dx = f_x1 - cur_x0
+                elseif f_x0 > cur_x1 then
+                    frame_dx = f_x0 - cur_x1
+                else
+                    frame_dx = 0
+                end
             end
-        else
-            frame_dy = f_cy - cur_cy
-            if f_x1 < cur_x0 then
-                frame_dx = f_x1 - cur_x0
-            elseif f_x0 > cur_x1 then
-                frame_dx = f_x0 - cur_x1
-            else
-                frame_dx = 0
-            end
-        end
-        if ((dx < 0 and frame_dx < 0)
-         or (dx > 0 and frame_dx > 0)
-         or (dy > 0 and frame_dy > 0)
-         or (dy < 0 and frame_dy < 0))
-        then
-            frame_dx = math.abs(frame_dx)
-            frame_dy = math.abs(frame_dy)
-            local frame_dpar = dx~=0 and frame_dx or frame_dy  -- parallel
-            local frame_dperp = dx~=0 and frame_dy or frame_dx -- perpendicular
-            local best_dpar = dx~=0 and best_dx or best_dy
-            local best_dperp = dx~=0 and best_dy or best_dx
-            if not best then
-                best_dpar, best_dperp = 1, 1e10  -- almost but not quite 90deg
-            end
-            if (frame_dperp / frame_dpar < best_dperp / best_dpar
-                or (frame_dperp / frame_dpar == best_dperp / best_dpar
-                    and frame_dpar < best_dpar))
+            if ((dx < 0 and frame_dx < 0)
+             or (dx > 0 and frame_dx > 0)
+             or (dy > 0 and frame_dy > 0)
+             or (dy < 0 and frame_dy < 0))
             then
-                best = frame
-                best_dx = frame_dx
-                best_dy = frame_dy
+                frame_dx = math.abs(frame_dx)
+                frame_dy = math.abs(frame_dy)
+                local frame_dpar = dx~=0 and frame_dx or frame_dy  -- parallel
+                local frame_dperp = dx~=0 and frame_dy or frame_dx -- perpendicular
+                local best_dpar = dx~=0 and best_dx or best_dy
+                local best_dperp = dx~=0 and best_dy or best_dx
+                if not best then
+                    best_dpar, best_dperp = 1, 1e10  -- almost but not quite 90deg
+                end
+                if (frame_dperp / frame_dpar < best_dperp / best_dpar
+                    or (frame_dperp / frame_dpar == best_dperp / best_dpar
+                        and frame_dpar < best_dpar))
+                then
+                    best = frame
+                    best_dx = frame_dx
+                    best_dy = frame_dy
+                end
             end
         end
     end
@@ -550,10 +593,34 @@ function MenuCursor:CancelUIPanel()
     HideUIPanel(frame)
 end
 
+-- Generic cancel_func to close a UI frame, when a callback has already
+-- been established on the frame's Hide() method to clear the frame focus.
+function MenuCursor:HideUIPanel()
+    HideUIPanel(self.focus)
+end
+
 -- Shared cancel_func used for quest frames.
 function MenuCursor:CancelQuestFrame()
     self:ClearFocus()
     CloseQuest()
+end
+
+-- Return a table suitable for use as a targets[] key for an element of
+-- a ScrollBox data list or tree.  Pass the ScrollBox frame and the
+-- data index of the element.
+function MenuCursor:PseudoFrameForScrollElement(box, index)
+    return {box = box, index = index}
+end
+
+-- Return the frame associated with the given targets[] key.
+function MenuCursor:GetTargetFrame(target)
+    local params = self.targets[target]
+    if params.is_scroll_box then
+        local box = target.box
+        return box:FindFrame(box:FindElementData(target.index))
+    else
+        return target
+    end
 end
 
 ------------------------------------------------------------------------
@@ -1515,8 +1582,8 @@ function MenuCursor:SpellBookFrame_Show() end
 function MenuCursor:SpellBookSpellIconsFrame_Show()
     assert(SpellBookFrame:IsShown())
     if self.focus ~= SpellBookFrame then
-        self:SetFocus(SpellBookFrame)
-        self.cancel_func = self.CancelUIPanel
+        self:PushFocus(SpellBookFrame)
+        self.cancel_func = self.HideUIPanel
     end
     self.targets = {
         [SpellBookFrameTabButton1] = {can_activate = true,
@@ -1586,8 +1653,8 @@ local PROFESSION_BUTTONS_S = {
 function MenuCursor:SpellBookProfessionFrame_Show()
     assert(SpellBookFrame:IsShown())
     if self.focus ~= SpellBookFrame then
-        self:SetFocus(SpellBookFrame)
-        self.cancel_func = self.CancelUIPanel
+        self:PushFocus(SpellBookFrame)
+        self.cancel_func = self.HideUIPanel
     end
     self.targets = {
         [SpellBookFrameTabButton1] = {can_activate = true,
@@ -1629,7 +1696,166 @@ function MenuCursor:SpellBookProfessionFrame_Show()
 end
 
 function MenuCursor:SpellBookFrame_Hide()
-    assert(self.focus == nil or self.focus == SpellBookFrame)
-    self:ClearFocus()
+    self:PopFocus(SpellBookFrame)
+    self:UpdateCursor()
+end
+
+
+-------- Crafting frame
+
+function MenuCursor.handlers.ProfessionsFrame(cursor)
+    cursor.frame:RegisterEvent("ADDON_LOADED")
+    if ProfessionsFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_Professions")
+    end
+    cursor.frame:RegisterEvent("TRADE_SKILL_LIST_UPDATE")
+end
+
+function MenuCursor:ADDON_LOADED__Blizzard_Professions()
+    self:HookShow(ProfessionsFrame, "ProfessionsFrame")
+end
+
+function MenuCursor:TRADE_SKILL_LIST_UPDATE()
+    if self.focus == ProfessionsFrame then
+        -- The list itself apparently isn't ready until the next frame.
+        C_Timer.After(0, function() self:ProfessionsFrame_RefreshTargets() end)
+    end
+end
+
+local PROFESSION_GEAR_SLOTS = {
+    "Prof0ToolSlot",
+    "Prof0Gear0Slot",
+    "Prof0Gear1Slot",
+    "Prof1ToolSlot",
+    "Prof1Gear0Slot",
+    "Prof1Gear1Slot",
+    "CookingToolSlot",
+    "CookingGear0Slot",
+    "FishingToolSlot",
+}
+function MenuCursor:ProfessionsFrame_Show()
+    assert(ProfessionsFrame:IsShown())
+    self:PushFocus(ProfessionsFrame)
+    self.cancel_func = self.HideUIPanel
+    self:ProfessionsFrame_RefreshTargets()
+end
+
+function MenuCursor:ProfessionsFrame_Hide()
+    self:PopFocus(ProfessionsFrame.CraftingPage.SchematicForm)
+    self:PopFocus(ProfessionsFrame)
+    self:UpdateCursor()
+end
+
+function MenuCursor:ProfessionsFrame_RefreshTargets(initial_element)
+    local CraftingPage = ProfessionsFrame.CraftingPage
+
+    self:SetTarget(nil)
+    self.targets = {}
+    local top, bottom, initial = nil, nil, nil
+
+    if CraftingPage:IsShown() then
+        self.targets[CraftingPage.LinkButton] = {
+            can_activate = true, lock_highlight = true,
+            up = false, down = false}
+        for _, slot_id in ipairs(PROFESSION_GEAR_SLOTS) do
+            local slot = CraftingPage[slot_id]
+            if slot:IsShown() then
+                self.targets[slot] = {
+                    lock_highlight = true, up = false, down = false,
+                    set_tooltip = function(frame)
+                        PaperDollItemSlotButton_OnEnter(frame, true)
+                    end}
+            end
+        end
+        local RecipeScroll = CraftingPage.RecipeList.ScrollBox
+        local index = 0
+        RecipeScroll:ForEachElementData(function(element)
+            index = index + 1
+            local data = element:GetData()
+            if data.categoryInfo or data.recipeInfo then
+                local pseudo_frame =
+                    self:PseudoFrameForScrollElement(RecipeScroll, index)
+                self.targets[pseudo_frame] = {
+                    is_scroll_box = true, can_activate = true,
+                    up = bottom or false, down = false,
+                    left = false, right = CraftingPage.LinkButton}
+                if data.recipeInfo then
+                    self.targets[pseudo_frame].on_click = function()
+                        self:ProfessionsFrame_FocusRecipe()
+                    end
+                else  -- is a category header
+                    self.targets[pseudo_frame].on_click = function()
+                        self:ProfessionsFrame_RefreshTargets(element)
+                    end
+                end
+                if bottom then
+                    self.targets[bottom].down = pseudo_frame
+                end
+                if not top then
+                    top = pseudo_frame
+                    self.targets[CraftingPage.LinkButton].left = pseudo_frame
+                end
+                bottom = pseudo_frame
+                if initial_element then
+                    if initial_element == element then
+                        initial = pseudo_frame
+                    end
+                else
+                    if not initial and self:GetTargetFrame(pseudo_frame) then
+                        initial = pseudo_frame
+                    end
+                end
+            end
+        end)
+    end
+
+    local default_tab = nil
+    for _, tab in ipairs(ProfessionsFrame.TabSystem.tabs) do
+        if tab:IsShown() then
+            self.targets[tab] = {can_activate = true, send_enter_leave = true,
+                                 up = bottom, down = top}
+            -- HACK: breaking encapsulation to access tab selected state
+            if not default_tab or tab.isSelected then default_tab = tab end
+        end
+    end
+    if top then
+        self.targets[top].up = default_tab or bottom or false
+    end
+    if bottom then
+        self.targets[bottom].down = default_tab or top or false
+    end
+
+    if not initial then
+        initial = top or default_tab
+        assert(initial)
+    end
+    self:SetTarget(initial)
+    self:UpdateCursor()
+end
+
+function MenuCursor:ProfessionsFrame_FocusRecipe()
+    local CraftingPage = ProfessionsFrame.CraftingPage
+    local SchematicForm = CraftingPage.SchematicForm
+    assert(SchematicForm:IsShown())
+    self:PushFocus(SchematicForm)
+    self.cancel_func = function(self) self:PopFocus(SchematicForm) end
+    assert(CraftingPage.CreateButton:IsShown())
+    self.targets = {
+        [SchematicForm.OutputIcon] = {send_enter_leave = true},
+        [CraftingPage.CreateButton] = {
+            can_activate = true, lock_highlight = true, is_default = true},
+    }
+    if CraftingPage.CreateAllButton:IsShown() then
+        self.targets[CraftingPage.CreateAllButton] = {
+            can_activate = true, lock_highlight = true}
+        self.targets[CraftingPage.CreateMultipleInputBox.DecrementButton] = {
+            can_activate = true, lock_highlight = true}
+        self.targets[CraftingPage.CreateMultipleInputBox.IncrementButton] = {
+            can_activate = true, lock_highlight = true}
+    end
+--FIXME: containers for reagent buttons:
+--   ProfessionsFrame.CraftingPage.SchematicForm.Reagents
+--   ProfessionsFrame.CraftingPage.SchematicForm.OptionalReagents
+--   ProfessionsFrame.CraftingPage.SchematicForm.Details.FinishingReagentSlotContainer
     self:UpdateCursor()
 end
