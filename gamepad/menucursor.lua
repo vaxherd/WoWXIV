@@ -1484,3 +1484,152 @@ function MenuCursor:ClassTrainerFrame_Hide()
     self:ClearFocus()
     self:UpdateCursor()
 end
+
+
+-------- Spellbook/professions frame
+
+function MenuCursor.handlers.SpellBookFrame(cursor)
+    -- We hook the individual tabs for show behavior only and the shared
+    -- frame for hide behavior only, but we use the common utility method
+    -- for convenience and just make the unused hooks no-ops.
+    cursor:HookShow(SpellBookSpellIconsFrame, "SpellBookSpellIconsFrame")
+    cursor:HookShow(SpellBookProfessionFrame, "SpellBookProfessionFrame")
+    cursor:HookShow(SpellBookFrame, "SpellBookFrame")
+    local page_buttons = {SpellBookPrevPageButton, SpellBookNextPageButton}
+    for i = 1, 8 do
+        tinsert(page_buttons, _G["SpellBookSkillLineTab" .. i])
+    end
+    for _, page_button in ipairs(page_buttons) do
+        hooksecurefunc(page_button, "Click", function()
+            if cursor.focus == SpellBookFrame then
+                cursor:SpellBookSpellIconsFrame_UpdateMovement()
+            end
+        end)
+    end
+end
+
+function MenuCursor:SpellBookSpellIconsFrame_Hide() end
+function MenuCursor:SpellBookProfessionFrame_Hide() end
+function MenuCursor:SpellBookFrame_Show() end
+
+function MenuCursor:SpellBookSpellIconsFrame_Show()
+    assert(SpellBookFrame:IsShown())
+    if self.focus ~= SpellBookFrame then
+        self:SetFocus(SpellBookFrame)
+        self.cancel_func = self.CancelUIPanel
+    end
+    self.targets = {
+        [SpellBookFrameTabButton1] = {can_activate = true,
+                                      lock_highlight = true},
+        [SpellBookFrameTabButton2] = {can_activate = true,
+                                      lock_highlight = true},
+    }
+    self:SpellBookSpellIconsFrame_UpdateMovement()
+    for i = 1, 8 do
+        local button = _G["SpellBookSkillLineTab" .. i]
+        assert(button)
+        if button:IsShown() then
+            self.targets[button] = {can_activate = true, lock_highlight = true}
+        end
+    end
+    self:SetTarget(self.cur_target or SpellButton1)
+    self:UpdateCursor()
+end
+
+function MenuCursor:SpellBookSpellIconsFrame_UpdateMovement()
+    local bottom, last = false, false
+    for i = 1, 12 do
+        local button = _G["SpellButton" .. i]
+        assert(button)
+        if button:IsEnabled() then
+            self.targets[button] = {can_activate = true, lock_highlight = true}
+            if not bottom or button:GetTop() < bottom:GetTop() then
+                bottom = button
+            end
+            last = button
+        else
+            self.targets[button] = nil
+        end
+    end
+    if SpellBookPrevPageButton:IsShown() then
+        self.targets[SpellBookPrevPageButton] = {
+            can_activate = true, lock_highlight = true, up = last}
+        self.targets[SpellBookNextPageButton] = {
+            can_activate = true, lock_highlight = true, up = last}
+        if last then
+            self.targets[last].down = SpellBookPrevPageButton
+            if bottom ~= last then
+                self.targets[bottom].down = SpellBookPrevPageButton
+            end
+        end
+        bottom = SpellBookPrevPageButton
+        last = SpellBookPrevPageButton
+    end
+    self.targets[SpellBookFrameTabButton1].up = bottom
+    self.targets[SpellBookFrameTabButton2].up = bottom
+end
+
+local PROFESSION_BUTTONS_P = {
+    PrimaryProfession1SpellButtonTop,
+    PrimaryProfession1SpellButtonBottom,
+    PrimaryProfession2SpellButtonTop,
+    PrimaryProfession2SpellButtonBottom,
+}
+local PROFESSION_BUTTONS_S = {
+    SecondaryProfession1SpellButtonLeft,
+    SecondaryProfession1SpellButtonRight,
+    SecondaryProfession2SpellButtonLeft,
+    SecondaryProfession2SpellButtonRight,
+    SecondaryProfession3SpellButtonLeft,
+    SecondaryProfession3SpellButtonRight,
+}
+function MenuCursor:SpellBookProfessionFrame_Show()
+    assert(SpellBookFrame:IsShown())
+    if self.focus ~= SpellBookFrame then
+        self:SetFocus(SpellBookFrame)
+        self.cancel_func = self.CancelUIPanel
+    end
+    self.targets = {
+        [SpellBookFrameTabButton1] = {can_activate = true,
+                                      lock_highlight = true},
+        [SpellBookFrameTabButton2] = {can_activate = true,
+                                      lock_highlight = true},
+    }
+    local initial = self.cur_target
+    local bottom = nil
+    for _, button in ipairs(PROFESSION_BUTTONS_P) do
+        if button:IsShown() then
+            self.targets[button] = {can_activate = true, lock_highlight = true}
+            if not initial then
+                initial = button
+            end
+            bottom = button
+        end
+    end
+    local bottom_primary = bottom or false
+    local first_secondary = nil
+    for _, button in ipairs(PROFESSION_BUTTONS_S) do
+        if button:IsShown() then
+            self.targets[button] = {can_activate = true, lock_highlight = true}
+            if not first_secondary then
+                first_secondary = button
+            end
+            if button:GetTop() == first_secondary:GetTop() then
+                self.targets[button].up = bottom_primary
+            end
+            if not bottom or button:GetTop() < bottom:GetTop() then
+                bottom = button
+            end
+        end
+    end
+    self.targets[SpellBookFrameTabButton1].up = bottom
+    self.targets[SpellBookFrameTabButton2].up = bottom
+    self:SetTarget(initial and initial or SpellBookFrameTabButton2)
+    self:UpdateCursor()
+end
+
+function MenuCursor:SpellBookFrame_Hide()
+    assert(self.focus == nil or self.focus == SpellBookFrame)
+    self:ClearFocus()
+    self:UpdateCursor()
+end
