@@ -367,6 +367,7 @@ function MenuCursor:SetCursorPoint(target)
     --f:SetPoint("TOPRIGHT", target, "LEFT")
     local x = target:GetLeft()
     local _, y = target:GetCenter()
+    if not x or not y then return end
     f:SetPoint("TOPRIGHT", UIParent, "TOPLEFT", x, y-UIParent:GetHeight())
 end
 
@@ -754,7 +755,8 @@ function MenuCursor:QUEST_DETAIL()
 end
 
 function MenuCursor:QUEST_COMPLETE()
-    assert(QuestFrame:IsVisible())
+    -- Quest frame can fail to open under some conditions?
+    if not QuestFrame:IsVisible() then return end
     return self:DoQuestDetail(true)
 end
 
