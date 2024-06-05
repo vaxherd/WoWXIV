@@ -793,21 +793,24 @@ function MenuCursor:DoQuestDetail(is_complete)
         button2 = QuestFrameDeclineButton
     end
     local rewards = {}
+    if QuestInfoSkillPointFrame:IsShown() then
+        tinsert(rewards, {QuestInfoSkillPointFrame, false})
+    end
     for i = 1, 99 do
         local name = "QuestInfoRewardsFrameQuestInfoItem" .. i
         local reward_frame = _G[name]
         if not reward_frame or not reward_frame:IsShown() then break end
-        tinsert(rewards, {reward_frame, false})
+        tinsert(rewards, {reward_frame, true})
     end
     for reward_frame in QuestInfoRewardsFrame.reputationRewardPool:EnumerateActive() do
-        tinsert(rewards, {reward_frame, true})
+        tinsert(rewards, {reward_frame, false})
     end
     local last_l, last_r, this_l
     for _,v in ipairs(rewards) do
-        local reward_frame, is_rep = unpack(v)
+        local reward_frame, is_item = unpack(v)
         self.targets[reward_frame] = {
             up = false, down = false, left = false, right = false,
-            can_activate = not is_rep, send_enter_leave = true,
+            can_activate = is_item, send_enter_leave = true,
             scroll_frame = (is_complete and QuestRewardScrollFrame
                                          or QuestDetailScrollFrame),
         }
