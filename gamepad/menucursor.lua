@@ -659,6 +659,10 @@ function MenuCursor:GOSSIP_SHOW()
     local goodbye = GossipFrame.GreetingPanel.GoodbyeButton
     self.targets = {[goodbye] = {can_activate = true,
                                  lock_highlight = true}}
+    if GossipFrame.FriendshipStatusBar:IsShown() then
+        self.targets[GossipFrame.FriendshipStatusBar] = {
+            send_enter_leave = true}
+    end
     -- FIXME: This logic to find the quest / dialogue option buttons is
     -- a bit kludgey and certainly won't work if the list is scrolled
     -- to the point where some elements move offscreen.  Is there any
