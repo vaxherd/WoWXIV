@@ -328,6 +328,7 @@ end
 function MenuCursor:OnUpdate()
     local target = self.cur_target
     local target_frame = self:GetTargetFrame(target)
+    if not target_frame then return end
 
     --[[
          Calling out to fetch the target's position and resetting the
@@ -1714,8 +1715,8 @@ function MenuCursor:ProfessionsFrame_Show()
 end
 
 function MenuCursor:ProfessionsFrame_Hide()
-    self:PopFocus(ProfessionsFrame.CraftingPage.SchematicForm)
     self:PopFocus(ProfessionsFrame)
+    self:PopFocus(ProfessionsFrame.CraftingPage.SchematicForm)
     self:UpdateCursor()
 end
 
@@ -1811,22 +1812,74 @@ function MenuCursor:ProfessionsFrame_FocusRecipe()
     self:PushFocus(SchematicForm)
     self.cancel_func = function(self) self:PopFocus(SchematicForm) end
     assert(CraftingPage.CreateButton:IsShown())
+
     self.targets = {
-        [SchematicForm.OutputIcon] = {send_enter_leave = true},
-        [CraftingPage.CreateButton] = {
-            can_activate = true, lock_highlight = true, is_default = true},
+        [SchematicForm.OutputIcon] = {send_enter_leave = true,
+                                      up = CraftingPage.CreateButton}
     }
-    if CraftingPage.CreateAllButton:IsShown() then
-        self.targets[CraftingPage.CreateAllButton] = {
-            can_activate = true, lock_highlight = true}
-        self.targets[CraftingPage.CreateMultipleInputBox.DecrementButton] = {
-            can_activate = true, lock_highlight = true}
-        self.targets[CraftingPage.CreateMultipleInputBox.IncrementButton] = {
-            can_activate = true, lock_highlight = true}
+
+    local r_left = false
+    if SchematicForm.Details.FinishingReagentSlotContainer:IsShown() then
+        local finishing = {SchematicForm.Details.FinishingReagentSlotContainer:GetChildren()}
+        for _, frame in ipairs(finishing) do
+            local button = frame:GetChildren()
+            -- FIXME: reagent buttons don't react to clicks, need special handling (see various implementations in ProfessionsRecipeSchematicFormMixin:Init())
+            self.targets[button] = {
+                lock_highlight = true, send_enter_leave = true,
+                up = false, down = CraftingPage.CreateButton}
+            if not r_left or button:GetLeft() < r_left:GetLeft() then
+                r_left = button
+            end
+        end
     end
---FIXME: containers for reagent buttons:
---   ProfessionsFrame.CraftingPage.SchematicForm.Reagents
---   ProfessionsFrame.CraftingPage.SchematicForm.OptionalReagents
---   ProfessionsFrame.CraftingPage.SchematicForm.Details.FinishingReagentSlotContainer
+
+    local r_top, r_bottom = false, false
+    local reagents = {}
+    if SchematicForm.Reagents:IsShown() then
+        -- Awkward because Lua has no way to concatenate lists.
+        local list = {SchematicForm.Reagents:GetChildren()}
+        for _,v in ipairs(list) do tinsert(reagents,v) end
+    end
+    if SchematicForm.OptionalReagents:IsShown() then
+        local list = {SchematicForm.OptionalReagents:GetChildren()}
+        for _,v in ipairs(list) do tinsert(reagents,v) end
+    end
+    for _, frame in ipairs(reagents) do
+        local button = frame:GetChildren()
+        self.targets[button] = {
+            lock_highlight = true, send_enter_leave = true,
+            left = false, right = r_left}
+        if not r_top or button:GetTop() > r_top:GetTop() then
+            r_top = button
+        end
+        if not r_bottom or button:GetTop() < r_bottom:GetTop() then
+            r_bottom = button
+        end
+    end
+    if r_top then
+        self.targets[r_top].up = SchematicForm.OutputIcon
+        self.targets[r_bottom].down = CraftingPage.CreateButton
+    end
+
+    local create_up = r_bottom or r_left or SchematicForm.OutputIcon
+    self.targets[CraftingPage.CreateButton] = {
+        can_activate = true, lock_highlight = true, is_default = true,
+        up = create_up, down = SchematicForm.OutputIcon,
+        left = false, right = false}
+    if CraftingPage.CreateAllButton:IsShown() then
+        self.targets[SchematicForm.OutputIcon].up = CraftingPage.CreateAllButton
+        self.targets[r_bottom].down = CraftingPage.CreateAllButton
+        self.targets[CraftingPage.CreateButton].left = nil
+        self.targets[CraftingPage.CreateAllButton] = {
+            can_activate = true, lock_highlight = true,
+            up = create_up, down = SchematicForm.OutputIcon, left = false}
+        self.targets[CraftingPage.CreateMultipleInputBox.DecrementButton] = {
+            can_activate = true, lock_highlight = true,
+            up = create_up, down = SchematicForm.OutputIcon}
+        self.targets[CraftingPage.CreateMultipleInputBox.IncrementButton] = {
+            can_activate = true, lock_highlight = true,
+            up = create_up, down = SchematicForm.OutputIcon}
+    end
+
     self:UpdateCursor()
 end
