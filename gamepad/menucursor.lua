@@ -1625,7 +1625,7 @@ local PROFESSION_BUTTONS_S = {
     SecondaryProfession3SpellButtonRight,
 }
 function MenuCursor:SpellBookProfessionFrame_Show()
-    assert(SpellBookFrame:IsShown())
+    if not SpellBookFrame:IsShown() then return end
     if self.focus ~= SpellBookFrame then
         self:PushFocus(SpellBookFrame)
         self.cancel_func = self.HideUIPanel
