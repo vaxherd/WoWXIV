@@ -694,6 +694,8 @@ function WoWXIV.PartyList.Create()
     end
     if enable_raid then
         WoWXIV.HideBlizzardFrame(CompactRaidFrameContainer)
+        -- Also null out functions which would directly show/hide subframes.
+        CompactRaidFrameManager_UpdateContainerVisibility = function() end
     end
 end
 
