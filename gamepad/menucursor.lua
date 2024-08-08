@@ -1514,7 +1514,7 @@ function MenuCursor:ClassTrainerFrame_Show()
     self:UpdateCursor()
     -- FIXME: also allow moving through list (ClassTrainerFrame.ScrollBox)
     -- (this is a temporary hack to ensure we can still train)
-    C_Timer.After(0, function()
+    RunNextFrame(function()
         for _, frame in ClassTrainerFrame.ScrollBox:EnumerateFrames() do
             ClassTrainerSkillButton_OnClick(frame, "LeftButton")
             break
@@ -1843,7 +1843,7 @@ end
 function MenuCursor:TRADE_SKILL_LIST_UPDATE()
     if self.focus == ProfessionsFrame then
         -- The list itself apparently isn't ready until the next frame.
-        C_Timer.After(0, function() self:ProfessionsFrame_RefreshTargets() end)
+        RunNextFrame(function() self:ProfessionsFrame_RefreshTargets() end)
     end
 end
 
