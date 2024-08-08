@@ -7,6 +7,7 @@ local CLM = WoWXIV.CombatLogManager
 local GetItemInfo = C_Item.GetItemInfo
 local strsub = string.sub
 local strfind = string.find
+local tinsert = tinsert
 
 ------------------------------------------------------------------------
 
@@ -315,8 +316,7 @@ function FlyTextManager:__constructor(parent)
     self.zone_entered = 0
     self.last_money = GetMoney()
     self.last_item_icon = nil
-    self.last_aura_text = nil
-    self.last_aura_filtered = false
+    self.last_aura_list = nil
     self.last_currency = nil
 
     local f = CreateFrame("Frame", "WoWXIV_FlyTextManager", nil)
@@ -406,11 +406,11 @@ function FlyTextManager:OnCombatLogEvent(event)
                                              or FLYTEXT_DEBUFF_REMOVE),
                     unit, event.spell_id, event.spell_school)
     end
-    if not is_aura and self.last_aura_text then
-        if not self.last_aura_filtered then
-            self:AddText(self.last_aura_text, false)
+    if not is_aura and self.last_aura_list then
+        for aura_text, _ in pairs(self.last_aura_list) do
+            self:AddText(aura_text, false)
         end
-        self.last_aura_text = nil
+        self.last_aura_list = nil
     end
     if text then
         self:AddText(text, left_side)
@@ -433,25 +433,30 @@ end
 --       immediately followed by an event which adds the remaining amount.
 function FlyTextManager:DoAura(...)
     local text = FlyText(...)
-    local last = self.last_aura_text
+    local last = self.last_aura_list
     local filter_this = false
     if last then
-        local filter_last = false
-        if last.unit == text.unit and last.spell_id == text.spell_id then
-            if last.type == FLYTEXT_BUFF_REMOVE and text.type == FLYTEXT_BUFF_ADD then
-                filter_last = true
-                filter_this = true
-            elseif last.type == FLYTEXT_BUFF_ADD and text.type == FLYTEXT_BUFF_ADD then
-                filter_last = true
+        for last_text, _ in pairs(last) do
+            if last_text.unit == text.unit and last_text.spell_id == text.spell_id then
+                local filter_last = false
+                if last_text.type == FLYTEXT_BUFF_REMOVE and text.type == FLYTEXT_BUFF_ADD then
+                    filter_last = true
+                    filter_this = true
+                elseif last_text.type == FLYTEXT_BUFF_ADD and text.type == FLYTEXT_BUFF_ADD then
+                    filter_last = true
+                end
+                if filter_last then
+                    last[last_text] = nil
+                end
+                break
             end
         end
-        if not filter_last and not self.last_aura_filtered then
-            self:AddText(self.last_aura_text, false)
-            self.last_aura_text = nil
-        end
     end
-    self.last_aura_text = text
-    self.last_aura_filtered = filter_this
+    if not filter_this then
+        if not last then last = {} end
+        last[text] = true
+    end
+    self.last_aura_list = last
 end
 
 -- Returns: type, id, color, count [, name]
@@ -607,11 +612,11 @@ function FlyTextManager:AddText(text, left_side)
 end
 
 function FlyTextManager:OnUpdate()
-    if self.last_aura_text then
-        if not self.last_aura_filtered then
-            self:AddText(self.last_aura_text, false)
+    if self.last_aura_list then
+        for aura_text, _ in pairs(self.last_aura_list) do
+            self:AddText(aura_text, false)
         end
-        self.last_aura_text = nil
+        self.last_aura_list = nil
     end
 
     if self.dot then
