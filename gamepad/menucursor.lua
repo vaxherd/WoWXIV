@@ -45,7 +45,7 @@ function MenuCursor:__constructor()
     --         is activated.  When set with can_activate, this is called
     --         after the click event is passed down to the frame.
     --    - scroll_frame: If non-nil, a ScrollFrame which should be scrolled
-    --         to make the element visible when targeted..
+    --         to make the element visible when targeted.
     --    - send_enter_leave: If true, the frame's OnEnter and OnLeave
     --         srcipts will be called when the frame is targeted and
     --         untargeted, respectively.
@@ -805,11 +805,22 @@ function MenuCursor:DoQuestDetail(is_complete)
         if not reward_frame or not reward_frame:IsShown() then break end
         tinsert(rewards, {reward_frame, true})
     end
+    for reward_frame in QuestInfoRewardsFrame.spellRewardPool:EnumerateActive() do
+        tinsert(rewards, {reward_frame, false})
+    end
     for reward_frame in QuestInfoRewardsFrame.reputationRewardPool:EnumerateActive() do
         tinsert(rewards, {reward_frame, false})
     end
+    for i, v in ipairs(rewards) do
+        local frame = v[1]
+	tinsert(rewards[i], frame:GetLeft())
+	tinsert(rewards[i], frame:GetTop())
+    end
+    table.sort(rewards, function(a, b)
+        return a[4] > b[4] or (a[4] == b[4] and a[3] < b[3])
+    end)
     local last_l, last_r, this_l
-    for _,v in ipairs(rewards) do
+    for _, v in ipairs(rewards) do
         local reward_frame, is_item = unpack(v)
         self.targets[reward_frame] = {
             up = false, down = false, left = false, right = false,
