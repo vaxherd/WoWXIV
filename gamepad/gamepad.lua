@@ -70,17 +70,31 @@ end
 local GamePadListener = class()
 
 function GamePadListener:__constructor()
-    -- Saved value of GamePadCameraPitchSpeed, used to prevent camera
-    -- rotation while zooming.
+    -- Current frame's timestamp.
+    self.frame_ts = GetTime()
+    -- Current frame's delta-time value. (FIXME: is there no API for this?)
+    self.frame_dt = 0
+    -- Reasons why the camera stick is currently disabled.
+    self.camera_stick_disable = {}
+    -- Saved value of GamePadCameraPitchSpeed while camera stick is disabled.
     self.zoom_saved_pitch_speed = nil
+    -- Saved value of GamePadCameraYawSpeed while camera stick is disabled.
+    self.zoom_saved_yaw_speed = nil
     -- Saved camera zoom while in first-person camera.
     self.fpv_saved_zoom = nil
 
     local f = WoWXIV.CreateEventFrame("WoWXIV_GamePadListener")
     self.frame = f
     f:SetPropagateKeyboardInput(true)
+    f:SetScript("OnUpdate", function() self:OnUpdate() end)
     f:SetScript("OnGamePadButtonDown", function(_,...) self:OnGamePadButton(...) end)
     f:SetScript("OnGamePadStick", function(_,...) self:OnGamePadStick(...) end)
+end
+
+function GamePadListener:OnUpdate()
+    local now = GetTime()
+    self.frame_dt = now - self.frame_ts
+    self.frame_ts = now
 end
 
 function GamePadListener:OnGamePadButton(button)
@@ -107,17 +121,53 @@ function GamePadListener:OnGamePadButton(button)
     end
 end
 
+function GamePadListener:SetCameraStickDisable(type, active)
+    self.camera_stick_disable[type] = active and true or nil
+    local disable_x, disable_y = false, false
+    for disable_type, _ in pairs(self.camera_stick_disable) do
+        if type == "ZOOM" then
+            disable_y = true
+        end
+        if type == "SCROLL_TEXT" then
+            disable_x = true
+            disable_y = true
+        end
+    end
+    if disable_x then
+        if not self.zoom_saved_yaw_speed then
+            self.zoom_saved_yaw_speed =
+                C_CVar.GetCVar("GamePadCameraYawSpeed")
+            C_CVar.SetCVar("GamePadCameraYawSpeed", 0)
+        end
+    else
+        if self.zoom_saved_yaw_speed then
+            C_CVar.SetCVar("GamePadCameraYawSpeed",
+                           self.zoom_saved_yaw_speed)
+            self.zoom_saved_yaw_speed = nil
+        end
+    end
+    if disable_y then
+        if not self.zoom_saved_pitch_speed then
+            self.zoom_saved_pitch_speed =
+                C_CVar.GetCVar("GamePadCameraPitchSpeed")
+            C_CVar.SetCVar("GamePadCameraPitchSpeed", 0)
+        end
+    else
+        if self.zoom_saved_pitch_speed then
+            C_CVar.SetCVar("GamePadCameraPitchSpeed",
+                           self.zoom_saved_pitch_speed)
+            self.zoom_saved_pitch_speed = nil
+        end
+    end
+end
+
 function GamePadListener:OnGamePadStick(stick, x, y)
     -- Handle zooming with modifier + camera up/down.
     if stick == "Camera" then
         local shift, ctrl, alt =
             ExtractModifiers(WoWXIV_config["gamepad_zoom_modifier"] .. "-")
         if IsModifier(shift, ctrl, alt) then
-            if not self.zoom_saved_pitch_speed then
-                self.zoom_saved_pitch_speed =
-                    C_CVar.GetCVar("GamePadCameraPitchSpeed")
-                C_CVar.SetCVar("GamePadCameraPitchSpeed", 0)
-            end
+            self:SetCameraStickDisable("ZOOM", true)
             if y > 0.1 then
                 CameraZoomIn(y/4)
             elseif y < -0.1 then
@@ -128,12 +178,28 @@ function GamePadListener:OnGamePadStick(stick, x, y)
                 self.fpv_saved_zoom = nil
             end
         else
-            if self.zoom_saved_pitch_speed then
-                C_CVar.SetCVar("GamePadCameraPitchSpeed",
-                               self.zoom_saved_pitch_speed)
-                self.zoom_saved_pitch_speed = nil
-            end
+            self:SetCameraStickDisable("ZOOM", false)
         end
+    end
+
+    -- Handle scrolling quest text frames.
+    local SCROLL_FRAMES = {
+        QuestDetailScrollFrame,
+        QuestRewardScrollFrame,
+    }
+    local scroll_frame
+    for _, frame in ipairs(SCROLL_FRAMES) do
+        if frame:IsVisible() then
+            scroll_frame = frame
+            break
+        end
+    end
+    self:SetCameraStickDisable("SCROLL_TEXT", scroll_frame)
+    if scroll_frame and stick == "Camera" then
+        local scroll_delta = -1000 * self.frame_dt
+        local scroll = scroll_frame:GetVerticalScroll() + (y * scroll_delta)
+        -- SetVerticalScroll() automatically clamps to child height.
+        scroll_frame:SetVerticalScroll(scroll)
     end
 end
 
