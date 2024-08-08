@@ -653,5 +653,5 @@ end
 
 -- Open the addon configuration window.
 function WoWXIV.Config.Open()
-    InterfaceOptionsFrame_OpenToCategory(WoWXIV.Config.category)
+    Settings.OpenToCategory(WoWXIV.Config.category.ID)
 end

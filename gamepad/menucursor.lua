@@ -5,8 +5,10 @@ local Gamepad = WoWXIV.Gamepad
 local class = WoWXIV.class
 
 local GameTooltip = GameTooltip
+local abs = math.abs
 local floor = math.floor
 local function round(x) return floor(x+0.5) end
+local tinsert = tinsert
 
 ------------------------------------------------------------------------
 -- Core implementation
@@ -1527,121 +1529,270 @@ function MenuCursor:ClassTrainerFrame_Hide()
 end
 
 
--------- Spellbook/professions frame
+-------- Talents/spellbook frame
 
-function MenuCursor.handlers.SpellBookFrame(cursor)
-    -- We hook the individual tabs for show behavior only and the shared
-    -- frame for hide behavior only, but we use the common utility method
-    -- for convenience and just make the unused hooks no-ops.
-    cursor:HookShow(SpellBookSpellIconsFrame, "SpellBookSpellIconsFrame")
-    cursor:HookShow(SpellBookProfessionFrame, "SpellBookProfessionFrame")
-    cursor:HookShow(SpellBookFrame, "SpellBookFrame")
-    local page_buttons = {SpellBookPrevPageButton, SpellBookNextPageButton}
-    for i = 1, 8 do
-        tinsert(page_buttons, _G["SpellBookSkillLineTab" .. i])
+function MenuCursor.handlers.PlayerSpellsFrame(cursor)
+    cursor.frame:RegisterEvent("ADDON_LOADED")
+    if PlayerSpellsFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_PlayerSpells")
     end
-    for _, page_button in ipairs(page_buttons) do
-        hooksecurefunc(page_button, "Click", function()
-            if cursor.focus == SpellBookFrame then
-                cursor:SpellBookSpellIconsFrame_UpdateMovement()
+end
+
+function MenuCursor:ADDON_LOADED__Blizzard_PlayerSpells()
+    -- We hook the individual tabs for show behavior only, but we use the
+    -- common utility method for convenience and just make the unused hooks
+    -- no-ops.
+    self:HookShow(PlayerSpellsFrame.SpellBookFrame, "SpellBookFrame")
+    self:HookShow(PlayerSpellsFrame, "PlayerSpellsFrame")
+    EventRegistry:RegisterCallback(
+        "PlayerSpellsFrame.SpellBookFrame.DisplayedSpellsChanged",
+        function()
+            if PlayerSpellsFrame.SpellBookFrame:IsVisible() then
+                self:SpellBookFrame_RefreshTargets()
+            end
+        end);
+
+    local sbf = PlayerSpellsFrame.SpellBookFrame
+    local pc = sbf.PagedSpellsFrame.PagingControls
+    local buttons = {sbf.HidePassivesCheckButton.Button,
+                     pc.PrevPageButton, pc.NextPageButton}
+    for _, tab in ipairs(sbf.CategoryTabSystem.tabs) do
+        tinsert(buttons, tab)
+    end
+    for _, button in ipairs(buttons) do
+        hooksecurefunc(button, "Click", function()
+            if self.focus == PlayerSpellsFrame then
+                self:SpellBookFrame_RefreshTargets()
             end
         end)
     end
 end
 
-function MenuCursor:SpellBookSpellIconsFrame_Hide() end
-function MenuCursor:SpellBookProfessionFrame_Hide() end
-function MenuCursor:SpellBookFrame_Show() end
+function MenuCursor:SpellBookFrame_Hide() end
 
-function MenuCursor:SpellBookSpellIconsFrame_Show()
-    if not SpellBookFrame:IsShown() then return end
-    if self.focus ~= SpellBookFrame then
-        self:PushFocus(SpellBookFrame)
+function MenuCursor:PlayerSpellsFrame_Show()
+    if PlayerSpellsFrame.SpellBookFrame:IsShown() then
+        self:SpellBookFrame_Show()
+    end
+end
+
+function MenuCursor:SpellBookFrame_Show()
+    if not PlayerSpellsFrame:IsShown() then return end
+    if self.focus ~= PlayerSpellsFrame then
+        self:PushFocus(PlayerSpellsFrame)
         self.cancel_func = self.HideUIPanel
     end
-    self.targets = {
-        [SpellBookFrameTabButton1] = {can_activate = true,
-                                      lock_highlight = true},
-        [SpellBookFrameTabButton2] = {can_activate = true,
-                                      lock_highlight = true},
-    }
-    self:SpellBookSpellIconsFrame_UpdateMovement()
-    for i = 1, 8 do
-        local button = _G["SpellBookSkillLineTab" .. i]
-        assert(button)
-        if button:IsShown() then
-            self.targets[button] = {can_activate = true, lock_highlight = true}
+    self:SpellBookFrame_RefreshTargets()
+end
+
+-- Return the closest spell button to the given Y coordinate in the given
+-- button column.  Helper for SpellBookFrame_RefreshTargets().
+local function ClosestSpellButton(column, y)
+    local best = column[1][1]
+    local best_diff = abs(column[1][2] - y)
+    for i = 2, #column do
+        local diff = abs(column[i][2] - y)
+        if diff < best_diff then
+            best = column[i][1]
+            best_diff = diff
         end
     end
-    self:SetTarget(self.cur_target or SpellButton1)
+    return best
+end
+
+function MenuCursor:SpellBookFrame_RefreshTargets()
+    local sbf = PlayerSpellsFrame.SpellBookFrame
+
+    --[[
+        Movement layout:
+
+        [Category tabs]                              [] Hide Passives
+             ↑↓                                          ↑↓
+        Top left spell ←→ ..................... ←→ Top right spell
+             ↑↓                   ↑↓                   ↑↓
+            .......         .....................          ........
+          Left column  ←→ ..................... ←→   Right column
+            .......         .....................          ........
+             ↑↓                   ↑↓                   ↑↓
+        Bottom left spell ←→ ................ ←→ Bottom right spell
+              ↑                                           ↑↓
+              ↓                               ↓→ Page N/M [<] ←→ [>]
+        [Specialization] [Talents] [Spellbook] ←
+    ]]--
+
+    self.targets = {
+        [sbf.HidePassivesCheckButton.Button] = {
+            can_activate = true, lock_highlight = true, right = false},
+    }
+
+    local default_page_tab = nil
+    local left_page_tab = nil
+    local right_page_tab = nil
+    for _, tab in ipairs(sbf.CategoryTabSystem.tabs) do
+        if tab:IsShown() then
+            self.targets[tab] = {can_activate = true, send_enter_leave = true,
+                                 up = bottom, down = top}
+            -- HACK: breaking encapsulation to access tab selected state
+            if not default_page_tab or tab.isSelected then
+                default_page_tab = tab
+            end
+            if not left_page_tab or tab:GetLeft() < left_page_tab:GetLeft() then
+                left_page_tab = tab
+            end
+            if not right_page_tab or tab:GetLeft() > right_page_tab:GetLeft() then
+                right_page_tab = tab
+            end
+        end
+    end
+    self.targets[left_page_tab].left = false
+    self.targets[right_page_tab].right = sbf.HidePassivesCheckButton.Button
+
+    local default_book_tab = nil
+    local right_book_tab = nil
+    for _, tab in ipairs(PlayerSpellsFrame.TabSystem.tabs) do
+        if tab:IsShown() then
+            self.targets[tab] = {can_activate = true, send_enter_leave = true,
+                                 down = default_page_tab}
+            -- HACK: breaking encapsulation to access tab selected state
+            if not default_book_tab or tab.isSelected then
+                default_book_tab = tab
+            end
+            if not right_book_tab or tab:GetLeft() > right_book_tab:GetLeft() then
+                right_book_tab = tab
+            end
+        end
+    end
+    for _, tab in ipairs(sbf.CategoryTabSystem.tabs) do
+        if tab:IsShown() then
+            self.targets[tab].up = default_book_tab
+        end
+    end
+
+    local pc = sbf.PagedSpellsFrame.PagingControls
+    local page_buttons = {pc.PrevPageButton, pc.NextPageButton}
+    for _, button in ipairs(page_buttons) do
+        self.targets[button] = {can_activate = true, lock_highlight = true,
+                                up = sbf.HidePassivesCheckButton.Button,
+                                down = right_book_tab}
+    end
+    self.targets[right_book_tab].right = pc.PrevPageButton
+    self.targets[pc.PrevPageButton].left = right_book_tab
+    self.targets[pc.NextPageButton].right = false
+    self.targets[sbf.HidePassivesCheckButton.Button].down = pc.PrevPageButton
+
+    local first_spell = nil
+    local columns = {}
+    local column_x = {}
+    sbf:ForEachDisplayedSpell(function(spell)
+        local button = spell.Button
+        local x = button:GetLeft()
+        if not columns[x] then
+            columns[x] = {}
+            tinsert(column_x, x)
+        end
+        tinsert(columns[x], {button, button:GetTop()})
+    end)
+    table.sort(column_x, function(a,b) return a < b end)
+    for _, column in pairs(columns) do
+        table.sort(column, function(a,b) return a[2] > b[2] end)
+    end
+    for x_index, x in ipairs(column_x) do
+        local is_left = (x_index == 1)
+        local is_right = (x_index == #column_x)
+        local is_left_half = ((x_index-1) < 0.5*(#column_x-1))
+        local top_target =
+            is_left_half and default_page_tab or sbf.HidePassivesCheckButton.Button
+        local bottom_target =
+            is_left_half and default_book_tab or pc.PrevPageButton
+        local column = columns[x]
+        for i, button_pair in ipairs(column) do
+            local button, y = button_pair[1], button_pair[2]
+            local is_top = (i == 1)
+            local is_bottom = (i == #column)
+            self.targets[button] = {
+                can_activate = true, send_enter_leave = true,
+                up = is_top and top_target or column[i-1][1],
+                down = is_bottom and bottom_target or column[i+1][1],
+                left = not is_left and ClosestSpellButton(columns[column_x[x_index-1]], y),
+                right = not is_right and ClosestSpellButton(columns[column_x[x_index+1]], y),
+            }
+            if is_left and is_top then
+                first_spell = button
+            end
+            if is_right then
+                if is_top then
+                    self.targets[sbf.HidePassivesCheckButton.Button].down = button
+                end
+                if is_bottom then
+                    for _, page_button in ipairs(page_buttons) do
+                        self.targets[page_button].up = button
+                    end
+                end
+            end
+        end
+    end
+
+    for _, tab in ipairs(sbf.CategoryTabSystem.tabs) do
+        if tab:IsShown() then
+            self.targets[tab].down = first_spell or default_book_tab
+        end
+    end
+
+    -- If the cursor was previously on a spell button, the button might
+    -- have disappeared, so reset to the top of the page.
+    if not self.targets[self.cur_target] then self.cur_target = nil end
+
+    self:SetTarget(self.cur_target or first_spell or default_page_tab)
     self:UpdateCursor()
 end
 
-function MenuCursor:SpellBookSpellIconsFrame_UpdateMovement()
-    local bottom, last = false, false
-    for i = 1, 12 do
-        local button = _G["SpellButton" .. i]
-        assert(button)
-        if button:IsEnabled() then
-            self.targets[button] = {can_activate = true, lock_highlight = true}
-            if not bottom or button:GetTop() < bottom:GetTop() then
-                bottom = button
-            end
-            last = button
-        else
-            self.targets[button] = nil
-        end
+function MenuCursor:PlayerSpellsFrame_Hide()
+    self:PopFocus(PlayerSpellsFrame)
+    self:UpdateCursor()
+end
+
+
+-------- Professions frame
+
+function MenuCursor.handlers.ProfessionsBookFrame(cursor)
+    cursor.frame:RegisterEvent("ADDON_LOADED")
+    if ProfessionsBookFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_ProfessionsBook")
     end
-    if SpellBookPrevPageButton:IsShown() then
-        self.targets[SpellBookPrevPageButton] = {
-            can_activate = true, lock_highlight = true, up = last}
-        self.targets[SpellBookNextPageButton] = {
-            can_activate = true, lock_highlight = true, up = last}
-        if last then
-            self.targets[last].down = SpellBookPrevPageButton
-            if bottom ~= last then
-                self.targets[bottom].down = SpellBookPrevPageButton
-            end
-        end
-        bottom = SpellBookPrevPageButton
-        last = SpellBookPrevPageButton
-    end
-    self.targets[SpellBookFrameTabButton1].up = bottom
-    self.targets[SpellBookFrameTabButton2].up = bottom
+end
+
+function MenuCursor:ADDON_LOADED__Blizzard_ProfessionsBook()
+    self:HookShow(ProfessionsBookFrame, "ProfessionsBookFrame")
 end
 
 local PROFESSION_BUTTONS_P = {
-    PrimaryProfession1SpellButtonTop,
-    PrimaryProfession1SpellButtonBottom,
-    PrimaryProfession2SpellButtonTop,
-    PrimaryProfession2SpellButtonBottom,
+    "PrimaryProfession1SpellButtonTop",
+    "PrimaryProfession1SpellButtonBottom",
+    "PrimaryProfession2SpellButtonTop",
+    "PrimaryProfession2SpellButtonBottom",
 }
 local PROFESSION_BUTTONS_S = {
-    SecondaryProfession1SpellButtonLeft,
-    SecondaryProfession1SpellButtonRight,
-    SecondaryProfession2SpellButtonLeft,
-    SecondaryProfession2SpellButtonRight,
-    SecondaryProfession3SpellButtonLeft,
-    SecondaryProfession3SpellButtonRight,
+    "SecondaryProfession1SpellButtonLeft",
+    "SecondaryProfession1SpellButtonRight",
+    "SecondaryProfession2SpellButtonLeft",
+    "SecondaryProfession2SpellButtonRight",
+    "SecondaryProfession3SpellButtonLeft",
+    "SecondaryProfession3SpellButtonRight",
 }
-function MenuCursor:SpellBookProfessionFrame_Show()
-    if not SpellBookFrame:IsShown() then return end
-    if self.focus ~= SpellBookFrame then
-        self:PushFocus(SpellBookFrame)
-        self.cancel_func = self.HideUIPanel
-    end
-    self.targets = {
-        [SpellBookFrameTabButton1] = {can_activate = true,
-                                      lock_highlight = true},
-        [SpellBookFrameTabButton2] = {can_activate = true,
-                                      lock_highlight = true},
-    }
-    local initial = self.cur_target
+function MenuCursor:ProfessionsBookFrame_Show()
+    assert(ProfessionsBookFrame:IsShown())
+    self:SetFocus(ProfessionsBookFrame)
+    self.cancel_func = self.CancelUIPanel
+    self.targets = {}
+    local initial = nil
     local bottom = nil
-    for _, button in ipairs(PROFESSION_BUTTONS_P) do
+    for _, bname in ipairs(PROFESSION_BUTTONS_P) do
+        local button = _G[bname]
+        assert(button)
         if button:IsShown() then
             self.targets[button] = {can_activate = true, lock_highlight = true}
             if not initial then
+                self.targets[button].initial = true
                 initial = button
             end
             bottom = button
@@ -1649,7 +1800,9 @@ function MenuCursor:SpellBookProfessionFrame_Show()
     end
     local bottom_primary = bottom or false
     local first_secondary = nil
-    for _, button in ipairs(PROFESSION_BUTTONS_S) do
+    for _, bname in ipairs(PROFESSION_BUTTONS_S) do
+        local button = _G[bname]
+        assert(button)
         if button:IsShown() then
             self.targets[button] = {can_activate = true, lock_highlight = true}
             if not first_secondary then
@@ -1663,17 +1816,15 @@ function MenuCursor:SpellBookProfessionFrame_Show()
             end
         end
     end
-    self.targets[SpellBookFrameTabButton1].up = bottom
-    self.targets[SpellBookFrameTabButton2].up = bottom
-    self:SetTarget(initial and initial or SpellBookFrameTabButton2)
+    self:SetTarget(initial)
     self:UpdateCursor()
 end
 
-function MenuCursor:SpellBookFrame_Hide()
-    self:PopFocus(SpellBookFrame)
+function MenuCursor:ProfessionsBookFrame_Hide()
+    assert(self.focus == nil or self.focus == ProfessionsBookFrame)
+    self:ClearFocus()
     self:UpdateCursor()
 end
-
 
 -------- Crafting frame
 

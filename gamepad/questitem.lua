@@ -129,6 +129,7 @@ local ITEM_TARGET = {
     [210454] = "skip",    -- Spare Hologem (78068: An Artificer's Appeal / 78070: Pressing Deadlines / 78075: Moving Past / 78081: Pain Recedes)
     [211302] = "target",  -- Slumberfruit (76993: Turtle Power)
     [223988] = "skip",    -- Dalaran Hearthstone (79009: The Harbinger)
+    [227669] = "skip",    -- Teleportation Scroll (81930: The War Within)
 }
 
 -- Special cases for quests which don't have items listed but really should.
