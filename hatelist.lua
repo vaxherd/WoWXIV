@@ -293,7 +293,9 @@ function HateList:OnEvent(event, unit)
     if event == "NAME_PLATE_UNIT_ADDED" or event == "FORBIDDEN_NAME_PLATE_UNIT_ADDED" or event == "UNIT_THREAT_LIST_UPDATE" then
         local is_target, _, _, hate = UnitDetailedThreatSituation("player", unit)
         if (is_target or hate) and not index then
-            self:AddEnemy(guid, UnitName(unit))
+            local name, server = UnitName(unit)
+            if server then name = name.."-"..server end
+            self:AddEnemy(guid, name)
         end
     elseif UnitIsDead(unit) then
         if index then
