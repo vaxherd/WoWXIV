@@ -796,7 +796,7 @@ function MenuCursor:DoQuestDetail(is_complete)
         button2 = QuestFrameDeclineButton
     end
     local rewards = {}
-    if QuestInfoSkillPointFrame:IsShown() then
+    if QuestInfoSkillPointFrame:IsVisible() then
         tinsert(rewards, {QuestInfoSkillPointFrame, false})
     end
     for i = 1, 99 do
