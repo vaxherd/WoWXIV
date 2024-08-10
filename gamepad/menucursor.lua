@@ -1042,6 +1042,31 @@ function MenuCursor:PlayerChoiceFrame_Hide()
 end
 
 
+-------- Info popup frame ("Campaign Complete!" etc.) (FIXME: untested)
+
+function MenuCursor.handlers.UIWidgetCenterDisplayFrame(cursor)
+    cursor:HookShow(UIWidgetCenterDisplayFrame, "UIWidgetCenterDisplayFrame")
+end
+
+function MenuCursor:UIWidgetCenterDisplayFrame_Show()
+    assert(UIWidgetCenterDisplayFrame:IsVisible())
+    self:SetFocus(UIWidgetCenterDisplayFrame)
+    self.cancel_func = self.CancelUIPanel
+    self.targets = {
+        [UIWidgetCenterDisplayFrame.CloseButton] = {
+            can_activate = true, lock_highlight = true, is_default = true},
+    }
+    self:UpdateCursor()
+end
+
+function MenuCursor:UIWidgetCenterDisplayFrame_Hide()
+    if self.focus == UIWidgetCenterDisplayFrame then
+        self:ClearFocus()
+        self:UpdateCursor()
+    end
+end
+
+
 -------- Static popup dialogs
 
 function MenuCursor.handlers.StaticPopup(cursor)
