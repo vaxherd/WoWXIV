@@ -1981,8 +1981,9 @@ function MenuCursor:ProfessionsFrame_FocusRecipe()
     }
 
     local r_left = false
-    if SchematicForm.Details.FinishingReagentSlotContainer:IsShown() then
-        local finishing = {SchematicForm.Details.FinishingReagentSlotContainer:GetChildren()}
+    local frsc = SchematicForm.Details.FinishingReagentSlotContainer
+    if frsc and frsc:IsShown() then
+        local finishing = {frsc:GetChildren()}
         for _, frame in ipairs(finishing) do
             local button = frame:GetChildren()
             -- FIXME: reagent buttons don't react to clicks, need special handling (see various implementations in ProfessionsRecipeSchematicFormMixin:Init())
