@@ -1852,7 +1852,11 @@ function MenuCursor:ProfessionsBookFrame_Show()
             end
         end
     end
-    self:SetTarget(initial)
+    if initial then
+        self:SetTarget(initial)
+    else
+        self:ClearFocus()
+    end
     self:UpdateCursor()
 end
 
