@@ -41,18 +41,20 @@ function MenuCursor:__constructor()
     --    - lock_highlight: If true, the frame's LockHighlight() and
     --         UnlockHighlight() methods will be called when the frame is
     --         targeted and untargeted, respectively.
-    --    - on_click: If non-nil a function to be called when the element
+    --    - on_click: If non-nil, a function to be called when the element
     --         is activated.  When set with can_activate, this is called
     --         after the click event is passed down to the frame.
+    --    - on_enter: If non-nil, a function to be called when the cursor
+    --         is moved onto the element.  The frame is passed as an argument.
+    --         Ignored if send_enter_leave is set.
+    --    - on_leave: If non-nil, a function to be called when the cursor
+    --         is moved off the element.  The frame is passed as an argument.
+    --         Ignored if send_enter_leave is set.
     --    - scroll_frame: If non-nil, a ScrollFrame which should be scrolled
     --         to make the element visible when targeted.
     --    - send_enter_leave: If true, the frame's OnEnter and OnLeave
     --         srcipts will be called when the frame is targeted and
     --         untargeted, respectively.
-    --    - set_tooltip: If non-nil, a function which will be called when
-    --         the frame is targeted to set an appropriate tooltip.  In
-    --         this case, GameTooltip:Hide() will be called when the frame
-    --         is untargeted.
     --    - up, down, left, right: If non-nil, specifies the frame to be
     --         targeted on the corresponding movement input from this frame.
     --         A value of false prevents movement in the corresponding
@@ -224,11 +226,8 @@ function MenuCursor:SetTarget(target)
         end
         if params.send_enter_leave then
             frame:GetScript("OnLeave")(frame)
-        end
-        if params.set_tooltip then
-            if not GameTooltip:IsForbidden() then
-                GameTooltip:Hide()
-            end
+        elseif params.on_leave then
+            params.on_leave(frame)
         end
     end
 
@@ -252,11 +251,8 @@ function MenuCursor:SetTarget(target)
         end
         if params.send_enter_leave then
             frame:GetScript("OnEnter")(frame)
-        end
-        if params.set_tooltip then
-            if not GameTooltip:IsForbidden() then
-                self.targets[target].set_tooltip(target)
-            end
+        elseif params.on_enter then
+            params.on_enter(frame)
         end
     end
 end
@@ -607,6 +603,13 @@ end
 function MenuCursor:CancelQuestFrame()
     self:ClearFocus()
     CloseQuest()
+end
+
+-- Shared on_leave function which simply hides the tooltip.
+function MenuCursor:HideTooltip()
+    if not GameTooltip:IsForbidden() then
+        GameTooltip:Hide()
+    end
 end
 
 -- Return a table suitable for use as a targets[] key for an element of
@@ -1013,11 +1016,14 @@ function MenuCursor:PlayerChoiceFrame_Show()
             self.targets[button] = {can_activate = true,
                                     lock_highlight = true}
             if PlayerChoiceFrame.optionFrameTemplate == "PlayerChoiceTorghastOptionTemplate" then
-                self.targets[button].set_tooltip = function()
-                    if option.OptionText:IsTruncated() then
-                        option:OnEnter()
+                self.targets[button].on_enter = function()
+                    if not GameTooltip:IsForbidden() then
+                        if option.OptionText:IsTruncated() then
+                            option:OnEnter()
+                        end
                     end
                 end
+                self.targets[button].on_leave = self.HideTooltip
             else
                 self.targets[button].send_enter_leave = true
             end
@@ -1297,13 +1303,14 @@ function MenuCursor:OpenMailMoneyButton_Show(frame)
     if self.focus ~= OpenMailFrame then return end
     self.targets[frame] = {
         can_activate = true, lock_highlight = true,
-        set_tooltip = function(self)  -- hardcoded in FrameXML
+        on_enter = function(frame)  -- hardcoded in XML
             if OpenMailFrame.money then
                 GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
                 SetTooltipMoney(GameTooltip, OpenMailFrame.money)
                 GameTooltip:Show()
             end
         end,
+        on_leave = self.HideTooltip,
     }
 end
 
@@ -1642,7 +1649,7 @@ function MenuCursor:SpellBookFrame_RefreshTargets()
     --[[
         Movement layout:
 
-        [Category tabs]                              [] Hide Passives
+        [Category tabs]             ←→             [] Hide Passives
              ↑↓                                          ↑↓
         Top left spell ←→ ..................... ←→ Top right spell
              ↑↓                   ↑↓                   ↑↓
@@ -1746,7 +1753,9 @@ function MenuCursor:SpellBookFrame_RefreshTargets()
             local is_top = (i == 1)
             local is_bottom = (i == #column)
             self.targets[button] = {
-                can_activate = true, send_enter_leave = true,
+                can_activate = true,
+                on_enter = function(frame) self:SpellBookFrame_OnEnterButton(frame) end,
+                on_leave = function(frame) self:SpellBookFrame_OnLeaveButton(frame) end,
                 up = is_top and top_target or column[i-1][1],
                 down = is_bottom and bottom_target or column[i+1][1],
                 left = not is_left and ClosestSpellButton(columns[column_x[x_index-1]], y),
@@ -1787,6 +1796,39 @@ function MenuCursor:PlayerSpellsFrame_Hide()
     self:UpdateCursor()
 end
 
+-- Effectively the same as SpellBookItemMixin:OnIconEnter() and ...Leave()
+-- from Blizzard_SpellBookItem.lua.  We need to reimplement them ourselves
+-- because those functions touch global variables, which become tainted if
+-- we call the functions directly.  (As a result, action bar highlights are
+-- not updated as they would be from mouse movement.)
+function MenuCursor:SpellBookFrame_OnEnterButton(frame)
+    local item = frame:GetParent()
+    if not item:HasValidData() then
+        return
+    end
+    if not item.isUnlearned then
+        item.Button.IconHighlight:Show()
+        item.Backplate:SetAlpha(item.hoverBackplateAlpha)
+    end
+    GameTooltip:SetOwner(item.Button, "ANCHOR_RIGHT")
+    GameTooltip:SetSpellBookItem(item.slotIndex, item.spellBank)
+    local actionBarStatusToolTip = item.actionBarStatus and SpellSearchUtil.GetTooltipForActionBarStatus(item.actionBarStatus)
+    if actionBarStatusToolTip then
+        GameTooltip_AddColoredLine(GameTooltip, actionBarStatusToolTip, LIGHTBLUE_FONT_COLOR)
+    end
+    GameTooltip:Show()
+end
+
+function MenuCursor:SpellBookFrame_OnLeaveButton(frame)
+    local item = frame:GetParent()
+    if not item:HasValidData() then
+        return
+    end
+    item.Button.IconHighlight:Hide()
+    item.Button.IconHighlight:SetAlpha(item.iconHighlightHoverAlpha)
+    item.Backplate:SetAlpha(item.defaultBackplateAlpha)
+    GameTooltip:Hide()
+end
 
 -------- Professions frame
 
