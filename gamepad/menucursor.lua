@@ -2042,9 +2042,13 @@ function MenuCursor:ProfessionsFrame_FocusRecipe()
     local CraftingPage = ProfessionsFrame.CraftingPage
     local SchematicForm = CraftingPage.SchematicForm
     assert(SchematicForm:IsShown())
+    if SchematicForm.recraftSlot:IsShown() then
+        return  -- We don't currently handle the recrafting interface.
+    end
+    assert(CraftingPage.CreateButton:IsShown())
+
     self:PushFocus(SchematicForm)
     self.cancel_func = function(self) self:PopFocus(SchematicForm) end
-    assert(CraftingPage.CreateButton:IsShown())
 
     self.targets = {
         [SchematicForm.OutputIcon] = {send_enter_leave = true,
