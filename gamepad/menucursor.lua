@@ -42,8 +42,9 @@ function MenuCursor:__constructor()
     --         UnlockHighlight() methods will be called when the frame is
     --         targeted and untargeted, respectively.
     --    - on_click: If non-nil, a function to be called when the element
-    --         is activated.  When set with can_activate, this is called
-    --         after the click event is passed down to the frame.
+    --         is activated.  The frame is passed as an argument.  When set
+    --         with can_activate, this is called after the click event is
+    --         passed down to the frame.
     --    - on_enter: If non-nil, a function to be called when the cursor
     --         is moved onto the element.  The frame is passed as an argument.
     --         Ignored if send_enter_leave is set.
@@ -2061,8 +2062,8 @@ function MenuCursor:ProfessionsFrame_FocusRecipe()
         local finishing = {frsc:GetChildren()}
         for _, frame in ipairs(finishing) do
             local button = frame:GetChildren()
-            -- FIXME: reagent buttons don't react to clicks, need special handling (see various implementations in ProfessionsRecipeSchematicFormMixin:Init())
             self.targets[button] = {
+                on_click = self.ProfessionsFrame_ClickItemButton,
                 lock_highlight = true, send_enter_leave = true,
                 up = false, down = CraftingPage.CreateButton}
             if not r_left or button:GetLeft() < r_left:GetLeft() then
@@ -2095,6 +2096,7 @@ function MenuCursor:ProfessionsFrame_FocusRecipe()
     for _, frame in ipairs(reagents) do
         local button = frame:GetChildren()
         self.targets[button] = {
+            on_click = self.ProfessionsFrame_ClickItemButton,
             lock_highlight = true, send_enter_leave = true,
             left = false, right = r_left}
         if not r_top or button:GetTop() > r_top:GetTop() then
@@ -2133,4 +2135,12 @@ function MenuCursor:ProfessionsFrame_FocusRecipe()
     end
 
     self:UpdateCursor()
+end
+
+function MenuCursor.ProfessionsFrame_ClickItemButton(button)
+    local onMouseDown = button:GetScript("OnMouseDown")
+    assert(onMouseDown)
+    -- We pass down=true for completeness, but all current implementations
+    -- ignore that parameter and don't register for button-up events.
+    onMouseDown(button, "LeftButton", true)
 end
