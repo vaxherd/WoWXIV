@@ -2056,8 +2056,8 @@ function MenuCursor:ProfessionsFrame_FocusRecipe()
     }
 
     local r_left = false
-    local frsc = SchematicForm.Details.FinishingReagentSlotContainer
-    if frsc and frsc:IsShown() then
+    local frsc = SchematicForm.Details.CraftingChoicesContainer.FinishingReagentSlotContainer
+    if frsc and frsc:IsVisible() then
         local finishing = {frsc:GetChildren()}
         for _, frame in ipairs(finishing) do
             local button = frame:GetChildren()
@@ -2068,6 +2068,16 @@ function MenuCursor:ProfessionsFrame_FocusRecipe()
             if not r_left or button:GetLeft() < r_left:GetLeft() then
                 r_left = button
             end
+        end
+    end
+    local ctb = SchematicForm.Details.CraftingChoicesContainer.ConcentrateContainer.ConcentrateToggleButton
+    if ctb and ctb:IsVisible() then
+        self.targets[ctb] = {
+            can_activate = true, lock_highlight = true,
+            send_enter_leave = true,
+            up = false, down = CraftingPage.CreateButton}
+        if not r_left or ctb:GetLeft() < r_left:GetLeft() then
+            r_left = ctb
         end
     end
 
@@ -2098,8 +2108,11 @@ function MenuCursor:ProfessionsFrame_FocusRecipe()
         self.targets[r_top].up = SchematicForm.OutputIcon
         self.targets[r_bottom].down = CraftingPage.CreateButton
     end
+    if r_bottom and r_left then
+        self.targets[r_left].left = r_bottom
+    end
 
-    local create_up = r_bottom or r_left or SchematicForm.OutputIcon
+    local create_up = r_left or r_bottom or SchematicForm.OutputIcon
     self.targets[CraftingPage.CreateButton] = {
         can_activate = true, lock_highlight = true, is_default = true,
         up = create_up, down = SchematicForm.OutputIcon,
