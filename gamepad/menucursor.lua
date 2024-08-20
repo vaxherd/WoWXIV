@@ -466,6 +466,7 @@ function MenuCursor:Move(dx, dy, dir)
                 scroll_target = bottom - (scroll_height - MARGIN)
             end
             if scroll_target then
+                scroll_target = scroll_frame:GetVerticalScroll() + scroll_target
                 if scroll_target < 0 then scroll_target = 0 end
                 -- SetVerticalScroll() automatically clamps to child height.
                 scroll_frame:SetVerticalScroll(scroll_target)
