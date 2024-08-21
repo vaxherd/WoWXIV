@@ -178,9 +178,9 @@ function FlyText:__constructor(type, ...)
     value:SetTextColor(r, g, b)
 
     if type == FLYTEXT_DAMAGE_DIRECT or type == FLYTEXT_HEAL_DIRECT then
-        local spell_name, _ = GetSpellInfo(self.spell_id)
-        if spell_name then
-            name:SetText(spell_name)
+        local spell_info = self.spell_id and C_Spell.GetSpellInfo(self.spell_id) or nil
+        if spell_info and spell_info.name then
+            name:SetText(spell_info.name)
         else
             name:Hide()
         end
@@ -212,7 +212,7 @@ function FlyText:__constructor(type, ...)
 
     elseif type >= FLYTEXT_BUFF_ADD and type <= FLYTEXT_DEBUFF_REMOVE then
         name:Hide()
-        local spell_name, _, spell_icon = GetSpellInfo(self.spell_id)
+        local spell_info = C_Spell.GetSpellInfo(self.spell_id)
         icon:SetSize(24, 24)
         local border = w.border
         border:SetSize(22, 26)
@@ -223,7 +223,7 @@ function FlyText:__constructor(type, ...)
             icon:SetMask("Interface/Addons/WowXIV/textures/debuff-mask.png")
             WoWXIV.SetUITexture(border, 99, 121, 40, 14)
         end
-        icon:SetTexture(spell_icon)
+        icon:SetTexture(spell_info.iconID)
         if self.amount and self.amount > 0 then
             local stacks = w.stacks
             stacks:Show()
@@ -232,9 +232,9 @@ function FlyText:__constructor(type, ...)
         value:ClearAllPoints()
         value:SetPoint("LEFT", icon, "RIGHT", 2, 0)
         if type == FLYTEXT_BUFF_ADD or type == FLYTEXT_DEBUFF_ADD then
-            value:SetText("+" .. spell_name)
+            value:SetText("+" .. spell_info.name)
         else
-            value:SetText("-" .. spell_name)
+            value:SetText("-" .. spell_info.name)
         end
 
     elseif type == FLYTEXT_LOOT_MONEY then

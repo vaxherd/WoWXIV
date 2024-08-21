@@ -623,7 +623,7 @@ function AuraBar:Dump(unit, update_info)
     print("    unit: ", self.unit)
     for i, aura in ipairs(self.auras) do
         if aura.instance then
-            local name, _ = GetSpellInfo(aura.spell_id)
+            local name = C_Spell.GetSpellInfo(aura.spell_id).name
             local position
             print("    aura "..i..": "..aura.spell_id.." ("..name..")")
         end
@@ -648,7 +648,7 @@ function AuraBar:Verify(no_header)
             print("AuraBar <", self, "> verify FAILED!")
             no_header = true
         end
-        local name, _ = GetSpellInfo(spell_id)
+        local name = C_Spell.GetSpellInfo(spell_id).name
         print("    "..(extra and "EXTRA" or "MISSING").." "..instance..": "..spell_id.." ("..name..")")
     end
     for instance, spell_id in pairs(mine) do
