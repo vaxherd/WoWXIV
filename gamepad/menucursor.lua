@@ -1832,6 +1832,7 @@ function MenuCursor:SpellBookFrame_OnLeaveButton(frame)
     GameTooltip:Hide()
 end
 
+
 -------- Professions frame
 
 function MenuCursor.handlers.ProfessionsBookFrame(cursor)
@@ -2144,4 +2145,88 @@ function MenuCursor.ProfessionsFrame_ClickItemButton(button)
     -- We pass down=true for completeness, but all current implementations
     -- ignore that parameter and don't register for button-up events.
     onMouseDown(button, "LeftButton", true)
+end
+
+
+-------- Great Vault
+
+function MenuCursor.handlers.WeeklyRewardsFrame(cursor)
+    cursor.frame:RegisterEvent("ADDON_LOADED")
+    if WeeklyRewardsFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_WeeklyRewards")
+    end
+end
+
+function MenuCursor:ADDON_LOADED__Blizzard_WeeklyRewards()
+    self:HookShow(WeeklyRewardsFrame, "WeeklyRewardsFrame")
+end
+
+function MenuCursor:WeeklyRewardsFrame_Show()
+    assert(WeeklyRewardsFrame:IsShown())
+    self:SetFocus(WeeklyRewardsFrame)
+    self.cancel_func = self.CancelUIPanel
+    self.targets = {}
+    local first, bottom
+    local can_claim = C_WeeklyRewards.CanClaimRewards()
+    for _, info in ipairs(C_WeeklyRewards.GetActivities()) do
+        local frame = WeeklyRewardsFrame:GetActivityFrame(info.type, info.index)
+        if frame and frame ~= WeeklyRewardsFrame.ConcessionFrame then
+            local unlocked = can_claim and #info.rewards > 0
+            self.targets[frame] = {send_enter_leave = true}
+            if unlocked then
+                self.targets[frame].on_click = function()
+                    frame:GetScript("OnMouseUp")(frame, "LeftButton", true)
+                end
+            end
+            if not first or frame:GetTop() > first:GetTop()
+                         or (frame:GetTop() == first:GetTop()
+                             and frame:GetLeft() < first:GetLeft()) then
+                first = frame
+            end
+            if not bottom or frame:GetTop() < bottom:GetTop()
+                          or (frame:GetTop() == bottom:GetTop()
+                              and frame:GetLeft() < bottom:GetLeft()) then
+                bottom = frame
+            end
+        end
+    end
+    if can_claim then
+        local cf = WeeklyRewardsFrame.ConcessionFrame
+        self.targets[cf] = {
+            -- This is a bit awkward/hackish because the OnEnter/OnLeave
+            -- handlers are attached to ConcessionFrame, but instead of
+            -- just toggling the tooltip on and off, they set up an
+            -- OnUpdate script which explicitly checks whether the mouse
+            -- cursor is over RewardsFrame.
+            on_enter = function()
+                assert(self.CFRewardsFrame_IsMouseOver == nil)
+                assert(cf.RewardsFrame.IsMouseOver)
+                self.CFRewardsFrame_IsMouseOver = cf.RewardsFrame.IsMouseOver
+                cf.RewardsFrame.IsMouseOver = function() return true end
+                cf:GetScript("OnEnter")(cf)
+            end,
+            on_leave = function()
+                assert(self.CFRewardsFrame_IsMouseOver)
+                cf:GetScript("OnLeave")(cf)
+                cf.RewardsFrame.IsMouseOver = self.CFRewardsFrame_IsMouseOver
+                self.CFRewardsFrame_IsMouseOver = nil
+            end,
+            on_click = function()
+                cf:GetScript("OnMouseDown")(cf)
+            end,
+            left = false, right = false, up = bottom}
+        self.targets[WeeklyRewardsFrame.SelectRewardButton] = {
+            can_activate = true, lock_highlight = true,
+            left = false, right = false}
+    end
+    if first then
+        self.targets[first].is_default = true
+    end
+    self:UpdateCursor()
+end
+
+function MenuCursor:WeeklyRewardsFrame_Hide()
+    assert(self.focus == nil or self.focus == WeeklyRewardsFrame)
+    self:ClearFocus()
+    self:UpdateCursor()
 end
