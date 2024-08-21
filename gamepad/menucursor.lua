@@ -326,7 +326,7 @@ end
 -- Per-frame update routine which implements cursor bouncing.
 function MenuCursor:OnUpdate()
     local target = self.cur_target
-    local target_frame = self:GetTargetFrame(target)
+    local target_frame = target and self:GetTargetFrame(target)
     if not target_frame then return end
 
     --[[
@@ -1923,6 +1923,7 @@ end
 
 function MenuCursor:ADDON_LOADED__Blizzard_Professions()
     self:HookShow(ProfessionsFrame, "ProfessionsFrame")
+    self:HookShow(ProfessionsFrame.CraftingPage.CreateAllButton, "ProfessionsFrame_CreateAllButton")
 end
 
 function MenuCursor:TRADE_SKILL_LIST_UPDATE()
@@ -2054,8 +2055,19 @@ function MenuCursor:ProfessionsFrame_FocusRecipe()
     self.cancel_func = function(self) self:PopFocus(SchematicForm) end
 
     self.targets = {
-        [SchematicForm.OutputIcon] = {send_enter_leave = true,
-                                      up = CraftingPage.CreateButton}
+        [SchematicForm.OutputIcon] = {send_enter_leave = true},
+        [CraftingPage.CreateAllButton] = {
+            can_activate = true, lock_highlight = true,
+            down = SchematicForm.OutputIcon, left = false},
+        [CraftingPage.CreateMultipleInputBox.DecrementButton] = {
+            can_activate = true, lock_highlight = true,
+            down = SchematicForm.OutputIcon},
+        [CraftingPage.CreateMultipleInputBox.IncrementButton] = {
+            can_activate = true, lock_highlight = true,
+            down = SchematicForm.OutputIcon},
+        [CraftingPage.CreateButton] = {
+            can_activate = true, lock_highlight = true, is_default = true,
+            down = SchematicForm.OutputIcon, right = false},
     }
 
     local r_left = false
@@ -2110,32 +2122,19 @@ function MenuCursor:ProfessionsFrame_FocusRecipe()
     end
     if r_top then
         self.targets[r_top].up = SchematicForm.OutputIcon
-        self.targets[r_bottom].down = CraftingPage.CreateButton
     end
     if r_bottom and r_left then
         self.targets[r_left].left = r_bottom
     end
 
     local create_up = r_left or r_bottom or SchematicForm.OutputIcon
-    self.targets[CraftingPage.CreateButton] = {
-        can_activate = true, lock_highlight = true, is_default = true,
-        up = create_up, down = SchematicForm.OutputIcon,
-        left = false, right = false}
-    if CraftingPage.CreateAllButton:IsShown() then
-        self.targets[SchematicForm.OutputIcon].up = CraftingPage.CreateAllButton
-        self.targets[r_bottom].down = CraftingPage.CreateAllButton
-        self.targets[CraftingPage.CreateButton].left = nil
-        self.targets[CraftingPage.CreateAllButton] = {
-            can_activate = true, lock_highlight = true,
-            up = create_up, down = SchematicForm.OutputIcon, left = false}
-        self.targets[CraftingPage.CreateMultipleInputBox.DecrementButton] = {
-            can_activate = true, lock_highlight = true,
-            up = create_up, down = SchematicForm.OutputIcon}
-        self.targets[CraftingPage.CreateMultipleInputBox.IncrementButton] = {
-            can_activate = true, lock_highlight = true,
-            up = create_up, down = SchematicForm.OutputIcon}
-    end
+    self.targets[CraftingPage.CreateAllButton].up = create_up
+    self.targets[CraftingPage.CreateMultipleInputBox.DecrementButton].up = create_up
+    self.targets[CraftingPage.CreateMultipleInputBox.IncrementButton].up = create_up
+    self.targets[CraftingPage.CreateButton].up = create_up
+    self.ProfessionsFrame_r_bottom = r_bottom
 
+    self:ProfessionsFrame_UpdateMovement()
     self:UpdateCursor()
 end
 
@@ -2145,6 +2144,45 @@ function MenuCursor.ProfessionsFrame_ClickItemButton(button)
     -- We pass down=true for completeness, but all current implementations
     -- ignore that parameter and don't register for button-up events.
     onMouseDown(button, "LeftButton", true)
+end
+
+function MenuCursor:ProfessionsFrame_UpdateMovement()
+    local CraftingPage = ProfessionsFrame.CraftingPage
+    local r_bottom = self.ProfessionsFrame_r_bottom
+    if CraftingPage.CreateAllButton:IsShown() then
+        self.targets[CraftingPage.CreateButton].left = nil
+        self.targets[CraftingPage.SchematicForm.OutputIcon].up = CraftingPage.CreateAllButton
+        if r_bottom then
+            self.targets[r_bottom].down = CraftingPage.CreateAllButton
+        end
+    else
+        self.targets[CraftingPage.CreateButton].left = false
+        self.targets[CraftingPage.SchematicForm.OutputIcon].up = CraftingPage.CreateButton
+        if r_bottom then
+            self.targets[r_bottom].down = CraftingPage.CreateButton
+        end
+    end
+end
+
+function MenuCursor:ProfessionsFrame_CreateAllButton_Show()
+    if (self.focus == ProfessionsFrame
+    and self.targets[ProfessionsFrame.CraftingPage.CreateButton]) then
+        self:ProfessionsFrame_UpdateMovement()
+    end
+end
+
+function MenuCursor:ProfessionsFrame_CreateAllButton_Hide()
+    if (self.focus == ProfessionsFrame
+    and self.targets[ProfessionsFrame.CraftingPage.CreateButton]) then
+        local CraftingPage = ProfessionsFrame.CraftingPage
+        if (self.cur_target == CraftingPage.CreateAllButton
+         or self.cur_target == CraftingPage.CreateMultipleInputBox.DecrementButton
+         or self.cur_target == CraftingPage.CreateMultipleInputBox.IncrementButton)
+        then
+            self:SetTarget(CraftingPage.CreateButton)
+        end
+        self:ProfessionsFrame_UpdateMovement()
+    end
 end
 
 
