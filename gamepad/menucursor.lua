@@ -2086,12 +2086,12 @@ function MenuCursor:ProfessionsFrame_FocusRecipe()
 
     local r_top, r_bottom = false, false
     local reagents = {}
-    if SchematicForm.Reagents:IsShown() then
+    if SchematicForm.Reagents:IsVisible() then
         -- Awkward because Lua has no way to concatenate lists.
         local list = {SchematicForm.Reagents:GetChildren()}
         for _,v in ipairs(list) do tinsert(reagents,v) end
     end
-    if SchematicForm.OptionalReagents:IsShown() then
+    if SchematicForm.OptionalReagents:IsVisible() then
         local list = {SchematicForm.OptionalReagents:GetChildren()}
         for _,v in ipairs(list) do tinsert(reagents,v) end
     end
