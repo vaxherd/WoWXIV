@@ -2098,26 +2098,28 @@ function MenuCursor:ProfessionsFrame_FocusRecipe()
 
     local r_top, r_bottom = false, false
     local reagents = {}
-    if SchematicForm.Reagents:IsVisible() then
+    if SchematicForm.Reagents:IsShown() then
         -- Awkward because Lua has no way to concatenate lists.
         local list = {SchematicForm.Reagents:GetChildren()}
         for _,v in ipairs(list) do tinsert(reagents,v) end
     end
-    if SchematicForm.OptionalReagents:IsVisible() then
+    if SchematicForm.OptionalReagents:IsShown() then
         local list = {SchematicForm.OptionalReagents:GetChildren()}
         for _,v in ipairs(list) do tinsert(reagents,v) end
     end
     for _, frame in ipairs(reagents) do
         local button = frame:GetChildren()
-        self.targets[button] = {
-            on_click = self.ProfessionsFrame_ClickItemButton,
-            lock_highlight = true, send_enter_leave = true,
-            left = false, right = r_left}
-        if not r_top or button:GetTop() > r_top:GetTop() then
-            r_top = button
-        end
-        if not r_bottom or button:GetTop() < r_bottom:GetTop() then
-            r_bottom = button
+        if button:IsVisible() then
+            self.targets[button] = {
+                on_click = self.ProfessionsFrame_ClickItemButton,
+                lock_highlight = true, send_enter_leave = true,
+                left = false, right = r_left}
+            if not r_top or button:GetTop() > r_top:GetTop() then
+                r_top = button
+            end
+            if not r_bottom or button:GetTop() < r_bottom:GetTop() then
+                r_bottom = button
+            end
         end
     end
     if r_top then
