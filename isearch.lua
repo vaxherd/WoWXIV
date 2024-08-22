@@ -154,10 +154,12 @@ function AccountBagGetter:Name()
     if self.append_bagname then
         local tab_name = "???"
         local data = C_Bank.FetchPurchasedBankTabData(Enum.BankType.Account)
-        for _, tab_info in ipairs(data) do
-            if tab_info.ID == self.id then
-                tab_name = tab_info.name
-                break
+        if data then
+            for _, tab_info in ipairs(data) do
+                if tab_info.ID == self.id then
+                    tab_name = tab_info.name
+                    break
+                end
             end
         end
         name = name .. " (" .. tab_name .. ")"
