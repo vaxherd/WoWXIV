@@ -142,6 +142,30 @@ function BagGetter:BagID()
 end
 
 
+-- Specialization of BagGetter for account bank tabs.
+local AccountBagGetter = class(BagGetter)
+function AccountBagGetter:__constructor(tab_index, name)
+    self.id = Enum.BagIndex.AccountBankTab_1 + (tab_index - 1)
+    self.name = name
+    self.append_bagname = true
+end
+function AccountBagGetter:Name()
+    local name = self.name
+    if self.append_bagname then
+        local tab_name = "???"
+        local data = C_Bank.FetchPurchasedBankTabData(Enum.BankType.Account)
+        for _, tab_info in ipairs(data) do
+            if tab_info.ID == self.id then
+                tab_name = tab_info.name
+                break
+            end
+        end
+        name = name .. " (" .. tab_name .. ")"
+    end
+    return name
+end
+
+
 -- Getter for void storage tabs.
 local VoidGetter = class(ContainerGetter)
 function VoidGetter:__constructor(tab_index)
@@ -185,6 +209,11 @@ local BAGS = {
     BAGDEF(BagGetter(Enum.BagIndex.BankBag_6, "Bank Bag 6", true), "bank6"),
     BAGDEF(BagGetter(Enum.BagIndex.BankBag_7, "Bank Bag 7", true), "bank7"),
     BAGDEF(BagGetter(Enum.BagIndex.Reagentbank, "Bank Reagent Bag", false), "bankR"),
+    BAGDEF(AccountBagGetter(1, "Warband Bank Tab 1", false), "warbank1"),
+    BAGDEF(AccountBagGetter(2, "Warband Bank Tab 2", false), "warbank2"),
+    BAGDEF(AccountBagGetter(3, "Warband Bank Tab 3", false), "warbank3"),
+    BAGDEF(AccountBagGetter(4, "Warband Bank Tab 4", false), "warbank4"),
+    BAGDEF(AccountBagGetter(5, "Warband Bank Tab 5", false), "warbank5"),
 }
 for tab = 1, VOID_MAX_TABS do
     tinsert(BAGS, BAGDEF(VoidGetter(tab), "void"..tab))
