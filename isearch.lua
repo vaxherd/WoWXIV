@@ -25,6 +25,34 @@ WoWXIV_isearch_cache = WoWXIV_isearch_cache or {}
 local isearch_cache_uptodate = {}
 
 --------------------------------------------------------------------------
+-- Helper routines
+--------------------------------------------------------------------------
+
+-- Return the stack count of an inventory slot specified by item location,
+-- or 0 if unknown.  If the slot contains a single item with multiple
+-- charges, the negative of the charge count is returned.
+local function GetItemCountOrCharges(loc)
+    local link = C_Item.GetItemLink(loc)
+    local count
+    if loc:IsBagAndSlot() then
+        local slot_info = C_Container.GetContainerItemInfo(loc:GetBagAndSlot())
+        count = slot_info and slot_info.stackCount or 0
+    else
+        count = C_Item.GetItemCount(link)
+    end
+    if count == 1 then
+        local charges = C_Item.GetItemCount(link, false, true)
+        -- FIXME: is there any way to programmatically check whether an
+        -- item is a charge-counted item? (so we can report "1 charge"
+        -- if this returns 1)
+        if charges > 1 then
+            count = -charges
+        end
+    end
+    return count
+end
+
+--------------------------------------------------------------------------
 -- Container getter interface
 --------------------------------------------------------------------------
 
@@ -45,8 +73,11 @@ function ContainerGetter:Size()
     return 0
 end
 
--- Returns the item ID of a single slot in the container, or nil if there
--- is no item in the slot (or the slot index is invalid).
+-- Returns a pair {item ID, count} of a single slot in the container, or
+-- nil if there is no item in the slot (or the slot index is invalid).
+-- The count value is 1 for a single item, >1 for a stack of items, or
+-- <0 for a single item with charges (the charge count is the negative of
+-- the value); 0 indicates that the stack or charge count is unavailable.
 function ContainerGetter:Item(slot)
     return nil
 end
@@ -101,7 +132,7 @@ end
 function BagGetter:Item(slot)
     local loc = ItemLocation:CreateFromBagAndSlot(self.id, slot)
     if loc and loc:IsValid() then
-        return C_Item.GetItemID(loc)
+        return {C_Item.GetItemID(loc), GetItemCountOrCharges(loc)}
     else
         return nil
     end
@@ -123,7 +154,7 @@ function VoidGetter:Size()
     return IsVoidStorageReady() and VOID_MAX_SLOTS or 0
 end
 function VoidGetter:Item(slot)
-    return GetVoidItemInfo(self.tab, slot)
+    return {GetVoidItemInfo(self.tab, slot), 1}
 end
 
 --------------------------------------------------------------------------
@@ -153,7 +184,7 @@ local BAGS = {
     BAGDEF(BagGetter(Enum.BagIndex.BankBag_5, "Bank Bag 5", true), "bank5"),
     BAGDEF(BagGetter(Enum.BagIndex.BankBag_6, "Bank Bag 6", true), "bank6"),
     BAGDEF(BagGetter(Enum.BagIndex.BankBag_7, "Bank Bag 7", true), "bank7"),
-    BAGDEF(BagGetter(Enum.BagIndex.Reagentbank, "Bank Reagent Bag", false)),
+    BAGDEF(BagGetter(Enum.BagIndex.Reagentbank, "Bank Reagent Bag", false), "bankR"),
 }
 for tab = 1, VOID_MAX_TABS do
     tinsert(BAGS, BAGDEF(VoidGetter(tab), "void"..tab))
@@ -196,19 +227,32 @@ local EQUIPS = {
     EQUIPDEF("FISHINGGEAR1SLOT", "Fishing Accessory 2"),
 }
 
+local function SlotString(slot_count)
+    local slot, count = unpack(slot_count)
+    if count > 1 then
+        return slot .. " (×" .. count .. ")"
+    elseif count <= 0 then
+        local charges = -count
+        local s = charges==1 and "charge" or "charges"
+         return slot .. " (" .. charges .. " " .. s .. ")"
+    else
+        return "" .. slot  -- Force to string for consistency.
+    end
+end
+
 local function SlotsString(slots)
     local s
     if #slots == 1 then
-        s = " slot " .. slots[1]
+        s = " slot " .. SlotString(slots[1])
     else
-        s = " slots " .. slots[1]
+        s = " slots " .. SlotString(slots[1])
         if #slots == 2 then
-            s = s .. " and " .. slots[2]
+            s = s .. " and " .. SlotString(slots[2])
         else
             for i = 2, #slots-1 do
-                s = s .. ", " .. slots[i]
+                s = s .. ", " .. SlotString(slots[i])
             end
-            s = s .. ", and " .. slots[#slots]
+            s = s .. ", and " .. SlotString(slots[#slots])
         end
     end
     return s
@@ -357,8 +401,9 @@ function WoWXIV.isearch(arg)
                     if loc and loc:IsValid() then
                         local name = C_Item.GetItemName(loc)
                         if name:lower():find(search_key, 1, true) then
+                            local count = GetItemCountOrCharges(loc)
                             found_slots[name] = found_slots[name] or {}
-                            tinsert(found_slots[name], offset + slot)
+                            tinsert(found_slots[name], {offset + slot, count})
                         end
                     end
                 end
@@ -384,6 +429,18 @@ function WoWXIV.isearch(arg)
             local cache_id = bag.cache_id
             local is_cached = false
             local found_slots = {}
+            -- If not at a bank, we can still look up reagent bank item IDs
+            -- but not individual stack counts per slot, so treat that as
+            -- unavailable data.
+            if size > 0 then
+                for slot = 1, size do
+                    local data = content[slot]
+                    if data and data[2] == 0 then
+                        size = 0
+                        break
+                    end
+                end
+            end
             if size > 0 then
                 if cache_id then
                     WoWXIV_isearch_cache[cache_id] = content
@@ -401,12 +458,15 @@ function WoWXIV.isearch(arg)
             end
             if content then
                 for slot = 1, size do
-                    local item = content[slot]
-                    local name = item and C_Item.GetItemInfo(item)
-                    if name and name:lower():find(search_key, 1, true) then
-                        found_slots[name] = found_slots[name] or {}
-                        tinsert(found_slots[name], slot)
-                        used_cache = used_cache or is_cached
+                    local data = content[slot]
+                    if data then
+                        local item, count = unpack(data)
+                        local name = item and C_Item.GetItemInfo(item)
+                        if name and name:lower():find(search_key, 1, true) then
+                            found_slots[name] = found_slots[name] or {}
+                            tinsert(found_slots[name], {slot, count})
+                            used_cache = used_cache or is_cached
+                        end
                     end
                 end
             end
