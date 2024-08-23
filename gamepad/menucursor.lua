@@ -2270,3 +2270,174 @@ function MenuCursor:WeeklyRewardsFrame_Hide()
     self:ClearFocus()
     self:UpdateCursor()
 end
+
+
+-------- Delve companion setup frame
+
+function MenuCursor.handlers.DelvesCompanionConfigurationFrame(cursor)
+    cursor:HookShow(DelvesCompanionConfigurationFrame,
+                    "DelvesCompanionConfigurationFrame")
+    cursor:HookShow(DelvesCompanionConfigurationFrame.CompanionCombatRoleSlot.OptionsList,
+                    "DelvesCompanionConfigurationSlot")
+    cursor:HookShow(DelvesCompanionConfigurationFrame.CompanionCombatTrinketSlot.OptionsList,
+                    "DelvesCompanionConfigurationSlot")
+    cursor:HookShow(DelvesCompanionConfigurationFrame.CompanionUtilityTrinketSlot.OptionsList,
+                    "DelvesCompanionConfigurationSlot")
+    cursor:HookShow(DelvesCompanionAbilityListFrame,
+                    "DelvesCompanionAbilityListFrame")
+end
+
+function MenuCursor:DelvesCompanionConfigurationFrame_Show()
+    local dccf = DelvesCompanionConfigurationFrame
+    assert(dccf:IsShown())
+    self:SetFocus(dccf)
+    self.cancel_func = self.CancelUIPanel
+    local function ClickSlot(frame)
+        self:DelvesCompanionConfigurationFrame_ClickSlot(frame)
+    end
+    self.targets = {
+        -- Mouse behavior brings up the tooltip when mousing over the
+        -- portrait rather than the experience ring; we take the
+        -- level indicator to be the more natural gamepad movement target,
+        -- so we have to manually trigger the portrait enter/leave events.
+        [dccf.CompanionLevelFrame] = {
+            on_enter = function()
+                local portrait = dccf.CompanionPortraitFrame
+                portrait:GetScript("OnEnter")(portrait)
+            end,
+            on_leave = function()
+                local portrait = dccf.CompanionPortraitFrame
+                portrait:GetScript("OnLeave")(portrait)
+            end,
+            up = false, down = dccf.CompanionCombatRoleSlot,
+            left = false, right = false},
+        [dccf.CompanionCombatRoleSlot] = {
+            on_click = ClickSlot, send_enter_leave = true, is_default = true,
+            left = false, right = false},
+        [dccf.CompanionCombatTrinketSlot] = {
+            on_click = ClickSlot, send_enter_leave = true,
+            left = false, right = false},
+        [dccf.CompanionUtilityTrinketSlot] = {
+            on_click = ClickSlot, send_enter_leave = true,
+            left = false, right = false},
+        [dccf.CompanionConfigShowAbilitiesButton] = {
+            can_activate = true, lock_highlight = true,
+            up = dccf.CompanionUtilityTrinketSlot, down = false,
+            left = false, right = false},
+    }
+    self:UpdateCursor()
+end
+
+function MenuCursor:DelvesCompanionConfigurationFrame_Hide()
+    assert(self.focus == nil
+           or self.focus == DelvesCompanionConfigurationFrame
+           or self.focus == DelvesCompanionAbilityListFrame)
+    self:ClearFocus()
+    self:UpdateCursor()
+end
+
+function MenuCursor:DelvesCompanionConfigurationFrame_ClickSlot(frame)
+    frame:OnMouseDown("LeftButton", true)
+end
+
+function MenuCursor:DelvesCompanionConfigurationSlot_Show(frame)
+    local slot = frame:GetParent()
+    assert(self.focus == nil or self.focus == DelvesCompanionConfigurationFrame)
+    self:PushFocus(frame)
+    self.cancel_func = function() frame:Hide() end
+    self.targets = {}
+    -- FIXME: see note in GossipFrame about getting button list
+    local subframes = {frame.ScrollBox.ScrollTarget:GetChildren()}
+    local top, default
+    local active_id = slot:HasActiveEntry() and slot.selectionNodeInfo.activeEntry.entryID
+    for index, f in ipairs(subframes) do
+        if f.GetElementData then
+            local data = f:GetElementData()
+            self.targets[f] = {can_activate = true, lock_highlight = true,
+                               send_enter_leave = true}
+            if not top or f:GetTop() > top:GetTop()then
+                top = f
+            end
+            if active_id and data.entryID == active_id then
+                default = f
+            end
+        end
+    end
+    self:SetTarget(default or top)
+    self:UpdateCursor()
+end
+
+function MenuCursor:DelvesCompanionConfigurationSlot_Hide(frame)
+    self:PopFocus(frame)
+end
+
+function MenuCursor:DelvesCompanionAbilityListFrame_Show()
+    local dcalf = DelvesCompanionAbilityListFrame
+    assert(dcalf:IsShown())
+    self:PushFocus(dcalf)
+    self.cancel_func = self.HideUIPanel
+    self:DelvesCompanionAbilityListFrame_RefreshTargets()
+end
+
+function MenuCursor:DelvesCompanionAbilityListFrame_Hide()
+    self:PopFocus(DelvesCompanionAbilityListFrame)
+end
+
+function MenuCursor:DelvesCompanionAbilityListFrame_RefreshTargets()
+    local dcalf = DelvesCompanionAbilityListFrame
+    self.targets = {
+        [dcalf.DelvesCompanionRoleDropdown] = {
+            on_click = function() self:DelvesCompanionAbilityListFrame_ToggleRoleDropdown() end,
+            send_enter_leave = true,
+            up = false, down = false, left = false, right = false},
+    }
+    -- Same logic as in DelvesCompanionAbilityListFrameMixin:UpdatePaginatedButtonDisplay()
+    local MAX_DISPLAYED_BUTTONS = 12
+    local start_index = ((dcalf.DelvesCompanionAbilityListPagingControls.currentPage - 1) * MAX_DISPLAYED_BUTTONS) + 1
+    local count = 0
+    local default = nil
+    for i = start_index, #dcalf.buttons do
+        if count >= MAX_DISPLAYED_BUTTONS then break end
+        local button = dcalf.buttons[i]
+        if button then
+            local first = (i == start_index)
+            self.targets[button] = {send_enter_leave = true}
+            if i == start_index then default = button end
+        end
+    end
+    self.targets[dcalf.DelvesCompanionRoleDropdown].down = default
+    self:SetTarget(default)
+    self:UpdateCursor()
+end
+
+function MenuCursor:DelvesCompanionAbilityListFrame_ToggleRoleDropdown()
+    local dcalf = DelvesCompanionAbilityListFrame
+    local role_dropdown = dcalf.DelvesCompanionRoleDropdown
+
+    role_dropdown:SetMenuOpen(not role_dropdown:IsMenuOpen())
+    if role_dropdown:IsMenuOpen() then
+        local menu = role_dropdown.menu
+        self:PushFocus(menu)
+        hooksecurefunc(menu, "Hide", function(frame) self:DelvesCompanionRoleDropdown_Hide(frame) end)
+        self.cancel_func = function() role_dropdown:CloseMenu() end
+        self.targets = {}
+        local default = nil
+        for _, button in ipairs(menu:GetLayoutChildren()) do
+            self.targets[button] = {can_activate = true,
+                                    send_enter_leave = true}
+            local selected = false  -- FIXME: how can we check whether the button is selected?
+            if not default or selected then
+                default = button
+            end
+        end
+        self:SetTarget(default)
+        self:UpdateCursor()
+    end
+end
+
+function MenuCursor:DelvesCompanionRoleDropdown_Hide(menu)
+    self:PopFocus(menu)
+    if self.focus == DelvesCompanionAbilityListFrame then
+        self:DelvesCompanionAbilityListFrame_RefreshTargets()
+    end
+end
