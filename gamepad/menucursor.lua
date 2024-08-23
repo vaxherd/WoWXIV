@@ -368,6 +368,9 @@ function MenuCursor:SetCursorPoint(target)
     local x = target:GetLeft()
     local _, y = target:GetCenter()
     if not x or not y then return end
+    local scale = target:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    x = x * scale
+    y = y * scale
     f:SetPoint("TOPRIGHT", UIParent, "TOPLEFT", x, y-UIParent:GetHeight())
 end
 
@@ -482,7 +485,13 @@ end
 -- Move() helper which returns the next target in the given direction,
 -- or nil if none is found.
 function MenuCursor:NextTarget(dx, dy)
+    local global_scale = UIParent:GetEffectiveScale()
     local cur_x0, cur_y0, cur_w, cur_h = self.cur_target:GetRect()
+    local cur_scale = self.cur_target:GetEffectiveScale() / global_scale
+    cur_x0 = cur_x0 * cur_scale
+    cur_y0 = cur_y0 * cur_scale
+    cur_w = cur_w * cur_scale
+    cur_h = cur_h * cur_scale
     local cur_x1 = cur_x0 + cur_w
     local cur_y1 = cur_y0 + cur_h
     local cur_cx = (cur_x0 + cur_x1) / 2
@@ -505,8 +514,15 @@ function MenuCursor:NextTarget(dx, dy)
     ]]--
     local best, best_dx, best_dy = nil, nil, nil
     for frame, params in pairs(self.targets) do
-        if frame.GetRect then  -- skip scroll list elements
+        if (frame ~= self.cur_target
+            and frame.GetRect)  -- skip scroll list elements
+        then
             local f_x0, f_y0, f_w, f_h = frame:GetRect()
+            local scale = frame:GetEffectiveScale() / global_scale
+            f_x0 = f_x0 * scale
+            f_y0 = f_y0 * scale
+            f_0 = f_w * scale
+            f_h = f_h * scale
             local f_x1 = f_x0 + f_w
             local f_y1 = f_y0 + f_h
             local f_cx = (f_x0 + f_x1) / 2
@@ -2329,9 +2345,9 @@ function MenuCursor:DelvesCompanionConfigurationFrame_Show()
 end
 
 function MenuCursor:DelvesCompanionConfigurationFrame_Hide()
-    assert(self.focus == nil
-           or self.focus == DelvesCompanionConfigurationFrame
-           or self.focus == DelvesCompanionAbilityListFrame)
+    -- FIXME: no assert because we could be focused on the dropdown, which
+    -- doesn't have a named variable; we should probably just switch to
+    -- using PopFocus() everywhere
     self:ClearFocus()
     self:UpdateCursor()
 end
@@ -2418,6 +2434,7 @@ function MenuCursor:DelvesCompanionAbilityListFrame_ToggleRoleDropdown()
     if role_dropdown:IsMenuOpen() then
         local menu = role_dropdown.menu
         self:PushFocus(menu)
+        -- FIXME: this adds a new hook every time the dropdown is opened
         hooksecurefunc(menu, "Hide", function(frame) self:DelvesCompanionRoleDropdown_Hide(frame) end)
         self.cancel_func = function() role_dropdown:CloseMenu() end
         self.targets = {}
@@ -2439,5 +2456,144 @@ function MenuCursor:DelvesCompanionRoleDropdown_Hide(menu)
     self:PopFocus(menu)
     if self.focus == DelvesCompanionAbilityListFrame then
         self:DelvesCompanionAbilityListFrame_RefreshTargets()
+    end
+end
+
+
+-------- Delve start frame
+
+function MenuCursor.handlers.DelvesDifficultyPickerFrame(cursor)
+    cursor.frame:RegisterEvent("ADDON_LOADED")
+    if DelvesDifficultyPickerFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_DelvesDifficultyPicker")
+    end
+end
+
+function MenuCursor:ADDON_LOADED__Blizzard_DelvesDifficultyPicker()
+    self:HookShow(DelvesDifficultyPickerFrame,
+                  "DelvesDifficultyPickerFrame")
+end
+
+function MenuCursor:DelvesDifficultyPickerFrame_Show()
+    assert(DelvesDifficultyPickerFrame:IsShown())
+    self:SetFocus(DelvesDifficultyPickerFrame)
+    self.cancel_func = self.CancelUIPanel
+    self:DelvesDifficultyPickerFrame_RefreshTargets()
+end
+
+function MenuCursor:DelvesDifficultyPickerFrame_Hide()
+    -- FIXME: see note in DelvesCompanionConfigurationFrame_Hide()
+    self:ClearFocus()
+    self:UpdateCursor()
+end
+
+function MenuCursor:DelvesDifficultyPickerFrame_RefreshTargets()
+    local ddpf = DelvesDifficultyPickerFrame
+    self.targets = {
+        [ddpf.Dropdown] = {
+            on_click = function() self:DelvesDifficultyPickerFrame_ToggleDropdown() end,
+            send_enter_leave = true, left = false, right = false},
+        [ddpf.EnterDelveButton] = {
+            can_activate = true, send_enter_leave = true,
+            left = false, right = false},
+    }
+
+    local rewards = {ddpf.DelveRewardsContainerFrame:GetChildren()}
+    if ddpf.DelveRewardsContainerFrame:IsShown() and rewards and #rewards>0 then
+        local first_reward, last_reward
+        for _, f in ipairs(rewards) do
+            self.targets[f] = {send_enter_leave = true, right = false}
+            if not first_reward or f:GetTop() > first_reward:GetTop() then
+                first_reward = f
+            end
+            if not last_reward or f:GetTop() < last_reward:GetTop() then
+                last_reward = f
+            end
+        end
+        self.targets[ddpf.Dropdown].right = first_reward
+        self.targets[ddpf.EnterDelveButton].right = last_reward
+    else
+        -- Either no difficulty selected or rewards have not been loaded yet.
+        local function TryRewards()
+            local rewards = {ddpf.DelveRewardsContainerFrame:GetChildren()}
+            if ddpf.DelveRewardsContainerFrame:IsShown() and rewards and #rewards>0 then
+                self:DelvesDifficultyPickerFrame_RefreshTargets()
+            else
+                RunNextFrame(TryRewards)
+            end
+        end
+        RunNextFrame(TryRewards)
+    end
+
+    local dmwc = ddpf.DelveModifiersWidgetContainer
+    if dmwc:IsShown() then
+        local rows = {}
+        local row_y = {}
+        -- FIXME: is there any better way to get the child list than
+        -- breaking encapsulation?
+        for _, f in pairs(dmwc.widgetFrames) do
+            self.targets[f] = {
+                -- send_enter_leave doesn't seem to work for these.
+                on_enter = function(frame)
+                    local spell = frame.Spell.spellID
+                    GameTooltip:SetOwner(frame, "ANCHOR_TOP")
+                    GameTooltip:SetHyperlink(C_Spell.GetSpellLink(spell))
+                    GameTooltip:Show()
+                end,
+                on_leave = function()
+                    GameTooltip:Hide()
+                end,
+            }
+            local y = f:GetTop()
+            if not rows[y] then
+                tinsert(row_y, y)
+                rows[y] = {}
+            end
+            tinsert(rows[y], f)
+        end
+        table.sort(row_y, function(a,b) return a > b end)
+        for _, row in pairs(rows) do
+            table.sort(row, function(a,b) return a:GetLeft() < b:GetLeft() end)
+            self.targets[row[1]].left = false
+        end
+        self.targets[ddpf.Dropdown].down = rows[row_y[1]][1]
+        self.targets[ddpf.EnterDelveButton].up = rows[row_y[#row_y]][1]
+    end
+
+    self:SetTarget(ddpf.EnterDelveButton:IsEnabled() and ddpf.EnterDelveButton
+                   or ddpf.Dropdown)
+    self:UpdateCursor()
+end
+
+function MenuCursor:DelvesDifficultyPickerFrame_ToggleDropdown()
+    local ddpf = DelvesDifficultyPickerFrame
+    local dropdown = ddpf.Dropdown
+
+    dropdown:SetMenuOpen(not dropdown:IsMenuOpen())
+    if dropdown:IsMenuOpen() then
+        local menu = dropdown.menu
+        self:PushFocus(menu)
+        -- FIXME: this adds a new hook every time the dropdown is opened
+        hooksecurefunc(menu, "Hide", function(frame) self:DelvesDifficultyDropdown_Hide(frame) end)
+        self.cancel_func = function() dropdown:CloseMenu() end
+        self.targets = {}
+        local default = nil
+        for _, button in ipairs(menu:GetLayoutChildren()) do
+            self.targets[button] = {can_activate = true,
+                                    send_enter_leave = true}
+            local selected = false  -- FIXME: how can we check whether the button is selected?
+            if not default or selected then
+                default = button
+            end
+        end
+        self:SetTarget(default)
+        self:UpdateCursor()
+    end
+end
+
+function MenuCursor:DelvesDifficultyDropdown_Hide(menu)
+    self:PopFocus(menu)
+    if self.focus == DelvesDifficultyPickerFrame then
+        self:DelvesDifficultyPickerFrame_RefreshTargets()
     end
 end
