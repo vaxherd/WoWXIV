@@ -165,7 +165,12 @@ function Aura:UpdateTimeLeft()
     local time_str, is_glyph_dist
     if self.icon_id == ICON_DRAGON_GLYPH_RESONANCE and WoWXIV_config["buffbar_dragon_glyph_distance"] then
         is_glyph_dist = true
-        time_str = self.data.points[1] .. "y"
+        local dist = self.data.points[1]
+        -- TWW auras have units of roughly 10y instead of 1y.
+        if self.spell_id > 440000 then
+            dist = dist*10
+        end
+        time_str = dist .. "y"
     else
         is_glyph_dist = false
         local time_left

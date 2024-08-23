@@ -28,7 +28,7 @@ local CONFIG_DEFAULT = {
     -- Gamepad binding: zoom modifier for right stick
     gamepad_zoom_modifier = "ALT",
 
-    -- Buff bars: show distance for dragon glyph?
+    -- Buff bars: show distance for skyriding glyph?
     buffbar_dragon_glyph_distance = true,
 
     -- Enmity list: enable?
@@ -414,7 +414,7 @@ function ConfigPanel:__constructor()
     self.y = self.y - 10
 
     self:AddHeader("Buff/debuff bar settings")
-    self:AddCheckButton("Show distance for Dragon Glyph Resonance",
+    self:AddCheckButton("Show distance for Skyriding Glyph Resonance",
                         "buffbar_dragon_glyph_distance")
     self:AddComment("Note: The game only updates the distance once every 5 seconds.")
 
