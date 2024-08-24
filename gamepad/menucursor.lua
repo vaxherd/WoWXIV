@@ -693,7 +693,7 @@ function MenuCursor:GOSSIP_SHOW()
     -- better way to get the positions of individual scroll list elements?
     local subframes = {GossipFrame.GreetingPanel.ScrollBox.ScrollTarget:GetChildren()}
     local first_button, last_button = nil, nil
-    for index, f in ipairs(subframes) do
+    for _, f in ipairs(subframes) do
         if f.GetElementData then
             local data = f:GetElementData()
             if (data.availableQuestButton or
@@ -736,7 +736,9 @@ function MenuCursor:QUEST_GREETING()
     local goodbye = QuestFrameGreetingGoodbyeButton
     self.targets = {[goodbye] = {can_activate = true,
                                  lock_highlight = true}}
-    local first_button, last_button = nil, nil
+    local first_button, last_button, first_avail
+    local avail_y = (AvailableQuestsText:IsShown()
+                     and AvailableQuestsText:GetTop())
     for button in QuestFrameGreetingPanel.titleButtonPool:EnumerateActive() do
         self.targets[button] = {can_activate = true,
                                 lock_highlight = true}
@@ -748,8 +750,13 @@ function MenuCursor:QUEST_GREETING()
             if y > first_button:GetTop() then first_button = button end
             if y < last_button:GetTop() then last_button = button end
         end
+        if avail_y and y < avail_y then
+            if not first_avail or y > first_avail:GetTop() then
+                first_avail = button
+            end
+        end
     end
-    self.targets[first_button or goodbye].is_default = true
+    self.targets[first_avail or first_button or goodbye].is_default = true
     self:UpdateCursor()
 end
 
