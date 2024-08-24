@@ -519,6 +519,10 @@ local CURRENCY_PAIRS = {
     {2807, 2808},  -- Drake's Awakened Crest
     {2810, 2809},  -- Wyrm's Awakened Crest
     {2811, 2812},  -- Aspect's Awakened Crest
+    {2914, 2918},  -- Weathered Harbinger Crest
+    {2915, 2919},  -- Carved Harbinger Crest
+    {2916, 2920},  -- Runed Harbinger Crest
+    {2917, 2921},  -- Gilded Harbinger Crest
 }
 local CURRENCY_PAIR_MAP = {}
 for _, pair in ipairs(CURRENCY_PAIRS) do
@@ -565,8 +569,9 @@ function FlyTextManager:OnCurrencyUpdate(event, id, total, change)
         return
     end
 
-    -- Strip the covenant from Shadowlands covenant currencies (which are
-    -- internally named e.g. "Reservoir Anima-Night Fae").
+    -- Strip the covenant from Shadowlands covenant and DF+ Renown currencies
+    -- (which are internally named e.g. "Reservoir Anima-Night Fae" or
+    -- "Renown - Council of Dornogal").
     local dash = strfind(name, "-")
     if dash then
         name = strsub(name, 1, dash-1)
