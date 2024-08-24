@@ -19,6 +19,10 @@ local CONFIG_DEFAULT = {
     gamepad_menu_confirm = "PAD2",
     -- Gamepad binding: menu cursor cancel
     gamepad_menu_cancel = "PAD1",
+    -- Gamepad binding: previous page in menus
+    gamepad_menu_prev_page = "PADLSHOULDER",
+    -- Gamepad binding: next page in menus
+    gamepad_menu_next_page = "PADRSHOULDER",
     -- Gamepad binding: use quest item
     gamepad_use_quest_item = "CTRL-PADLSTICK",
     -- Gamepad binding: leave vehicle
@@ -403,6 +407,8 @@ function ConfigPanel:__constructor()
     self:AddBindingCvar("RMB emulation (unused)", "GamePadCursorRightClick")
     self:AddBindingLocal("Confirm menu selection", "gamepad_menu_confirm")
     self:AddBindingLocal("Cancel menu selection", "gamepad_menu_cancel")
+    self:AddBindingLocal("Previous menu page", "gamepad_menu_prev_page")
+    self:AddBindingLocal("Next menu page", "gamepad_menu_next_page")
     self:AddBindingLocal("Use quest item", "gamepad_use_quest_item")
     self:AddBindingLocal("Leave vehicle", "gamepad_leave_vehicle")
     self:AddBindingLocal("Toggle first-person view", "gamepad_toggle_fpv")

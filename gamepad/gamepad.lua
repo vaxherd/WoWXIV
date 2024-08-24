@@ -89,6 +89,10 @@ function GamePadListener:__constructor()
     f:SetScript("OnUpdate", function() self:OnUpdate() end)
     f:SetScript("OnGamePadButtonDown", function(_,...) self:OnGamePadButton(...) end)
     f:SetScript("OnGamePadStick", function(_,...) self:OnGamePadStick(...) end)
+
+    -- Handle L1/R1 for page flipping in item text.
+    ItemTextFrame:HookScript("OnShow", function() self:ItemTextFrame_OnShow() end)
+    ItemTextFrame:HookScript("OnHide", function() self:ItemTextFrame_OnHide() end)
 end
 
 function GamePadListener:OnUpdate()
@@ -202,6 +206,19 @@ function GamePadListener:OnGamePadStick(stick, x, y)
         -- SetVerticalScroll() automatically clamps to child height.
         scroll_frame:SetVerticalScroll(scroll)
     end
+end
+
+function GamePadListener:ItemTextFrame_OnShow()
+    SetOverrideBinding(ItemTextFrame, true,
+                       WoWXIV_config["gamepad_menu_prev_page"],
+                       "CLICK ItemTextPrevPageButton:LeftButton")
+    SetOverrideBinding(ItemTextFrame, true,
+                       WoWXIV_config["gamepad_menu_next_page"],
+                       "CLICK ItemTextNextPageButton:LeftButton")
+end
+
+function GamePadListener:ItemTextFrame_OnHide()
+    ClearOverrideBindings(ItemTextFrame)
 end
 
 ---------------------------------------------------------------------------
