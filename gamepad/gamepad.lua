@@ -184,6 +184,7 @@ function GamePadListener:OnGamePadStick(stick, x, y)
 
     -- Handle scrolling quest text frames.
     local SCROLL_FRAMES = {
+        ItemTextScrollFrame,
         QuestDetailScrollFrame,
         QuestRewardScrollFrame,
     }
