@@ -228,9 +228,17 @@ function Gamepad.Init()
     Gamepad.qib = Gamepad.QuestItemButton()
     Gamepad.lvb = Gamepad.LeaveVehicleButton()
     Gamepad.cursor = Gamepad.MenuCursor()
+    Gamepad.UpdateCameraSettings()
 end
 
 function Gamepad.UpdateBindings()
     Gamepad.qib:UpdateBinding()
     Gamepad.lvb:UpdateBinding()
+end
+
+function Gamepad.UpdateCameraSettings()
+    C_CVar.SetCVar("GamePadCameraYawSpeed",
+                   WoWXIV_config["gamepad_camera_invert_h"] and -1 or 1)
+    C_CVar.SetCVar("GamePadCameraPitchSpeed",
+                   WoWXIV_config["gamepad_camera_invert_v"] and -1 or 1)
 end

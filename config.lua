@@ -29,7 +29,12 @@ local CONFIG_DEFAULT = {
     gamepad_leave_vehicle = "ALT-PADRSTICK",
     -- Gamepad binding: toggle first-person camera
     gamepad_toggle_fpv = "PADRSTICK",
-    -- Gamepad binding: zoom modifier for right stick
+
+    -- Gamepad: invert horizontal camera movement?
+    gamepad_camera_invert_h = false,
+    -- Gamepad: invert vertical camera movement?
+    gamepad_camera_invert_v = false,
+    -- Gamepad: camera zoom modifier for right stick
     gamepad_zoom_modifier = "ALT",
 
     -- Buff bars: show distance for skyriding glyph?
@@ -412,6 +417,15 @@ function ConfigPanel:__constructor()
     self:AddBindingLocal("Use quest item", "gamepad_use_quest_item")
     self:AddBindingLocal("Leave vehicle", "gamepad_leave_vehicle")
     self:AddBindingLocal("Toggle first-person view", "gamepad_toggle_fpv")
+    self.y = self.y - 10
+
+    self:AddHeader("Gamepad camera control settings")
+    self:AddCheckButton("Invert horizontal camera rotation",
+                        "gamepad_camera_invert_h",
+                        WoWXIV.Gamepad.UpdateCameraSettings)
+    self:AddCheckButton("Invert vertical camera rotation",
+                        "gamepad_camera_invert_v",
+                        WoWXIV.Gamepad.UpdateCameraSettings)
     self:AddRadioGroup("Zoom modifier (with right stick up/down):",
                        "gamepad_zoom_modifier", WoWXIV.PartyList.Refresh,
                        "Shift", "SHIFT",
