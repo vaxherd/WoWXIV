@@ -944,9 +944,17 @@ function MenuCursor:SHIPMENT_CRAFTER_OPENED()
         [GarrisonCapacitiveDisplayFrame.CreateAllWorkOrdersButton] =
             {can_activate = true, lock_highlight = true},
         [GarrisonCapacitiveDisplayFrame.DecrementButton] =
-            {can_activate = true, lock_highlight = true},
+            {on_click = function(frame)
+                frame:GetScript("OnMouseDown")(frame, "LeftButton", true)
+                frame:GetScript("OnMouseUp")(frame, "LeftButton")
+             end,
+             lock_highlight = true},
         [GarrisonCapacitiveDisplayFrame.IncrementButton] =
-            {can_activate = true, lock_highlight = true},
+            {on_click = function(frame)
+                frame:GetScript("OnMouseDown")(frame, "LeftButton", true)
+                frame:GetScript("OnMouseUp")(frame, "LeftButton")
+             end,
+             lock_highlight = true},
         [GarrisonCapacitiveDisplayFrame.StartWorkOrderButton] =
             {can_activate = true, lock_highlight = true,
              is_default = true},
@@ -2111,10 +2119,18 @@ function MenuCursor:ProfessionsFrame_FocusRecipe(tries)
             can_activate = true, lock_highlight = true,
             down = SchematicForm.OutputIcon, left = false},
         [CraftingPage.CreateMultipleInputBox.DecrementButton] = {
-            can_activate = true, lock_highlight = true,
+            on_click = function(frame)
+                frame:GetScript("OnMouseDown")(frame, "LeftButton", true)
+                frame:GetScript("OnMouseUp")(frame, "LeftButton")
+            end,
+            lock_highlight = true,
             down = SchematicForm.OutputIcon},
         [CraftingPage.CreateMultipleInputBox.IncrementButton] = {
-            can_activate = true, lock_highlight = true,
+            on_click = function(frame)
+                frame:GetScript("OnMouseDown")(frame, "LeftButton", true)
+                frame:GetScript("OnMouseUp")(frame, "LeftButton")
+            end,
+            lock_highlight = true,
             down = SchematicForm.OutputIcon},
         [CraftingPage.CreateButton] = {
             can_activate = true, lock_highlight = true, is_default = true,
