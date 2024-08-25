@@ -72,6 +72,13 @@ function MenuCursor:__constructor()
     -- Subframe (button) to be clicked on a gamepad cancel button press,
     -- or nil for none.  If set, cancel_func is ignored.
     self.cancel_button = nil
+    -- Global name of button to be clicked on a gamepad previous-page
+    -- button press, or nil if none.  (Gamepad page flipping is only
+    -- enabled if both this and next_page_button are non-nil.)
+    self.prev_page_button = nil
+    -- Global name of button to be clicked on a gamepad next-page button
+    -- press, or nil if none.
+    self.next_page_button = nil
     -- Should the current button be highlighted if enabled?
     -- (This is a cache of the current button's lock_highlight parameter.)
     self.want_highlight = true
@@ -153,6 +160,8 @@ function MenuCursor:SetFocus(frame)
     self.saved_target = nil
     self.cancel_func = nil
     self.cancel_button = nil
+    self.prev_page_button = nil
+    self.next_page_button = nil
     self.want_highlight = false
     self.highlight_locked = false
 end
@@ -388,6 +397,14 @@ function MenuCursor:OnShow()
     SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_confirm"],
                        "CLICK WoWXIV_MenuCursor:LeftButton")
     self:SetCancelBinding()
+    if self.prev_page_button and self.next_page_button then
+        SetOverrideBinding(f, true,
+                           WoWXIV_config["gamepad_menu_prev_page"],
+                           "CLICK "..(self.prev_page_button)..":LeftButton")
+        SetOverrideBinding(f, true,
+                           WoWXIV_config["gamepad_menu_next_page"],
+                           "CLICK "..(self.next_page_button)..":LeftButton")
+    end
 end
 
 -- Hide() handler; clears menu cursor input bindings.
@@ -1176,6 +1193,8 @@ function MenuCursor:InboxFrame_Show()
         self:ClearFocus()
         HideUIPanel(MailFrame)
     end
+    self.prev_page_button = "InboxPrevPageButton"
+    self.next_page_button = "InboxNextPageButton"
     self.targets = {
         [OpenAllMail] = {can_activate = true, lock_highlight = true,
                          is_default = true},
@@ -1373,6 +1392,8 @@ function MenuCursor:MerchantFrame_Show()
     assert(MerchantFrame.selectedTab == 1)
     self:SetFocus(MerchantFrame)
     self.cancel_func = self.CancelUIPanel
+    self.prev_page_button = "MerchantPrevPageButton"
+    self.next_page_button = "MerchantNextPageButton"
     self:MerchantFrame_UpdateTargets()
     if self.targets[MerchantItem1ItemButton] then
         self:SetTarget(MerchantItem1ItemButton)
@@ -2065,14 +2086,21 @@ function MenuCursor:ProfessionsFrame_RefreshTargets(initial_element)
     self:UpdateCursor()
 end
 
-function MenuCursor:ProfessionsFrame_FocusRecipe()
+function MenuCursor:ProfessionsFrame_FocusRecipe(tries)
     local CraftingPage = ProfessionsFrame.CraftingPage
     local SchematicForm = CraftingPage.SchematicForm
     assert(SchematicForm:IsShown())
     if SchematicForm.recraftSlot:IsShown() then
         return  -- We don't currently handle the recrafting interface.
     end
-    assert(CraftingPage.CreateButton:IsShown())
+    if not CraftingPage.CreateButton:IsShown() then
+        -- Recipe data is still loading, or recipe is not learned.
+        tries = tries or 10
+        if tries > 0 then
+            RunNextFrame(function() self:ProfessionsFrame_FocusRecipe(tries-1) end)
+        end
+        return
+    end
 
     self:PushFocus(SchematicForm)
     self.cancel_func = function(self) self:PopFocus(SchematicForm) end
