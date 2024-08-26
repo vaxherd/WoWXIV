@@ -922,9 +922,12 @@ function MenuCursor:DoQuestDetail(is_complete)
 end
 
 function MenuCursor:QUEST_FINISHED()
-    assert(self.focus == nil or self.focus == QuestFrame)
-    self:ClearFocus()
-    self:UpdateCursor()
+    -- If the quest shows an info popup ("campaign complete" etc), we may
+    -- have already lost focus.
+    if self.focus == QuestFrame then
+        self:ClearFocus()
+        self:UpdateCursor()
+    end
 end
 
 
