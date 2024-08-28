@@ -47,18 +47,22 @@ function TargetBar:__constructor(is_focus)
     name:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 0, -(hp_yofs+5))
     name:SetWordWrap(false)
     name:SetJustifyH("LEFT")
-    name:SetWidth(f:GetWidth())
 
     local hp = WoWXIV.UI.Gauge(f, f:GetWidth())
     self.hp = hp
-    if not is_focus then
-        hp:SetShowValue(true, true)
-        -- Minor hack to measure text width.
-        hp.value:SetText("0000000000")
-        local SPACING = 5
-        name:SetWidth(f:GetWidth() - hp.value:GetWidth() - SPACING)
-    end
     hp:SetSinglePoint("TOP", 0, -hp_yofs)
+    if is_focus then
+        name:SetWidth(f:GetWidth())
+    else
+        hp:SetShowValue(true, true)
+        local SPACING = 10
+        -- This anchoring is technically overspecified because we're
+        -- giving two different values for the bottom Y coordinate, but
+        -- it seems to do what we want (anchor to BOTTOMLEFT and adjust
+        -- the width automatically) as of 11.0.2.
+        name:SetPoint("BOTTOMRIGHT",
+                       hp:GetValueObject(), "BOTTOMLEFT", -SPACING, 0)
+    end
 
     local mp = WoWXIV.UI.Gauge(f, f:GetWidth())
     self.mp = mp
@@ -234,6 +238,8 @@ function TargetBar:RefreshUnit()
     else
         self.class_icon:Hide()
     end
+
+    self.hp:SetShowShieldValue(WoWXIV_config["targetbar_show_shield_value"])
 
     local mp = self.mp
     local show = (WoWXIV_config["targetbar_power"]

@@ -68,6 +68,8 @@ local CONFIG_DEFAULT = {
     targetbar_power = true,
     -- Target bar: only show target's power bar for bosses?
     targetbar_power_boss_only = true,
+    -- Target bar: show numeric value of target's health shield?
+    targetbar_show_shield_value = false,
     -- Target bar: show all debuffs (true) or only own debuffs (false)?
     targetbar_target_all_debuffs = true,
     -- Target bar: limit to own debuffs in raids only?
@@ -487,6 +489,9 @@ function ConfigPanel:__constructor()
                         WoWXIV.TargetBar.Refresh)
     self:AddCheckButton("Only for bosses", "targetbar_power_boss_only",
                         WoWXIV.TargetBar.Refresh, "targetbar_power")
+    self:AddCheckButton("Show shield amount next to health value",
+                        "targetbar_show_shield_value",
+                        WoWXIV.TargetBar.Refresh)
     self:AddCheckButton("Show all debuffs on target bar",
                         "targetbar_target_all_debuffs",
                         WoWXIV.TargetBar.Refresh)

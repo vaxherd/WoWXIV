@@ -12,6 +12,7 @@ local Gauge = UI.Gauge
 function Gauge:__constructor(parent, width)
     self.width = width
     self.show_value = false
+    self.show_shield_value = false
     self.show_overshield = false
 
     self.max = 1
@@ -91,6 +92,11 @@ function Gauge:GetBoxTexture()
     return self.box_c
 end
 
+-- For use by target bar (for auto-setting name width)
+function Gauge:GetValueObject()
+    return self.value
+end
+
 function Gauge:Show()
     self.frame:Show()
 end
@@ -141,6 +147,10 @@ function Gauge:SetShowValue(show, on_top)
     else
         self.value:Hide()
     end
+end
+
+function Gauge:SetShowShieldValue(show)
+    self.show_shield_value = show
 end
 
 function Gauge:SetValueScale(scale)
@@ -218,5 +228,9 @@ function Gauge:Update(max, cur, shield, heal_absorb)
         self.overshield_r:Hide()
     end
 
-    self.value:SetText(cur)
+    local value_text = cur
+    if self.show_shield_value and shield > 0 then
+        value_text = value_text .. "+" .. shield
+    end
+    self.value:SetText(value_text)
 end
