@@ -196,35 +196,41 @@ function GamePadListener:OnGamePadStick(stick, x, y)
     local SCROLLBOX_FRAMES = {  -- WowScrollBoxList
         GossipFrame.GreetingPanel.ScrollBox,
     }
-    local scroll_frame, scroll_is_ScrollFrame
+    local scroll_frame, scroll_current, scroll_SetScroll
     for _, frame in ipairs(SCROLL_FRAMES) do
         if frame:IsVisible() then
-            scroll_frame = frame
-            scroll_is_ScrollFrame = true
+            -- Avoid locking the camera stick on unscrollable text,
+            -- including when effectively unscrollable but floating point
+            -- error returns a tiny nonzero value here.
+            if frame:GetVerticalScrollRange() >= 0.01 then
+                scroll_frame = frame
+                scroll_current = scroll_frame:GetVerticalScroll()
+                scroll_SetScroll = function(frame, scroll)
+                    frame:SetVerticalScroll(scroll)
+                end
+            end
             break
         end
     end
     for _, frame in ipairs(SCROLLBOX_FRAMES) do
         if frame:IsVisible() then
-            scroll_frame = frame
-            scroll_is_ScrollFrame = false
+            local limit = frame:GetDerivedScrollRange()
+            if limit >= 0.01 then
+                scroll_frame = frame
+                scroll_current = scroll_frame:GetScrollPercentage() * limit
+                scroll_SetScroll = function(frame, scroll)
+                    frame:ScrollToOffset(scroll)
+                end
+            end
             break
         end
     end
     self:SetCameraStickDisable("SCROLL_TEXT", scroll_frame)
     if scroll_frame and stick == "Camera" then
         local scroll_delta = (-1000 * self.frame_dt) * y
-        if scroll_is_ScrollFrame then
-            local scroll = scroll_frame:GetVerticalScroll() + scroll_delta
-            -- SetVerticalScroll() automatically clamps to child height.
-            scroll_frame:SetVerticalScroll(scroll)
-        else
-            local limit = scroll_frame:GetDerivedScrollRange()
-            local scroll = scroll_frame:GetScrollPercentage() * limit
-            scroll = scroll + scroll_delta
-            -- ScrollToOffset() also automatically clamps to child height.
-            scroll_frame:ScrollToOffset(scroll)
-        end
+        local scroll = scroll_current + scroll_delta
+        -- SetScroll function assumed to clamp to [0,child_height].
+        scroll_SetScroll(scroll_frame, scroll)
     end
 end
 
