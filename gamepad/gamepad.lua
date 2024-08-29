@@ -186,25 +186,45 @@ function GamePadListener:OnGamePadStick(stick, x, y)
         end
     end
 
-    -- Handle scrolling quest text frames.
-    local SCROLL_FRAMES = {
+    -- Handle scrolling text frames.  There are two types of these, so we
+    -- need two lists.
+    local SCROLL_FRAMES = {  -- ScrollFrameTemplate
         ItemTextScrollFrame,
         QuestDetailScrollFrame,
         QuestRewardScrollFrame,
     }
-    local scroll_frame
+    local SCROLLBOX_FRAMES = {  -- WowScrollBoxList
+        GossipFrame.GreetingPanel.ScrollBox,
+    }
+    local scroll_frame, scroll_is_ScrollFrame
     for _, frame in ipairs(SCROLL_FRAMES) do
         if frame:IsVisible() then
             scroll_frame = frame
+            scroll_is_ScrollFrame = true
+            break
+        end
+    end
+    for _, frame in ipairs(SCROLLBOX_FRAMES) do
+        if frame:IsVisible() then
+            scroll_frame = frame
+            scroll_is_ScrollFrame = false
             break
         end
     end
     self:SetCameraStickDisable("SCROLL_TEXT", scroll_frame)
     if scroll_frame and stick == "Camera" then
-        local scroll_delta = -1000 * self.frame_dt
-        local scroll = scroll_frame:GetVerticalScroll() + (y * scroll_delta)
-        -- SetVerticalScroll() automatically clamps to child height.
-        scroll_frame:SetVerticalScroll(scroll)
+        local scroll_delta = (-1000 * self.frame_dt) * y
+        if scroll_is_ScrollFrame then
+            local scroll = scroll_frame:GetVerticalScroll() + scroll_delta
+            -- SetVerticalScroll() automatically clamps to child height.
+            scroll_frame:SetVerticalScroll(scroll)
+        else
+            local limit = scroll_frame:GetDerivedScrollRange()
+            local scroll = scroll_frame:GetScrollPercentage() * limit
+            scroll = scroll + scroll_delta
+            -- ScrollToOffset() also automatically clamps to child height.
+            scroll_frame:ScrollToOffset(scroll)
+        end
     end
 end
 
