@@ -2651,3 +2651,36 @@ function MenuCursor:DelvesDifficultyDropdown_Hide(menu)
         self:DelvesDifficultyPickerFrame_RefreshTargets()
     end
 end
+
+
+-------- Void storage purchase popup
+
+function MenuCursor.handlers.VoidStoragePurchaseFrame(cursor)
+    cursor.frame:RegisterEvent("ADDON_LOADED")
+    if VoidStoragePurchaseFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_VoidStorageUI")
+    end
+end
+
+function MenuCursor:ADDON_LOADED__Blizzard_VoidStorageUI()
+    self:HookShow(VoidStoragePurchaseFrame,
+                  "VoidStoragePurchaseFrame")
+end
+
+function MenuCursor:VoidStoragePurchaseFrame_Show()
+    self:SetFocus(VoidStoragePurchaseFrame)
+    self.cancel_func = function() HideUIPanel(VoidStorageFrame) end
+    self.targets = {
+        [VoidStoragePurchaseButton] = {
+            can_activate = true, lock_highlight = true, is_default = true,
+            up = false, down = false, left = false, right = false},
+    }
+    self:UpdateCursor()
+end
+
+function MenuCursor:VoidStoragePurchaseFrame_Hide()
+    if self.focus == VoidStoragePurchaseFrame then
+        self:ClearFocus()
+        self:UpdateCursor()
+    end
+end
