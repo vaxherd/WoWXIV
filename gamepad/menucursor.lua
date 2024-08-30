@@ -441,7 +441,7 @@ function MenuCursor:OnClick(button, down)
         -- Click event is passed to target by SecureActionButtonTemplate.
         -- This code is called afterward, so it's possible that the target
         -- already closed our focus frame; avoid erroring in that case.
-        if self.focus then
+        if self.focus and self.cur_target then
             local params = self.targets[self.cur_target]
             if params.on_click then params.on_click(self.cur_target) end
         end
@@ -459,6 +459,7 @@ end
 -- direction keyword for checking target-specific movement overrides.
 function MenuCursor:Move(dx, dy, dir)
     local cur_target = self.cur_target
+    if not cur_target then return end
     local params = self.targets[cur_target]
     if params[dir] ~= nil then
         -- A value of false indicates "suppress movement in this
@@ -708,6 +709,7 @@ function MenuCursor:GOSSIP_SHOW()
     -- a bit kludgey and certainly won't work if the list is scrolled
     -- to the point where some elements move offscreen.  Is there any
     -- better way to get the positions of individual scroll list elements?
+    -- (see the professions frame recipe list for a possible solution)
     local subframes = {GossipFrame.GreetingPanel.ScrollBox.ScrollTarget:GetChildren()}
     local first_button, last_button = nil, nil
     for _, f in ipairs(subframes) do
@@ -858,8 +860,8 @@ function MenuCursor:DoQuestDetail(is_complete)
     end
     for i, v in ipairs(rewards) do
         local frame = v[1]
-	tinsert(rewards[i], frame:GetLeft())
-	tinsert(rewards[i], frame:GetTop())
+        tinsert(rewards[i], frame:GetLeft())
+        tinsert(rewards[i], frame:GetTop())
     end
     table.sort(rewards, function(a, b)
         return a[4] > b[4] or (a[4] == b[4] and a[3] < b[3])
@@ -1979,6 +1981,10 @@ end
 function MenuCursor:ADDON_LOADED__Blizzard_Professions()
     self:HookShow(ProfessionsFrame, "ProfessionsFrame")
     self:HookShow(ProfessionsFrame.CraftingPage.CreateAllButton, "ProfessionsFrame_CreateAllButton")
+    -- Hack for interacting with the item selector popup.
+    local flyout = OpenProfessionsItemFlyout(UIParent, UIParent)
+    CloseProfessionsItemFlyout()
+    self:HookShow(flyout, "ProfessionsItemFlyout")
 end
 
 function MenuCursor:TRADE_SKILL_LIST_UPDATE()
@@ -2255,6 +2261,89 @@ function MenuCursor:ProfessionsFrame_CreateAllButton_Hide()
         end
         self:ProfessionsFrame_UpdateMovement()
     end
+end
+
+function MenuCursor:ProfessionsItemFlyout_Show(frame)
+    self:PushFocus(frame)
+    self.cancel_func = CloseProfessionsItemFlyout
+    RunNextFrame(function() self:ProfessionsItemFlyout_RefreshTargets(frame) end)
+end
+
+function MenuCursor:ProfessionsItemFlyout_Hide(frame)
+    self:PopFocus(frame)
+end
+
+function MenuCursor:ProfessionsItemFlyout_RefreshTargets(frame)
+    local ItemScroll = frame.ScrollBox
+    local checkbox = frame.HideUnownedCheckbox
+    self.targets = {
+        [checkbox] = {can_activate = true, lock_highlight = true,
+                      on_click = function()
+                          -- We have to wait a frame for button layout.
+                          -- Ensure that a D-pad press during that frame
+                          -- doesn't leave us on a vanished button.
+                          self.targets = {[checkbox] = self.targets[checkbox]}
+                          RunNextFrame(function()
+                              self:ProfessionsItemFlyout_RefreshTargets(frame)
+                          end)
+                      end},
+    }
+    local default = nil
+    local last_y = nil
+    local rows = {}
+    -- Avoid errors in Blizzard code if the list is empty.
+    if ItemScroll:GetDataProvider() then
+        local index = 0
+        ItemScroll:ForEachElementData(function(element)
+            index = index + 1
+            local button = ItemScroll:FindFrame(ItemScroll:FindElementData(index))
+            local pseudo_frame =
+                self:PseudoFrameForScrollElement(ItemScroll, index)
+            self.targets[pseudo_frame] = {
+                is_scroll_box = true, can_activate = true,
+                up = false, down = false, left = false, right = false}
+            default = default or pseudo_frame
+            assert(self:GetTargetFrame(pseudo_frame) == button)
+            assert(button:IsShown())
+            assert(button:GetTop() ~= nil)
+            local y = button:GetTop()
+            if y == last_y then
+                tinsert(rows[#rows], pseudo_frame)
+            else
+                last_y = y
+                tinsert(rows, {pseudo_frame})
+            end
+        end)
+        local first_row = rows[1]
+        local last_row = rows[#rows]
+        for i, row in ipairs(rows) do
+            local prev_row = i > 1 and rows[i-1]
+            local next_row = i < #rows and rows[i+1]
+            for j, pseudo_frame in ipairs(row) do
+                local target_info = self.targets[pseudo_frame]
+                target_info.up = prev_row and prev_row[j] or checkbox
+                target_info.down = next_row and (next_row[j] or next_row[#next_row]) or checkbox
+                if j > 1 then
+                    target_info.left = row[j-1]
+                elseif prev_row then
+                    target_info.left = prev_row[#prev_row]
+                else
+                    target_info.left = last_row[#last_row]
+                end
+                if j < #row then
+                    target_info.right = row[j+1]
+                elseif next_row then
+                    target_info.right = next_row[1]
+                else
+                    target_info.right = first_row[1]
+                end
+            end
+        end
+        self.targets[checkbox].up = last_row[1]
+        self.targets[checkbox].down = first_row[1]
+    end
+    self:SetTarget(self.cur_target or default or checkbox)
+    self:UpdateCursor()
 end
 
 
