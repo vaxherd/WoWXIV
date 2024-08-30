@@ -464,6 +464,7 @@ function MenuCursor:Move(dx, dy, dir)
     local cur_target = self.cur_target
     if not cur_target then return end
     local params = self.targets[cur_target]
+    local new_target
     if params[dir] ~= nil then
         -- A value of false indicates "suppress movement in this
         -- direction".  We have to use false and not nil because
@@ -973,16 +974,10 @@ function MenuCursor:SHIPMENT_CRAFTER_OPENED()
         [GarrisonCapacitiveDisplayFrame.CreateAllWorkOrdersButton] =
             {can_activate = true, lock_highlight = true},
         [GarrisonCapacitiveDisplayFrame.DecrementButton] =
-            {on_click = function(frame)
-                frame:GetScript("OnMouseDown")(frame, "LeftButton", true)
-                frame:GetScript("OnMouseUp")(frame, "LeftButton")
-             end,
+            {on_click = self.ClickNumericSpinnerButton,
              lock_highlight = true},
         [GarrisonCapacitiveDisplayFrame.IncrementButton] =
-            {on_click = function(frame)
-                frame:GetScript("OnMouseDown")(frame, "LeftButton", true)
-                frame:GetScript("OnMouseUp")(frame, "LeftButton")
-             end,
+            {on_click = self.ClickNumericSpinnerButton,
              lock_highlight = true},
         [GarrisonCapacitiveDisplayFrame.StartWorkOrderButton] =
             {can_activate = true, lock_highlight = true,
