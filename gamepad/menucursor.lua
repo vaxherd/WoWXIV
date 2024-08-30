@@ -2013,7 +2013,7 @@ function MenuCursor:ADDON_LOADED__Blizzard_Professions()
 end
 
 function MenuCursor:TRADE_SKILL_LIST_UPDATE()
-    if self.focus == ProfessionsFrame then
+    if self.focus == ProfessionsFrame and self.ProfessionsFrame_need_refresh then
         -- The list itself apparently isn't ready until the next frame.
         RunNextFrame(function() self:ProfessionsFrame_RefreshTargets() end)
     end
@@ -2034,6 +2034,7 @@ function MenuCursor:ProfessionsFrame_Show()
     assert(ProfessionsFrame:IsShown())
     self:PushFocus(ProfessionsFrame)
     self.cancel_func = self.HideUIPanel
+    self.ProfessionsFrame_need_refresh = true
     self:ProfessionsFrame_RefreshTargets()
 end
 
@@ -2064,6 +2065,7 @@ function MenuCursor:ProfessionsFrame_RefreshTargets(initial_element)
         local RecipeScroll = CraftingPage.RecipeList.ScrollBox
         local index = 0
         RecipeScroll:ForEachElementData(function(element)
+            self.ProfessionsFrame_need_refresh = false
             index = index + 1
             local data = element:GetData()
             if data.categoryInfo or data.recipeInfo then
