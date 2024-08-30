@@ -475,6 +475,7 @@ function MenuCursor:Move(dx, dy, dir)
     end
     if new_target then
         local new_params = self.targets[new_target]
+        local MARGIN = 20
         if new_params.scroll_frame then
             local scroll_frame = new_params.scroll_frame
             local scroll_top = -(scroll_frame:GetTop())
@@ -482,21 +483,33 @@ function MenuCursor:Move(dx, dy, dir)
             local scroll_height = scroll_bottom - scroll_top
             local top = -(new_target:GetTop()) - scroll_top
             local bottom = -(new_target:GetBottom()) - scroll_top
-            local MARGIN = 20
-            local scroll_target
+            local scroll_amount
             if top < MARGIN then
-                scroll_target = MARGIN - top
+                scroll_amount = top - MARGIN
             elseif bottom > scroll_height - MARGIN then
-                scroll_target = bottom - (scroll_height - MARGIN)
+                scroll_amount = bottom - (scroll_height - MARGIN)
             end
-            if scroll_target then
-                scroll_target = scroll_frame:GetVerticalScroll() + scroll_target
-                if scroll_target < 0 then scroll_target = 0 end
-                -- SetVerticalScroll() automatically clamps to child height.
+            if scroll_amount then
+                local scroll_target = scroll_frame:GetVerticalScroll() + scroll_amount
+                -- SetVerticalScroll() automatically clamps to valid range.
                 scroll_frame:SetVerticalScroll(scroll_target)
             end
         elseif new_params.is_scroll_box then
-            new_target.box:ScrollToElementDataIndex(new_target.index)
+            local scroll_frame = new_target.box
+            local scroll_height = scroll_frame:GetVisibleExtent()
+            local scroll_current = scroll_frame:GetScrollPercentage() * scroll_frame:GetDerivedScrollRange()
+            local top = scroll_frame:GetExtentUntil(new_target.index)
+            local bottom = top + scroll_frame:GetElementExtent(new_target.index)
+            local scroll_target
+            if top - MARGIN < scroll_current then
+                scroll_target = top - MARGIN
+            elseif bottom + MARGIN > scroll_current + scroll_height then
+                scroll_target = bottom + MARGIN - scroll_height
+            end
+            if scroll_target then
+                -- ScrollToOffset() automatically clamps to valid range.
+                scroll_frame:ScrollToOffset(scroll_target)
+            end
         end
         self:SetTarget(new_target)
         self:UpdateCursor()
