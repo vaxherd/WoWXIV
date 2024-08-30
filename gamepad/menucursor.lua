@@ -441,9 +441,12 @@ function MenuCursor:OnClick(button, down)
         -- Click event is passed to target by SecureActionButtonTemplate.
         -- This code is called afterward, so it's possible that the target
         -- already closed our focus frame; avoid erroring in that case.
-        if self.focus and self.cur_target then
-            local params = self.targets[self.cur_target]
-            if params.on_click then params.on_click(self.cur_target) end
+        if self.focus then
+            local target = self.cur_target
+            if target then
+                local params = self.targets[target]
+                if params.on_click then params.on_click(target) end
+            end
         end
     elseif button == "Cancel" then
         if self.cancel_func then
@@ -646,6 +649,14 @@ function MenuCursor:HideTooltip()
     if not GameTooltip:IsForbidden() then
         GameTooltip:Hide()
     end
+end
+
+-- on_click function for NumericInputSpinnerTemplate increment/decrement
+-- buttons, which use an OnMouseDown/Up event pair instead of OnClick.
+-- Note that this is a static function, not an instance method!
+function MenuCursor.ClickNumericSpinnerButton(frame)
+    frame:GetScript("OnMouseDown")(frame, "LeftButton", true)
+    frame:GetScript("OnMouseUp")(frame, "LeftButton")
 end
 
 -- Return a table suitable for use as a targets[] key for an element of
@@ -1981,6 +1992,7 @@ end
 function MenuCursor:ADDON_LOADED__Blizzard_Professions()
     self:HookShow(ProfessionsFrame, "ProfessionsFrame")
     self:HookShow(ProfessionsFrame.CraftingPage.CreateAllButton, "ProfessionsFrame_CreateAllButton")
+    self:HookShow(ProfessionsFrame.CraftingPage.SchematicForm.QualityDialog, "ProfessionsFrame_QualityDialog")
     -- Hack for interacting with the item selector popup.
     local flyout = OpenProfessionsItemFlyout(UIParent, UIParent)
     CloseProfessionsItemFlyout()
@@ -2015,7 +2027,6 @@ end
 function MenuCursor:ProfessionsFrame_Hide()
     self:PopFocus(ProfessionsFrame)
     self:PopFocus(ProfessionsFrame.CraftingPage.SchematicForm)
-    self:UpdateCursor()
 end
 
 function MenuCursor:ProfessionsFrame_RefreshTargets(initial_element)
@@ -2128,17 +2139,11 @@ function MenuCursor:ProfessionsFrame_FocusRecipe(tries)
             can_activate = true, lock_highlight = true,
             down = SchematicForm.OutputIcon, left = false},
         [CraftingPage.CreateMultipleInputBox.DecrementButton] = {
-            on_click = function(frame)
-                frame:GetScript("OnMouseDown")(frame, "LeftButton", true)
-                frame:GetScript("OnMouseUp")(frame, "LeftButton")
-            end,
+            on_click = self.ClickNumericSpinnerButton,
             lock_highlight = true,
             down = SchematicForm.OutputIcon},
         [CraftingPage.CreateMultipleInputBox.IncrementButton] = {
-            on_click = function(frame)
-                frame:GetScript("OnMouseDown")(frame, "LeftButton", true)
-                frame:GetScript("OnMouseUp")(frame, "LeftButton")
-            end,
+            on_click = self.ClickNumericSpinnerButton,
             lock_highlight = true,
             down = SchematicForm.OutputIcon},
         [CraftingPage.CreateButton] = {
@@ -2146,11 +2151,10 @@ function MenuCursor:ProfessionsFrame_FocusRecipe(tries)
             down = SchematicForm.OutputIcon, right = false},
     }
 
-    local r_left = false
+    local r_left, r_right = false, false
     local frsc = SchematicForm.Details.CraftingChoicesContainer.FinishingReagentSlotContainer
     if frsc and frsc:IsVisible() then
-        local finishing = {frsc:GetChildren()}
-        for _, frame in ipairs(finishing) do
+        for _, frame in ipairs({frsc:GetChildren()}) do
             local button = frame:GetChildren()
             self.targets[button] = {
                 on_click = self.ProfessionsFrame_ClickItemButton,
@@ -2158,6 +2162,9 @@ function MenuCursor:ProfessionsFrame_FocusRecipe(tries)
                 up = false, down = CraftingPage.CreateButton}
             if not r_left or button:GetLeft() < r_left:GetLeft() then
                 r_left = button
+            end
+            if not r_right or button:GetLeft() > r_right:GetLeft() then
+                r_right = button
             end
         end
     end
@@ -2170,48 +2177,80 @@ function MenuCursor:ProfessionsFrame_FocusRecipe(tries)
         if not r_left or ctb:GetLeft() < r_left:GetLeft() then
             r_left = ctb
         end
+        if not r_right or ctb:GetLeft() > r_right:GetLeft() then
+            r_right = ctb
+        end
     end
 
     local r_top, r_bottom = false, false
-    local reagents = {}
     if SchematicForm.Reagents:IsShown() then
-        -- Awkward because Lua has no way to concatenate lists.
-        local list = {SchematicForm.Reagents:GetChildren()}
-        for _,v in ipairs(list) do tinsert(reagents,v) end
-    end
-    if SchematicForm.OptionalReagents:IsShown() then
-        local list = {SchematicForm.OptionalReagents:GetChildren()}
-        for _,v in ipairs(list) do tinsert(reagents,v) end
-    end
-    for _, frame in ipairs(reagents) do
-        local button = frame:GetChildren()
-        if button:IsVisible() then
-            self.targets[button] = {
-                on_click = self.ProfessionsFrame_ClickItemButton,
-                lock_highlight = true, send_enter_leave = true,
-                left = false, right = r_left}
-            if not r_top or button:GetTop() > r_top:GetTop() then
-                r_top = button
+        for _, frame in ipairs({SchematicForm.Reagents:GetChildren()}) do
+            local button = frame:GetChildren()
+            if button:IsVisible() then
+                self.targets[button] = {
+                    lock_highlight = true, send_enter_leave = true,
+                    left = false, right = r_left}
+                if button:GetScript("OnMouseDown") then
+                    self.targets[button].on_click = self.ProfessionsFrame_ClickItemButton
+                elseif button:GetScript("OnClick") then
+                    self.targets[button].can_activate = true
+                end
+                if not r_top or button:GetTop() > r_top:GetTop() then
+                    r_top = button
+                end
+                if not r_bottom or button:GetTop() < r_bottom:GetTop() then
+                    r_bottom = button
+                end
             end
-            if not r_bottom or button:GetTop() < r_bottom:GetTop() then
-                r_bottom = button
+        end
+        if r_top then
+            self.targets[r_top].up = SchematicForm.OutputIcon
+        end
+        if r_bottom and r_left then
+            self.targets[r_left].left = r_bottom
+        end
+    end
+
+    if SchematicForm.OptionalReagents:IsShown() then
+        local or_left, or_right
+        for _, frame in ipairs({SchematicForm.OptionalReagents:GetChildren()}) do
+            local button = frame:GetChildren()
+            if button:IsVisible() then
+                self.targets[button] = {
+                    on_click = self.ProfessionsFrame_ClickItemButton,
+                    lock_highlight = true, send_enter_leave = true,
+                    up = r_bottom, down = CraftingPage.CreateAllButton}
+                if not or_left or button:GetLeft() < or_left:GetLeft() then
+                    or_left = button
+                end
+                if not or_right or button:GetLeft() > or_right:GetLeft() then
+                    or_right = button
+                end
+            end
+        end
+        if or_left then
+            self.targets[or_left].left = false
+            r_bottom = or_left
+        end
+        if or_right then
+            self.targets[or_right].right = r_left
+            if r_left then
+                self.targets[r_left].left = or_right
             end
         end
     end
-    if r_top then
-        self.targets[r_top].up = SchematicForm.OutputIcon
-    end
-    if r_bottom and r_left then
-        self.targets[r_left].left = r_bottom
-    end
 
-    local create_up = r_left or r_bottom or SchematicForm.OutputIcon
-    self.targets[CraftingPage.CreateAllButton].up = create_up
-    self.targets[CraftingPage.CreateMultipleInputBox.DecrementButton].up = create_up
-    self.targets[CraftingPage.CreateMultipleInputBox.IncrementButton].up = create_up
-    self.targets[CraftingPage.CreateButton].up = create_up
+    local create_left_up = r_left or r_bottom or SchematicForm.OutputIcon
+    local create_right_up = r_right or r_bottom or SchematicForm.OutputIcon
+    self.targets[CraftingPage.CreateAllButton].up = create_left_up
+    self.targets[CraftingPage.CreateMultipleInputBox.DecrementButton].up = create_left_up
+    self.targets[CraftingPage.CreateMultipleInputBox.IncrementButton].up = create_left_up
+    self.targets[CraftingPage.CreateButton].up = create_right_up
     self.ProfessionsFrame_r_bottom = r_bottom
 
+    if r_top then
+        self:SetTarget(r_top)
+    end
     self:ProfessionsFrame_UpdateMovement()
     self:UpdateCursor()
 end
@@ -2226,18 +2265,35 @@ end
 
 function MenuCursor:ProfessionsFrame_UpdateMovement()
     local CraftingPage = ProfessionsFrame.CraftingPage
-    local r_bottom = self.ProfessionsFrame_r_bottom
+    local create_left
     if CraftingPage.CreateAllButton:IsShown() then
         self.targets[CraftingPage.CreateButton].left = nil
         self.targets[CraftingPage.SchematicForm.OutputIcon].up = CraftingPage.CreateAllButton
-        if r_bottom then
-            self.targets[r_bottom].down = CraftingPage.CreateAllButton
-        end
+        create_left = CraftingPage.CreateAllButton
     else
         self.targets[CraftingPage.CreateButton].left = false
         self.targets[CraftingPage.SchematicForm.OutputIcon].up = CraftingPage.CreateButton
-        if r_bottom then
-            self.targets[r_bottom].down = CraftingPage.CreateButton
+        create_left = CraftingPage.CreateButton
+    end
+
+    local r_bottom = self.ProfessionsFrame_r_bottom
+    if r_bottom then
+        self.targets[r_bottom].down = create_left
+    end
+    local SchematicForm = CraftingPage.SchematicForm
+    local frsc = SchematicForm.Details.CraftingChoicesContainer.FinishingReagentSlotContainer
+    if frsc and frsc:IsVisible() then
+        for _, frame in ipairs({frsc:GetChildren()}) do
+            local button = frame:GetChildren()
+            self.targets[button].down = create_left
+        end
+    end
+    if SchematicForm.OptionalReagents:IsShown() then
+        for _, frame in ipairs({SchematicForm.OptionalReagents:GetChildren()}) do
+            local button = frame:GetChildren()
+            if self.targets[button] then
+                self.targets[button].down = create_left
+            end
         end
     end
 end
@@ -2261,6 +2317,41 @@ function MenuCursor:ProfessionsFrame_CreateAllButton_Hide()
         end
         self:ProfessionsFrame_UpdateMovement()
     end
+end
+
+function MenuCursor:ProfessionsFrame_QualityDialog_Show(frame)
+    local QualityDialog = frame
+    self:PushFocus(frame)
+    self.cancel_button = QualityDialog.CancelButton
+    self.targets = {
+        [QualityDialog.Container1.EditBox.DecrementButton] = {
+            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            up = false, down = QualityDialog.AcceptButton},
+        [QualityDialog.Container1.EditBox.IncrementButton] = {
+            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            up = false, down = QualityDialog.AcceptButton},
+        [QualityDialog.Container2.EditBox.DecrementButton] = {
+            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            up = false, down = QualityDialog.AcceptButton},
+        [QualityDialog.Container2.EditBox.IncrementButton] = {
+            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            up = false, down = QualityDialog.AcceptButton},
+        [QualityDialog.Container3.EditBox.DecrementButton] = {
+            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            up = false, down = QualityDialog.AcceptButton},
+        [QualityDialog.Container3.EditBox.IncrementButton] = {
+            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            up = false, down = QualityDialog.AcceptButton},
+        [QualityDialog.AcceptButton] = {
+            can_activate = true, lock_highlight = true, is_default = true},
+        [QualityDialog.CancelButton] = {
+            can_activate = true, lock_highlight = true},
+    }
+    self:UpdateCursor()
+end
+
+function MenuCursor:ProfessionsFrame_QualityDialog_Hide()
+    self:PopFocus(ProfessionsFrame.CraftingPage.SchematicForm.QualityDialog)
 end
 
 function MenuCursor:ProfessionsItemFlyout_Show(frame)
