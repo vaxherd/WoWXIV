@@ -974,10 +974,10 @@ function MenuCursor:SHIPMENT_CRAFTER_OPENED()
         [GarrisonCapacitiveDisplayFrame.CreateAllWorkOrdersButton] =
             {can_activate = true, lock_highlight = true},
         [GarrisonCapacitiveDisplayFrame.DecrementButton] =
-            {on_click = self.ClickNumericSpinnerButton,
+            {on_click = GarrisonCapacitiveDisplayFrameDecrement_OnClick,
              lock_highlight = true},
         [GarrisonCapacitiveDisplayFrame.IncrementButton] =
-            {on_click = self.ClickNumericSpinnerButton,
+            {on_click = GarrisonCapacitiveDisplayFrameIncrement_OnClick,
              lock_highlight = true},
         [GarrisonCapacitiveDisplayFrame.StartWorkOrderButton] =
             {can_activate = true, lock_highlight = true,
