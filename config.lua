@@ -50,6 +50,11 @@ local CONFIG_DEFAULT = {
     -- Flying text: if enabled, hide loot frame when autolooting?
     flytext_hide_autoloot = true,
 
+    -- Log window: enable?
+    logwindow_enable = true,
+    -- Log window: number of history lines to keep
+    logwindow_history = 1000,
+
     -- Map: show current coordinates under minimap?
     map_show_coords_minimap = true,
     -- Map: show mouseover coordinates on world map?
@@ -452,6 +457,10 @@ function ConfigPanel:__constructor()
                         WoWXIV.FlyText.Enable)
     self:AddCheckButton("Hide loot frame when autolooting",
                         "flytext_hide_autoloot", nil, "flytext_enable")
+
+    self:AddHeader("Log window settings")
+    self:AddCheckButton("Enable log window |cffff0000(requires reload)|r",
+                        "logwindow_enable")
 
     self:AddHeader("Map settings")
     self:AddCheckButton("Show current coordinates under minimap",

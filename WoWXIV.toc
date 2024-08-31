@@ -3,7 +3,7 @@
 ## Author: vaxherd
 ## Version: 0.1+
 ## SavedVariables: WoWXIV_config
-## SavedVariablesPerCharacter: WoWXIV_isearch_cache
+## SavedVariablesPerCharacter: WoWXIV_isearch_cache, WoWXIV_logwindow_history, WoWXIV_logwindow_hist_top
 
 WoWXIV.lua
 _class.lua
@@ -15,6 +15,7 @@ config.lua
 flytext.lua
 hatelist.lua
 isearch.lua
+logwindow.lua
 map.lua
 partylist.lua
 slashcmd.lua
