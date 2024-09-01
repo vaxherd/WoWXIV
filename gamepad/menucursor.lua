@@ -2398,21 +2398,23 @@ function MenuCursor:ProfessionsItemFlyout_RefreshTargets(frame)
         ItemScroll:ForEachElementData(function(element)
             index = index + 1
             local button = ItemScroll:FindFrame(ItemScroll:FindElementData(index))
-            local pseudo_frame =
-                self:PseudoFrameForScrollElement(ItemScroll, index)
-            self.targets[pseudo_frame] = {
-                is_scroll_box = true, can_activate = true,
-                up = false, down = false, left = false, right = false}
-            default = default or pseudo_frame
-            assert(self:GetTargetFrame(pseudo_frame) == button)
-            assert(button:IsShown())
-            assert(button:GetTop() ~= nil)
-            local y = button:GetTop()
-            if y == last_y then
-                tinsert(rows[#rows], pseudo_frame)
-            else
-                last_y = y
-                tinsert(rows, {pseudo_frame})
+            if button then  -- FIXME: need to deal with overflowing lists (e.g. embellishments)
+                local pseudo_frame =
+                    self:PseudoFrameForScrollElement(ItemScroll, index)
+                self.targets[pseudo_frame] = {
+                    is_scroll_box = true, can_activate = true,
+                    up = false, down = false, left = false, right = false}
+                default = default or pseudo_frame
+                assert(self:GetTargetFrame(pseudo_frame) == button)
+                assert(button:IsShown())
+                assert(button:GetTop() ~= nil)
+                local y = button:GetTop()
+                if y == last_y then
+                    tinsert(rows[#rows], pseudo_frame)
+                else
+                    last_y = y
+                    tinsert(rows, {pseudo_frame})
+                end
             end
         end)
         local first_row = rows[1]
