@@ -140,6 +140,11 @@ end
 local LogWindow = class()
 
 function LogWindow:__constructor()
+    -- ID of the event currently being processed.  This is used to fill in
+    -- the event field in history entries, since most messages will come
+    -- from Blizzard code which does not pass down the event ID.
+    self.current_event = nil
+
     local frame = CreateFrame("ScrollingMessageFrame", "WoWXIV_LogWindow",
                               UIParent)
     self.frame = frame
@@ -263,16 +268,22 @@ end
 function LogWindow:PLAYER_ENTERING_WORLD(event)
     self.lang_default = GetDefaultLanguage()
     self.lang_alt = GetAlternativeDefaultLanguage()
+    self.current_event = event
     ChatFrame_ConfigEventHandler(self, event)
+    self.current_event = nil
 end
 
 function LogWindow:ALTERNATIVE_DEFAULT_LANGUAGE_CHANGED(event)
     self.lang_alt = GetAlternativeDefaultLanguage()
+    self.current_event = event
     ChatFrame_ConfigEventHandler(self, event)
+    self.current_event = nil
 end
 
 function LogWindow:UPDATE_CHAT_COLOR_NAME_BY_CLASS(event, ...)
+    self.current_event = event
     ChatFrame_ConfigEventHandler(self, event, ...)
+    self.current_event = nil
 end
 
 function LogWindow:CHAT_MSG_CHANNEL_NOTICE(event, type, _, _, link_text, _, _, id, index, name)
@@ -295,21 +306,31 @@ function LogWindow:CHAT_MSG_CHANNEL_NOTICE(event, type, _, _, link_text, _, _, i
 end
 
 function LogWindow:OnChatMsg(event, ...)
+    self.current_event = event
     ChatFrame_MessageEventHandler(self, event, ...)
+    self.current_event = nil
 end
 
 function LogWindow:OnNonChatMsg(event, ...)
+    self.current_event = event
     ChatFrame_SystemEventHandler(self, event, ...)
+    self.current_event = nil
 end
 
 function LogWindow:AddHistoryEntry(event, text, r, g, b)
     local record = {time(), event, text, r, g, b}
     local histsize = WoWXIV_config["logwindow_history"]
     if #WoWXIV_logwindow_history < histsize then
+        assert(WoWXIV_logwindow_hist_top == 1)
         tinsert(WoWXIV_logwindow_history, record)
     else
-        WoWXIV_logwindow_history[WoWXIV_logwindow_hist_top] = record
-        WoWXIV_logwindow_hist_top = WoWXIV_logwindow_hist_top + 1
+        local histindex = WoWXIV_logwindow_hist_top
+        WoWXIV_logwindow_history[histindex] = record
+        if histindex == histsize then
+            WoWXIV_logwindow_hist_top = 1
+        else
+            WoWXIV_logwindow_hist_top = histindex + 1
+        end
     end
 end
 
@@ -336,18 +357,24 @@ function LogWindow:GetFont() return self.frame:GetFontObject() end
 function LogWindow:SetHyperlinksEnabled(enable) end
 function LogWindow:AddMessage(event, text, r, g, b)
     if type(text) ~= "string" then  -- event omitted (as from Blizzard code)
-        event, text, r, g, b = "-", event, text, r, g
+        event, text, r, g, b = (self.current_event or "-"), event, text, r, g
     end
     r = r or 1
     g = g or 1
     b = b or 1
     -- FIXME: temp hack until we turn off native chat frame events
-    self.suppress = self.suppress or {0, 0, 0, 0}
-    if text == self.suppress[1] and r == self.suppress[2] and g == self.suppress[3] and b == self.suppress[4] then return end
-    self.suppress[1] = text
-    self.suppress[2] = r
-    self.suppress[3] = g
-    self.suppress[4] = b
+    self.suppress = self.suppress or {0, 0, 0, 0, 0}
+    if text == self.suppress[2] and r == self.suppress[3] and g == self.suppress[4] and b == self.suppress[5] then
+        if self.suppress[1] == "_" then
+            WoWXIV_logwindow_history[WoWXIV_logwindow_hist_top==1 and WoWXIV_config["logwindow_history"] or WoWXIV_logwindow_hist_top-1][1] = event
+        end
+        return
+    end
+    self.suppress[1] = event
+    self.suppress[2] = text
+    self.suppress[3] = r
+    self.suppress[4] = g
+    self.suppress[5] = b
     RunNextFrame(function() self.suppress[1] = 0 end)
     --FIXME end hack
     self.frame:AddMessage(text, r, g, b)
@@ -379,17 +406,18 @@ function WoWXIV.LogWindow.Create()
         local saved_AddMessage = DEFAULT_CHAT_FRAME.AddMessage
         DEFAULT_CHAT_FRAME.AddMessage = function(frame, ...)
             saved_AddMessage(frame, ...)
-            WoWXIV.LogWindow.window:AddMessage(...)
+            WoWXIV.LogWindow.window:AddMessage("_", ...)
         end
     end
 end
 
 -- Discard any log window history entries older than the current limit.
+-- Also reorders the history buffer if needed for limit changes.
 function WoWXIV.LogWindow.PruneHistory()
     local history = WoWXIV_logwindow_history
     local histlen = #history
     local histsize = WoWXIV_config["logwindow_history"]
-    if histlen > histsize then
+    if histlen > histsize or (histlen < histsize and WoWXIV_logwindow_hist_top ~= 1) then
         local new_history = {}
         local histindex = WoWXIV_logwindow_hist_top
         for i = 1, histsize do
