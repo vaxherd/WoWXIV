@@ -318,7 +318,7 @@ function LogWindow:OnNonChatMsg(event, ...)
 end
 
 function LogWindow:AddHistoryEntry(event, text, r, g, b)
-    local record = {time(), event, text, r, g, b}
+    local record = {WoWXIV.timePrecise(), event, text, r, g, b}
     local histsize = WoWXIV_config["logwindow_history"]
     if #WoWXIV_logwindow_history < histsize then
         assert(WoWXIV_logwindow_hist_top == 1)

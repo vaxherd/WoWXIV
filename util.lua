@@ -3,6 +3,103 @@ local _, WoWXIV = ...
 local floor = math.floor
 
 ------------------------------------------------------------------------
+-- Timing routines
+------------------------------------------------------------------------
+
+-- Used by timePrecise(), see details below.
+local timePrecise_last_time = nil
+local timePrecise_last_GetTime = nil
+local timePrecise_offset = nil
+
+-- Return the current Unix time with sub-second precision.
+--
+-- Because Lua's time() only has second precision, and the WoW function
+-- GetTime() (which has millisecond precision) uses system uptime rather
+-- than Unix time, we estimate the offset between GetTime() timestamps
+-- and true time-of-day timestamps, and apply that offset to the return
+-- value of GetTime() to obtain a sub-second value to add to the time()
+-- result.
+--
+-- Values returned by this function will always be monotonically
+-- increasing (provided the system's time-of-day clock is not changed).
+-- If necessary, the sub-second offset will be adjusted to ensure
+-- monotonicity, so calls for the first second of runtime may have an
+-- inaccurate sub-second part.
+function WoWXIV.timePrecise()
+    local now_time = time()
+    local now_GetTime = GetTime()
+
+    if not timePrecise_last_time then  -- First call?
+        timePrecise_last_time = now_time
+        timePrecise_last_GetTime = now_GetTime
+        -- Assume that the time-of-day timestamp just changed (this will
+        -- ensure monotonicity during the first second, at the cost of a
+        -- likely jump in timestamp when we hit the next second.
+        timePrecise_offset = select(2, math.modf(now_GetTime))
+        -- Wait until the time() timestamp changes, and make a better estimate.
+        local function EstimateOffset()
+            if time() == now_time then
+                RunNextFrame(EstimateOffset)
+            else
+                local _ = WoWXIV.timePrecise()  -- Call for side effects.
+            end
+        end
+        RunNextFrame(EstimateOffset)
+    end
+
+    local last_time = timePrecise_last_time
+    local last_GetTime = timePrecise_last_GetTime
+    timePrecise_last_time = now_time
+    timePrecise_last_GetTime = now_GetTime
+    local now_subsec = select(2, math.modf(now_GetTime))
+    local last_subsec = select(2, math.modf(last_GetTime))
+    local now_adjusted =
+        select(2, math.modf((now_subsec + 1) - timePrecise_offset))
+    local last_adjusted =
+        select(2, math.modf((last_subsec + 1) - timePrecise_offset))
+    if now_time == last_time then
+        -- The integral timestamp is unchanged, so the sub-second portion
+        -- must be increasing.  (Since we overestimate the initial offset,
+        -- this should never be violated except possibly as a result of
+        -- rounding error.)
+        if now_adjusted < last_adjusted then
+            -- Wait at x.999 until the next second.
+            timePrecise_offset = select(2, math.modf((now_subsec + 1) - 0.999))
+        end
+    elseif now_time > last_time then
+        -- The integral timestamp has advanced.  If this is not the result
+        -- of a system clock change, the GetTime() delta should be within
+        -- 1 second (on either side) of the time() delta.  Use that to
+        -- adjust our estimate of the offset.
+        local delta_time = now_time - last_time
+        local delta_GetTime = now_GetTime - last_GetTime
+        if delta_GetTime > delta_time-1 and delta_GetTime < delta_time+1 then
+            if delta_GetTime < delta_time and now_adjusted > last_adjusted then
+                -- We overestimated the offset, so push it back to the
+                -- current fractional timestamp (treating "now" as .000).
+                timePrecise_offset = now_subsec
+            elseif delta_GetTime > delta_time and now_adjusted < last_adjusted then
+                -- We underestimated the offset.  As above, this should never
+                -- occur except due to rounding.
+                timePrecise_offset =
+                    select(2, math.modf((now_subsec + 1) - 0.999))
+            end
+        end
+    else
+        -- The integral timestamp has moved backwards, presumably as the
+        -- result of a system clock change, so we can't learn any
+        -- additional information.  Just assume the offset is unchanged.
+    end
+
+    local final_subsec =
+        select(2, math.modf((now_subsec + 1) - timePrecise_offset))
+    return now_time + final_subsec
+end
+
+-- Perform an initial call to kickstart the offset estimation.
+local _ = WoWXIV.timePrecise()
+
+------------------------------------------------------------------------
 -- Frame management routines
 ------------------------------------------------------------------------
 
