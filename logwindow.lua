@@ -9,12 +9,47 @@ local band = bit.band
 local bor = bit.bor
 local tinsert = tinsert
 
+local MESSAGE_TYPES = {
+    -- FIXME: stubs for now, eventually expand to something like FF14 filters
+    GENERAL = {"*"},
+    BATTLE = {"CHAT_MSG_PET_BATTLE_COMBAT_LOG",
+              "CHAT_MSG_PET_BATTLE_INFO"},
+}
+
+local msgtype_lookup = {}  -- Initialized by LogWindow constructor.
+
+--------------------------------------------------------------------------
+
+local Tab = class()
+
+function Tab:__constructor(name, message_types)
+    self.name = name
+    self.message_types = message_types
+end
+
+function Tab:GetName()
+    return self.name
+end
+
+-- Returns true if the given message should be displayed in this tab.
+function Tab:Filter(event, text)
+    for _, type in ipairs(self.message_types) do
+        for _, type_event in ipairs(MESSAGE_TYPES[type]) do
+            if type_event == "*" or event == type_event then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 --------------------------------------------------------------------------
 
 local TabBar = class()
 
 function TabBar:__constructor(parent)
     self.tabs = {}
+    self.active_tab = nil
     self.size_scale = 5/6  -- gives the right size at 2560x1440 with default UI scaling
 
     local frame = CreateFrame("Frame", nil, parent)
@@ -34,34 +69,70 @@ function TabBar:__constructor(parent)
     right:SetSize(24*self.size_scale, frame:GetHeight())
     right:SetPoint("LEFT", left, "RIGHT")
 
-    self:AddTab("General")
+    frame:SetScript("OnMouseDown", function(frame) self:OnClick() end)
+
+    self:AddTab(Tab("General", {"GENERAL"}))
+    self:AddTab(Tab("Battle", {"BATTLE"}))
+    self:SetActiveTab(1)
     frame:Show()
 end
 
-function TabBar:AddTab(name)
+function TabBar:AddTab(tab)
     local frame = self.frame
-    local ref = #self.tabs > 0 and self.tabs[#self.tabs].bg or self.left
+    local name = tab:GetName()
+    local last = #self.tabs > 0 and self.tabs[#self.tabs].frame or self.left
+    local index = #self.tabs + 1
 
-    local header = frame:CreateTexture(nil, "BACKGROUND")
-    header:SetSize(16*self.size_scale, frame:GetHeight())
-    header:SetPoint("LEFT", ref, "RIGHT")
-    WoWXIV.SetUITexture(header, 21, 37, 52, 78)
+    local tab_frame = CreateFrame("Frame", nil, frame)
+    tab_frame:SetHeight(frame:GetHeight())
+    tab_frame:SetPoint("LEFT", last, "RIGHT")
 
-    local bg = frame:CreateTexture(nil, "BACKGROUND")
-    bg:SetHeight(frame:GetHeight())
-    bg:SetPoint("LEFT", header, "RIGHT")
-    WoWXIV.SetUITexture(bg, 37, 45, 52, 78)
+    local header = tab_frame:CreateTexture(nil, "BACKGROUND")
+    header:SetWidth(16*self.size_scale)
+    header:SetPoint("TOPLEFT")
+    header:SetPoint("BOTTOMLEFT")
+    WoWXIV.SetUITexture(header, 46, 62, 52, 78)
 
-    local label = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    local bg = tab_frame:CreateTexture(nil, "BACKGROUND")
+    bg:SetPoint("TOPLEFT", header, "TOPRIGHT")
+    bg:SetPoint("BOTTOMRIGHT")
+    WoWXIV.SetUITexture(bg, 62, 70, 52, 78)
+
+    local label = tab_frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     label:SetPoint("LEFT", bg)
     label:SetTextColor(WHITE_FONT_COLOR:GetRGB())
     label:SetText(name)
-    bg:SetWidth(label:GetStringWidth() + 14*self.size_scale)
+
+    tab_frame:SetWidth(header:GetWidth()
+                       + label:GetStringWidth() + 14*self.size_scale)
 
     self.right:ClearAllPoints()
-    self.right:SetPoint("LEFT", bg, "RIGHT")
+    self.right:SetPoint("LEFT", tab_frame, "RIGHT")
 
-    tinsert(self.tabs, {name = name, label = label, header = header, bg = bg})
+    self.tabs[index] = {tab = tab, frame = tab_frame,
+                        label = label, header = header, bg = bg}
+end
+
+function TabBar:SetActiveTab(index)
+    self.active_tab = index
+    for i, tab_info in ipairs(self.tabs) do
+        local u0 = (i == index) and 21 or 46
+        WoWXIV.SetUITexCoord(tab_info.header, u0, u0+16, 52, 78)
+    end
+    EventRegistry:TriggerEvent("WoWXIV.LogWindow.OnActiveTabChanged", index)
+end
+
+function TabBar:GetActiveTab()
+    return self.active_tab and self.tabs[self.active_tab].tab
+end
+
+function TabBar:OnClick(button, down)
+    for index, tab_info in ipairs(self.tabs) do
+        if tab_info.frame:IsMouseOver() then
+            self:SetActiveTab(index)
+            return
+        end
+    end
 end
 
 --------------------------------------------------------------------------
@@ -86,7 +157,7 @@ function LogWindow:__constructor()
     local histlen = #history
     local histindex = WoWXIV_logwindow_hist_top
     for i = 1, histlen do
-        local ts, text, r, g, b = unpack(history[histindex])
+        local ts, event, text, r, g, b = unpack(history[histindex])
         frame:AddMessage(text, r, g, b, 0.5)
         histindex = (histindex == histlen) and 1 or histindex+1
     end
@@ -184,6 +255,9 @@ function LogWindow:__constructor()
 
     local tab_bar = TabBar(frame)
     self.tab_bar = tab_bar
+    EventRegistry:RegisterCallback(
+        "WoWXIV.LogWindow.OnActiveTabChanged",
+        function(_, index) self:OnActiveTabChanged(index) end)
 end
 
 function LogWindow:PLAYER_ENTERING_WORLD(event)
@@ -217,7 +291,7 @@ function LogWindow:CHAT_MSG_CHANNEL_NOTICE(event, type, _, _, link_text, _, _, i
     end
     local chat_type = "CHANNEL" .. index
     local info = ChatTypeInfo[chat_type]
-    self:AddMessage(text, info.r, info.g, info.b)
+    self:AddMessage(event, text, info.r, info.g, info.b)
 end
 
 function LogWindow:OnChatMsg(event, ...)
@@ -228,8 +302,8 @@ function LogWindow:OnNonChatMsg(event, ...)
     ChatFrame_SystemEventHandler(self, event, ...)
 end
 
-function LogWindow:AddHistoryEntry(text, r, g, b)
-    local record = {time(), text, r, g, b}
+function LogWindow:AddHistoryEntry(event, text, r, g, b)
+    local record = {time(), event, text, r, g, b}
     local histsize = WoWXIV_config["logwindow_history"]
     if #WoWXIV_logwindow_history < histsize then
         tinsert(WoWXIV_logwindow_history, record)
@@ -239,12 +313,34 @@ function LogWindow:AddHistoryEntry(text, r, g, b)
     end
 end
 
+function LogWindow:OnActiveTabChanged(index)
+    local tab = self.tab_bar:GetActiveTab()
+    local frame = self.frame
+    frame:RemoveMessagesByPredicate(function() return true end)
+    local history = WoWXIV_logwindow_history
+    local histlen = #history
+    local histindex = WoWXIV_logwindow_hist_top
+    for i = 1, histlen do
+        local ts, event, text, r, g, b = unpack(history[histindex])
+        if not tab or tab:Filter(event, text) then
+            frame:AddMessage(text, r, g, b)
+        end
+        histindex = (histindex == histlen) and 1 or histindex+1
+    end
+end
+
 -- Various methods called on DEFAULT_CHAT_FRAME.
 function LogWindow:GetID() return 1 end
 function LogWindow:IsShown() return true end
 function LogWindow:GetFont() return self.frame:GetFontObject() end
 function LogWindow:SetHyperlinksEnabled(enable) end
-function LogWindow:AddMessage(text, r, g, b)
+function LogWindow:AddMessage(event, text, r, g, b)
+    if type(text) ~= "string" then  -- event omitted (as from Blizzard code)
+        event, text, r, g, b = "-", event, text, r, g
+    end
+    r = r or 1
+    g = g or 1
+    b = b or 1
     -- FIXME: temp hack until we turn off native chat frame events
     self.suppress = self.suppress or {0, 0, 0, 0}
     if text == self.suppress[1] and r == self.suppress[2] and g == self.suppress[3] and b == self.suppress[4] then return end
@@ -255,7 +351,7 @@ function LogWindow:AddMessage(text, r, g, b)
     RunNextFrame(function() self.suppress[1] = 0 end)
     --FIXME end hack
     self.frame:AddMessage(text, r, g, b)
-    self:AddHistoryEntry(text, r, g, b)
+    self:AddHistoryEntry(event, text, r, g, b)
 end
 
 --------------------------------------------------------------------------
