@@ -117,6 +117,8 @@ local MESSAGE_TYPES = {
                  "CHAT_MSG_PET_BATTLE_INFO"},
 
     VoiceText = {"CHAT_MSG_VOICE_TEXT"},
+
+    Debug = {"WOWXIV_DEBUG"},
 }
 
 -- For testing: set to true to keep the native chat frame visible
@@ -202,7 +204,7 @@ function TabBar:__constructor(parent)
         "VoiceText"}))
     self:AddTab(Tab("Battle", {"PetBattle"}))
     -- FIXME: temporary tab to check that all events are caught
-    self:AddTab(Tab("Other", {"Gathering", "TradeSkill", "PetInfo"}))
+    self:AddTab(Tab("Other", {"Gathering", "TradeSkill", "PetInfo", "Debug"}))
 
     self:SetActiveTab(1)
     frame:Show()
@@ -591,5 +593,16 @@ function WoWXIV.LogWindow.PruneHistory()
         end
         WoWXIV_logwindow_history = new_history
         WoWXIV_logwindow_hist_top = 1
+    end
+end
+
+-- Display a log message, optionally with an associated event tag.
+-- Call as: LogWindow.AddMessage([event,] text [, color_r, color_g, color_b])
+function WoWXIV.LogWindow.AddMessage(event, text, color_r, color_g, color_b)
+    -- LogWindow:AddMessage() will take care of inserting a dummy event tag
+    -- if needed.
+    local window = WoWXIV.LogWindow.window
+    if window then
+        window:AddMessage(event, text, color_r, color_g, color_b)
     end
 end
