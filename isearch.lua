@@ -18,6 +18,9 @@ local VOID_MAX_TABS = 2
 local VOID_MAX_SLOTS = 80  -- per tab
 
 
+-- Maximum number of results to return in a single call.
+local MAX_RESULTS = 20
+
 -- Saved global for caching bank contents across sessions.
 WoWXIV_isearch_cache = WoWXIV_isearch_cache or {}
 
@@ -572,9 +575,15 @@ function WoWXIV.isearch(arg)
             tinsert(v, i)
         end
         table.sort(results, function(a,b) return a[1] < b[1] or (a[1] == b[1] and a[#a] < b[#b]) end)
+        local count = 0
         for _, result in ipairs(results) do
+            if count >= MAX_RESULTS then
+                print(Red("More than "..MAX_RESULTS.." results, stopping here."))
+                break
+            end
             local name, location = unpack(result)
             print(" → " .. Yellow(name) .. location)
+            count = count + 1
         end
         if used_cache then
             print(Red("Some results may be out of date. Visit the appropriate storage NPC to ensure current results."))
