@@ -197,12 +197,12 @@ function TabBar:__constructor(parent)
         "BNWhisper", "BNInlineToast",
         "Combat_Reward", "Combat_Faction", "Combat_Misc", "TargetIcon",
         "BG_Alliance", "BG_Horde", "BG_Neutral",
-        "Skill", "Loot", "PetInfo", "Achievement",
+        "Skill", "Loot", "Achievement",
         "Guild", "Guild_Achievement",
         "VoiceText"}))
     self:AddTab(Tab("Battle", {"PetBattle"}))
     -- FIXME: temporary tab to check that all events are caught
-    self:AddTab(Tab("Other", {"Gathering", "TradeSkill"}))
+    self:AddTab(Tab("Other", {"Gathering", "TradeSkill", "PetInfo"}))
 
     self:SetActiveTab(1)
     frame:Show()
