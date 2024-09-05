@@ -323,6 +323,7 @@ function LogWindow:__constructor()
     frame:RegisterEvent("CHAT_MSG_COMMUNITIES_CHANNEL")
     frame:RegisterEvent("CLUB_REMOVED")
     frame:RegisterEvent("UPDATE_INSTANCE_INFO")
+    frame:RegisterEvent("UPDATE_CHAT_COLOR")
     frame:RegisterEvent("UPDATE_CHAT_COLOR_NAME_BY_CLASS")
     frame:RegisterEvent("CHAT_SERVER_DISCONNECTED")
     frame:RegisterEvent("CHAT_SERVER_RECONNECTED")
@@ -425,6 +426,12 @@ function LogWindow:ALTERNATIVE_DEFAULT_LANGUAGE_CHANGED(event)
     self.current_event = nil
 end
 
+function LogWindow:UPDATE_CHAT_COLOR(event, ...)
+    self.current_event = event
+    ChatFrame_ConfigEventHandler(self, event, ...)
+    self.current_event = nil
+end
+
 function LogWindow:UPDATE_CHAT_COLOR_NAME_BY_CLASS(event, ...)
     self.current_event = event
     ChatFrame_ConfigEventHandler(self, event, ...)
@@ -500,6 +507,7 @@ function LogWindow:GetID() return 1 end
 function LogWindow:IsShown() return true end
 function LogWindow:GetFont() return self.frame:GetFontObject() end
 function LogWindow:SetHyperlinksEnabled(enable) end
+function LogWindow:AdjustMessageColors(func) end
 function LogWindow:AddMessage(event, text, r, g, b)
     if type(text) ~= "string" then  -- event omitted (as from Blizzard code)
         event, text, r, g, b = (self.current_event or "-"), event, text, r, g
