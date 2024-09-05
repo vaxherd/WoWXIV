@@ -78,8 +78,8 @@ function ContainerGetter:Size()
     return 0
 end
 
--- Returns a pair {item ID, count} of a single slot in the container, or
--- nil if there is no item in the slot (or the slot index is invalid).
+-- Returns a list {item ID, count, link} for a single slot in the container,
+-- or nil if there is no item in the slot (or the slot index is invalid).
 -- The count value is 1 for a single item, >1 for a stack of items, or
 -- <0 for a single item with charges (the charge count is the negative of
 -- the value); 0 indicates that the stack or charge count is unavailable.
@@ -87,10 +87,10 @@ function ContainerGetter:Item(slot)
     return nil
 end
 
--- Returns the content of all slots in a container in a table (each element
--- is the item ID of the item in that slot, nil if the slot is empty), or
--- nil if the container is unavailable.  Implementations will typically not
--- need to override this method.
+-- Returns the content of all slots in a container in a table, or nil if
+-- the container is unavailable.  Each entry in the table is either the
+-- item in that slot (as returned by Item()) or nil for an empty slot.
+-- Implementations will typically not need to override this method.
 function ContainerGetter:Contents()
     local size = self:Size()
     if size > 0 then
@@ -137,7 +137,8 @@ end
 function BagGetter:Item(slot)
     local loc = ItemLocation:CreateFromBagAndSlot(self.id, slot)
     if loc and loc:IsValid() then
-        return {C_Item.GetItemID(loc), GetItemCountOrCharges(loc)}
+        return {C_Item.GetItemID(loc), GetItemCountOrCharges(loc),
+                C_Item.GetItemLink(loc)}
     else
         return nil
     end
@@ -185,7 +186,15 @@ function VoidGetter:Size()
     return IsVoidStorageReady() and VOID_MAX_SLOTS or 0
 end
 function VoidGetter:Item(slot)
-    return {GetVoidItemInfo(self.tab, slot), 1}
+    -- Void storage strips all item paramters, so we can just get the
+    -- standard link from the item ID.
+    local item = GetVoidItemInfo(self.tab, slot)
+    if item then
+        local link = select(2, C_Item.GetItemInfo(item))
+        return {item, 1, link}
+    else
+        return nil
+    end
 end
 
 --------------------------------------------------------------------------
@@ -477,9 +486,10 @@ function WoWXIV.isearch(arg)
                     if loc and loc:IsValid() then
                         local name = C_Item.GetItemName(loc)
                         if name:lower():find(search_key, 1, true) then
+                            local link = C_Item.GetItemLink(loc)
                             local count = GetItemCountOrCharges(loc)
-                            found_slots[name] = found_slots[name] or {}
-                            tinsert(found_slots[name], {offset + slot, count})
+                            found_slots[link] = found_slots[link] or {}
+                            tinsert(found_slots[link], {offset + slot, count})
                         end
                     end
                 end
@@ -537,11 +547,11 @@ function WoWXIV.isearch(arg)
                 for slot = 1, size do
                     local data = content[slot]
                     if data then
-                        local item, count = unpack(data)
+                        local item, count, link = unpack(data)
                         local name = item and C_Item.GetItemInfo(item)
                         if name and name:lower():find(search_key, 1, true) then
-                            found_slots[name] = found_slots[name] or {}
-                            tinsert(found_slots[name], {slot, count})
+                            found_slots[link] = found_slots[link] or {}
+                            tinsert(found_slots[link], {slot, count})
                             used_cache = used_cache or is_cached
                         end
                     end
@@ -563,7 +573,8 @@ function WoWXIV.isearch(arg)
         if loc and loc:IsValid() then
             local name = C_Item.GetItemName(loc)
             if name:lower():find(search_key, 1, true) then
-                tinsert(results, {name, " equipped on " .. Blue(slot.name)})
+                local link = C_Item.GetItemLink(loc)
+                tinsert(results, {link, " equipped on " .. Blue(slot.name)})
             end
         end
     end
@@ -581,8 +592,8 @@ function WoWXIV.isearch(arg)
                 print(Red("More than "..MAX_RESULTS.." results, stopping here."))
                 break
             end
-            local name, location = unpack(result)
-            print(" → " .. Yellow(name) .. location)
+            local namelink, location = unpack(result)
+            print(" → " .. namelink .. location)
             count = count + 1
         end
         if used_cache then
