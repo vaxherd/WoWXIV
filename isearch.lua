@@ -22,6 +22,8 @@ local VOID_MAX_SLOTS = 80  -- per tab
 WoWXIV_isearch_cache = WoWXIV_isearch_cache or {}
 
 -- Local flags indicating which cached bags are known to be up to date.
+-- Only used if the cache is non-null (thus this need not be cleared when
+-- clearing a bag's cache).
 local isearch_cache_uptodate = {}
 
 --------------------------------------------------------------------------
@@ -317,11 +319,18 @@ function isearch_event_frame:BAG_UPDATE(bag_id)
             if size > 0 then
                 WoWXIV_isearch_cache[cache_id] = content
                 WoWXIV_isearch_cache[cache_id .. "_size"] = size
-                WoWXIV_isearch_cache[cache_id .. "_name"] = bag_name
+                -- Special case to deal with account bank bag names not
+                -- being available when this event fires due to crafting
+                -- with reagents in the account bank.
+                if (WoWXIV_isearch_cache[cache_id .. "_name"]
+                    and not (cache_id:sub(1,7) == "warbank" and bag_name:sub(-5) == "(???)"))
+                then
+                    WoWXIV_isearch_cache[cache_id .. "_name"] = bag_name
+                end
                 isearch_cache_uptodate[cache_id] = true
             elseif self.bankframe_open then
-                -- If we're in the bank UI, we know for certain that a
-                -- size of 0 means that no such bag exists.
+                -- In all cases in which this event fires, a size of 0
+                -- definitively indicates that no such bag exists.
                 WoWXIV_isearch_cache[cache_id] = nil
                 WoWXIV_isearch_cache[cache_id .. "_size"] = nil
                 WoWXIV_isearch_cache[cache_id .. "_name"] = nil
@@ -356,8 +365,51 @@ function isearch_event_frame:BANKFRAME_CLOSED()
     self.bankframe_open = false
 end
 
+isearch_event_frame:RegisterEvent("PLAYERBANKSLOTS_CHANGED")
+function isearch_event_frame:PLAYERBANKSLOTS_CHANGED(slot)
+    self:BAG_UPDATE(Enum.BagIndex.Bank)
+end
+
+isearch_event_frame:RegisterEvent("PLAYERREAGENTBANKSLOTS_CHANGED")
+function isearch_event_frame:PLAYERREAGENTBANKSLOTS_CHANGED(slot)
+    for _, bag in ipairs(BAGS) do
+        local cache_id = bag.cache_id
+        if cache_id == "bankR" and WoWXIV_isearch_cache[cache_id] then
+            local bag_id = Enum.BagIndex.Reagentbank  -- for brevity
+            local info = C_Container.GetContainerItemInfo(bag_id, slot)
+            if info then
+                WoWXIV_isearch_cache[cache_id][slot] = {info.itemID, info.stackCount}
+            elseif self.bankframe_open then
+                WoWXIV_isearch_cache[cache_id][slot] = nil
+            else
+                -- An empty result could mean either that the slot is empty
+                -- or that the reagent bank data is unavailable.  If not at
+                -- a bank NPC, this event typically should only fire in
+                -- cases like using reagents from the reagent bank when
+                -- crafting, where the reagent bank is available - but
+                -- we have no easy way to conclusively determine that.
+                -- We use a heuristic here that assumes a player using the
+                -- reagent bank will generally have multiple items in the
+                -- bank, so if we find at least one non-empty slot, we can
+                -- safely assume that this nil result indicates an empty slot.
+                local found_item = false
+                for i = 1, C_Container.GetContainerNumSlots(bag_id) do
+                    if C_Container.GetContainerItemInfo(bag_id, i) then
+                        found_item = true
+                        break
+                    end
+                end
+                if false and found_item then
+                    WoWXIV_isearch_cache[cache_id][slot] = nil
+                else
+                    isearch_cache_uptodate[cache_id] = nil
+                end
+            end
+        end
+    end
+end
+
 isearch_event_frame:RegisterEvent("VOID_STORAGE_UPDATE")
-isearch_event_frame:RegisterEvent("VOID_STORAGE_CONTENTS_UPDATE")
 function isearch_event_frame:VOID_STORAGE_UPDATE()
     for _, bag in ipairs(BAGS) do
         local cache_id = bag.cache_id
@@ -376,24 +428,14 @@ function isearch_event_frame:VOID_STORAGE_UPDATE()
         end
     end
 end
-function isearch_event_frame:VOID_STORAGE_CONTENTS_UPDATE()
-    for _, bag in ipairs(BAGS) do
-        local cache_id = bag.cache_id
-        if cache_id and strsub(cache_id, 1, 4) == "void" then
-            local bag_name, size, content = bag.getter:Get()
-            if size > 0 then
-                WoWXIV_isearch_cache[cache_id] = content
-                WoWXIV_isearch_cache[cache_id .. "_size"] = size
-                WoWXIV_isearch_cache[cache_id .. "_name"] = bag_name
-                isearch_cache_uptodate[cache_id] = true
-            else
-                WoWXIV_isearch_cache[cache_id] = nil
-                WoWXIV_isearch_cache[cache_id .. "_size"] = nil
-                WoWXIV_isearch_cache[cache_id .. "_name"] = nil
-            end
-        end
-    end
-end
+
+isearch_event_frame:RegisterEvent("VOID_STORAGE_CONTENTS_UPDATE")
+isearch_event_frame.VOID_STORAGE_CONTENTS_UPDATE =
+    isearch_event_frame.VOID_STORAGE_UPDATE
+
+isearch_event_frame:RegisterEvent("VOID_TRANSFER_DONE")
+isearch_event_frame.VOID_TRANSFER_DONE =
+    isearch_event_frame.VOID_STORAGE_UPDATE
 
 isearch_event_frame:RegisterEvent("ADDON_LOADED")
 function isearch_event_frame:ADDON_LOADED(name)
@@ -480,8 +522,9 @@ function WoWXIV.isearch(arg)
                     isearch_cache_uptodate[cache_id] = true
                 end
             elseif cache_id then
-                size = WoWXIV_isearch_cache[bag.cache_id .. "_size"]
-                if size then
+                local cached_size = WoWXIV_isearch_cache[bag.cache_id .. "_size"]
+                if cached_size then
+                    size = cached_size
                     content = WoWXIV_isearch_cache[bag.cache_id]
                     bag_name = WoWXIV_isearch_cache[bag.cache_id .. "_name"]
                     is_cached = not isearch_cache_uptodate[cache_id]
