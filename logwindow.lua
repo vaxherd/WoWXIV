@@ -9,22 +9,132 @@ local band = bit.band
 local bor = bit.bor
 local tinsert = tinsert
 
+-- Mapping from logical event types (as passed to the Tab constructor) to
+-- raw event names.  This is similar to, though orgainzed differently than,
+-- the ChatTypeGroup mapping in Blizzard's ChatFrameBase module.
 local MESSAGE_TYPES = {
-    -- FIXME: stubs for now, eventually expand to something like FF14 filters
-    GENERAL = {"*"},
-    BATTLE = {"CHAT_MSG_PET_BATTLE_COMBAT_LOG",
-              "CHAT_MSG_PET_BATTLE_INFO"},
-}
+    System = {"CHAT_MSG_SYSTEM",
+              "-",
+              "CHARACTER_POINTS_CHANGED",
+              "DISPLAY_EVENT_TOAST_LINK",
+              "GUILD_MOTD",
+              "PLAYER_LEVEL_CHANGED",
+              "TIME_PLAYED_MSG",
+              "UNIT_LEVEL",
+              "CHAT_MSG_BN_WHISPER_PLAYER_OFFLINE"},
 
-local msgtype_lookup = {}  -- Initialized by LogWindow constructor.
+    Error = {"CHAT_MSG_RESTRICTED",
+             "CHAT_MSG_FILTERED"},
+
+    Ping = {"CHAT_MSG_PING"},
+
+    Channel = {"CHAT_MSG_CHANNEL_JOIN",
+               "CHAT_MSG_CHANNEL_LEAVE",
+               "CHAT_MSG_CHANNEL_NOTICE",
+               "CHAT_MSG_CHANNEL_NOTICE_USER",
+               "CHAT_MSG_CHANNEL_LIST",
+               "CHAT_MSG_COMMUNITIES_CHANNEL"},
+
+    Chat_Channel = {"CHAT_MSG_CHANNEL"},
+
+    Chat_Say = {"SAY"},
+
+    Chat_Emote = {"CHAT_MSG_EMOTE",
+                  "CHAT_MSG_TEXT_EMOTE"},
+
+    Chat_Yell = {"CHAT_MSG_YELL"},
+
+    Chat_Whisper = {"CHAT_MSG_WHISPER",
+                    "CHAT_MSG_WHISPER_INFORM",
+                    "CHAT_MSG_AFK",
+                    "CHAT_MSG_DND",
+                    "CHAT_MSG_IGNORED"},
+
+    Chat_NPC = {"CHAT_MSG_MONSTER_SAY",
+                "CHAT_MSG_MONSTER_YELL",
+                "CHAT_MSG_MONSTER_EMOTE",
+                "CHAT_MSG_MONSTER_WHISPER",
+                "CHAT_MSG_RAID_BOSS_EMOTE",
+                "CHAT_MSG_RAID_BOSS_WHISPER"},
+
+    Chat_Party = {"CHAT_MSG_PARTY",
+                  "CHAT_MSG_PARTY_LEADER",
+                  "CHAT_MSG_MONSTER_PARTY"},
+
+    Chat_Raid = {"CHAT_MSG_RAID",
+                 "CHAT_MSG_RAID_LEADER",
+                 "CHAT_MSG_RAID_WARNING"},
+
+    Chat_Instance = {"CHAT_MSG_INSTANCE_CHAT",
+                     "CHAT_MSG_INSTANCE_CHAT_LEADER"},
+
+    Chat_Guild = {"CHAT_MSG_GUILD"},
+
+    Chat_GuildOfficer = {"CHAT_MSG_OFFICER"},
+
+    BNWhisper = {"CHAT_MSG_BN_WHISPER",
+                 "CHAT_MSG_BN_WHISPER_INFORM"},
+
+    BNInlineToast = {"CHAT_MSG_BN_INLINE_TOAST_ALERT",
+                     "CHAT_MSG_BN_INLINE_TOAST_BROADCAST",
+                     "CHAT_MSG_BN_INLINE_TOAST_BROADCAST_INFORM"},
+
+    Combat_Reward = {"CHAT_MSG_COMBAT_XP_GAIN",
+                     "CHAT_MSG_COMBAT_HONOR_GAIN"},
+
+    Combat_Faction = {"CHAT_MSG_COMBAT_FACTION_CHANGE"},
+
+    Combat_Misc = {"CHAT_MSG_COMBAT_MISC_INFO"},
+
+    TargetIcon = {"CHAT_MSG_TARGETICONS"},
+
+    BG_Alliance = {"CHAT_MSG_BG_SYSTEM_ALLIANCE"},
+
+    BG_Horde = {"CHAT_MSG_BG_SYSTEM_HORDE"},
+
+    BG_Neutral = {"CHAT_MSG_BG_SYSTEM_NEUTRAL"},
+
+    Skill = {"CHAT_MSG_SKILL"},
+
+    Loot = {"CHAT_MSG_LOOT",
+            "CHAT_MSG_CURRENCY",
+            "CHAT_MSG_MONEY"},
+
+    Gathering = {"CHAT_MSG_OPENING"},
+
+    TradeSkill = {"CHAT_MSG_TRADESKILLS"},
+
+    PetInfo = {"CHAT_MSG_PET_INFO"},
+
+    Achievement = {"CHAT_MSG_ACHIEVEMENT"},
+
+    Guild = {"GUILD_MOTD"},
+
+    Guild_Achievement = {"CHAT_MSG_GUILD_ACHIEVEMENT",
+                         "CHAT_MSG_GUILD_ITEM_LOOTED"},
+
+    PetBattle = {"CHAT_MSG_PET_BATTLE_COMBAT_LOG",
+                 "CHAT_MSG_PET_BATTLE_INFO"},
+
+    VoiceText = {"CHAT_MSG_VOICE_TEXT"},
+}
 
 --------------------------------------------------------------------------
 
 local Tab = class()
 
 function Tab:__constructor(name, message_types)
+    assert(type(message_types) == "table")
+    assert(#message_types > 0)
+    for i, msg_type in ipairs(message_types) do
+        assert(type(msg_type) == "string",
+               "wrong element type at message_types["..i.."]")
+        assert(MESSAGE_TYPES[msg_type],
+               msg_type.." is not a recognized message type")
+    end
+
     self.name = name
-    self.message_types = message_types
+    self.types = message_types
 end
 
 function Tab:GetName()
@@ -33,9 +143,9 @@ end
 
 -- Returns true if the given message should be displayed in this tab.
 function Tab:Filter(event, text)
-    for _, type in ipairs(self.message_types) do
-        for _, type_event in ipairs(MESSAGE_TYPES[type]) do
-            if type_event == "*" or event == type_event then
+    for _, msg_type in ipairs(self.types) do
+        for _, match_event in ipairs(MESSAGE_TYPES[msg_type]) do
+            if event == match_event then
                 return true
             end
         end
@@ -71,8 +181,26 @@ function TabBar:__constructor(parent)
 
     frame:SetScript("OnMouseDown", function(frame) self:OnClick() end)
 
-    self:AddTab(Tab("General", {"GENERAL"}))
-    self:AddTab(Tab("Battle", {"BATTLE"}))
+    self:AddTab(Tab("General", {
+        "System", "Error", "Ping",
+        "Channel", "Chat_Channel",
+        "Chat_Say", "Chat_Emote", "Chat_Yell", "Chat_Whisper",
+        -- FF14 puts NPC dialogue in a separate "Event" tab, but we leave
+        -- this in the main tab both to stick with WoW defaults and because
+        -- many world events are announced via NPC chats.
+        "Chat_NPC",
+        "Chat_Party", "Chat_Raid", "Chat_Instance",
+        "Chat_Guild", "Chat_GuildOfficer",
+        "BNWhisper", "BNInlineToast",
+        "Combat_Reward", "Combat_Faction", "Combat_Misc", "TargetIcon",
+        "BG_Alliance", "BG_Horde", "BG_Neutral",
+        "Skill", "Loot", "PetInfo", "Achievement",
+        "Guild", "Guild_Achievement",
+        "VoiceText"}))
+    self:AddTab(Tab("Battle", {"PetBattle"}))
+    -- FIXME: temporary tab to check that all events are caught
+    self:AddTab(Tab("Other", {"Gathering", "TradeSkill"}))
+
     self:SetActiveTab(1)
     frame:Show()
 end
@@ -135,6 +263,14 @@ function TabBar:OnClick(button, down)
     end
 end
 
+-- Returns true if any tab accepts the given message.  Mainly for debugging.
+function TabBar:FilterAnyTab(event, text)
+    for _, tab in ipairs(self.tabs) do
+        if tab.tab:Filter(event, text) then return true end
+    end
+    return false
+end
+
 --------------------------------------------------------------------------
 
 local LogWindow = class()
@@ -157,15 +293,6 @@ function LogWindow:__constructor()
     frame:SetFontObject(ChatFontNormal)
     frame:SetIndentedWordWrap(true)
     frame:SetJustifyH("LEFT")
-
-    local history = WoWXIV_logwindow_history
-    local histlen = #history
-    local histindex = WoWXIV_logwindow_hist_top
-    for i = 1, histlen do
-        local ts, event, text, r, g, b = unpack(history[histindex])
-        frame:AddMessage(text, r, g, b, 0.5)
-        histindex = (histindex == histlen) and 1 or histindex+1
-    end
 
     frame:SetScript("OnHyperlinkClick",
                     function(frame, link, text, button)
@@ -241,8 +368,6 @@ function LogWindow:__constructor()
             end
         end
     end
-    -- FIXME: temp reduce spam until we have proper filter config
-    frame:UnregisterEvent("CHAT_MSG_TRADESKILLS")
 
     local scrollbar = CreateFrame("EventFrame", nil, frame, "MinimalScrollBar")
     self.scrollbar = scrollbar
@@ -263,6 +388,18 @@ function LogWindow:__constructor()
     EventRegistry:RegisterCallback(
         "WoWXIV.LogWindow.OnActiveTabChanged",
         function(_, index) self:OnActiveTabChanged(index) end)
+
+    local tab = tab_bar:GetActiveTab()
+    local history = WoWXIV_logwindow_history
+    local histlen = #history
+    local histindex = WoWXIV_logwindow_hist_top
+    for i = 1, histlen do
+        local ts, event, text, r, g, b = unpack(history[histindex])
+        if tab:Filter(event, text) then
+            frame:AddMessage(text, r, g, b, 0.5)
+        end
+        histindex = (histindex == histlen) and 1 or histindex+1
+    end
 end
 
 function LogWindow:PLAYER_ENTERING_WORLD(event)
@@ -363,22 +500,43 @@ function LogWindow:AddMessage(event, text, r, g, b)
     g = g or 1
     b = b or 1
     -- FIXME: temp hack until we turn off native chat frame events
-    self.suppress = self.suppress or {0, 0, 0, 0, 0}
-    if text == self.suppress[2] and r == self.suppress[3] and g == self.suppress[4] and b == self.suppress[5] then
-        if self.suppress[1] == "_" then
-            WoWXIV_logwindow_history[WoWXIV_logwindow_hist_top==1 and WoWXIV_config["logwindow_history"] or WoWXIV_logwindow_hist_top-1][1] = event
+    self.last_message = self.last_message or {0, 0, 0, 0, 0}
+    self.saved_message = self.saved_message or {0, 0, 0, 0, 0}
+    if event ~= "_" and text == self.saved_message[2] and r == self.saved_message[3] and g == self.saved_message[4] and b == self.saved_message[5] then
+        self.saved_message[2] = 0
+    end
+    if self.saved_message[2] ~= 0 then
+        local saved_event, saved_text, saved_r, saved_g, saved_b = unpack(self.saved_message)
+        if saved_event == "_" then saved_event = "-" end
+        self.saved_message[2] = 0
+        self:AddMessage(saved_event, saved_text, saved_r, saved_g, saved_b)
+    end
+    if event == nil then return end  -- from RunNextFrame call below
+    if event == "_" then
+        if not (text == self.last_message[2] and r == self.last_message[3] and g == self.last_message[4] and b == self.last_message[5]) then
+            self.saved_message[1] = event
+            self.saved_message[2] = text
+            self.saved_message[3] = r
+            self.saved_message[4] = g
+            self.saved_message[5] = b
+            RunNextFrame(function() self:AddMessage(nil, text=="" and "-" or "") end)
         end
         return
     end
-    self.suppress[1] = event
-    self.suppress[2] = text
-    self.suppress[3] = r
-    self.suppress[4] = g
-    self.suppress[5] = b
-    RunNextFrame(function() self.suppress[1] = 0 end)
+    self.last_message[1] = event
+    self.last_message[2] = text
+    self.last_message[3] = r
+    self.last_message[4] = g
+    self.last_message[5] = b
+    RunNextFrame(function() self.last_message[2] = 0 end)
     --FIXME end hack
-    self.frame:AddMessage(text, r, g, b)
+    if self.tab_bar:GetActiveTab():Filter(event, text) then
+        self.frame:AddMessage(text, r, g, b)
+    end
     self:AddHistoryEntry(event, text, r, g, b)
+    if not self.tab_bar:FilterAnyTab(event, text) then
+        self.frame:AddMessage("[WoWXIV.LogWindow] Event not taken by any tab: ["..event.."] "..text)
+    end
 end
 
 --------------------------------------------------------------------------
