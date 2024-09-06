@@ -931,12 +931,6 @@ function LogWindow:OnActiveTabChanged(index)
     end
 end
 
--- Various methods called on DEFAULT_CHAT_FRAME.
-function LogWindow:GetID() return 1 end
-function LogWindow:IsShown() return true end
-function LogWindow:GetFont() return self.frame:GetFontObject() end
-function LogWindow:SetHyperlinksEnabled(enable) end
-function LogWindow:AdjustMessageColors(func) end
 function LogWindow:AddMessage(event, text, r, g, b)
     if type(text) ~= "string" then  -- event omitted (as from Blizzard code)
         event, text, r, g, b = (self.current_event or "-"), event, text, r, g
@@ -984,6 +978,13 @@ function LogWindow:AddMessage(event, text, r, g, b)
         self.frame:AddMessage("[WoWXIV.LogWindow] Event not taken by any tab: ["..event.."] "..text)
     end
 end
+
+-- Various methods called on DEFAULT_CHAT_FRAME.
+function LogWindow:GetID() return 1 end
+function LogWindow:IsShown() return true end
+function LogWindow:GetFont() return self.frame:GetFontObject() end
+function LogWindow:SetHyperlinksEnabled(enable) end
+function LogWindow:AdjustMessageColors(func) end
 
 --------------------------------------------------------------------------
 
