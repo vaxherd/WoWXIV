@@ -977,9 +977,10 @@ function LogWindow:AddMessage(event, text, r, g, b)
     end  -- if not KEEP_NATIVE_FRAME
     if self.tab_bar:GetActiveTab():Filter(event, text) then
         self.frame:AddMessage(text, r, g, b)
-    end
-    self:AddHistoryEntry(event, text, r, g, b)
-    if not self.tab_bar:FilterAnyTab(event, text) and strsub(event,1,4) ~= "CLM_" then
+        self:AddHistoryEntry(event, text, r, g, b)
+    elseif self.tab_bar:FilterAnyTab(event, text) then
+        self:AddHistoryEntry(event, text, r, g, b)
+    elseif strsub(event,1,4) ~= "CLM_" then
         self.frame:AddMessage("[WoWXIV.LogWindow] Event not taken by any tab: ["..event.."] "..text)
     end
 end
