@@ -19,6 +19,7 @@ local AFFILIATION_ALLY = bor(CLM.UnitFlags.AFFILIATION_MINE,
                              AFFILIATION_PARTY_OR_RAID)
 local CONTROL_NPC = CLM.UnitFlags.CONTROL_NPC
 local REACTION_HOSTILE = CLM.UnitFlags.REACTION_HOSTILE
+local TYPE_PLAYER = CLM.UnitFlags.TYPE_PLAYER
 local TYPE_PET = CLM.UnitFlags.TYPE_PET
 local TYPE_OBJECT = CLM.UnitFlags.TYPE_OBJECT
 
@@ -162,6 +163,7 @@ local MESSAGE_TYPES = {
                           "CLM_SPELL_BUILDING_DAMAGE.self",
                           "CLM_SPELL_INSTAKILL.self"},
 
+
     Combat_Attack_ToSelf = {"CLM_SWING_DAMAGE.*:self",
                             "CLM_SWING_MISSED.*:self",
                             "CLM_RANGE_DAMAGE.*:self",
@@ -172,9 +174,34 @@ local MESSAGE_TYPES = {
                             "CLM_SPELL_LEECH.*:self",
                             "CLM_SPELL_INSTAKILL.*:self"},
 
+    Combat_Attack_Pet = {"CLM_SWING_DAMAGE.pet",
+                         "CLM_SWING_MISSED.pet",
+                         "CLM_RANGE_DAMAGE.pet",
+                         "CLM_RANGE_MISSED.pet",
+                         "CLM_SPELL_DAMAGE.pet",
+                         "CLM_SPELL_MISSED.pet",
+                         "CLM_SPELL_DRAIN.pet",
+                         "CLM_SPELL_LEECH.pet",
+                         "CLM_SPELL_BUILDING_DAMAGE.pet",
+                         "CLM_SPELL_INSTAKILL.pet"},
+
+    Combat_Attack_ToPet = {"CLM_SWING_DAMAGE.*:pet",
+                           "CLM_SWING_MISSED.*:pet",
+                           "CLM_RANGE_DAMAGE.*:pet",
+                           "CLM_RANGE_MISSED.*:pet",
+                           "CLM_SPELL_DAMAGE.*:pet",
+                           "CLM_SPELL_MISSED.*:pet",
+                           "CLM_SPELL_DRAIN.*:pet",
+                           "CLM_SPELL_LEECH.*:pet",
+                           "CLM_SPELL_INSTAKILL.*:pet"},
+
     Combat_DoT_Self = {"CLM_SPELL_PERIODIC_DAMAGE.self"},
 
     Combat_DoT_ToSelf = {"CLM_SPELL_PERIODIC_DAMAGE.*:self"},
+
+    Combat_DoT_Pet = {"CLM_SPELL_PERIODIC_DAMAGE.pet"},
+
+    Combat_DoT_ToPet = {"CLM_SPELL_PERIODIC_DAMAGE.*:pet"},
 
     Combat_Heal_Self = {"CLM_SPELL_HEAL.self",
                         "CLM_SPELL_HEAL_ABSORBED.self",
@@ -184,9 +211,21 @@ local MESSAGE_TYPES = {
                           "CLM_SPELL_HEAL_ABSORBED.*:self",
                           "CLM_SPELL_ENERGIZE.self"},
 
+    Combat_Heal_Pet = {"CLM_SPELL_HEAL.pet",
+                       "CLM_SPELL_HEAL_ABSORBED.pet",
+                       "CLM_SPELL_ENERGIZE.pet"},
+
+    Combat_Heal_ToPet = {"CLM_SPELL_HEAL.*:pet",
+                         "CLM_SPELL_HEAL_ABSORBED.*:pet",
+                         "CLM_SPELL_ENERGIZE.pet"},
+
     Combat_HoT_Self = {"CLM_SPELL_PERIODIC_HEAL.self"},
 
     Combat_HoT_ToSelf = {"CLM_SPELL_PERIODIC_HEAL.*:self"},
+
+    Combat_HoT_Pet = {"CLM_SPELL_PERIODIC_HEAL.pet"},
+
+    Combat_HoT_ToPet = {"CLM_SPELL_PERIODIC_HEAL.*:pet"},
 
     Combat_Aura_Self = {"CLM_SPELL_AURA_APPLIED.self",
                         "CLM_SPELL_AURA_REMOVED.self",
@@ -208,11 +247,37 @@ local MESSAGE_TYPES = {
                           "CLM_SPELL_DISPEL.*:self",
                           "CLM_SPELL_DISPEL_FAILED.*:self"},
 
+    Combat_Aura_Pet = {"CLM_SPELL_AURA_APPLIED.pet",
+                        "CLM_SPELL_AURA_REMOVED.pet",
+                        "CLM_SPELL_AURA_APPLIED_DOSE.pet",
+                        "CLM_SPELL_AURA_REMOVED_DOSE.pet",
+                        "CLM_SPELL_AURA_REFRESH.pet",
+                        "CLM_SPELL_AURA_BROKEN.pet",
+                        "CLM_SPELL_AURA_BROKEN_SPELL.pet",
+                        "CLM_SPELL_DISPEL.pet",
+                        "CLM_SPELL_DISPEL_FAILED.pet"},
+
+    Combat_Aura_ToPet = {"CLM_SPELL_AURA_APPLIED.*:pet",
+                          "CLM_SPELL_AURA_REMOVED.*:pet",
+                          "CLM_SPELL_AURA_APPLIED_DOSE.*:pet",
+                          "CLM_SPELL_AURA_REMOVED_DOSE.*:pet",
+                          "CLM_SPELL_AURA_REFRESH.*:pet",
+                          "CLM_SPELL_AURA_BROKEN.*:pet",
+                          "CLM_SPELL_AURA_BROKEN_SPELL.*:pet",
+                          "CLM_SPELL_DISPEL.*:pet",
+                          "CLM_SPELL_DISPEL_FAILED.*:pet"},
+
     Combat_Cast_Self = {"CLM_SPELL_CAST_START.self",
                         "CLM_SPELL_CAST_SUCCESS.self",
                         "CLM_SPELL_INTERRUPT.*:self"},
 
     Combat_CastFail_Self = {"CLM_SPELL_CAST_FAILED.self"},
+
+    Combat_Cast_Pet = {"CLM_SPELL_CAST_START.pet",
+                       "CLM_SPELL_CAST_SUCCESS.pet",
+                       "CLM_SPELL_INTERRUPT.*:pet"},
+
+    Combat_CastFail_Pet = {"CLM_SPELL_CAST_FAILED.pet"},
 
     Combat_Cast_Enemy = {"CLM_SPELL_CAST_START.enemy",
                          "CLM_SPELL_CAST_SUCCESS.enemy",
@@ -409,7 +474,7 @@ local function ReplaceCombatTokens(format, event)
                                 or event.spell_name,
     }
     if event.source_name then
-        if band(event.source_flags, AFFILIATION_MINE) ~= 0 then
+        if band(event.source_flags, AFFILIATION_MINE) ~= 0 and band(event.source_flags, TYPE_PLAYER) ~= 0 then
             extra["source:n"] = "you"
             extra["source:N"] = "You"
             extra["source:p"] = "your"
@@ -424,7 +489,7 @@ local function ReplaceCombatTokens(format, event)
         end
     end
     if event.dest_name then
-        if band(event.dest_flags, AFFILIATION_MINE) ~= 0 then
+        if band(event.dest_flags, AFFILIATION_MINE) ~= 0 and band(event.dest_flags, TYPE_PLAYER) ~= 0 then
             extra["target:n"] = "you"
             extra["target:N"] = "You"
             extra["target:p"] = "your"
@@ -620,9 +685,12 @@ function TabBar:__constructor(parent)
     self:AddTab(Tab("Battle", {
         "PetBattle",
         "Combat_Attack_Self", "Combat_Attack_ToSelf",
+        "Combat_Attack_Pet", "Combat_Attack_ToPet",
         "Combat_Heal_Self", "Combat_Heal_ToSelf",
+        "Combat_Heal_Pet", "Combat_Heal_ToPet",
         "Combat_Aura_Self", "Combat_Aura_ToSelf",
-        "Combat_Cast_Self", "Combat_Cast_Enemy"}))
+        "Combat_Aura_Pet", "Combat_Aura_ToPet",
+        "Combat_Cast_Self", "Combat_Cast_Pet", "Combat_Cast_Enemy"}))
     -- FIXME: temporary tab to check that all events are caught
     self:AddTab(Tab("Other", {"Gathering", "TradeSkill", "PetInfo", "Debug"}))
 
