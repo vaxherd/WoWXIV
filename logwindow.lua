@@ -4,15 +4,31 @@ WoWXIV.LogWindow = {}
 local class = WoWXIV.class
 
 local CLM = WoWXIV.CombatLogManager
-local UnitFlags = CLM.UnitFlags
 local band = bit.band
 local bor = bit.bor
+local strfind = string.find
+local strgsub = string.gsub
+local strlower = string.lower
+local strsub = string.sub
 local tinsert = tinsert
+
+local AFFILIATION_MINE = CLM.UnitFlags.AFFILIATION_MINE
+local AFFILIATION_PARTY_OR_RAID = bor(CLM.UnitFlags.AFFILIATION_PARTY,
+                                      CLM.UnitFlags.AFFILIATION_RAID)
+local AFFILIATION_ALLY = bor(CLM.UnitFlags.AFFILIATION_MINE,
+                             AFFILIATION_PARTY_OR_RAID)
+local CONTROL_NPC = CLM.UnitFlags.CONTROL_NPC
+local REACTION_HOSTILE = CLM.UnitFlags.REACTION_HOSTILE
+local TYPE_PET = CLM.UnitFlags.TYPE_PET
+local TYPE_OBJECT = CLM.UnitFlags.TYPE_OBJECT
 
 -- Mapping from logical event types (as passed to the Tab constructor) to
 -- raw event names.  This is similar to, though orgainzed differently than,
 -- the ChatTypeGroup mapping in Blizzard's ChatFrameBase module.
 local MESSAGE_TYPES = {
+
+    -------- Non-combat messages (event names are WoW events)
+
     System = {"CHAT_MSG_SYSTEM",
               "-",
               "CHARACTER_POINTS_CHANGED",
@@ -119,6 +135,90 @@ local MESSAGE_TYPES = {
     VoiceText = {"CHAT_MSG_VOICE_TEXT"},
 
     Debug = {"WOWXIV_DEBUG"},
+
+    -------- Combat messages
+    -- Event ID format: "CLM_<event>.<source>:<target>"
+    -- <event> is the combat event name (e.g. "SPELL_DAMAGE")
+    -- <source> is the event source, one of:
+    --    - "*" (any target)
+    --    - "self" (the current player)
+    --    - "enemy" (an enemy engaged in combat with the player)
+    --    - "party" (another player in the same party or raid)
+    --    - "pet" (a pet under self or party control)
+    --    - "npc" (an allied character under server control)
+    --    - "object" (non-character objects such as traps)
+    --    - "env" (environmental effects)
+    -- <target> is the event target, as above (except for no "env").
+    -- A trailing ":*" or ".*:*" may be omitted.
+
+    Combat_Attack_Self = {"CLM_SWING_DAMAGE.self",
+                          "CLM_SWING_MISSED.self",
+                          "CLM_RANGE_DAMAGE.self",
+                          "CLM_RANGE_MISSED.self",
+                          "CLM_SPELL_DAMAGE.self",
+                          "CLM_SPELL_MISSED.self",
+                          "CLM_SPELL_DRAIN.self",
+                          "CLM_SPELL_LEECH.self",
+                          "CLM_SPELL_BUILDING_DAMAGE.self",
+                          "CLM_SPELL_INSTAKILL.self"},
+
+    Combat_Attack_ToSelf = {"CLM_SWING_DAMAGE.*:self",
+                            "CLM_SWING_MISSED.*:self",
+                            "CLM_RANGE_DAMAGE.*:self",
+                            "CLM_RANGE_MISSED.*:self",
+                            "CLM_SPELL_DAMAGE.*:self",
+                            "CLM_SPELL_MISSED.*:self",
+                            "CLM_SPELL_DRAIN.*:self",
+                            "CLM_SPELL_LEECH.*:self",
+                            "CLM_SPELL_INSTAKILL.*:self"},
+
+    Combat_DoT_Self = {"CLM_SPELL_PERIODIC_DAMAGE.self"},
+
+    Combat_DoT_ToSelf = {"CLM_SPELL_PERIODIC_DAMAGE.*:self"},
+
+    Combat_Heal_Self = {"CLM_SPELL_HEAL.self",
+                        "CLM_SPELL_HEAL_ABSORBED.self",
+                        "CLM_SPELL_ENERGIZE.self"},
+
+    Combat_Heal_ToSelf = {"CLM_SPELL_HEAL.*:self",
+                          "CLM_SPELL_HEAL_ABSORBED.*:self",
+                          "CLM_SPELL_ENERGIZE.self"},
+
+    Combat_HoT_Self = {"CLM_SPELL_PERIODIC_HEAL.self"},
+
+    Combat_HoT_ToSelf = {"CLM_SPELL_PERIODIC_HEAL.*:self"},
+
+    Combat_Aura_Self = {"CLM_SPELL_AURA_APPLIED.self",
+                        "CLM_SPELL_AURA_REMOVED.self",
+                        "CLM_SPELL_AURA_APPLIED_DOSE.self",
+                        "CLM_SPELL_AURA_REMOVED_DOSE.self",
+                        "CLM_SPELL_AURA_REFRESH.self",
+                        "CLM_SPELL_AURA_BROKEN.self",
+                        "CLM_SPELL_AURA_BROKEN_SPELL.self",
+                        "CLM_SPELL_DISPEL.self",
+                        "CLM_SPELL_DISPEL_FAILED.self"},
+
+    Combat_Aura_ToSelf = {"CLM_SPELL_AURA_APPLIED.*:self",
+                          "CLM_SPELL_AURA_REMOVED.*:self",
+                          "CLM_SPELL_AURA_APPLIED_DOSE.*:self",
+                          "CLM_SPELL_AURA_REMOVED_DOSE.*:self",
+                          "CLM_SPELL_AURA_REFRESH.*:self",
+                          "CLM_SPELL_AURA_BROKEN.*:self",
+                          "CLM_SPELL_AURA_BROKEN_SPELL.*:self",
+                          "CLM_SPELL_DISPEL.*:self",
+                          "CLM_SPELL_DISPEL_FAILED.*:self"},
+
+    Combat_Cast_Self = {"CLM_SPELL_CAST_START.self",
+                        "CLM_SPELL_CAST_SUCCESS.self",
+                        "CLM_SPELL_INTERRUPT.*:self"},
+
+    Combat_CastFail_Self = {"CLM_SPELL_CAST_FAILED.self"},
+
+    Combat_Cast_Enemy = {"CLM_SPELL_CAST_START.enemy",
+                         "CLM_SPELL_CAST_SUCCESS.enemy",
+                         "CLM_SPELL_CAST_FAILED.enemy",
+                         "CLM_SPELL_INTERRUPT.*:enemy"},
+
 }
 
 -- For testing: set to true to keep the native chat frame visible
@@ -126,9 +226,286 @@ local KEEP_NATIVE_FRAME = false
 
 --------------------------------------------------------------------------
 
+-- Combat event handling (collected here to avoid cluttering LogWindow).
+
+
+-- Color mapping for combat events, indexed by subtype.
+-- As a special case, AURA_* events are rewritten to BUFF_ or DEBUFF_
+-- depending on whether the effect is marked as helpful or harmful,
+-- and DISPEL (but not DISPEL_FAILED) is likewise rewritten to
+-- DISPEL_BUFF or DISPEL_DEBUFF.
+local COMBAT_EVENT_COLORS = {
+    DAMAGE              = {1, 0.3, 0.3},
+    PERIODIC_DAMAGE     = {1, 0.3, 0.3},
+    BUILDING_DAMAGE     = {1, 0.3, 0.3},
+    DRAIN               = {1, 0.3, 0.3},
+    LEECH               = {1, 0.3, 0.3},
+    INSTAKILL           = {1, 0.3, 0.3},
+    MISSED              = {0.8, 0.8, 0.8},
+    DISPEL_FAILED       = {0.8, 0.8, 0.8},
+    HEAL                = {0.82, 1, 0.3},
+    PERIODIC_HEAL       = {0.82, 1, 0.3},
+    ENERGIZE            = {0.82, 1, 0.3},
+    CAST_START          = {1, 1, 0.67},
+    CAST_SUCCESS        = {1, 1, 0.67},
+    CAST_FAILED         = {1, 0, 0},
+    INTERRUPT           = {1, 1, 0.67},
+    BUFF_APPLIED        = {0.55, 0.75, 1},
+    BUFF_REMOVED        = {0.55, 0.75, 1},
+    BUFF_APPLIED_DOSE   = {0.55, 0.75, 1},
+    BUFF_REMOVED_DOSE   = {0.55, 0.75, 1},
+    BUFF_RERFESH        = {0.55, 0.75, 1},
+    BUFF_BROKEN         = {0.55, 0.75, 1},
+    DISPEL_BUFF         = {0.55, 0.75, 1},
+    DEBUFF_APPLIED      = {1, 0.55, 0.75},
+    DEBUFF_REMOVED      = {1, 0.55, 0.75},
+    DEBUFF_APPLIED_DOSE = {1, 0.55, 0.75},
+    DEBUFF_REMOVED_DOSE = {1, 0.55, 0.75},
+    DEBUFF_RERFESH      = {1, 0.55, 0.75},
+    DEBUFF_BROKEN       = {1, 0.55, 0.75},
+    DISPEL_DEBUFF       = {1, 0.55, 0.75},
+    -- FIXME: when does AURA_BROKEN_SPELL fire?
+}
+
+-- Text formats for combat events.  Indexed by either an underscore-prefixed
+-- subtype (rewritten as for colors above) or a complete event name.
+-- See below for token details.
+local COMBAT_EVENT_FORMATS = {
+    SWING_DAMAGE         = "$(source:N) $(source:#:attack:attacks) $(target:n) for $(amount) $(school) damage$(damageinfo).",
+    RANGE_DAMAGE         = "$(source:N) $(source:#:attack:attacks) $(target:n) for $(amount) $(school) damage$(damageinfo).",
+    SPELL_DAMAGE         = "$(source:P) $(spell) hits $(target:n) for $(amount) $(school) damage$(damageinfo).",
+    ENVIRONMENTAL_DAMAGE = "$(source:N) $(source:#:take:takes) $(amount) damage from $(env)$(damageinfo).",
+    _PERIODIC_DAMAGE     = "$(source:P) $(spell) effect hits $(target:n) for $(amount) $(school) damage$(damageinfo).",
+    _BUILDING_DAMAGE     = "$(source:P) $(spell) hits $(target:n) for $(amount) $(school) damage$(damageinfo).",
+    _DRAIN               = "$(source:P) $(spell) drains $(amount) $(power) from $(target:n).",
+    _LEECH               = "$(source:P) $(spell) leeches $(amount) $(power) from $(target:n).",
+    _INSTAKILL           = "$(source:P) $(spell) kills $(target:n).",
+    SWING_MISSED         = "$(source:N) $(source:#:attack:attacks) $(target:n) and misses$(missinfo).",
+    RANGE_MISSED         = "$(source:N) $(source:#:attack:attacks) $(target:n) and misses$(missinfo).",
+    SPELL_MISSED         = "$(source:P) $(spell) misses $(target:n)$(missinfo).",
+    _DISPEL_FAILED       = "$(source:P) $(spell) fails to dispel $(target:p) $(extraspell).",
+    _HEAL                = "$(source:P) $(spell) heals $(target:n) for $(amount)$(healinfo).",
+    _PERIODIC_HEAL       = "$(source:P) $(spell) effect heals $(target:n) for $(amount)$(healinfo).",
+    _ENERGIZE            = "$(source:P) $(spell) restores $(amount) $(power) to $(target:n).",
+    _CAST_START          = "$(source:N) $(source:#:start:starts) casting $(spell).",
+    _CAST_SUCCESS        = "$(source:N) $(source:#:cast:casts) $(spell).",
+    _CAST_FAILED         = "$(source:P) cast of $(spell) failed: $(failinfo).",
+    _INTERRUPT           = "$(source:N) $(source:#:interrupt:interrupts) $(target:p) cast of $(spell).",
+    _BUFF_APPLIED        = "$(target:N) $(target:#:gain:gains) $(spell).",
+    _BUFF_REMOVED        = "$(target:P) $(spell) fades.",
+    _BUFF_APPLIED_DOSE   = "$(target:N) $(target:#:gain:gains) a stack of $(spell).",
+    _BUFF_REMOVED_DOSE   = "$(target:N) $(target:#:lose:loses) a stack of $(spell).",
+    _BUFF_RERFESH        = "$(target:P) $(spell) is refreshed.",
+    _BUFF_BROKEN         = "$(target:P) $(spell) is broken.",
+    _DISPEL_BUFF         = "$(source:P) $(spell) dispels $(target:p) $(extraspell).",
+    _DEBUFF_APPLIED      = "$(target:N) is inflicted with $(spell).",
+    _DEBUFF_REMOVED      = "$(target:P) $(spell) fades.",
+    _DEBUFF_APPLIED_DOSE = "$(target:N) $(target:#:gain:gains) a stack of $(spell).",
+    _DEBUFF_REMOVED_DOSE = "$(target:N) $(target:#:lose:loses) a stack of $(spell).",
+    _DEBUFF_RERFESH      = "$(target:P) $(spell) is refreshed.",
+    _DEBUFF_BROKEN       = "$(target:P) $(spell) is broken.",
+    _DISPEL_DEBUFF       = "$(source:P) $(spell) dispels $(target:p) $(extraspell).",
+}
+
+-- Descriptive strings for miss types.
+local COMBAT_MISS_TEXT = {
+    ABSORB  = " (absorbed)",
+    BLOCK   = " (blocked)",
+    DEFLECT = " (deflected)",
+    DODGE   = " (dodged)",
+    EVADE   = " (evaded)",
+    IMMUNE  = " (immune)",
+    MISS    = "",
+    PARRY   = " (parried)",
+    REFLECT = " (reflected)",
+    RESIST  = " (resisted)",
+}
+
+-- Descriptive strings for power types.
+local COMBAT_POWER_TEXT = {
+    [Enum.PowerType.Mana] = MANA,
+    [Enum.PowerType.Rage] = RAGE,
+    [Enum.PowerType.Focus] = FOCUS,
+    [Enum.PowerType.Energy] = ENERGY,
+    [Enum.PowerType.ComboPoints] = COMBO_POINTS,
+    [Enum.PowerType.Runes] = RUNES,
+    [Enum.PowerType.RunicPower] = RUNIC_POWER,
+    [Enum.PowerType.SoulShards] = SOUL_SHARDS,
+    [Enum.PowerType.LunarPower] = LUNAR_POWER,
+    [Enum.PowerType.HolyPower] = HOLY_POWER,
+    [Enum.PowerType.Maelstrom] = MAELSTROM_POWER,
+    [Enum.PowerType.Chi] = CHI_POWER,
+    [Enum.PowerType.Insanity] = INSANITY_POWER,
+    [Enum.PowerType.ArcaneCharges] = ARCANE_CHARGES_POWER,
+    [Enum.PowerType.Fury] = FURY,
+    [Enum.PowerType.Pain] = PAIN,
+    [Enum.PowerType.Essence] = POWER_TYPE_ESSENCE,
+}
+
+
+-- Return the replacement text for a combat message format token.
+-- |extra| holds extra data relevant to formatting (see ReplaceCombatTokens()).
+local function ReplaceCombatToken(token, event, extra)
+    local result
+    if strsub(token,1,9) == "source:#:" or strsub(token,1,9) == "target:#:" then
+        local selector = extra[strsub(token, 1, 8)]
+        local sep = strfind(token, ":", 10, true)
+        if sep then
+            if selector == 1 then
+                result = strsub(token, 10, sep-1)
+            elseif selector == 2 then
+                result = strsub(token, sep+1)
+            end
+        end
+    else
+        result = extra[token]
+    end
+     return result
+        or WoWXIV.FormatColoredText("<invalid token $("..token..")>", 1, 0, 0)
+end
+
+-- Replace all tokens in a combat message format string, and return the
+-- formatted string.
+local function ReplaceCombatTokens(format, event)
+    local damageinfo = ""
+    local healinfo = ""
+    local is_heal = (strsub(event.subtype, 1, 4) == "HEAL")
+    if event.critical then
+        if is_heal then
+            healinfo = healinfo.." (critical)"
+        else
+            damageinfo = damageinfo.." (critical)"
+        end
+    end
+    if event.resisted and event.resisted > 0 then
+        damageinfo = damageinfo.." ("..event.resisted.." resisted)"
+    end
+    if event.blocked and event.blocked > 0 then
+        damageinfo = damageinfo.." ("..event.blocked.." blocked)"
+    end
+    if event.absorbed and event.absorbed > 0 then
+        if is_heal then
+            healinfo = healinfo.." ("..event.absorbed..")"
+        else
+            damageinfo = damageinfo.." ("..event.absorbed..")"
+        end
+    end
+    if event.overkill and event.overkill > 0 then
+        damageinfo = damageinfo.." (overkill by "..event.overkill..")"
+    end
+    if event.overheal and event.overheal > 0 then
+        healinfo = healinfo.." (overheal by "..event.overheal..")"
+    end
+    local extra = {
+        amount = event.amount,
+        damageinfo = damageinfo,
+        env = event.env_type and strlower(event.env_type),
+        failinfo = event.failed_type,
+        healinfo = healinfo,
+        missinfo = event.miss_type and COMBAT_MISS_TEXT[event.miss_type],
+        power = event.power_type and COMBAT_POWER_TEXT[event.power_type],
+        school = event.spell_school and GetSchoolString(event.spell_school),
+        spell = event.spell_id and C_Spell.GetSpellLink(event.spell_id)
+                                or event.spell_name,
+    }
+    if event.source_name then
+        if band(event.source_flags, AFFILIATION_MINE) ~= 0 then
+            extra["source:n"] = "you"
+            extra["source:N"] = "You"
+            extra["source:p"] = "your"
+            extra["source:P"] = "Your"
+            extra["source:#"] = 1
+        else
+            extra["source:n"] = event.source_name
+            extra["source:N"] = event.source_name
+            extra["source:p"] = event.source_name.."'s"
+            extra["source:P"] = event.source_name.."'s"
+            extra["source:#"] = 2
+        end
+    end
+    if event.dest_name then
+        if band(event.dest_flags, AFFILIATION_MINE) ~= 0 then
+            extra["target:n"] = "you"
+            extra["target:N"] = "You"
+            extra["target:p"] = "your"
+            extra["target:P"] = "Your"
+            extra["target:#"] = 1
+        else
+            extra["target:n"] = event.dest_name
+            extra["target:N"] = event.dest_name
+            extra["target:p"] = event.dest_name.."'s"
+            extra["target:P"] = event.dest_name.."'s"
+            extra["target:#"] = 2
+        end
+    end
+    return strgsub(format, "$%(([^)]+)%)",
+                   function(token)
+                       return ReplaceCombatToken(token, event, extra)
+                   end)
+end
+
+-- Return the unit type for the given unit, for use in the returned event ID.
+local function CombatUnitType(event, unit, flags)
+    local unit_token = UnitTokenFromGUID(unit)
+    if not unit then
+        return "other"
+    elseif band(flags, TYPE_OBJECT) ~= 0 then
+        return "object"
+    elseif band(flags, AFFILIATION_ALLY) ~= 0 and band(flags, TYPE_PET) ~= 0 then
+        return "pet"
+    elseif band(flags, AFFILIATION_MINE) ~= 0 then
+        return "self"
+    elseif band(flags, AFFILIATION_PARTY_OR_RAID) ~= 0 then
+        return "party"
+    elseif unit_token and select(2, UnitDetailedThreatSituation("player", unit_token)) then
+        return "enemy"
+    elseif band(flags, AFFILIATION_ALLY) ~= 0 and band(flags, CONTROL_NPC) ~= 0 then
+        return "npc"
+    else
+        return "other"
+    end
+end
+
+-- Return a formatted log message for the given combat event.
+-- Returns 5 values: event ID (string), text, and 3 color components (RGB),
+-- which can be passed directly to LogWindow:AddMessage().
+-- Returns no values if the event cannot be parsed.
+local function FormatCombatEvent(event)
+    -- Adjust the subtype to account for the buff/debuff split.  Note that
+    -- we don't expose this split in the returned event ID.
+    local subtype = event.subtype
+    if strsub(subtype, 1, 5) == "AURA_" then
+        subtype = event.aura_type .. "_" .. strsub(subtype, 6)
+    elseif subtype == "DISPEL" then
+        subtype = subtype .. "_" .. event.aura_type
+    end
+
+    local format = (COMBAT_EVENT_FORMATS[event.type]
+                    or COMBAT_EVENT_FORMATS["_"..subtype])
+    if not format then
+        return
+    end
+    local text = ReplaceCombatTokens(format, event)
+    local color = COMBAT_EVENT_COLORS[subtype] or {1,1,1}
+
+    local source_type = event.category=="ENVIRONMENT" and "env"
+        or CombatUnitType(event, event.source, event.source_flags)
+    local dest_type = CombatUnitType(event, event.dest, event.dest_flags)
+    local event_id = "CLM_"..event.type.."."..source_type..":"..dest_type
+
+    return event_id, text, unpack(color)
+end
+
+--------------------------------------------------------------------------
+
 local Tab = class()
 
 function Tab:__constructor(name, message_types)
+    self.name = name
+    self:SetMessageTypes(message_types)
+end
+
+function Tab:SetMessageTypes(message_types)
     assert(type(message_types) == "table")
     assert(#message_types > 0)
     for i, msg_type in ipairs(message_types) do
@@ -138,8 +515,35 @@ function Tab:__constructor(name, message_types)
                msg_type.." is not a recognized message type")
     end
 
-    self.name = name
-    self.types = message_types
+    self.message_types = {}
+    self.event_lookup = {}
+    self.wildcard_events = {}
+    for _, msg_type in ipairs(message_types) do
+        tinsert(self.message_types, msg_type)
+        for _, event in ipairs(MESSAGE_TYPES[msg_type]) do
+            if strsub(event, 1, 4) == "CLM_" then
+                local sep1 = strfind(event, ".", 5, true)
+                local sep2, source
+                if sep1 then
+                    sep2 = strfind(event, ":", sep1+1, true)
+                    source = strsub(event, sep1+1, sep2 and sep2-1)
+                else
+                    source = "*"
+                    sep2 = strfind(event, ":", 5, true)
+                end
+                local target = sep2 and strsub(event, sep2+1) or "*"
+                if source == "*" or target == "*" then
+                    local sep = sep1 or sep2
+                    local base_event = sep and strsub(event, 1, sep-1) or event
+                    tinsert(self.wildcard_events, {base_event, source, target})
+                else
+                    self.event_lookup[event] = true
+                end
+            else
+                self.event_lookup[event] = true
+            end
+        end
+    end
 end
 
 function Tab:GetName()
@@ -148,9 +552,20 @@ end
 
 -- Returns true if the given message should be displayed in this tab.
 function Tab:Filter(event, text)
-    for _, msg_type in ipairs(self.types) do
-        for _, match_event in ipairs(MESSAGE_TYPES[msg_type]) do
-            if event == match_event then
+    if self.event_lookup[event] then return true end
+    if strsub(event, 1, 4) == "CLM_" then
+        local sep1 = strfind(event, ".", 5, true)
+        assert(sep1)
+        local sep2 = strfind(event, ":", sep1+1, true)
+        assert(sep2)
+        local base_event = strsub(event, 1, sep1-1)
+        local source = strsub(event, sep1+1, sep2-1)
+        local target = strsub(event, sep2+1)
+        for _, match in ipairs(self.wildcard_events) do
+            if (match[1] == base_event
+                and (match[2] == "*" or match[2] == source)
+                and (match[3] == "*" or match[3] == target))
+            then
                 return true
             end
         end
@@ -202,7 +617,12 @@ function TabBar:__constructor(parent)
         "Skill", "Loot", "Achievement",
         "Guild", "Guild_Achievement",
         "VoiceText"}))
-    self:AddTab(Tab("Battle", {"PetBattle"}))
+    self:AddTab(Tab("Battle", {
+        "PetBattle",
+        "Combat_Attack_Self", "Combat_Attack_ToSelf",
+        "Combat_Heal_Self", "Combat_Heal_ToSelf",
+        "Combat_Aura_Self", "Combat_Aura_ToSelf",
+        "Combat_Cast_Self", "Combat_Cast_Enemy"}))
     -- FIXME: temporary tab to check that all events are caught
     self:AddTab(Tab("Other", {"Gathering", "TradeSkill", "PetInfo", "Debug"}))
 
@@ -378,6 +798,8 @@ function LogWindow:__constructor()
         end
     end
 
+    CLM.RegisterAnyEvent(self, self.OnCombatEvent)
+
     local scrollbar = CreateFrame("EventFrame", nil, frame, "MinimalScrollBar")
     self.scrollbar = scrollbar
     scrollbar:SetPoint("TOPLEFT", frame, "TOPRIGHT", 3, 0)
@@ -469,6 +891,13 @@ function LogWindow:OnNonChatMsg(event, ...)
     self.current_event = nil
 end
 
+function LogWindow:OnCombatEvent(event)
+    local event_name, text, r, g, b = FormatCombatEvent(event)
+    if event_name then
+        self:AddMessage(event_name, text, r, g, b)
+    end
+end
+
 function LogWindow:AddHistoryEntry(event, text, r, g, b)
     local record = {WoWXIV.timePrecise(), event, text, r, g, b}
     local histsize = WoWXIV_config["logwindow_history"]
@@ -550,7 +979,7 @@ function LogWindow:AddMessage(event, text, r, g, b)
         self.frame:AddMessage(text, r, g, b)
     end
     self:AddHistoryEntry(event, text, r, g, b)
-    if not self.tab_bar:FilterAnyTab(event, text) then
+    if not self.tab_bar:FilterAnyTab(event, text) and strsub(event,1,4) ~= "CLM_" then
         self.frame:AddMessage("[WoWXIV.LogWindow] Event not taken by any tab: ["..event.."] "..text)
     end
 end

@@ -53,7 +53,7 @@ local CONFIG_DEFAULT = {
     -- Log window: enable?
     logwindow_enable = true,
     -- Log window: number of history lines to keep
-    logwindow_history = 1000,
+    logwindow_history = 10000,
 
     -- Map: show current coordinates under minimap?
     map_show_coords_minimap = true,

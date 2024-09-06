@@ -309,6 +309,8 @@ end
 --    overkill (number): Amount of overkill damage (only for subtype DAMAGE)
 --    overheal (number): Amount of overheal (only for subtype HEAL)
 --    school (number): Elemental school of damage (only for subtype DAMAGE)
+--    resisted (number): Amount of damage resisted (only for subtype DAMAGE)
+--    blocked (number): Amount of damage blocked (only for subtype DAMAGE)
 --    miss_type (string): Cause of a MISS event ("MISS", "ABSORB" etc.)
 --        (only for subtype MISS)
 --    failed_type (string): Cause of a FAILED event ("No target", etc.)
