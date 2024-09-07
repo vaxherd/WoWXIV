@@ -338,38 +338,38 @@ local COMBAT_EVENT_COLORS = {
 local COMBAT_EVENT_FORMATS = {
     SWING_DAMAGE         = "$(source:N) $(source:#:attack:attacks) $(target:n) for $(amount) $(school) damage$(damageinfo).",
     RANGE_DAMAGE         = "$(source:N) $(source:#:attack:attacks) $(target:n) for $(amount) $(school) damage$(damageinfo).",
-    SPELL_DAMAGE         = "$(source:P) $(spell) hits $(target:n) for $(amount) $(school) damage$(damageinfo).",
+    SPELL_DAMAGE         = "$(source:P)$(spell) hits $(target:n) for $(amount) $(school) damage$(damageinfo).",
     ENVIRONMENTAL_DAMAGE = "$(source:N) $(source:#:take:takes) $(amount) damage from $(env)$(damageinfo).",
-    _PERIODIC_DAMAGE     = "$(source:P) $(spell) effect hits $(target:n) for $(amount) $(school) damage$(damageinfo).",
-    _BUILDING_DAMAGE     = "$(source:P) $(spell) hits $(target:n) for $(amount) $(school) damage$(damageinfo).",
-    _DRAIN               = "$(source:P) $(spell) drains $(amount) $(power) from $(target:n).",
-    _LEECH               = "$(source:P) $(spell) leeches $(amount) $(power) from $(target:n).",
-    _INSTAKILL           = "$(source:P) $(spell) kills $(target:n).",
+    _PERIODIC_DAMAGE     = "$(source:P)$(spell) effect hits $(target:n) for $(amount) $(school) damage$(damageinfo).",
+    _BUILDING_DAMAGE     = "$(source:P)$(spell) hits $(target:n) for $(amount) $(school) damage$(damageinfo).",
+    _DRAIN               = "$(source:P)$(spell) drains $(amount) $(power) from $(target:n).",
+    _LEECH               = "$(source:P)$(spell) leeches $(amount) $(power) from $(target:n).",
+    _INSTAKILL           = "$(source:P)$(spell) kills $(target:n).",
     SWING_MISSED         = "$(source:N) $(source:#:attack:attacks) $(target:n) and misses$(missinfo).",
     RANGE_MISSED         = "$(source:N) $(source:#:attack:attacks) $(target:n) and misses$(missinfo).",
-    SPELL_MISSED         = "$(source:P) $(spell) misses $(target:n)$(missinfo).",
-    _DISPEL_FAILED       = "$(source:P) $(spell) fails to dispel $(target:p) $(extraspell).",
-    _HEAL                = "$(source:P) $(spell) heals $(target:n) for $(amount)$(healinfo).",
-    _PERIODIC_HEAL       = "$(source:P) $(spell) effect heals $(target:n) for $(amount)$(healinfo).",
-    _ENERGIZE            = "$(source:P) $(spell) restores $(amount) $(power) to $(target:n).",
+    SPELL_MISSED         = "$(source:P)$(spell) misses $(target:n)$(missinfo).",
+    _DISPEL_FAILED       = "$(source:P)$(spell) fails to dispel $(target:p)$(extraspell).",
+    _HEAL                = "$(source:P)$(spell) heals $(target:n) for $(amount)$(healinfo).",
+    _PERIODIC_HEAL       = "$(source:P)$(spell) effect heals $(target:n) for $(amount)$(healinfo).",
+    _ENERGIZE            = "$(source:P)$(spell) restores $(amount) $(power) to $(target:n).",
     _CAST_START          = "$(source:N) $(source:#:start:starts) casting $(spell).",
     _CAST_SUCCESS        = "$(source:N) $(source:#:cast:casts) $(spell).",
-    _CAST_FAILED         = "$(source:P) cast of $(spell) failed: $(failinfo).",
-    _INTERRUPT           = "$(source:N) $(source:#:interrupt:interrupts) $(target:p) cast of $(spell).",
+    _CAST_FAILED         = "$(source:P)cast of $(spell) failed: $(failinfo).",
+    _INTERRUPT           = "$(source:N) $(source:#:interrupt:interrupts) $(target:p)cast of $(spell).",
     _BUFF_APPLIED        = "$(target:N) $(target:#:gain:gains) $(spell).",
-    _BUFF_REMOVED        = "$(target:P) $(spell) fades.",
+    _BUFF_REMOVED        = "$(target:P)$(spell) fades.",
     _BUFF_APPLIED_DOSE   = "$(target:N) $(target:#:gain:gains) a stack of $(spell).",
     _BUFF_REMOVED_DOSE   = "$(target:N) $(target:#:lose:loses) a stack of $(spell).",
-    _BUFF_RERFESH        = "$(target:P) $(spell) is refreshed.",
-    _BUFF_BROKEN         = "$(target:P) $(spell) is broken.",
-    _DISPEL_BUFF         = "$(source:P) $(spell) dispels $(target:p) $(extraspell).",
+    _BUFF_RERFESH        = "$(target:P)$(spell) is refreshed.",
+    _BUFF_BROKEN         = "$(target:P)$(spell) is broken.",
+    _DISPEL_BUFF         = "$(source:P)$(spell) dispels $(target:p)$(extraspell).",
     _DEBUFF_APPLIED      = "$(target:N) $(target:#:are:is) inflicted with $(spell).",
-    _DEBUFF_REMOVED      = "$(target:P) $(spell) fades.",
+    _DEBUFF_REMOVED      = "$(target:P)$(spell) fades.",
     _DEBUFF_APPLIED_DOSE = "$(target:N) $(target:#:gain:gains) a stack of $(spell).",
     _DEBUFF_REMOVED_DOSE = "$(target:N) $(target:#:lose:loses) a stack of $(spell).",
-    _DEBUFF_RERFESH      = "$(target:P) $(spell) is refreshed.",
-    _DEBUFF_BROKEN       = "$(target:P) $(spell) is broken.",
-    _DISPEL_DEBUFF       = "$(source:P) $(spell) dispels $(target:p) $(extraspell).",
+    _DEBUFF_RERFESH      = "$(target:P)$(spell) is refreshed.",
+    _DEBUFF_BROKEN       = "$(target:P)$(spell) is broken.",
+    _DISPEL_DEBUFF       = "$(source:P)$(spell) dispels $(target:p)$(extraspell).",
 }
 
 -- Descriptive strings for miss types.
@@ -473,35 +473,43 @@ local function ReplaceCombatTokens(format, event)
         spell = event.spell_id and C_Spell.GetSpellLink(event.spell_id)
                                 or event.spell_name,
     }
-    if event.source_name then
-        if band(event.source_flags, AFFILIATION_MINE) ~= 0 and band(event.source_flags, TYPE_PLAYER) ~= 0 then
-            extra["source:n"] = "you"
-            extra["source:N"] = "You"
-            extra["source:p"] = "your"
-            extra["source:P"] = "Your"
-            extra["source:#"] = 1
-        else
-            extra["source:n"] = event.source_name
-            extra["source:N"] = event.source_name
-            extra["source:p"] = event.source_name.."'s"
-            extra["source:P"] = event.source_name.."'s"
-            extra["source:#"] = 2
-        end
+    if not event.source_name then
+        extra["source:n"] = ""
+        extra["source:N"] = ""
+        extra["source:p"] = ""
+        extra["source:P"] = ""
+        extra["source:#"] = 0
+    elseif band(event.source_flags, AFFILIATION_MINE) ~= 0 and band(event.source_flags, TYPE_PLAYER) ~= 0 then
+        extra["source:n"] = "you"
+        extra["source:N"] = "You"
+        extra["source:p"] = "your "
+        extra["source:P"] = "Your "
+        extra["source:#"] = 1
+    else
+        extra["source:n"] = event.source_name
+        extra["source:N"] = event.source_name
+        extra["source:p"] = event.source_name.."'s "
+        extra["source:P"] = event.source_name.."'s "
+        extra["source:#"] = 2
     end
-    if event.dest_name then
-        if band(event.dest_flags, AFFILIATION_MINE) ~= 0 and band(event.dest_flags, TYPE_PLAYER) ~= 0 then
-            extra["target:n"] = "you"
-            extra["target:N"] = "You"
-            extra["target:p"] = "your"
-            extra["target:P"] = "Your"
-            extra["target:#"] = 1
-        else
-            extra["target:n"] = event.dest_name
-            extra["target:N"] = event.dest_name
-            extra["target:p"] = event.dest_name.."'s"
-            extra["target:P"] = event.dest_name.."'s"
-            extra["target:#"] = 2
-        end
+    if not event.dest_name then
+        extra["target:n"] = ""
+        extra["target:N"] = ""
+        extra["target:p"] = ""
+        extra["target:P"] = ""
+        extra["target:#"] = 0
+    elseif band(event.dest_flags, AFFILIATION_MINE) ~= 0 and band(event.dest_flags, TYPE_PLAYER) ~= 0 then
+        extra["target:n"] = "you"
+        extra["target:N"] = "You"
+        extra["target:p"] = "your "
+        extra["target:P"] = "Your "
+        extra["target:#"] = 1
+    else
+        extra["target:n"] = event.dest_name
+        extra["target:N"] = event.dest_name
+        extra["target:p"] = event.dest_name.."'s "
+        extra["target:P"] = event.dest_name.."'s "
+        extra["target:#"] = 2
     end
     return strgsub(format, "$%(([^)]+)%)",
                    function(token)
@@ -847,22 +855,15 @@ function LogWindow:__constructor()
         DISPLAY_EVENT_TOAST_LINK = true,
         GUILD_MOTD = true,
     }
-    -- Blizzard's ChatFrameBase module defines data for all the various types
-    -- of chat messages, but then bizarrely hides them from direct iteration.
-    -- We can still get the list via the metatable, though.
-    for type, info in pairs(getmetatable(ChatTypeInfo).__index) do
-        if type == "CHANNEL1" then type = "CHANNEL" end
-        local group = ChatTypeGroup[type]
-        if group then  -- false for CHANNEL2 and onward
-            for _, event in ipairs(group) do
-                if event:sub(1, 9) == "CHAT_MSG_" then
-                    if not self[event] then self[event] = OnChatMsg end
-                else
-                    assert(VALID_EVENT_TYPES[event])
-                    if not self[event] then self[event] = OnNonChatMsg end
-                end
-                frame:RegisterEvent(event)
+    for group, events in pairs(ChatTypeGroup) do
+        for _, event in ipairs(events) do
+            if event:sub(1, 9) == "CHAT_MSG_" then
+                if not self[event] then self[event] = OnChatMsg end
+            else
+                assert(VALID_EVENT_TYPES[event])
+                if not self[event] then self[event] = OnNonChatMsg end
             end
+            frame:RegisterEvent(event)
         end
     end
 
