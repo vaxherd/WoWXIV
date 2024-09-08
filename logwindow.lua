@@ -1050,11 +1050,17 @@ function LogWindow:AddMessage(event, text, r, g, b)
 end
 
 -- Various methods called on DEFAULT_CHAT_FRAME.
+function LogWindow:AdjustMessageColors(func) end
+function LogWindow:GetFont() return self.frame:GetFontObject() end
 function LogWindow:GetID() return 1 end
 function LogWindow:IsShown() return true end
-function LogWindow:GetFont() return self.frame:GetFontObject() end
 function LogWindow:SetHyperlinksEnabled(enable) end
-function LogWindow:AdjustMessageColors(func) end
+-- This is only meaningfully called from FCF_RemoveAllMessagesFromChanSender(),
+-- which in turn is only called in response to PLAYER_REPORT_SUBMITTED.
+-- We take the position that no messages should be removed except upon
+-- explicit action by the player.  (We don't have that explicit action yet
+-- due to lack of desire to implement.)
+function LogWindow:RemoveMessagesByPredicate(func) end
 
 --------------------------------------------------------------------------
 
