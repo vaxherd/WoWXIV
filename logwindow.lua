@@ -36,6 +36,7 @@ local MESSAGE_TYPES = {
               "DISPLAY_EVENT_TOAST_LINK",
               "GUILD_MOTD",
               "PLAYER_LEVEL_CHANGED",
+              "PLAYER_REPORT_SUBMITTED",
               "TIME_PLAYED_MSG",
               "UNIT_LEVEL",
               "CHAT_MSG_BN_WHISPER_PLAYER_OFFLINE"},
