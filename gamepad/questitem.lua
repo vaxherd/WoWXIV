@@ -53,14 +53,17 @@ local ITEM_TARGET = {
     [133882] = "none",    -- Trap Rune (40965: Lay Waste, Lay Mines)
     [133897] = "none",    -- Telemancy Beacon (40956: Survey Says...)
     [133999] = "target",  -- Inert Crystal (40971: Overwhelming Distraction)
+    [135534] = "none",    -- Heavy Torch (41467: The Only Choice We Can Make)
     [136410] = "none",    -- Kalec's Image Crystal (41626: A New Threat)
     [136600] = "none",    -- Enchanted Party Mask (41834: The Masks We Wear)
+    [136605] = "target",  -- Solendra's Compassion (41485: Moonwhisper Rescue)
     [136970] = "none",    -- Mask of Mirror Image (42079: Masquerade)
     [137120] = "target",  -- Stack Of Vellums (39877: In the Loop)
     [137189] = "none",    -- Satyr Horn (41464: Not Here, Not Now, Not Ever)
     [137299] = "target",  -- Nightborne Spellblade (40947: Special Delivery)
     [139463] = "target",  -- Felbat Toxin Salve (43376: Problem Salver)
     [139882] = "target",  -- Vial of Hippogryph Pheromones (40963: Take Them in Claw)
+    [140916] = "target",  -- Satchel of Locklimb Powder (42090: Skittering Subjects)
     [141652] = "skip",    -- Mana Divining Stone (44672: Ancient Mana)  -- This has effect by being in the inventory rather than being used.
     [142446] = "none",    -- Leysight Spectacles (44813: Ley Line Interference)
     [142509] = "none",    -- Withered Targeting Orb (44816: Continued Exposure)
@@ -101,6 +104,8 @@ local ITEM_TARGET = {
     [186097] = "none",    -- Heirmir's Runeblade (63945: The Soul Blade)
     [186199] = "target",  -- Lady Moonberry's Wand (63971: Snail Stomping)
     [186474] = "target",  -- Korayn's Javelin (64080: Down to Earth)
+    [186695] = "none",    -- Lovely Pet Bandage (64196: Pet Up)
+    [187128] = "none",    -- Find-A-Spy (64167: Pets Detective)
     [187999] = "none",    -- Fishing Portal (65102: Fish Eyes)
     [188134] = "player",  -- Bronze Timepiece (65118: How to Glide with Your Dragon)
     [188139] = "player",  -- Bronze Timepiece (65120: How to Dive with Your Dragon)
@@ -270,6 +275,7 @@ local QuestItemButton = Gamepad.QuestItemButton
 function QuestItemButton:__constructor()
     self.item = nil
     self.selected_index = 1  -- Index of item to show if more than 1 available.
+    self.selected_item = nil  -- ID of selected item, in case index changes.
     self.pending_update = false
     self.last_update = 0
 
@@ -333,8 +339,10 @@ function QuestItemButton:OnClick(button, down)
         else
             self.selected_index = self.selected_index + 1
         end
+        self.selected_item = nil
+        self:UpdateQuestItem(true)
+        self.selected_item = item
     end
-    self:UpdateQuestItem(true)
 end
 
 function QuestItemButton:UpdateTooltip()
@@ -367,16 +375,26 @@ function QuestItemButton:UpdateQuestItem(force, is_retry)
             first_item = this_item
         end
         index = index + 1
-        return index == self.selected_index
+        if self.selected_item then
+            if this_item == self.selected_item then
+                self.selected_index = index
+                return true
+            else
+                return false
+            end
+        else
+            return index == self.selected_index
+        end
     end
     local item = self:IterateQuestItems(MaybeChooseItem)
     if not item then
         -- Either no quest items are available at all, or selected_index
-        -- was out of range (perhaps because a quest was just completed).
-        -- Reset to the first item in both cases.
+        -- was out of range or selected_item was not found (perhaps because
+        -- a quest was just completed).  Reset to the first item in all cases.
         self.selected_index = 1
         item = first_item
     end
+    self.selected_item = item
 
     if item then
         -- Note that we have to use the "item:" format rather than just
