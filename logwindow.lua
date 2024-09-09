@@ -55,7 +55,7 @@ local MESSAGE_TYPES = {
 
     Chat_Channel = {"CHAT_MSG_CHANNEL"},
 
-    Chat_Say = {"SAY"},
+    Chat_Say = {"CHAT_MSG_SAY"},
 
     Chat_Emote = {"CHAT_MSG_EMOTE",
                   "CHAT_MSG_TEXT_EMOTE"},
