@@ -46,22 +46,27 @@ end
 ------------------------------------------------------------------------
 
 -- Base class for LeaveVehicleButton and QuestItemButton.
--- Handles updating the input binding on config change.
+-- Handles updating the input binding(s) on config change.
 Gamepad.GamepadBoundButton = class()
 local GamepadBoundButton = Gamepad.GamepadBoundButton
 
-function GamepadBoundButton:__constructor(frame, binding_setting, command)
+-- Pass (setting,command) pairs to bind.
+function GamepadBoundButton:__constructor(frame, ...)
     self.binding_frame = frame
-    self.binding_setting = binding_setting
-    self.binding_command = command
+    self.bindings = {}
+    for i = 1, select("#",...), 2 do
+        local setting, command = select(i, ...)
+        tinsert(self.bindings, {setting, command})
+    end
     self:UpdateBinding()
 end
 
 function GamepadBoundButton:UpdateBinding()
     ClearOverrideBindings(self.binding_frame)
-    SetOverrideBinding(self.binding_frame, false,
-                       WoWXIV_config[self.binding_setting],
-                       self.binding_command)
+    for _, binding in ipairs(self.bindings) do
+        SetOverrideBinding(self.binding_frame, false,
+                           WoWXIV_config[binding[1]], binding[2])
+    end
 end
 
 ------------------------------------------------------------------------

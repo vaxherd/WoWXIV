@@ -25,6 +25,8 @@ local CONFIG_DEFAULT = {
     gamepad_menu_next_page = "PADRSHOULDER",
     -- Gamepad binding: use quest item
     gamepad_use_quest_item = "CTRL-PADLSTICK",
+    -- Gamepad binding: select active quest item
+    gamepad_select_quest_item = "CTRL-ALT-PADLSTICK",
     -- Gamepad binding: leave vehicle
     gamepad_leave_vehicle = "ALT-PADRSTICK",
     -- Gamepad binding: toggle first-person camera
@@ -422,6 +424,7 @@ function ConfigPanel:__constructor()
     self:AddBindingLocal("Previous menu page", "gamepad_menu_prev_page")
     self:AddBindingLocal("Next menu page", "gamepad_menu_next_page")
     self:AddBindingLocal("Use quest item", "gamepad_use_quest_item")
+    self:AddBindingLocal("Select quest item", "gamepad_select_quest_item")
     self:AddBindingLocal("Leave vehicle", "gamepad_leave_vehicle")
     self:AddBindingLocal("Toggle first-person view", "gamepad_toggle_fpv")
     self.y = self.y - 10
