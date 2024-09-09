@@ -47,6 +47,9 @@ local function DumpUpdateInfo(info)
     print("UNIT_AURA:" .. s)
 end
 
+-- Spell ID of Withered Commander buff, for Suramar scenario.
+local SPELL_WITHERED_COMMANDER = 227261
+
 -- File ID of Dragon Glyph Resonance aura icon.  We have to match by
 -- aura icon rather than spell ID because each token has a unique ID
 -- (e.g. 394546 for Algeth'era Court, 394551 for Vault of the Incarnates).
@@ -85,7 +88,7 @@ function Aura:__constructor(frame, is_secure_player_aura)
     self.stacks = 0
     self.time_str = ""
     self.expires = 0
-    self.is_glyph_dist = false -- Is timer repurposed as dragon glyph distance?
+    self.timer_special = false -- Is timer repurposed as something else?
 
     local icon = f:CreateTexture(nil, "ARTWORK")
     self.icon = icon
@@ -162,17 +165,21 @@ function Aura:UpdateTooltip()
 end
 
 function Aura:UpdateTimeLeft()
-    local time_str, is_glyph_dist
+    local time_str, timer_special
     if self.icon_id == ICON_DRAGON_GLYPH_RESONANCE and WoWXIV_config["buffbar_dragon_glyph_distance"] then
-        is_glyph_dist = true
+        timer_special = true
         local dist = self.data.points[1]
         -- TWW auras have units of roughly 10y instead of 1y.
         if self.spell_id > 440000 then
             dist = dist*10
         end
         time_str = dist .. "y"
+    elseif self.spell_id == SPELL_WITHERED_COMMANDER then
+        timer_special = true
+        local withered_health = self.data.points[1]
+        time_str = withered_health .. "%"
     else
-        is_glyph_dist = false
+        timer_special = false
         local time_left
         if self.expires > 0 then
             time_left = self.expires - GetTime()
@@ -193,9 +200,9 @@ function Aura:UpdateTimeLeft()
         end
     end
 
-    if is_glyph_dist ~= self.is_glyph_dist then
-        self.is_glyph_dist = is_glyph_dist
-        self.timer:SetTextScale(is_glyph_dist and 0.9 or 1.0)
+    if timer_special ~= self.timer_special then
+        self.timer_special = timer_special
+        self.timer:SetTextScale(timer_special and 0.9 or 1.0)
     end
     if time_str ~= self.time_str then
         self.timer:SetText(time_str)
@@ -261,6 +268,11 @@ function Aura:InternalUpdate(unit, data)
     local is_mine = (data.sourceUnit == "player")
     local stacks = data.applications
     local expires = data.expirationTime
+
+    -- Work around a bug in Withered Commander (count sometimes out of date).
+    if spell_id == SPELL_WITHERED_COMMANDER then
+        stacks = data.points[2]
+    end
 
     self.unit = unit
     self.data = data
