@@ -873,6 +873,27 @@ local function PseudoFrameForScrollElement(box, index)
     return {box = box, index = index}
 end
 
+-- Return a list of widgets in the given WidgetContainer, grouped by row.
+local function GetWidgetTargets(container)
+    local rows = {}
+    local row_y = {}
+    -- FIXME: is there any better way to get the child list than
+    -- breaking encapsulation?
+    for _, f in pairs(container.widgetFrames) do
+        local y = f:GetTop()
+        if not rows[y] then
+            tinsert(row_y, y)
+            rows[y] = {}
+        end
+        tinsert(rows[y], f)
+    end
+    table.sort(row_y, function(a,b) return a > b end)
+    for _, row in pairs(rows) do
+        table.sort(row, function(a,b) return a:GetLeft() < b:GetLeft() end)
+    end
+    return rows, row_y
+end
+
 ------------------------------------------------------------------------
 -- Individual frame handlers
 ------------------------------------------------------------------------
@@ -1301,6 +1322,50 @@ local function PlayerChoiceFrame_OnShow()
             end
             if not leftmost or button:GetLeft() < leftmost:GetLeft() then
                 leftmost = button
+            end
+            if option.WidgetContainer:IsShown() then
+                local top_first, bottom_first
+                local rows, row_y = GetWidgetTargets(option.WidgetContainer)
+                local last_y = nil
+                for _, y in ipairs(row_y) do
+                    local row = rows[y]
+                    local first, last
+                    for i, f in ipairs(row) do
+                        local subframe = f.Spell or f.Bar
+                        if subframe then
+                            self.targets[f] = {
+                                -- We have to call the subframe's methods.
+                                on_enter = function(frame)
+                                    subframe:OnEnter()
+                                end,
+                                on_leave = function(frame)
+                                    subframe:OnLeave()
+                                end,
+                                up = bottom_first or button,
+                                down = button,  -- Possibly rewritten below.
+                            }
+                            first = first or f
+                            last = f
+                        end
+                    end
+                    if first then
+                        if last_y then
+                            for i, f in ipairs(rows[last_y]) do
+                                local params = self.targets[f]
+                                if params then
+                                    params.down = first
+                                end
+                            end
+                        end
+                        last_y = y
+                        top_first = top_first or first
+                        bottom_first = first
+                        self.targets[first].left = false
+                        self.targets[last].right = false
+                    end
+                end
+                self.targets[button].down = top_first
+                self.targets[button].up = bottom_first
             end
         end
     end
@@ -3106,33 +3171,19 @@ local function DelvesDifficultyPickerFrame_RefreshTargets()
 
     local dmwc = ddpf.DelveModifiersWidgetContainer
     if dmwc:IsShown() then
-        local rows = {}
-        local row_y = {}
-        -- FIXME: is there any better way to get the child list than
-        -- breaking encapsulation?
-        for _, f in pairs(dmwc.widgetFrames) do
-            self.targets[f] = {
-                -- send_enter_leave doesn't seem to work for these.
-                on_enter = function(frame)
-                    local spell = frame.Spell.spellID
-                    GameTooltip:SetOwner(frame, "ANCHOR_TOP")
-                    GameTooltip:SetHyperlink(C_Spell.GetSpellLink(spell))
-                    GameTooltip:Show()
-                end,
-                on_leave = function()
-                    GameTooltip:Hide()
-                end,
-            }
-            local y = f:GetTop()
-            if not rows[y] then
-                tinsert(row_y, y)
-                rows[y] = {}
-            end
-            tinsert(rows[y], f)
-        end
-        table.sort(row_y, function(a,b) return a > b end)
+        local rows, row_y = GetWidgetTargets(dmwc)
         for _, row in pairs(rows) do
-            table.sort(row, function(a,b) return a:GetLeft() < b:GetLeft() end)
+            for i, f in ipairs(row) do
+                self.targets[f] = {
+                    -- We have to call the subframe's methods.
+                    on_enter = function(frame)
+                        frame.Spell:OnEnter()
+                    end,
+                    on_leave = function(frame)
+                        frame.Spell:OnLeave()
+                    end,
+                }
+            end
             self.targets[row[1]].left = false
         end
         self.targets[ddpf.Dropdown].down = rows[row_y[1]][1]
