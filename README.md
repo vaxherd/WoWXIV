@@ -23,6 +23,8 @@ that of Final Fantasy XIV.  Specific features include:
 
 - Coordinate display on the minimap and world map
 
+- An FFXIV-style chat window and combat log
+
 - Additional FFXIV-style text commands, notably `/itemsearch` to search
   all item storage (even when not at a bank or void storage NPC) and
   `/?` to display help text for a specific command (also with an API for
