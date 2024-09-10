@@ -1401,6 +1401,36 @@ function MenuCursor:PlayerChoiceFrame_Hide()
 end
 
 
+-------- New content splash frame
+
+local menu_SplashFrame = MenuFrame(SplashFrame)
+
+local function SplashFrame_OnShow()
+    local self = menu_SplashFrame
+    self.cancel_func = CancelUIFrame
+    self.targets = {}
+    local StartQuestButton = SplashFrame.RightFeature.StartQuestButton
+    if StartQuestButton:IsVisible() then
+        self.targets[StartQuestButton] =
+            {can_activate = true, send_enter_leave = true, is_default = true}
+    end
+end
+
+function MenuCursor.handlers.SplashFrame(cursor)
+    cursor:HookShow(SplashFrame, "SplashFrame")
+end
+
+function MenuCursor:SplashFrame_Show()
+    assert(SplashFrame:IsVisible())
+    SplashFrame_OnShow()
+    self:AddFrame(menu_SplashFrame)
+end
+
+function MenuCursor:SplashFrame_Hide()
+    self:RemoveFrame(menu_SplashFrame)
+end
+
+
 -------- Info popup frame ("Campaign Complete!" etc.) (FIXME: untested)
 
 local menu_UIWidgetCenterDisplayFrame = MenuFrame(UIWidgetCenterDisplayFrame)
