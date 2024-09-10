@@ -1557,7 +1557,7 @@ end
 function MenuCursor:MailItemButton_Hide(frame)
     local focus, target = self:GetFocusAndTarget()
     if focus == menu_InboxFrame and target == frame then
-        menu_InboxFrame:Move(0, -1, "down")
+        self:Move(0, -1, "down")
     end
     menu_InboxFrame.targets[frame] = nil
     InboxFrame_UpdateMovement()
