@@ -56,6 +56,8 @@ local CONFIG_DEFAULT = {
     logwindow_enable = true,
     -- Log window: number of history lines to keep
     logwindow_history = 10000,
+    -- Log window: scroll to bottom on new messages?
+    logwindow_auto_show_new = true,
 
     -- Map: show current coordinates under minimap?
     map_show_coords_minimap = true,
@@ -464,6 +466,8 @@ function ConfigPanel:__constructor()
     self:AddHeader("Log window settings")
     self:AddCheckButton("Enable log window |cffff0000(requires reload)|r",
                         "logwindow_enable")
+    self:AddCheckButton("Automatically scroll to bottom on new messages",
+                        "logwindow_auto_show_new", nil, "logwindow_enable")
 
     self:AddHeader("Map settings")
     self:AddCheckButton("Show current coordinates under minimap",

@@ -1040,12 +1040,23 @@ function LogWindow:AddMessage(event, text, r, g, b)
         RunNextFrame(function() self.last_message[2] = 0 end)
     end  -- if not KEEP_NATIVE_FRAME
     if self.tab_bar:GetActiveTab():Filter(event, text) then
-        self.frame:AddMessage(text, r, g, b)
-        self:AddHistoryEntry(event, text, r, g, b)
+        self:InternalAddMessage(true, true, event, text, r, g, b)
     elseif self.tab_bar:FilterAnyTab(event, text) then
-        self:AddHistoryEntry(event, text, r, g, b)
+        self:InternalAddMessage(false, true, event, text, r, g, b)
     elseif strsub(event,1,4) ~= "CLM_" then
-        self.frame:AddMessage("[WoWXIV.LogWindow] Event not taken by any tab: ["..event.."] "..text)
+        self.frame:AddMessage(true, false, event, "[WoWXIV.LogWindow] Event not taken by any tab: ["..event.."] "..text, 1, 1, 1)
+    end
+end
+
+function LogWindow:InternalAddMessage(show, save, event, text, r, g, b)
+    if show then
+        self.frame:AddMessage(text, r, g, b)
+        if WoWXIV_config["logwindow_auto_show_new"] then
+            self.frame:ScrollToBottom()
+        end
+    end
+    if save then
+        self:AddHistoryEntry(event, text, r, g, b)
     end
 end
 
