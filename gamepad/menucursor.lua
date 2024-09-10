@@ -554,7 +554,7 @@ function MenuFrame:OnUpdate(target_frame)
         -- 5-second delay ends.  (The reverse case of an enabled button
         -- being disabled is also theoretically possible, but we ignore
         -- that case pending evidence that it can occur in practice.)
-        if target_frame:IsEnabled() then
+        if not target_frame.IsEnabled or target_frame:IsEnabled() then
             self.highlight_locked = true
             target_frame:LockHighlight()
         end
@@ -2914,6 +2914,7 @@ function MenuCursor.handlers.WeeklyRewardsFrame(cursor)
 end
 
 function MenuCursor:ADDON_LOADED__Blizzard_WeeklyRewards()
+    menu_WeeklyRewardsFrame = MenuFrame(WeeklyRewardsFrame)
     self:HookShow(WeeklyRewardsFrame, "WeeklyRewardsFrame")
 end
 
