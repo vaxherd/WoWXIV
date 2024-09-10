@@ -9,6 +9,11 @@ local abs = math.abs
 local floor = math.floor
 local function round(x) return floor(x+0.5) end
 local tinsert = tinsert
+local tremove = tremove
+
+
+-- Static reference to the singleton MenuCursor instance.
+local global_cursor = nil
 
 ------------------------------------------------------------------------
 -- Core implementation
@@ -18,80 +23,25 @@ Gamepad.MenuCursor = class()
 local MenuCursor = Gamepad.MenuCursor
 
 function MenuCursor:__constructor()
+    assert(not global_cursor)
+    global_cursor = self
+
     -- Is the player currently using gamepad input?  (Mirrors the
     -- GAME_PAD_ACTIVE_CHANGED event.)
     self.gamepad_active = false
-    -- Frame which currently has the cursor's input focus, nil if none.
-    self.focus = nil
-    -- Stack of saved focus frames, used with PushFocus() and PopFocus().
+    -- Map of open frames which have menu cursor support.  Each key is a
+    -- frame (table ref), and the value is a MenuFrame instance (see below).
+    self.frames = {}
+    -- Stack of active MenuFrames and their current targets (each element
+    -- is a {frame,target} pair).  The current focus is on top of the
+    -- stack (focus_stack[#focus_stack]).
     self.focus_stack = {}
-
-    -- The following are only used when self.focus is not nil:
-
-    -- Table of valid targets for cursor movement.  Each key is a frame
-    -- (except as noted for scroll_box below), and each value is a subtable
-    -- with the following possible elements:
-    --    - can_activate: If true, a confirm input on this frame causes a
-    --         left-click action to be sent to the frame.
-    --    - is_default: If true, a call to UpdateCursor() when no frame is
-    --         targeted will cause this frame to be targeted.
-    --    - is_scroll_box: If non-nil, the key is a pseudo-frame for the
-    --         corresponding scroll list element returned by
-    --         MenuCursor:PseudoFrameForScrollElement().
-    --    - lock_highlight: If true, the frame's LockHighlight() and
-    --         UnlockHighlight() methods will be called when the frame is
-    --         targeted and untargeted, respectively.
-    --    - on_click: If non-nil, a function to be called when the element
-    --         is activated.  The frame is passed as an argument.  When set
-    --         with can_activate, this is called after the click event is
-    --         passed down to the frame.
-    --    - on_enter: If non-nil, a function to be called when the cursor
-    --         is moved onto the element.  The frame is passed as an argument.
-    --         Ignored if send_enter_leave is set.
-    --    - on_leave: If non-nil, a function to be called when the cursor
-    --         is moved off the element.  The frame is passed as an argument.
-    --         Ignored if send_enter_leave is set.
-    --    - scroll_frame: If non-nil, a ScrollFrame which should be scrolled
-    --         to make the element visible when targeted.
-    --    - send_enter_leave: If true, the frame's OnEnter and OnLeave
-    --         srcipts will be called when the frame is targeted and
-    --         untargeted, respectively.
-    --    - up, down, left, right: If non-nil, specifies the frame to be
-    --         targeted on the corresponding movement input from this frame.
-    --         A value of false prevents movement in the corresponding
-    --         direction.
-    self.targets = nil
-    -- Subframe which the cursor is currently targeting.
-    self.cur_target = nil
-    -- Last targeted subframe, used when the cursor is temporarily hidden
-    -- (such as due to mouse movement).
-    self.saved_target = nil
-    -- Function to call when the cancel button is pressed (receives self
-    -- as an argument).  If nil, no action is taken.
-    self.cancel_func = nil
-    -- Subframe (button) to be clicked on a gamepad cancel button press,
-    -- or nil for none.  If set, cancel_func is ignored.
-    self.cancel_button = nil
-    -- Global name of button to be clicked on a gamepad previous-page
-    -- button press, or nil if none.  (Gamepad page flipping is only
-    -- enabled if both this and next_page_button are non-nil.)
-    self.prev_page_button = nil
-    -- Global name of button to be clicked on a gamepad next-page button
-    -- press, or nil if none.
-    self.next_page_button = nil
-    -- Should the current button be highlighted if enabled?
-    -- (This is a cache of the current button's lock_highlight parameter.)
-    self.want_highlight = true
-    -- Is the current button highlighted via lock_highlight?
-    -- (This is a cache to avoid unnecessary repeated calls to the
-    -- button's LockHighlight() method in OnUpdate().)
-    self.highlight_locked = false
 
     -- This is a SecureActionButtonTemplate only so that we can
     -- indirectly click the button pointed to by the cursor.
     local f = CreateFrame("Button", "WoWXIV_MenuCursor", UIParent,
                           "SecureActionButtonTemplate")
-    self.frame = f
+    self.cursor = f
     f:Hide()
     f:SetFrameStrata("TOOLTIP")  -- Make sure it stays on top.
     f:SetSize(32, 32)
@@ -118,6 +68,12 @@ function MenuCursor:__constructor()
     texture:SetTexture("Interface/CURSOR/Point")  -- Default mouse cursor image
     -- Flip it horizontally to distinguish it from the mouse cursor.
     texture:SetTexCoord(1, 0, 0, 1)
+end
+
+-- RegisterEvent() wrapper so frame handlers don't need to peek at the
+-- actual cursor frame.
+function MenuCursor:RegisterEvent(...)
+    self.cursor:RegisterEvent(...)
 end
 
 -- Generic event handler.  Forwards events to same-named methods, optionally
@@ -149,120 +105,133 @@ function MenuCursor:PLAYER_REGEN_ENABLED()
     self:UpdateCursor(false)
 end
 
--- Set the focus frame to the given frame.  Any previous focus frame is
--- cleared.
-function MenuCursor:SetFocus(frame)
-    if self.focus then
-        self:ClearFocus()
-    end
-    self.focus = frame
-    self.cur_target = nil
-    self.saved_target = nil
-    self.cancel_func = nil
-    self.cancel_button = nil
-    self.prev_page_button = nil
-    self.next_page_button = nil
-    self.want_highlight = false
-    self.highlight_locked = false
-end
-
--- Clear any current focus frame, hiding the menu cursor if it is displayed.
-function MenuCursor:ClearFocus()
-    self:SetTarget(nil)
-    self.focus = nil
-end
-
--- Set the focus frame to the given frame, saving the current focus frame
--- state so that it will be restored on a call to PopFocus().
-function MenuCursor:PushFocus(frame)
-    if self.focus then
-        local focus_state = {
-            frame = self.focus, 
-            targets = self.targets,
-            cur_target = self.cur_target,
-            saved_target = self.saved_target,
-            cancel_func = self.cancel_func,
-            cancel_button = self.cancel_button,
-        }
-        tinsert(self.focus_stack, focus_state)
-        self:SetTarget(nil)  -- clear current button's highlight/tooltip
-    end
-    self:SetFocus(frame)
-end
-
--- Pop the given frame from the focus stack, if it exists in the stack.
--- If the frame is the top frame, the previous focus state is restored.
--- If the frame is in the stack but not on top (such as if multiple
--- frames are hidden at once but not in the reverse order of being shown),
--- it is removed from the stack but the focus state remains unchanged.
-function MenuCursor:PopFocus(frame)
-    if self.focus == frame then
-        if #self.focus_stack > 0 then
-            self:SetTarget(nil)
-            local focus_state = tremove(self.focus_stack)
-            self.focus = focus_state.frame
-            self.targets = focus_state.targets
-            self.saved_target = focus_state.saved_target
-            self.cancel_func = focus_state.cancel_func
-            self.cancel_button = focus_state.cancel_button
-            self:SetTarget(focus_state.cur_target)
-        else
-            self:ClearFocus()
-        end
-        self:UpdateCursor()
-    else
-        for i, focus_state in ipairs(self.focus_stack) do
-            if focus_state.frame == frame then
-                tremove(self.focus_stack, i)
-                break
+-- Add the given frame (a MenuFrame instance) to the focus stack, make it
+-- the current focus, and point the cursor at the given input element.
+-- If |target| is nil, the initial input element is taken by calling the
+-- frame's GetDefaultTarget() method.  If the frame is already in the focus
+-- stack, it is moved to the top, and if |target| is nil, the frame's
+-- current target is left unchanged.
+function MenuCursor:AddFrame(frame, target)
+    local found = false
+    local stack = self.focus_stack
+    for i, v in ipairs(stack) do
+        if v[1] == frame then
+            if i == #stack then
+                -- Frame was already on top, so just change the target.
+                if target then 
+                    self:SetTarget(target)
+                end
+                return
             end
+            target = target or v[2]
+            tremove(stack, i)
+            found = true
+            break
         end
     end
+    if #stack > 0 then
+        local last_focus, last_target = unpack(stack[#stack])
+        if last_target then
+            last_focus:LeaveTarget(last_target)
+        end
+    end
+    target = target or frame:GetDefaultTarget()
+    tinsert(stack, {frame, target})
+    if target then frame:EnterTarget(target) end
+    self:UpdateCursor()
+end
+
+-- Remove the given frame (a MenuFrame instance) from the focus stack.
+-- If the frame is the current focus, the focus is changed to the next
+-- frame on the stack.  Does nothing if the given frame is not in the
+-- focus stack.
+function MenuCursor:RemoveFrame(frame)
+    local stack = self.focus_stack
+    for i, v in ipairs(stack) do
+        if v[1] == frame then
+            local is_top = (i == #stack)
+            if is_top then
+                self:SetTarget(nil)
+            end
+            tremove(stack, i)
+            if is_top and #stack > 0 then
+                local new_focus, new_target = unpack(stack[#stack])
+                new_focus:EnterTarget(new_target)
+            end
+            self:UpdateCursor()
+            break
+        end
+    end
+end
+
+-- Return the MenuFrame which currently has focus, or nil if none.
+function MenuCursor:GetFocus()
+    local stack = self.focus_stack
+    local top = #stack
+    return top > 0 and stack[top][1] or nil
+end
+
+-- Return the input element in the current focus which is currently
+-- pointed to by the cursor, or nil if none (or if there is no focus).
+function MenuCursor:GetTarget()
+    local stack = self.focus_stack
+    local top = #stack
+    return top > 0 and stack[top][2] or nil
+end
+
+-- Return the current focus and target in a single function call.
+function MenuCursor:GetFocusAndTarget()
+    local stack = self.focus_stack
+    local top = #stack
+    if top > 0 then
+        return unpack(stack[top])
+    else
+        return nil, nil
+    end
+end
+
+-- Return the input element most recently selected in the given frame.
+-- Returns nil if the given frame is not in the focus stack.
+function MenuCursor:GetTargetForFrame(frame)
+    for _, v in ipairs(self.focus_stack) do
+        if v[1] == frame then return v[2] end
+    end
+    return nil
 end
 
 -- Set the menu cursor target.  If nil, clears the current target.
 -- Handles all enter/leave interactions with the new and previous targets.
 function MenuCursor:SetTarget(target)
-    local old_target = self.cur_target
-    if old_target then
-        local params = self.targets[old_target]
-        local frame = self:GetTargetFrame(old_target)
-        if params.lock_highlight then
-            -- We could theoretically check highlight_locked here, but
-            -- it should be safe to unconditionally unlock (we take the
-            -- lock_highlight parameter as an indication that we have
-            -- exclusive control over the highlight lock).
-            frame:UnlockHighlight()
-        end
-        if params.send_enter_leave then
-            frame:GetScript("OnLeave")(frame)
-        elseif params.on_leave then
-            params.on_leave(frame)
-        end
-    end
+    local stack = self.focus_stack
+    local top = #stack
+    assert(not target or top > 0)
+    if top == 0 or target == stack[top][2] then return end
 
-    self.cur_target = target
-    self.want_highlight = false
-    self.highlight_locked = false
+    local focus, old_target = unpack(stack[top])
+    if old_target then
+        focus:LeaveTarget(old_target)
+    end
+    stack[top][2] = target
     if target then
-        local frame = target
-        local params = self.targets[target]
-        assert(params)
-        if params.is_scroll_box then
-            frame = frame.box:FindFrame(frame.box:FindElementData(frame.index))
-            assert(frame)
-        end
-        if params.lock_highlight then
-            self.want_highlight = true
-            if frame:IsEnabled() then
-                self.highlight_locked = true
-                frame:LockHighlight()
+        focus:EnterTarget(target)
+    end
+    self:UpdateCursor()
+end
+
+-- Set the menu cursor target for a specific frame.  Equivalent to
+-- SetTarget() if the frame is topmost on the focus stack; otherwise, sets
+-- the input element to be activated next time that frame becomes topmost
+-- on the stack.  Does nothing if the given frame is not on the focus stack.
+function MenuCursor:SetTargetForFrame(frame, target)
+    local stack = self.focus_stack
+    for i, v in ipairs(stack) do
+        if v[1] == frame then
+            if i == #stack then
+                self:SetTarget(target)
+            else
+                v[2] = target
             end
-        end
-        if params.send_enter_leave then
-            frame:GetScript("OnEnter")(frame)
-        elseif params.on_enter then
-            params.on_enter(frame)
+            break
         end
     end
 end
@@ -272,70 +241,80 @@ function MenuCursor:UpdateCursor(in_combat)
     if in_combat == nil then
         in_combat = InCombatLockdown()
     end
-    local f = self.frame
+    local f = self.cursor
 
-    if self.focus and not self.focus:IsVisible() then
-        self:ClearFocus()
+    local focus, target = self:GetFocusAndTarget()
+    while focus and not focus:GetFrame():IsVisible() do
+        self:RemoveFrame(focus)
+        focus, target = self:GetFocusAndTarget()
     end
 
-    local target = self.cur_target
-    if self.focus and self.gamepad_active and not in_combat then
-        if not target then
-            if self.saved_target then
-                target = self.saved_target
-            else
-                for frame, params in pairs(self.targets) do
-                    if params.is_default then
-                        target = frame
-                        break
-                    end
-                end
-                if not target then
-                    error("MenuCursor: no default target")
-                    -- We make this a fatal error for now, but it would be
-                    -- less intrusive to fall back to an arbitrary target,
-                    -- hence we leave in this (currently unreachable) line.
-                    target = next(self.targets)
-                end
-            end
-            self:SetTarget(target)
-        end
-        local params = self.targets[target]
-        local target_frame = self:GetTargetFrame(target)
+    if target and self.gamepad_active and not in_combat then
+        local target_frame = focus:GetTargetFrame(target)
         self:SetCursorPoint(target_frame)
-        if params.can_activate then
+        if focus:GetTargetClickable(target) then
             f:SetAttribute("clickbutton1", target_frame)
         else
             f:SetAttribute("clickbutton1", nil)
         end
-        if self.cancel_button then
-            f:SetAttribute("clickbutton2", self.cancel_button)
-        else
-            f:SetAttribute("clickbutton2", nil)
-        end
+        f:SetAttribute("clickbutton2", focus:GetCancelButton())
         if not f:IsShown() then
             f:Show()
-            f:SetScript("OnUpdate", function() self:OnUpdate() end)
-            self:OnUpdate()
+            focus:EnterTarget(target)
         else
-            self:SetCancelBinding()
+            self:SetCancelBinding(focus)
         end
     else
-        if self.cur_target then
-            self.saved_target = self.cur_target
-            self:SetTarget(nil)
-        end
-        if f:IsShown() then  -- avoid unnecessary taint warnings
+        if f:IsShown() then
+            if target then
+                focus:LeaveTarget(target)
+            end
             f:Hide()
         end
-        f:SetScript("OnUpdate", nil)
     end
+end
+
+-- Show() handler; activates menu cursor input bindings and periodic update.
+function MenuCursor:OnShow()
+    local focus = self:GetFocus()
+    assert(focus)  -- Cursor should never be shown without an active focus.
+
+    local f = self.cursor
+    SetOverrideBinding(f, true, "PADDUP",
+                       "CLICK WoWXIV_MenuCursor:DPadUp")
+    SetOverrideBinding(f, true, "PADDDOWN",
+                       "CLICK WoWXIV_MenuCursor:DPadDown")
+    SetOverrideBinding(f, true, "PADDLEFT",
+                       "CLICK WoWXIV_MenuCursor:DPadLeft")
+    SetOverrideBinding(f, true, "PADDRIGHT",
+                       "CLICK WoWXIV_MenuCursor:DPadRight")
+    SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_confirm"],
+                       "CLICK WoWXIV_MenuCursor:LeftButton")
+    self:SetCancelBinding(focus)
+    local prev, next = focus:GetPageButtons()
+    if prev and next then
+        SetOverrideBinding(f, true,
+                           WoWXIV_config["gamepad_menu_prev_page"],
+                           "CLICK "..prev..":LeftButton")
+        SetOverrideBinding(f, true,
+                           WoWXIV_config["gamepad_menu_next_page"],
+                           "CLICK "..next..":LeftButton")
+    end
+    f:SetScript("OnUpdate", function() self:OnUpdate() end)
+    self:OnUpdate()
+end
+
+-- Hide() handler; clears menu cursor input bindings and periodic updated.
+function MenuCursor:OnHide()
+    local f = self.cursor
+    ClearOverrideBindings(f)
+    f:SetScript("OnUpdate", nil)
 end
 
 -- Per-frame update routine which implements cursor bouncing.
 function MenuCursor:OnUpdate()
-    local target = self.cur_target
-    local target_frame = target and self:GetTargetFrame(target)
+    local focus, target = self:GetFocusAndTarget()
+    local target_frame = target and focus:GetTargetFrame(target)
     if not target_frame then return end
 
     --[[
@@ -355,6 +334,158 @@ function MenuCursor:OnUpdate()
     self.texture:ClearPointsOffset()
     self.texture:AdjustPointsOffset(xofs, 0)
 
+    focus:OnUpdate(target_frame)
+end
+
+-- Helper for UpdateCursor() and OnUpdate() to set the cursor frame anchor.
+function MenuCursor:SetCursorPoint(target)
+    local f = self.cursor
+    f:ClearAllPoints()
+    -- Work around frame reference limitations on secure buttons
+    --f:SetPoint("TOPRIGHT", target, "LEFT")
+    local x = target:GetLeft()
+    local _, y = target:GetCenter()
+    if not x or not y then return end
+    local scale = target:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    x = x * scale
+    y = y * scale
+    f:SetPoint("TOPRIGHT", UIParent, "TOPLEFT", x, y-UIParent:GetHeight())
+end
+
+-- Helper for UpdateCursor() and OnShow() to set the cancel button binding
+-- for the current cursor target depending on whether it needs to be
+-- securely passed through to the target.  The current focus is passed
+-- down for convenience.
+function MenuCursor:SetCancelBinding(focus)
+    local f = self.cursor
+    if focus:GetCancelButton() then
+        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
+                           "CLICK WoWXIV_MenuCursor:RightButton")
+    else
+        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
+                           "CLICK WoWXIV_MenuCursor:Cancel")
+    end
+end
+
+-- Click event handler; handles all events other than secure click
+-- passthrough.
+function MenuCursor:OnClick(button, down)
+    local focus, target = self:GetFocusAndTarget()
+    -- Click bindings should be cleared if we have no focus, but we could
+    -- still get here right after a secure passthrough click closes the
+    -- last frame.
+    if not focus then return end
+    if button == "DPadUp" then
+        self:Move(0, 1, "up")
+    elseif button == "DPadDown" then
+        self:Move(0, -1, "down")
+    elseif button == "DPadLeft" then
+        self:Move(-1, 0, "left")
+    elseif button == "DPadRight" then
+        self:Move(1, 0, "right")
+    elseif button == "LeftButton" then  -- i.e., confirm
+        -- Click event is passed to target by SecureActionButtonTemplate.
+        -- This code is called afterward, so it's possible that the click
+        -- already closed our (previously) current focus frame or otherwise
+        -- changed the cursor state.  If we blindly proceed with calling
+        -- the on_click handler here, we could potentially perform a second
+        -- click action from a single button press, so ensure that the
+        -- focus state has not in fact changed.
+        local new_focus, new_target = self:GetFocusAndTarget()
+        if new_focus == focus and new_target == target then
+            if target then
+                focus:OnConfirm(target)
+            end
+        end
+    elseif button == "Cancel" then
+        -- If the frame declared a cancel button, the click is passed down
+        -- as a separate event, so we only get here in the no-passthrough
+        -- case.
+        focus:OnCancel()
+    end
+end
+
+-- OnClick() helper which moves the cursor in the given direction.
+-- dx and dy give the movement direction with respect to screen
+-- coordinates (with WoW's usual "+Y = up" mapping); dir gives the
+-- direction keyword for checking target-specific movement overrides.
+function MenuCursor:Move(dx, dy, dir)
+    local focus, target = self:GetFocusAndTarget()
+    if not target then return end
+    local new_target = focus:NextTarget(target, dx, dy, dir)
+    if new_target then
+        self:SetTarget(new_target)
+    end
+end
+
+------------------------------------------------------------------------
+-- Frame manager class
+------------------------------------------------------------------------
+
+local MenuFrame = class()
+
+-- Instance constructor.  Pass the WoW Frame instance to be managed.
+function MenuFrame:__constructor(frame)
+    self.frame = frame
+
+    -- Table of valid targets for cursor movement.  Each key is a frame
+    -- (except as noted for scroll_box below), and each value is a subtable
+    -- with the following possible elements:
+    --    - can_activate: If true, a confirm input on this frame causes a
+    --         left-click action to be sent to the frame.
+    --    - is_default: If true, a call to UpdateCursor() when no frame is
+    --         targeted will cause this frame to be targeted.
+    --    - is_scroll_box: If non-nil, the key is a pseudo-frame for the
+    --         corresponding scroll list element returned by
+    --         MenuCursor:PseudoFrameForScrollElement().
+    --    - lock_highlight: If true, the frame's LockHighlight() and
+    --         UnlockHighlight() methods will be called when the frame is
+    --         targeted and untargeted, respectively.
+    --    - on_click: If non-nil, a function to be called when the element
+    --         is activated.  The element is passed as an argument.  When set
+    --         with can_activate, this is called after the click event is
+    --         passed down to the frame.
+    --    - on_enter: If non-nil, a function to be called when the cursor
+    --         is moved onto the element.  The frame is passed as an argument.
+    --         Ignored if send_enter_leave is set.
+    --    - on_leave: If non-nil, a function to be called when the cursor
+    --         is moved off the element.  The frame is passed as an argument.
+    --         Ignored if send_enter_leave is set.
+    --    - scroll_frame: If non-nil, a ScrollFrame which should be scrolled
+    --         to make the element visible when targeted.
+    --    - send_enter_leave: If true, the frame's OnEnter and OnLeave
+    --         srcipts will be called when the frame is targeted and
+    --         untargeted, respectively.
+    --    - up, down, left, right: If non-nil, specifies the frame to be
+    --         targeted on the corresponding movement input from this frame.
+    --         A value of false prevents movement in the corresponding
+    --         direction.
+    self.targets = {}
+    -- Function to call when the cancel button is pressed (receives self
+    -- as an argument).  If nil, no action is taken.
+    self.cancel_func = nil
+    -- Subframe (button) to be clicked on a gamepad cancel button press,
+    -- or nil for none.  If set, cancel_func is ignored.
+    self.cancel_button = nil
+    -- Global name of button to be clicked on a gamepad previous-page
+    -- button press, or nil if none.  (Gamepad page flipping is only
+    -- enabled if both this and next_page_button are non-nil.)
+    self.prev_page_button = nil
+    -- Global name of button to be clicked on a gamepad next-page button
+    -- press, or nil if none.
+    self.next_page_button = nil
+    -- Should the current button be highlighted if enabled?
+    -- (This is a cache of the current button's lock_highlight parameter.)
+    self.want_highlight = true
+    -- Is the current button highlighted via lock_highlight?
+    -- (This is a cache to avoid unnecessary repeated calls to the
+    -- button's LockHighlight() method in OnUpdate().)
+    self.highlight_locked = false
+end
+
+-- Per-frame update handler.  Handles locking highlight on a newly
+-- enabled button.
+function MenuFrame:OnUpdate(target_frame)
     if self.want_highlight and not self.highlight_locked then
         -- The button was previously disabled.  See if it is now enabled,
         -- such as in the Revival Catalyst confirmation dialog after the
@@ -368,161 +499,42 @@ function MenuCursor:OnUpdate()
     end
 end
 
--- Helper for UpdateCursor() and OnUpdate() to set the cursor frame anchor.
-function MenuCursor:SetCursorPoint(target)
-    local f = self.frame
-    f:ClearAllPoints()
-    -- Work around frame reference limitations on secure buttons
-    --f:SetPoint("TOPRIGHT", target, "LEFT")
-    local x = target:GetLeft()
-    local _, y = target:GetCenter()
-    if not x or not y then return end
-    local scale = target:GetEffectiveScale() / UIParent:GetEffectiveScale()
-    x = x * scale
-    y = y * scale
-    f:SetPoint("TOPRIGHT", UIParent, "TOPLEFT", x, y-UIParent:GetHeight())
+-- Confirm input event handler, called from MenuCursor:OnClick() for
+-- confirm button presses after secure click passthrough.  Receives the
+-- target on which the confirm action occurred.
+function MenuFrame:OnConfirm(target)
+    local params = self.targets[target]
+    if params.on_click then params.on_click(target) end
 end
 
--- Show() handler; activates menu cursor input bindings.
-function MenuCursor:OnShow()
-    local f = self.frame
-    SetOverrideBinding(f, true, "PADDUP",
-                       "CLICK WoWXIV_MenuCursor:DPadUp")
-    SetOverrideBinding(f, true, "PADDDOWN",
-                       "CLICK WoWXIV_MenuCursor:DPadDown")
-    SetOverrideBinding(f, true, "PADDLEFT",
-                       "CLICK WoWXIV_MenuCursor:DPadLeft")
-    SetOverrideBinding(f, true, "PADDRIGHT",
-                       "CLICK WoWXIV_MenuCursor:DPadRight")
-    SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_confirm"],
-                       "CLICK WoWXIV_MenuCursor:LeftButton")
-    self:SetCancelBinding()
-    if self.prev_page_button and self.next_page_button then
-        SetOverrideBinding(f, true,
-                           WoWXIV_config["gamepad_menu_prev_page"],
-                           "CLICK "..(self.prev_page_button)..":LeftButton")
-        SetOverrideBinding(f, true,
-                           WoWXIV_config["gamepad_menu_next_page"],
-                           "CLICK "..(self.next_page_button)..":LeftButton")
+-- Cancel input event handler, called from MenuCursor:OnClick() for cancel
+-- button presses.  Not called if the frame declares a cancel button (the
+-- input is securely passed through to the button instead).
+function MenuFrame:OnCancel()
+    if self.cancel_func then
+        self:cancel_func()
     end
 end
 
--- Hide() handler; clears menu cursor input bindings.
-function MenuCursor:OnHide()
-    ClearOverrideBindings(self.frame)
-end
-
--- Helper for UpdateCursor() and OnShow() to set the cancel button binding
--- for the current cursor target depending on whether it needs to be
--- securely passed through to the target.
-function MenuCursor:SetCancelBinding()
-    local f = self.frame
-    if self.cancel_button then
-        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
-                           "CLICK WoWXIV_MenuCursor:RightButton")
-    else
-        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
-                           "CLICK WoWXIV_MenuCursor:Cancel")
-    end
-end
-
--- Click event handler; handles all events other than secure click
--- passthrough.
-function MenuCursor:OnClick(button, down)
-    if button == "DPadUp" then
-        self:Move(0, 1, "up")
-    elseif button == "DPadDown" then
-        self:Move(0, -1, "down")
-    elseif button == "DPadLeft" then
-        self:Move(-1, 0, "left")
-    elseif button == "DPadRight" then
-        self:Move(1, 0, "right")
-    elseif button == "LeftButton" then  -- i.e., confirm
-        -- Click event is passed to target by SecureActionButtonTemplate.
-        -- This code is called afterward, so it's possible that the target
-        -- already closed our focus frame; avoid erroring in that case.
-        if self.focus then
-            local target = self.cur_target
-            if target then
-                local params = self.targets[target]
-                if params.on_click then params.on_click(target) end
-            end
-        end
-    elseif button == "Cancel" then
-        if self.cancel_func then
-            self:cancel_func()
-        end
-        self:UpdateCursor()
-    end
-end
-
--- OnClick() helper which moves the cursor in the given direction.
+-- Return the next target in the given direction from the given target,
+-- or nil to indicate no next target.
 -- dx and dy give the movement direction with respect to screen
 -- coordinates (with WoW's usual "+Y = up" mapping); dir gives the
 -- direction keyword for checking target-specific movement overrides.
-function MenuCursor:Move(dx, dy, dir)
-    local cur_target = self.cur_target
-    if not cur_target then return end
-    local params = self.targets[cur_target]
-    local new_target
-    if params[dir] ~= nil then
+function MenuFrame:NextTarget(target, dx, dy, dir)
+    local params = self.targets[target]
+    local explicit_next = params[dir]
+    if explicit_next ~= nil then
         -- A value of false indicates "suppress movement in this
         -- direction".  We have to use false and not nil because
         -- Lua can't distinguish between "key in table with nil value"
         -- and "key not in table".
-        new_target = params[dir]
-    else
-        new_target = self:NextTarget(dx, dy)
+        return explicit_next or nil
     end
-    if new_target then
-        local new_params = self.targets[new_target]
-        local MARGIN = 20
-        if new_params.scroll_frame then
-            local scroll_frame = new_params.scroll_frame
-            local scroll_top = -(scroll_frame:GetTop())
-            local scroll_bottom = -(scroll_frame:GetBottom())
-            local scroll_height = scroll_bottom - scroll_top
-            local top = -(new_target:GetTop()) - scroll_top
-            local bottom = -(new_target:GetBottom()) - scroll_top
-            local scroll_amount
-            if top < MARGIN then
-                scroll_amount = top - MARGIN
-            elseif bottom > scroll_height - MARGIN then
-                scroll_amount = bottom - (scroll_height - MARGIN)
-            end
-            if scroll_amount then
-                local scroll_target = scroll_frame:GetVerticalScroll() + scroll_amount
-                -- SetVerticalScroll() automatically clamps to valid range.
-                scroll_frame:SetVerticalScroll(scroll_target)
-            end
-        elseif new_params.is_scroll_box then
-            local scroll_frame = new_target.box
-            local scroll_height = scroll_frame:GetVisibleExtent()
-            local scroll_current = scroll_frame:GetScrollPercentage() * scroll_frame:GetDerivedScrollRange()
-            local top = scroll_frame:GetExtentUntil(new_target.index)
-            local bottom = top + scroll_frame:GetElementExtent(new_target.index)
-            local scroll_target
-            if top - MARGIN < scroll_current then
-                scroll_target = top - MARGIN
-            elseif bottom + MARGIN > scroll_current + scroll_height then
-                scroll_target = bottom + MARGIN - scroll_height
-            end
-            if scroll_target then
-                -- ScrollToOffset() automatically clamps to valid range.
-                scroll_frame:ScrollToOffset(scroll_target)
-            end
-        end
-        self:SetTarget(new_target)
-        self:UpdateCursor()
-    end
-end
 
--- Move() helper which returns the next target in the given direction,
--- or nil if none is found.
-function MenuCursor:NextTarget(dx, dy)
     local global_scale = UIParent:GetEffectiveScale()
-    local cur_x0, cur_y0, cur_w, cur_h = self.cur_target:GetRect()
-    local cur_scale = self.cur_target:GetEffectiveScale() / global_scale
+    local cur_x0, cur_y0, cur_w, cur_h = target:GetRect()
+    local cur_scale = target:GetEffectiveScale() / global_scale
     cur_x0 = cur_x0 * cur_scale
     cur_y0 = cur_y0 * cur_scale
     cur_w = cur_w * cur_scale
@@ -549,7 +561,7 @@ function MenuCursor:NextTarget(dx, dy)
     ]]--
     local best, best_dx, best_dy = nil, nil, nil
     for frame, params in pairs(self.targets) do
-        if (frame ~= self.cur_target
+        if (frame ~= target
             and frame.GetRect)  -- skip scroll list elements
         then
             local f_x0, f_y0, f_w, f_h = frame:GetRect()
@@ -610,6 +622,128 @@ function MenuCursor:NextTarget(dx, dy)
     return best
 end
 
+-- Return the global names of the previous and next page buttons for this
+-- frame, or (nil,nil) if none.
+function MenuFrame:GetPageButtons()
+    return self.prev_page_button, self.next_page_button
+end
+
+-- Return the frame (WoW Button instance) of the cancel button for this
+-- frame, or nil if none.
+function MenuFrame:GetCancelButton()
+    return self.cancel_button
+end
+
+-- Return the frame's default cursor target.
+function MenuFrame:GetDefaultTarget()
+    for frame, params in pairs(self.targets) do
+        if params.is_default then
+            return frame
+        end
+    end
+    return nil
+end
+
+-- Perform all actions appropriate to the cursor entering a target.
+function MenuFrame:EnterTarget(target)
+    local params = self.targets[target]
+    assert(params)
+
+    local MARGIN = 20
+    if params.scroll_frame then
+        local scroll_frame = params.scroll_frame
+        local scroll_top = -(scroll_frame:GetTop())
+        local scroll_bottom = -(scroll_frame:GetBottom())
+        local scroll_height = scroll_bottom - scroll_top
+        local top = -(target:GetTop()) - scroll_top
+        local bottom = -(target:GetBottom()) - scroll_top
+        local scroll_amount
+        if top < MARGIN then
+            scroll_amount = top - MARGIN
+        elseif bottom > scroll_height - MARGIN then
+            scroll_amount = bottom - (scroll_height - MARGIN)
+        end
+        if scroll_amount then
+            local scroll_target = scroll_frame:GetVerticalScroll() + scroll_amount
+            -- SetVerticalScroll() automatically clamps to valid range.
+            scroll_frame:SetVerticalScroll(scroll_target)
+        end
+    elseif params.is_scroll_box then
+        local scroll_frame = target.box
+        local scroll_height = scroll_frame:GetVisibleExtent()
+        local scroll_current = scroll_frame:GetScrollPercentage() * scroll_frame:GetDerivedScrollRange()
+        local top = scroll_frame:GetExtentUntil(target.index)
+        local bottom = top + scroll_frame:GetElementExtent(target.index)
+        local scroll_target
+        if top - MARGIN < scroll_current then
+            scroll_target = top - MARGIN
+        elseif bottom + MARGIN > scroll_current + scroll_height then
+            scroll_target = bottom + MARGIN - scroll_height
+        end
+        if scroll_target then
+            -- ScrollToOffset() automatically clamps to valid range.
+            scroll_frame:ScrollToOffset(scroll_target)
+        end
+    end
+
+    local frame = self:GetTargetFrame(target)
+    if params.lock_highlight then
+        self.want_highlight = true
+        if frame:IsEnabled() then
+            self.highlight_locked = true
+            frame:LockHighlight()
+        end
+    end
+    if params.send_enter_leave then
+        frame:GetScript("OnEnter")(frame)
+    elseif params.on_enter then
+        params.on_enter(frame)
+    end
+end
+
+-- Perform all actions appropriate to the cursor leaving a target.
+function MenuFrame:LeaveTarget(target)
+    local params = self.targets[target]
+    local frame = self:GetTargetFrame(target)
+    if params.lock_highlight then
+        -- We could theoretically check highlight_locked here, but
+        -- it should be safe to unconditionally unlock (we take the
+        -- lock_highlight parameter as an indication that we have
+        -- exclusive control over the highlight lock).
+        frame:UnlockHighlight()
+    end
+    if params.send_enter_leave then
+        frame:GetScript("OnLeave")(frame)
+    elseif params.on_leave then
+        params.on_leave(frame)
+    end
+    self.want_highlight = false
+    self.highlight_locked = false
+end
+
+-- Return the WoW Frame instance for this frame.
+function MenuFrame:GetFrame()
+    return self.frame
+end
+
+-- Return the frame associated with the given targets[] key.
+function MenuFrame:GetTargetFrame(target)
+    local params = self.targets[target]
+    if params and params.is_scroll_box then
+        local box = target.box
+        return box:FindFrame(box:FindElementData(target.index))
+    else
+        return target
+    end
+end
+
+-- Return whether click events should be securely passed down to the
+-- given target's frame.
+function MenuFrame:GetTargetClickable(target)
+    local params = self.targets[target]
+    return params and params.can_activate
+end
+
 ------------------------------------------------------------------------
 -- Utility methods
 ------------------------------------------------------------------------
@@ -632,43 +766,40 @@ function MenuCursor:HookShow(frame, event)
 end
 
 -- Generic cancel_func to close a frame.
-function MenuCursor:CancelFrame()
-    local frame = self.focus
-    self:ClearFocus()
-    frame:Hide()
+local function CancelFrame(frame)
+    global_cursor:RemoveFrame(frame)
+    frame:GetFrame():Hide()
 end
 
 -- Generic cancel_func to close a UI frame.  Equivalent to CancelFrame()
 -- but with calling HideUIPanel(focus) instead of focus:Hide().
-function MenuCursor:CancelUIPanel()
-    local frame = self.focus
-    self:ClearFocus()
-    HideUIPanel(frame)
+local function CancelUIFrame(frame)
+    global_cursor:RemoveFrame(frame)
+    HideUIPanel(frame:GetFrame())
 end
 
 -- Generic cancel_func to close a UI frame, when a callback has already
 -- been established on the frame's Hide() method to clear the frame focus.
-function MenuCursor:HideUIPanel()
-    HideUIPanel(self.focus)
+local function HideUIFrame(frame)
+    HideUIPanel(frame:GetFrame())
 end
 
 -- Shared cancel_func used for quest frames.
-function MenuCursor:CancelQuestFrame()
-    self:ClearFocus()
+local function CancelQuestFrame(frame)
+    global_cursor:RemoveFrame(frame)
     CloseQuest()
 end
 
--- Shared on_leave function which simply hides the tooltip.
-function MenuCursor:HideTooltip()
+-- Shared on_leave handler which simply hides the tooltip.
+local function HideTooltip()
     if not GameTooltip:IsForbidden() then
         GameTooltip:Hide()
     end
 end
 
--- on_click function for NumericInputSpinnerTemplate increment/decrement
+-- on_click handler for NumericInputSpinnerTemplate increment/decrement
 -- buttons, which use an OnMouseDown/Up event pair instead of OnClick.
--- Note that this is a static function, not an instance method!
-function MenuCursor.ClickNumericSpinnerButton(frame)
+local function ClickNumericSpinnerButton(frame)
     frame:GetScript("OnMouseDown")(frame, "LeftButton", true)
     frame:GetScript("OnMouseUp")(frame, "LeftButton")
 end
@@ -676,19 +807,8 @@ end
 -- Return a table suitable for use as a targets[] key for an element of
 -- a ScrollBox data list or tree.  Pass the ScrollBox frame and the
 -- data index of the element.
-function MenuCursor:PseudoFrameForScrollElement(box, index)
+local function PseudoFrameForScrollElement(box, index)
     return {box = box, index = index}
-end
-
--- Return the frame associated with the given targets[] key.
-function MenuCursor:GetTargetFrame(target)
-    local params = self.targets[target]
-    if params.is_scroll_box then
-        local box = target.box
-        return box:FindFrame(box:FindElementData(target.index))
-    else
-        return target
-    end
 end
 
 ------------------------------------------------------------------------
@@ -701,34 +821,17 @@ MenuCursor.handlers = {}
 
 -------- Gossip (NPC dialogue) frame
 
-function MenuCursor.handlers.GossipFrame(cursor)
-    local f = cursor.frame
-    f:RegisterEvent("GOSSIP_CLOSED")
-    f:RegisterEvent("GOSSIP_SHOW")
-end
+local menu_GossipFrame = MenuFrame(GossipFrame)
 
-function MenuCursor:GOSSIP_CLOSED()
-    -- This event can fire even when the gossip window was never opened
-    -- (generally when a menu opens instead), so don't assume we're in
-    -- gossip menu state.
-    if self.focus == GossipFrame then
-        self:ClearFocus()
-        self:UpdateCursor()
-    end
-end
-
-function MenuCursor:GOSSIP_SHOW()
-    if not GossipFrame:IsVisible() then
-        return  -- Flight map, etc.
-    end
-    self:SetFocus(GossipFrame)
-    self.cancel_func = self.CancelUIPanel
+local function GossipFrame_OnShow()
+    local self = menu_GossipFrame
+    self.cancel_func = CancelUIFrame
     local goodbye = GossipFrame.GreetingPanel.GoodbyeButton
     self.targets = {[goodbye] = {can_activate = true,
                                  lock_highlight = true}}
     if GossipFrame.FriendshipStatusBar:IsShown() then
-        self.targets[GossipFrame.FriendshipStatusBar] = {
-            send_enter_leave = true}
+        self.targets[GossipFrame.FriendshipStatusBar] =
+            {send_enter_leave = true}
     end
     -- FIXME: This logic to find the quest / dialogue option buttons is
     -- a bit kludgey and certainly won't work if the list is scrolled
@@ -758,218 +861,232 @@ function MenuCursor:GOSSIP_SHOW()
         end
     end
     self.targets[first_button or goodbye].is_default = true
-    self:UpdateCursor()
+end
+
+function MenuCursor.handlers.GossipFrame(cursor)
+    cursor:RegisterEvent("GOSSIP_CLOSED")
+    cursor:RegisterEvent("GOSSIP_SHOW")
+end
+
+function MenuCursor:GOSSIP_SHOW()
+    if not GossipFrame:IsVisible() then
+        return  -- Flight map, etc.
+    end
+    GossipFrame_OnShow(menu_GossipFrame)
+    self:AddFrame(menu_GossipFrame)
+end
+
+function MenuCursor:GOSSIP_CLOSED()
+    self:RemoveFrame(menu_GossipFrame)
 end
 
 
 -------- Quest info frame
 
-function MenuCursor.handlers.QuestFrame(cursor)
-    local f = cursor.frame
-    f:RegisterEvent("QUEST_COMPLETE")
-    f:RegisterEvent("QUEST_DETAIL")
-    f:RegisterEvent("QUEST_FINISHED")
-    f:RegisterEvent("QUEST_GREETING")
-    f:RegisterEvent("QUEST_PROGRESS")
-end
+local menu_QuestFrame = MenuFrame(QuestFrame)
 
-function MenuCursor:QUEST_GREETING()
-    assert(QuestFrame:IsVisible())
-    self:SetFocus(QuestFrame)
-    self.cancel_func = self.CancelQuestFrame
-    local goodbye = QuestFrameGreetingGoodbyeButton
-    self.targets = {[goodbye] = {can_activate = true,
-                                 lock_highlight = true}}
-    local first_button, last_button, first_avail
-    local avail_y = (AvailableQuestsText:IsShown()
-                     and AvailableQuestsText:GetTop())
-    for button in QuestFrameGreetingPanel.titleButtonPool:EnumerateActive() do
-        self.targets[button] = {can_activate = true,
-                                lock_highlight = true}
-        local y = button:GetTop()
-        if not first_button then
-            first_button = button
-            last_button = button
-        else
-            if y > first_button:GetTop() then first_button = button end
-            if y < last_button:GetTop() then last_button = button end
+local function QuestFrame_OnShow(event)
+    local self = menu_QuestFrame
+    self.cancel_func = CancelQuestFrame
+
+    if event == "QUEST_GREETING" then
+        local goodbye = QuestFrameGreetingGoodbyeButton
+        self.targets = {[goodbye] = {can_activate = true,
+                                     lock_highlight = true}}
+        local first_button, last_button, first_avail
+        local avail_y = (AvailableQuestsText:IsShown()
+                         and AvailableQuestsText:GetTop())
+        for button in QuestFrameGreetingPanel.titleButtonPool:EnumerateActive() do
+            self.targets[button] = {can_activate = true,
+                                    lock_highlight = true}
+            local y = button:GetTop()
+            if not first_button then
+                first_button = button
+                last_button = button
+            else
+                if y > first_button:GetTop() then first_button = button end
+                if y < last_button:GetTop() then last_button = button end
+            end
+            if avail_y and y < avail_y then
+                if not first_avail or y > first_avail:GetTop() then
+                    first_avail = button
+                end
+            end
         end
-        if avail_y and y < avail_y then
-            if not first_avail or y > first_avail:GetTop() then
-                first_avail = button
+        self.targets[first_avail or first_button or goodbye].is_default = true
+
+    elseif event == "QUEST_PROGRESS" then
+        local can_complete = QuestFrameCompleteButton:IsEnabled()
+        self.targets = {
+            [QuestFrameCompleteButton] = {can_activate = true,
+                                          lock_highlight = true,
+                                          is_default = can_complete},
+            [QuestFrameGoodbyeButton] = {can_activate = true,
+                                         lock_highlight = true,
+                                         is_default = not can_complete},
+        }
+        for i = 1, 99 do
+            local name = "QuestProgressItem" .. i
+            local item_frame = _G[name]
+            if not item_frame or not item_frame:IsShown() then break end
+            self.targets[item_frame] = {send_enter_leave = true}
+        end
+
+    else  -- DETAIL or COMPLETE
+        local is_complete = (event == "QUEST_COMPLETE")
+        local button1, button2
+        if is_complete then
+            self.targets = {
+                [QuestFrameCompleteQuestButton] = {
+                    up = false, down = false, left = false, right = false,
+                    can_activate = true, lock_highlight = true,
+                    is_default = true}
+            }
+            button1 = QuestFrameCompleteQuestButton
+            button2 = nil
+        else
+            self.targets = {
+                [QuestFrameAcceptButton] = {
+                    up = false, down = false, left = false,
+                    right = QuestFrameDeclineButton,
+                    can_activate = true, lock_highlight = true,
+                    is_default = true},
+                [QuestFrameDeclineButton] = {
+                    up = false, down = false, right = false,
+                    left = QuestFrameAcceptButton,
+                    can_activate = true, lock_highlight = true},
+            }
+            button1 = QuestFrameAcceptButton
+            button2 = QuestFrameDeclineButton
+        end
+        local rewards = {}
+        if QuestInfoSkillPointFrame:IsVisible() then
+            tinsert(rewards, {QuestInfoSkillPointFrame, false})
+        end
+        for i = 1, 99 do
+            local name = "QuestInfoRewardsFrameQuestInfoItem" .. i
+            local reward_frame = _G[name]
+            if not reward_frame or not reward_frame:IsShown() then break end
+            tinsert(rewards, {reward_frame, true})
+        end
+        for reward_frame in QuestInfoRewardsFrame.spellRewardPool:EnumerateActive() do
+            tinsert(rewards, {reward_frame, false})
+        end
+        for reward_frame in QuestInfoRewardsFrame.reputationRewardPool:EnumerateActive() do
+            tinsert(rewards, {reward_frame, false})
+        end
+        for i, v in ipairs(rewards) do
+            local frame = v[1]
+            tinsert(rewards[i], frame:GetLeft())
+            tinsert(rewards[i], frame:GetTop())
+        end
+        table.sort(rewards, function(a, b)
+            return a[4] > b[4] or (a[4] == b[4] and a[3] < b[3])
+        end)
+        local last_l, last_r, this_l
+        for _, v in ipairs(rewards) do
+            local reward_frame, is_item = unpack(v)
+            self.targets[reward_frame] = {
+                up = false, down = false, left = false, right = false,
+                can_activate = is_item, send_enter_leave = true,
+                scroll_frame = (is_complete and QuestRewardScrollFrame
+                                             or QuestDetailScrollFrame),
+            }
+            if this_l and reward_frame:GetTop() == this_l:GetTop() then
+                -- Item is in the right column.
+                if last_r then
+                    self.targets[last_r].down = reward_frame
+                    self.targets[reward_frame].up = last_r
+                elseif last_l then
+                    self.targets[reward_frame].up = last_l
+                end
+                self.targets[this_l].right = reward_frame
+                self.targets[reward_frame].left = this_l
+                last_l, last_r = this_l, reward_frame
+                this_l = nil
+            else
+                -- Item is in the left column.
+                if this_l then
+                    last_l, last_r = this_l, nil
+                end
+                if last_l then
+                    self.targets[last_l].down = reward_frame
+                    self.targets[reward_frame].up = last_l
+                end
+                if last_r then
+                    -- This will be overwritten if we find another item
+                    -- on the same line.
+                    self.targets[last_r].down = reward_frame
+                end
+                this_l = reward_frame
+            end
+        end
+        if this_l then
+            last_l, last_r = this_l, nil
+        end
+        if last_l then
+            self.targets[last_l].down = button1
+            self.targets[button1].up = last_l
+            if button2 then
+                self.targets[button2].up = last_l
+            end
+        end
+        if last_r then
+            self.targets[last_r].down = button2 or button1
+            if button2 then
+                self.targets[button2].up = last_r
             end
         end
     end
-    self.targets[first_avail or first_button or goodbye].is_default = true
-    self:UpdateCursor()
 end
 
-function MenuCursor:QUEST_PROGRESS()
-    assert(QuestFrame:IsVisible())
-    self:SetFocus(QuestFrame)
-    self.cancel_func = self.CancelQuestFrame
-    local can_complete = QuestFrameCompleteButton:IsEnabled()
-    self.targets = {
-        [QuestFrameCompleteButton] = {can_activate = true,
-                                      lock_highlight = true,
-                                      is_default = can_complete},
-        [QuestFrameGoodbyeButton] = {can_activate = true,
-                                     lock_highlight = true,
-                                     is_default = not can_complete},
-    }
-    for i = 1, 99 do
-        local name = "QuestProgressItem" .. i
-        local item_frame = _G[name]
-        if not item_frame or not item_frame:IsShown() then break end
-        self.targets[item_frame] = {send_enter_leave = true}
-    end
-    self:UpdateCursor()
+function MenuCursor.handlers.QuestFrame(cursor)
+    cursor:RegisterEvent("QUEST_COMPLETE")
+    cursor:RegisterEvent("QUEST_DETAIL")
+    cursor:RegisterEvent("QUEST_FINISHED")
+    cursor:RegisterEvent("QUEST_GREETING")
+    cursor:RegisterEvent("QUEST_PROGRESS")
+end
+
+function MenuCursor:QUEST_GREETING()
+    assert(QuestFrame:IsVisible())  -- FIXME: might be false if previous quest turn-in started a cutscene (e.g. The Underking Comes in the Legion Highmountain scenario)
+    QuestFrame_OnShow("QUEST_GREETING")
+    self:AddFrame(menu_QuestFrame)
 end
 
 function MenuCursor:QUEST_DETAIL()
     -- FIXME: some map-based quests (e.g. Blue Dragonflight campaign)
     -- start a quest directly from the map; we should support those too
     if not QuestFrame:IsVisible() then return end
-    return self:DoQuestDetail(false)
+    QuestFrame_OnShow("QUEST_DETAIL")
+    self:AddFrame(menu_QuestFrame)
+end
+
+function MenuCursor:QUEST_PROGRESS()
+    assert(QuestFrame:IsVisible())
+    QuestFrame_OnShow("QUEST_PROGRESS")
+    self:AddFrame(menu_QuestFrame)
 end
 
 function MenuCursor:QUEST_COMPLETE()
     -- Quest frame can fail to open under some conditions?
     if not QuestFrame:IsVisible() then return end
-    return self:DoQuestDetail(true)
-end
-
-function MenuCursor:DoQuestDetail(is_complete)
-    self:SetFocus(QuestFrame)
-    self.cancel_func = self.CancelQuestFrame
-    local button1, button2
-    if is_complete then
-        self.targets = {
-            [QuestFrameCompleteQuestButton] = {
-                up = false, down = false, left = false, right = false,
-                can_activate = true, lock_highlight = true,
-                is_default = true}
-        }
-        button1 = QuestFrameCompleteQuestButton
-        button2 = nil
-    else
-        self.targets = {
-            [QuestFrameAcceptButton] = {
-                up = false, down = false, left = false,
-                right = QuestFrameDeclineButton,
-                can_activate = true, lock_highlight = true,
-                is_default = true},
-            [QuestFrameDeclineButton] = {
-                up = false, down = false, right = false,
-                left = QuestFrameAcceptButton,
-                can_activate = true, lock_highlight = true},
-        }
-        button1 = QuestFrameAcceptButton
-        button2 = QuestFrameDeclineButton
-    end
-    local rewards = {}
-    if QuestInfoSkillPointFrame:IsVisible() then
-        tinsert(rewards, {QuestInfoSkillPointFrame, false})
-    end
-    for i = 1, 99 do
-        local name = "QuestInfoRewardsFrameQuestInfoItem" .. i
-        local reward_frame = _G[name]
-        if not reward_frame or not reward_frame:IsShown() then break end
-        tinsert(rewards, {reward_frame, true})
-    end
-    for reward_frame in QuestInfoRewardsFrame.spellRewardPool:EnumerateActive() do
-        tinsert(rewards, {reward_frame, false})
-    end
-    for reward_frame in QuestInfoRewardsFrame.reputationRewardPool:EnumerateActive() do
-        tinsert(rewards, {reward_frame, false})
-    end
-    for i, v in ipairs(rewards) do
-        local frame = v[1]
-        tinsert(rewards[i], frame:GetLeft())
-        tinsert(rewards[i], frame:GetTop())
-    end
-    table.sort(rewards, function(a, b)
-        return a[4] > b[4] or (a[4] == b[4] and a[3] < b[3])
-    end)
-    local last_l, last_r, this_l
-    for _, v in ipairs(rewards) do
-        local reward_frame, is_item = unpack(v)
-        self.targets[reward_frame] = {
-            up = false, down = false, left = false, right = false,
-            can_activate = is_item, send_enter_leave = true,
-            scroll_frame = (is_complete and QuestRewardScrollFrame
-                                         or QuestDetailScrollFrame),
-        }
-        if this_l and reward_frame:GetTop() == this_l:GetTop() then
-            -- Item is in the right column.
-            if last_r then
-                self.targets[last_r].down = reward_frame
-                self.targets[reward_frame].up = last_r
-            elseif last_l then
-                self.targets[reward_frame].up = last_l
-            end
-            self.targets[this_l].right = reward_frame
-            self.targets[reward_frame].left = this_l
-            last_l, last_r = this_l, reward_frame
-            this_l = nil
-        else
-            -- Item is in the left column.
-            if this_l then
-                last_l, last_r = this_l, nil
-            end
-            if last_l then
-                self.targets[last_l].down = reward_frame
-                self.targets[reward_frame].up = last_l
-            end
-            if last_r then
-                -- This will be overwritten if we find another item
-                -- on the same line.
-                self.targets[last_r].down = reward_frame
-            end
-            this_l = reward_frame
-        end
-    end
-    if this_l then
-        last_l, last_r = this_l, nil
-    end
-    if last_l then
-        self.targets[last_l].down = button1
-        self.targets[button1].up = last_l
-        if button2 then
-            self.targets[button2].up = last_l
-        end
-    end
-    if last_r then
-        self.targets[last_r].down = button2 or button1
-        if button2 then
-            self.targets[button2].up = last_r
-        end
-    end
-    self:UpdateCursor()
+    QuestFrame_OnShow("QUEST_COMPLETE")
+    self:AddFrame(menu_QuestFrame)
 end
 
 function MenuCursor:QUEST_FINISHED()
-    -- If the quest shows an info popup ("campaign complete" etc), we may
-    -- have already lost focus.
-    if self.focus == QuestFrame then
-        self:ClearFocus()
-        self:UpdateCursor()
-    end
+    self:RemoveFrame(menu_QuestFrame)
 end
 
 
--------- BfA troop recruitment frame
+-------- Legion/BfA troop recruitment frame
 
-function MenuCursor.handlers.TroopRecruitmentFrame(cursor)
-    local f = cursor.frame
-    f:RegisterEvent("SHIPMENT_CRAFTER_CLOSED")
-    f:RegisterEvent("SHIPMENT_CRAFTER_OPENED")
-end
+local menu_TroopRecruitmentFrame
 
-function MenuCursor:SHIPMENT_CRAFTER_OPENED()
-    assert(GarrisonCapacitiveDisplayFrame:IsVisible())
-    self:SetFocus(GarrisonCapacitiveDisplayFrame)
-    self.cancel_func = self.CancelUIPanel
+local function TroopRecruitmentFrame_OnShow()
+    local self = menu_TroopRecruitmentFrame
+    self.cancel_func = CancelUIFrame
     self.targets = {
         [GarrisonCapacitiveDisplayFrame.CreateAllWorkOrdersButton] =
             {can_activate = true, lock_highlight = true},
@@ -983,106 +1100,125 @@ function MenuCursor:SHIPMENT_CRAFTER_OPENED()
             {can_activate = true, lock_highlight = true,
              is_default = true},
     }
-    self:UpdateCursor()
+end
+
+function MenuCursor.handlers.TroopRecruitmentFrame(cursor)
+    cursor:RegisterEvent("ADDON_LOADED")
+    if GarrisonCapacitiveDisplayFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_GarrisonUI")
+    end
+    -- We need to add these early because it seems that if we add them
+    -- during the ADDON_LOADED event, we don't see the OPENED event which
+    -- is sent in the same frame (possibly because the addon was loaded in
+    -- an OPENED handler, so the event had technically already been sent).
+    cursor:RegisterEvent("SHIPMENT_CRAFTER_CLOSED")
+    cursor:RegisterEvent("SHIPMENT_CRAFTER_OPENED")
+end
+
+function MenuCursor:ADDON_LOADED__Blizzard_GarrisonUI()
+    menu_TroopRecruitmentFrame = MenuFrame(GarrisonCapacitiveDisplayFrame)
+    if GarrisonCapacitiveDisplayFrame:IsVisible() then
+        self:SHIPMENT_CRAFTER_OPENED()
+    end
+end
+
+function MenuCursor:SHIPMENT_CRAFTER_OPENED()
+    assert(menu_TroopRecruitmentFrame)  -- See note in startup handler.
+    assert(GarrisonCapacitiveDisplayFrame:IsVisible())
+    TroopRecruitmentFrame_OnShow()
+    self:AddFrame(menu_TroopRecruitmentFrame)
 end
 
 function MenuCursor:SHIPMENT_CRAFTER_CLOSED()
-    assert(self.focus == nil or self.focus == GarrisonCapacitiveDisplayFrame)
-    self:ClearFocus()
-    self:UpdateCursor()
+    self:RemoveFrame(menu_TroopRecruitmentFrame)
 end
 
 
 -------- Shadowlands covenant sanctum frame
 
+local menu_CovenantSanctumFrame
+
+local function CovenantSanctumFrame_ChooseTalent(upgrade_button)
+    local self = menu_CovenantSanctumFrame
+    upgrade_button:OnMouseDown()
+    local talent_menu = MenuFrame(CovenantSanctumFrame)
+    talent_menu.cancel_func = function(self) global_cursor:RemoveFrame(self) end
+    talent_menu.targets = {
+        [CovenantSanctumFrame.UpgradesTab.TalentsList.UpgradeButton] =
+            {can_activate = true, lock_highlight = true,
+             is_default = true},
+    }
+    for frame in CovenantSanctumFrame.UpgradesTab.TalentsList.talentPool:EnumerateActive() do
+        talent_menu.targets[frame] = {send_enter_leave = true}
+    end
+    global_cursor:AddFrame(talent_menu)
+end
+
+local function CovenantSanctumFrame_OnShow()
+    local self = menu_CovenantSanctumFrame
+    self.cancel_func = CancelUIFrame
+    self.targets = {
+        [CovenantSanctumFrame.UpgradesTab.TravelUpgrade] =
+            {send_enter_leave = true,
+             on_click = CovenantSanctumFrame_ChooseTalent},
+        [CovenantSanctumFrame.UpgradesTab.DiversionUpgrade] =
+            {send_enter_leave = true,
+             on_click = CovenantSanctumFrame_ChooseTalent},
+        [CovenantSanctumFrame.UpgradesTab.AdventureUpgrade] =
+            {send_enter_leave = true,
+             on_click = CovenantSanctumFrame_ChooseTalent},
+        [CovenantSanctumFrame.UpgradesTab.UniqueUpgrade] =
+            {send_enter_leave = true,
+             on_click = CovenantSanctumFrame_ChooseTalent},
+        [CovenantSanctumFrame.UpgradesTab.DepositButton] =
+            {can_activate = true, lock_highlight = true,
+             send_enter_leave = true, is_default = true},
+    }
+end
+
 function MenuCursor.handlers.CovenantSanctumFrame(cursor)
-    cursor.frame:RegisterEvent("ADDON_LOADED")
+    cursor:RegisterEvent("ADDON_LOADED")
     if CovenantSanctumFrame then
         cursor:OnEvent("ADDON_LOADED", "Blizzard_CovenantSanctum")
     end
 end
 
 function MenuCursor:ADDON_LOADED__Blizzard_CovenantSanctum()
+    menu_CovenantSanctumFrame = MenuFrame(CovenantSanctumFrame)
     self:HookShow(CovenantSanctumFrame, "CovenantSanctumFrame")
 end
 
 function MenuCursor:CovenantSanctumFrame_Show()
     assert(CovenantSanctumFrame:IsVisible())
-    self:SetFocus(CovenantSanctumFrame)
-    self.cancel_func = self.CancelUIPanel
-    local function ChooseTalent(button)
-        button:OnMouseDown()
-        self:OnEvent("CovenantSanctumFrame_ChooseTalent", button)
-    end
-    self.targets = {
-        [CovenantSanctumFrame.UpgradesTab.TravelUpgrade] =
-            {send_enter_leave = true,
-             on_click = function(self) ChooseTalent(self) end},
-        [CovenantSanctumFrame.UpgradesTab.DiversionUpgrade] =
-            {send_enter_leave = true,
-             on_click = function(self) ChooseTalent(self) end},
-        [CovenantSanctumFrame.UpgradesTab.AdventureUpgrade] =
-            {send_enter_leave = true,
-             on_click = function(self) ChooseTalent(self) end},
-        [CovenantSanctumFrame.UpgradesTab.UniqueUpgrade] =
-            {send_enter_leave = true,
-             on_click = function(self) ChooseTalent(self) end},
-        [CovenantSanctumFrame.UpgradesTab.DepositButton] =
-            {can_activate = true, lock_highlight = true,
-             send_enter_leave = true, is_default = true},
-    }
-    self:UpdateCursor()
+    CovenantSanctumFrame_OnShow()
+    self:AddFrame(menu_CovenantSanctumFrame)
 end
 
 function MenuCursor:CovenantSanctumFrame_Hide()
-    assert(self.focus == nil or self.focus == CovenantSanctumFrame)
-    self:ClearFocus()
-    self:UpdateCursor()
-end
-
-function MenuCursor:CovenantSanctumFrame_ChooseTalent(upgrade_button)
-    self:PushFocus(self.focus)
-    self.cancel_func = function(self) self:PopFocus(self.focus) end
-    self.targets = {
-        [CovenantSanctumFrame.UpgradesTab.TalentsList.UpgradeButton] =
-            {can_activate = true, lock_highlight = true,
-             is_default = true},
-    }
-    for frame in CovenantSanctumFrame.UpgradesTab.TalentsList.talentPool:EnumerateActive() do
-        self.targets[frame] = {send_enter_leave = true}
-    end
-    self:UpdateCursor()
+    self:RemoveFrame(menu_CovenantSanctumFrame)
 end
 
 
 -------- Generic player choice frame
 
-function MenuCursor.handlers.PlayerChoiceFrame(cursor)
-    cursor.frame:RegisterEvent("ADDON_LOADED")
-    if PlayerChoiceFrame then
-        cursor:OnEvent("ADDON_LOADED", "Blizzard_PlayerChoice")
-    end
-end
+local menu_PlayerChoiceFrame
 
-function MenuCursor:ADDON_LOADED__Blizzard_PlayerChoice()
-    self:HookShow(PlayerChoiceFrame, "PlayerChoiceFrame")
-end
+local function PlayerChoiceFrame_OnShow()
+    local self = menu_PlayerChoiceFrame
 
-function MenuCursor:PlayerChoiceFrame_Show()
     local KNOWN_FORMATS = {  -- Only handle formats we've explicitly verified.
         -- Emissary boost choice, Last Hurrah quest choice, etc.
         PlayerChoiceNormalOptionTemplate = true,
-        -- Cobalt anima powers Superbloom dreamfruit, etc.
+        -- Cobalt anima powers, Superbloom dreamfruit, etc.
         PlayerChoiceGenericPowerChoiceOptionTemplate = true,
         -- Torghast anima powers
         PlayerChoiceTorghastOptionTemplate = true,
     }
     if not KNOWN_FORMATS[PlayerChoiceFrame.optionFrameTemplate] then
-        return  
+        return false
     end
-    assert(PlayerChoiceFrame:IsVisible())
-    self:SetFocus(PlayerChoiceFrame)
-    self.cancel_func = self.CancelUIPanel
+
+    self.cancel_func = CancelUIFrame
     self.targets = {}
     local leftmost = nil
     for option in PlayerChoiceFrame.optionPools:EnumerateActiveByTemplate(PlayerChoiceFrame.optionFrameTemplate) do
@@ -1097,7 +1233,7 @@ function MenuCursor:PlayerChoiceFrame_Show()
                         end
                     end
                 end
-                self.targets[button].on_leave = self.HideTooltip
+                self.targets[button].on_leave = HideTooltip
             else
                 self.targets[button].send_enter_leave = true
             end
@@ -1107,22 +1243,49 @@ function MenuCursor:PlayerChoiceFrame_Show()
         end
     end
     if leftmost then  -- i.e., if we found any buttons
-        self:SetTarget(leftmost)
+        self.targets[leftmost].is_default = true
     else
-        self:ClearFocus()
+        return false
     end
-    self:UpdateCursor()
+    return true
+end
+
+function MenuCursor.handlers.PlayerChoiceFrame(cursor)
+    cursor:RegisterEvent("ADDON_LOADED")
+    if PlayerChoiceFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_PlayerChoice")
+    end
+end
+
+function MenuCursor:ADDON_LOADED__Blizzard_PlayerChoice()
+    menu_PlayerChoiceFrame = MenuFrame(PlayerChoiceFrame)
+    self:HookShow(PlayerChoiceFrame, "PlayerChoiceFrame")
+end
+
+function MenuCursor:PlayerChoiceFrame_Show()
+    assert(PlayerChoiceFrame:IsVisible())
+    if PlayerChoiceFrame_OnShow() then
+        self:AddFrame(menu_PlayerChoiceFrame)
+    end
 end
 
 function MenuCursor:PlayerChoiceFrame_Hide()
-    if self.focus == PlayerChoiceFrame then
-        self:ClearFocus()
-        self:UpdateCursor()
-    end
+    self:RemoveFrame(menu_PlayerChoiceFrame)
 end
 
 
 -------- Info popup frame ("Campaign Complete!" etc.) (FIXME: untested)
+
+local menu_UIWidgetCenterDisplayFrame = MenuFrame(UIWidgetCenterDisplayFrame)
+
+local function UIWidgetCenterDisplayFrame_OnShow()
+    local self = menu_UIWidgetCenterDisplayFrame
+    self.cancel_func = CancelUIFrame
+    self.targets = {
+        [UIWidgetCenterDisplayFrame.CloseButton] = {
+            can_activate = true, lock_highlight = true, is_default = true},
+    }
+end
 
 function MenuCursor.handlers.UIWidgetCenterDisplayFrame(cursor)
     cursor:HookShow(UIWidgetCenterDisplayFrame, "UIWidgetCenterDisplayFrame")
@@ -1130,37 +1293,21 @@ end
 
 function MenuCursor:UIWidgetCenterDisplayFrame_Show()
     assert(UIWidgetCenterDisplayFrame:IsVisible())
-    self:SetFocus(UIWidgetCenterDisplayFrame)
-    self.cancel_func = self.CancelUIPanel
-    self.targets = {
-        [UIWidgetCenterDisplayFrame.CloseButton] = {
-            can_activate = true, lock_highlight = true, is_default = true},
-    }
-    self:UpdateCursor()
+    UIWidgetCenterDisplayFrame_OnShow()
+    self:AddFrame(menu_UIWidgetCenterDisplayFrame)
 end
 
 function MenuCursor:UIWidgetCenterDisplayFrame_Hide()
-    if self.focus == UIWidgetCenterDisplayFrame then
-        self:ClearFocus()
-        self:UpdateCursor()
-    end
+    self:RemoveFrame(menu_UIWidgetCenterDisplayFrame)
 end
 
 
 -------- Static popup dialogs
 
-function MenuCursor.handlers.StaticPopup(cursor)
-    for i = 1, STATICPOPUP_NUMDIALOGS do
-        local frame_name = "StaticPopup" .. i
-        local frame = _G[frame_name]
-        assert(frame)
-        cursor:HookShow(frame, "StaticPopup")
-    end
-end
+local menu_StaticPopup = {}
 
-function MenuCursor:StaticPopup_Show(frame)
-    if self.focus == frame then return end  -- Sanity check
-    self:PushFocus(frame)
+local function StaticPopup_OnShow(self)
+    local frame = self.frame
     self.targets = {}
     local leftmost = nil
     for i = 1, 5 do
@@ -1176,23 +1323,135 @@ function MenuCursor:StaticPopup_Show(frame)
         end
     end
     if leftmost then  -- i.e., if we found any buttons
-        self:SetTarget(leftmost)
+        self.targets[leftmost].is_default = true
         if frame.button2:IsShown() then
             self.cancel_button = frame.button2
         end
-    else
-        self:PopFocus(frame)
     end
-    self:UpdateCursor()
+end
+
+function MenuCursor.handlers.StaticPopup(cursor)
+    for i = 1, STATICPOPUP_NUMDIALOGS do
+        local frame_name = "StaticPopup" .. i
+        local frame = _G[frame_name]
+        assert(frame)
+        menu_StaticPopup[frame] = MenuFrame(frame)
+        cursor:HookShow(frame, "StaticPopup")
+    end
+end
+
+function MenuCursor:StaticPopup_Show(frame)
+    if self.focus == frame then return end  -- Sanity check
+    local menu_frame = menu_StaticPopup[frame]
+    assert(menu_frame)
+    StaticPopup_OnShow(menu_frame)
+    self:AddFrame(menu_frame)
 end
 
 function MenuCursor:StaticPopup_Hide(frame)
-    self:PopFocus(frame)
-    self:UpdateCursor()
+    local menu_frame = menu_StaticPopup[frame]
+    assert(menu_frame)
+    self:RemoveFrame(menu_frame)
 end
 
 
 -------- Mail inbox
+
+local menu_InboxFrame = MenuFrame(InboxFrame)
+local menu_OpenMailFrame = MenuFrame(OpenMailFrame)
+
+local function InboxFrame_UpdateMovement()
+    local self = menu_InboxFrame
+    -- Ensure "up" from all bottom-row buttons goes to the bottommost mail item
+    -- (by default, OpenAll and NextPage will go to the top item due to a lower
+    -- angle of movement).
+    local last_item = false
+    for i = 1, 7 do
+        local button = _G["MailItem"..i.."Button"]
+        if button:IsShown() then
+            if not last_item or button:GetTop() < last_item:GetTop() then
+                last_item = button
+            end
+        end
+    end
+    self.targets[OpenAllMail].up = last_item
+    self.targets[InboxPrevPageButton].up = last_item
+    self.targets[InboxNextPageButton].up = last_item
+end
+
+local function InboxFrame_OnShow()
+    local self = menu_InboxFrame
+    -- We specifically hook the inbox frame, so we need a custom handler
+    -- to hide the proper frame on cancel.
+    self.cancel_func = function(self)
+        global_cursor:RemoveFrame(self)
+        HideUIPanel(MailFrame)
+    end
+    self.prev_page_button = "InboxPrevPageButton"
+    self.next_page_button = "InboxNextPageButton"
+    self.targets = {
+        [OpenAllMail] = {can_activate = true, lock_highlight = true,
+                         is_default = true},
+        [InboxPrevPageButton] = {can_activate = true, lock_highlight = true},
+        [InboxNextPageButton] = {can_activate = true, lock_highlight = true},
+    }
+    for i = 1, 7 do
+        local button = _G["MailItem"..i.."Button"]
+        assert(button)
+        if button:IsShown() then
+            global_cursor:MailItemButton_Show(button)
+        end
+    end
+    InboxFrame_UpdateMovement()
+end
+
+local function OpenMailFrame_OnShow()
+    local self = menu_OpenMailFrame
+    self.cancel_button = OpenMailCancelButton
+    -- The cancel button is positioned slightly out of line with the other
+    -- two, so we have to set explicit movement here to avoid unexpected
+    -- behavior (e.g. up from "delete" moving to "close").
+    self.targets = {
+        [OpenMailReplyButton] = {can_activate = true, lock_highlight = true,
+                                 up = false, down = false},
+        [OpenMailDeleteButton] = {can_activate = true, lock_highlight = true,
+                                  up = false, down = false},
+        [OpenMailCancelButton] = {can_activate = true, lock_highlight = true,
+                                  up = false, down = false}
+    }
+    local have_report_spam = OpenMailReportSpamButton:IsShown()
+    if have_report_spam then
+        self.targets[OpenMailReportSpamButton] = {can_activate = true,
+                                                  lock_highlight = true}
+    end
+    local first_attachment = nil
+    for i = 1, 16 do
+        local button = _G["OpenMailAttachmentButton"..i]
+        assert(button)
+        if button:IsShown() then
+            global_cursor:OpenMailAttachmentButton_Show(button)
+            if not first_attachment then first_attachment = button end
+        end
+    end
+    if OpenMailMoneyButton:IsShown() then
+        global_cursor:OpenMailMoneyButton_Show(OpenMailMoneyButton)
+        if not first_attachment then first_attachment = OpenMailMoneyButton end
+    end
+    if first_attachment then
+        self.targets[OpenMailReplyButton].up = first_attachment
+        self.targets[OpenMailDeleteButton].up = first_attachment
+        self.targets[OpenMailCancelButton].up = first_attachment
+        if have_report_spam then
+            self.targets[OpenMailReportSpamButton].down = first_attachment
+        end
+        return first_attachment
+    else
+        if have_report_spam then
+            self.targets[OpenMailReportSpamButton].down = OpenMailCancelButton
+        end
+        return OpenMailCancelButton
+    end
+end
 
 function MenuCursor.handlers.InboxFrame(cursor)
     -- We could react to PLAYER_INTERACTION_MANAGER_FRAME_{SHOW,HIDE}
@@ -1218,142 +1477,52 @@ end
 
 function MenuCursor:InboxFrame_Show()
     assert(InboxFrame:IsShown())
-    self:SetFocus(InboxFrame)
-    -- We specifically hook the inbox frame, so we need a custom handler
-    -- to hide the proper frame on cancel.
-    self.cancel_func = function(self)
-        self:ClearFocus()
-        HideUIPanel(MailFrame)
-    end
-    self.prev_page_button = "InboxPrevPageButton"
-    self.next_page_button = "InboxNextPageButton"
-    self.targets = {
-        [OpenAllMail] = {can_activate = true, lock_highlight = true,
-                         is_default = true},
-        [InboxPrevPageButton] = {can_activate = true, lock_highlight = true},
-        [InboxNextPageButton] = {can_activate = true, lock_highlight = true},
-    }
-    for i = 1, 7 do
-        local button = _G["MailItem"..i.."Button"]
-        assert(button)
-        if button:IsShown() then
-            self:MailItemButton_Show(button)
-        end
-    end
-    self:InboxFrame_UpdateMovement()
-    self:UpdateCursor()
+    InboxFrame_OnShow()
+    self:AddFrame(menu_InboxFrame)
 end
 
 function MenuCursor:InboxFrame_Hide()
-    assert(self.focus == nil or self.focus == InboxFrame)
-    self:ClearFocus()
-    self:UpdateCursor()
+    self:RemoveFrame(menu_InboxFrame)
 end
 
 function MenuCursor:MailItemButton_Show(frame)
-    if self.focus ~= InboxFrame then return end
-    self.targets[frame] = {
+    menu_InboxFrame.targets[frame] = {
         can_activate = true, lock_highlight = true,
         send_enter_leave = true},
-    self:InboxFrame_UpdateMovement()
+    InboxFrame_UpdateMovement()
 end
 
 function MenuCursor:MailItemButton_Hide(frame)
-    if self.focus ~= InboxFrame then return end
-    if self.cur_target == frame then
-        self:Move(0, -1, "down")
+    local focus, target = self:GetFocusAndTarget()
+    if focus == menu_InboxFrame and target == frame then
+        menu_InboxFrame:Move(0, -1, "down")
     end
-    self.targets[frame] = nil
-    self:InboxFrame_UpdateMovement()
-end
-
-function MenuCursor:InboxFrame_UpdateMovement()
-    -- Ensure "up" from all bottom-row buttons goes to the bottommost mail item
-    -- (by default, OpenAll and NextPage will go to the top item due to a lower
-    -- angle of movement).
-    local last_item = false
-    for i = 1, 7 do
-        local button = _G["MailItem"..i.."Button"]
-        if button:IsShown() then
-            if not last_item or button:GetTop() < last_item:GetTop() then
-                last_item = button
-            end
-        end
-    end
-    self.targets[OpenAllMail].up = last_item
-    self.targets[InboxPrevPageButton].up = last_item
-    self.targets[InboxNextPageButton].up = last_item
+    menu_InboxFrame.targets[frame] = nil
+    InboxFrame_UpdateMovement()
 end
 
 function MenuCursor:OpenMailFrame_Show()
     assert(OpenMailFrame:IsShown())
-    self:PushFocus(OpenMailFrame)
-    self.cancel_button = OpenMailCancelButton
-    -- The cancel button is positioned slightly out of line with the other
-    -- two, so we have to set explicit movement here to avoid unexpected
-    -- behavior (e.g. up from "delete" moving to "close").
-    self.targets = {
-        [OpenMailReplyButton] = {can_activate = true, lock_highlight = true,
-                                 up = false, down = false},
-        [OpenMailDeleteButton] = {can_activate = true, lock_highlight = true,
-                                  up = false, down = false},
-        [OpenMailCancelButton] = {can_activate = true, lock_highlight = true,
-                                  up = false, down = false}
-    }
-    local have_report_spam = OpenMailReportSpamButton:IsShown()
-    if have_report_spam then
-        self.targets[OpenMailReportSpamButton] = {can_activate = true,
-                                                  lock_highlight = true}
-    end
-    local first_attachment = nil
-    for i = 1, 16 do
-        local button = _G["OpenMailAttachmentButton"..i]
-        assert(button)
-        if button:IsShown() then
-            self:OpenMailAttachmentButton_Show(button)
-            if not first_attachment then first_attachment = button end
-        end
-    end
-    if OpenMailMoneyButton:IsShown() then
-        self:OpenMailMoneyButton_Show(OpenMailMoneyButton)
-        if not first_attachment then first_attachment = OpenMailMoneyButton end
-    end
-    if first_attachment then
-        self:SetTarget(first_attachment)
-        self.targets[OpenMailReplyButton].up = first_attachment
-        self.targets[OpenMailDeleteButton].up = first_attachment
-        self.targets[OpenMailCancelButton].up = first_attachment
-        if have_report_spam then
-            self.targets[OpenMailReportSpamButton].down = first_attachment
-        end
-    else
-        self:SetTarget(OpenMailCancelButton)
-        if have_report_spam then
-            self.targets[OpenMailReportSpamButton].down = OpenMailCancelButton
-        end
-    end
-    self:UpdateCursor()
+    local initial_target = OpenMailFrame_OnShow()
+    self:AddFrame(menu_OpenMailFrame, initial_target)
 end
 
 function MenuCursor:OpenMailFrame_Hide()
-    -- This appears to fire sporadically when any other UI frame is shown,
-    -- so don't assume anything about the current state.
-    if self.focus == OpenMailFrame then
-        self:PopFocus(OpenMailFrame)
-        self:UpdateCursor()
-    end
+    -- Note that this event appears to fire sporadically even when the
+    -- frame isn't shown in the first place.  RemoveFrame() ignores frames
+    -- not in the focus list so this isn't a problem for us.
+    self:RemoveFrame(menu_OpenMailFrame)
 end
 
 function MenuCursor:OpenMailAttachmentButton_Show(frame)
-    if self.focus ~= OpenMailFrame then return end
-    self.targets[frame] = {
+    menu_OpenMailFrame.targets[frame] = {
         can_activate = true, lock_highlight = true,
         send_enter_leave = true}
 end
 
 function MenuCursor:OpenMailAttachmentButton_Hide(frame)
-    if self.focus ~= OpenMailFrame then return end
-    if self.cur_target == frame then
+    local focus, target = self:GetFocusAndTarget()
+    if focus == menu_OpenMailFrame and target == frame then
         local new_target = nil
         local id = frame:GetID() - 1
         while id >= 1 and not new_target do
@@ -1372,12 +1541,11 @@ function MenuCursor:OpenMailAttachmentButton_Hide(frame)
         end
         self:SetTarget(new_target or OpenMailDeleteButton)
     end
-    self.targets[frame] = nil
+    menu_OpenMailFrame.targets[frame] = nil
 end
 
 function MenuCursor:OpenMailMoneyButton_Show(frame)
-    if self.focus ~= OpenMailFrame then return end
-    self.targets[frame] = {
+    menu_OpenMailFrame.targets[frame] = {
         can_activate = true, lock_highlight = true,
         on_enter = function(frame)  -- hardcoded in XML
             if OpenMailFrame.money then
@@ -1386,13 +1554,13 @@ function MenuCursor:OpenMailMoneyButton_Show(frame)
                 GameTooltip:Show()
             end
         end,
-        on_leave = self.HideTooltip,
+        on_leave = HideTooltip,
     }
 end
 
 function MenuCursor:OpenMailMoneyButton_Hide(frame)
-    if self.focus ~= OpenMailFrame then return end
-    if self.cur_target == frame then
+    local focus, target = self:GetFocusAndTarget()
+    if focus == menu_OpenMailFrame and target == frame then
         local new_target = nil
         local id = 16
         while id >= 1 and not new_target do
@@ -1402,100 +1570,16 @@ function MenuCursor:OpenMailMoneyButton_Hide(frame)
         end
         self:SetTarget(new_target or OpenMailDeleteButton)
     end
-    self.targets[frame] = nil
+    menu_OpenMailFrame.targets[frame] = nil
 end
 
 
 -------- Shop menu
 
-function MenuCursor.handlers.MerchantFrame(cursor)
-    cursor:HookShow(MerchantFrame, "MerchantFrame")
-    cursor:HookShow(MerchantSellAllJunkButton, "MerchantSellTab")
-    for i = 1, 12 do
-        local frame_name = "MerchantItem" .. i .. "ItemButton"
-        local frame = _G[frame_name]
-        assert(frame)
-        cursor:HookShow(frame, "MerchantItemButton")
-    end
-end
+local menu_MerchantFrame = MenuFrame(MerchantFrame)
 
-function MenuCursor:MerchantFrame_Show()
-    assert(MerchantFrame:IsShown())
-    assert(MerchantFrame.selectedTab == 1)
-    self:SetFocus(MerchantFrame)
-    self.cancel_func = self.CancelUIPanel
-    self.prev_page_button = "MerchantPrevPageButton"
-    self.next_page_button = "MerchantNextPageButton"
-    self:MerchantFrame_UpdateTargets()
-    if self.targets[MerchantItem1ItemButton] then
-        self:SetTarget(MerchantItem1ItemButton)
-    else
-        self:SetTarget(MerchantSellAllJunkButton)
-    end
-    self:MerchantFrame_UpdateMovement()
-    self:UpdateCursor()
-end
-
-function MenuCursor:MerchantFrame_Hide()
-    assert(self.focus == nil or self.focus == MerchantFrame)
-    self:ClearFocus()
-    self:UpdateCursor()
-end
-
-function MenuCursor:MerchantSellTab_Show()
-    if self.focus ~= MerchantFrame then return end
-    self:MerchantFrame_UpdateTargets()
-    self:MerchantFrame_UpdateMovement()
-end
-
-function MenuCursor:MerchantSellTab_Hide()
-    if self.focus ~= MerchantFrame then return end
-    self:MerchantFrame_UpdateTargets()
-    self:MerchantFrame_UpdateMovement()
-end
-
-function MenuCursor:MerchantItemButton_Show(frame, skip_update)
-    if self.focus ~= MerchantFrame then return end
-    self.targets[frame] = {
-        lock_highlight = true, send_enter_leave = true,
-        -- Pass a confirm action down as a right click because left-click
-        -- activates the item drag functionality.  (On the buyback tab,
-        -- right and left click do the same thing, so we don't need a
-        -- special case for that.)
-        on_click = function()
-            MerchantItemButton_OnClick(frame, "RightButton")
-        end,
-    }
-    -- Suppress updates when called from UpdateBuybackInfo().
-    if MerchantSellAllJunkButton:IsShown() ~= (MerchantFrame.selectedTab==1) then
-        skip_update = true
-    end
-    if not skip_update then
-        self:MerchantFrame_UpdateMovement()
-    end
-end
-
-function MenuCursor:MerchantItemButton_Hide(frame)
-    if self.focus ~= MerchantFrame then return end
-    if self.cur_target == frame then
-        local prev_id = frame:GetID() - 1
-        local prev_frame = _G["MerchantItem" .. prev_id .. "ItemButton"]
-        if prev_frame and prev_frame:IsShown() then
-            self:SetTarget(prev_frame)
-        else
-            self:Move(0, -1, "down")
-        end
-    end
-    self.targets[frame] = nil
-    if MerchantSellAllJunkButton:IsShown() ~= (MerchantFrame.selectedTab==1) then
-        skip_update = true
-    end
-    if not skip_update then
-        self:MerchantFrame_UpdateMovement()
-    end
-end
-
-function MenuCursor:MerchantFrame_UpdateTargets()
+local function MerchantFrame_UpdateTargets()
+    local self = menu_MerchantFrame
     self.targets = {
         [MerchantFrameTab1] = {can_activate = true},
         [MerchantFrameTab2] = {can_activate = true},
@@ -1542,7 +1626,7 @@ function MenuCursor:MerchantFrame_UpdateTargets()
         local button = _G["MerchantItem"..i.."ItemButton"]
         assert(button)
         if holder:IsShown() and button:IsShown() then
-            self:MerchantItemButton_Show(button, true)
+            global_cursor:MerchantItemButton_Show(button, true)
             if not initial then
                 initial = button
             end
@@ -1550,11 +1634,13 @@ function MenuCursor:MerchantFrame_UpdateTargets()
     end
 end
 
-function MenuCursor:MerchantFrame_UpdateMovement()
-    -- Ensure correct up/down behavior, as for mail inbox.
-    if self.focus ~= MerchantFrame then
+local function MerchantFrame_UpdateMovement()
+    local self = menu_MerchantFrame
+    -- FIXME: is this check still needed?
+    if global_cursor:GetFocus() ~= self then
         return  -- Deal with calls during frame setup on UI reload.
     end
+    -- Ensure correct up/down behavior, as for mail inbox.
     local last_left, last_right = false, false
     for i = 1, 12 do
         local holder = _G["MerchantItem"..i]
@@ -1606,24 +1692,103 @@ function MenuCursor:MerchantFrame_UpdateMovement()
     end
 end
 
-
--------- Profession training menu
-
-function MenuCursor.handlers.ClassTrainerFrame(cursor)
-    cursor.frame:RegisterEvent("ADDON_LOADED")
-    if ClassTrainerFrame then
-        cursor:OnEvent("ADDON_LOADED", "Blizzard_TrainerUI")
+local function MerchantFrame_OnShow()
+    local self = menu_MerchantFrame
+    self.cancel_func = CancelUIFrame
+    self.prev_page_button = "MerchantPrevPageButton"
+    self.next_page_button = "MerchantNextPageButton"
+    MerchantFrame_UpdateTargets()
+    MerchantFrame_UpdateMovement()
+    if self.targets[MerchantItem1ItemButton] then
+        return MerchantItem1ItemButton
+    else
+        return MerchantSellAllJunkButton
     end
 end
 
-function MenuCursor:ADDON_LOADED__Blizzard_TrainerUI()
-    self:HookShow(ClassTrainerFrame, "ClassTrainerFrame")
+function MenuCursor.handlers.MerchantFrame(cursor)
+    cursor:HookShow(MerchantFrame, "MerchantFrame")
+    -- We use the "sell all junk" button (which is always displayed on the
+    -- "buy" tab and never displayed on the "sell" tab) as a proxy for tab
+    -- change detection.
+    cursor:HookShow(MerchantSellAllJunkButton, "MerchantSellTab")
+    for i = 1, 12 do
+        local frame_name = "MerchantItem" .. i .. "ItemButton"
+        local frame = _G[frame_name]
+        assert(frame)
+        cursor:HookShow(frame, "MerchantItemButton")
+    end
 end
 
-function MenuCursor:ClassTrainerFrame_Show()
-    assert(ClassTrainerFrame:IsShown())
-    self:SetFocus(ClassTrainerFrame)
-    self.cancel_func = self.CancelUIPanel
+function MenuCursor:MerchantFrame_Show()
+    assert(MerchantFrame:IsShown())
+    assert(MerchantFrame.selectedTab == 1)
+    local initial_target = MerchantFrame_OnShow()
+    self:AddFrame(menu_MerchantFrame, initial_target)
+end
+
+function MenuCursor:MerchantFrame_Hide()
+    self:RemoveFrame(menu_MerchantFrame)
+end
+
+function MenuCursor:MerchantSellTab_Show()
+    MerchantFrame_UpdateTargets()
+    MerchantFrame_UpdateMovement()
+end
+
+function MenuCursor:MerchantSellTab_Hide()
+    MerchantFrame_UpdateTargets()
+    MerchantFrame_UpdateMovement()
+end
+
+function MenuCursor:MerchantItemButton_Show(frame, skip_update)
+    menu_MerchantFrame.targets[frame] = {
+        lock_highlight = true, send_enter_leave = true,
+        -- Pass a confirm action down as a right click because left-click
+        -- activates the item drag functionality.  (On the buyback tab,
+        -- right and left click do the same thing, so we don't need a
+        -- special case for that.)
+        on_click = function()
+            MerchantItemButton_OnClick(frame, "RightButton")
+        end,
+    }
+    -- Suppress updates when called from UpdateBuybackInfo().
+    if MerchantSellAllJunkButton:IsShown() ~= (MerchantFrame.selectedTab==1) then
+        skip_update = true
+    end
+    if not skip_update then
+        MerchantFrame_UpdateMovement()
+    end
+end
+
+function MenuCursor:MerchantItemButton_Hide(frame)
+    local focus, target = self:GetFocusAndTarget()
+    if focus == menu_MerchantFrame and target == frame then
+        local prev_id = frame:GetID() - 1
+        local prev_frame = _G["MerchantItem" .. prev_id .. "ItemButton"]
+        if prev_frame and prev_frame:IsShown() then
+            self:SetTarget(prev_frame)
+        else
+            self:Move(0, -1, "down")
+        end
+    end
+    menu_MerchantFrame.targets[frame] = nil
+    if MerchantSellAllJunkButton:IsShown() ~= (MerchantFrame.selectedTab==1) then
+        skip_update = true
+    end
+    if not skip_update then
+        MerchantFrame_UpdateMovement()
+    end
+end
+
+
+-------- Profession training menu
+
+local menu_ClassTrainerFrame
+
+local function ClassTrainerFrame_OnShow()
+    local self = menu_ClassTrainerFrame
+    self.cancel_func = CancelUIFrame
     self.targets = {
         [ClassTrainerFrameSkillStepButton] = {
             can_activate = true, lock_highlight = true,
@@ -1632,9 +1797,8 @@ function MenuCursor:ClassTrainerFrame_Show()
             can_activate = true, lock_highlight = true, is_default = true,
             down = ClassTrainerFrameSkillStepButton},
     }
-    self:UpdateCursor()
     -- FIXME: also allow moving through list (ClassTrainerFrame.ScrollBox)
-    -- (this is a temporary hack to ensure we can still train)
+    -- (this temporary hack selects the first item so that we can still train)
     RunNextFrame(function()
         for _, frame in ClassTrainerFrame.ScrollBox:EnumerateFrames() do
             ClassTrainerSkillButton_OnClick(frame, "LeftButton")
@@ -1643,67 +1807,65 @@ function MenuCursor:ClassTrainerFrame_Show()
     end)
 end
 
+function MenuCursor.handlers.ClassTrainerFrame(cursor)
+    cursor:RegisterEvent("ADDON_LOADED")
+    if ClassTrainerFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_TrainerUI")
+    end
+end
+
+function MenuCursor:ADDON_LOADED__Blizzard_TrainerUI()
+    menu_ClassTrainerFrame = MenuFrame(ClassTrainerFrame)
+    self:HookShow(ClassTrainerFrame, "ClassTrainerFrame")
+end
+
+function MenuCursor:ClassTrainerFrame_Show()
+    assert(ClassTrainerFrame:IsShown())
+    ClassTrainerFrame_OnShow()
+    self:AddFrame(menu_ClassTrainerFrame)
+end
+
 function MenuCursor:ClassTrainerFrame_Hide()
-    assert(self.focus == nil or self.focus == ClassTrainerFrame)
-    self:ClearFocus()
-    self:UpdateCursor()
+    self:RemoveFrame(menu_ClassTrainerFrame)
 end
 
 
 -------- Talents/spellbook frame
 
-function MenuCursor.handlers.PlayerSpellsFrame(cursor)
-    cursor.frame:RegisterEvent("ADDON_LOADED")
-    if PlayerSpellsFrame then
-        cursor:OnEvent("ADDON_LOADED", "Blizzard_PlayerSpells")
+local menu_SpellBookFrame
+
+-- Effectively the same as SpellBookItemMixin:OnIconEnter() and ...Leave()
+-- from Blizzard_SpellBookItem.lua.  We need to reimplement them ourselves
+-- because those functions touch global variables, which become tainted if
+-- we call the functions directly.  (As a result, action bar highlights are
+-- not updated as they would be from mouse movement.)
+local function SpellBookFrame_OnEnterButton(frame)
+    local item = frame:GetParent()
+    if not item:HasValidData() then
+        return
     end
+    if not item.isUnlearned then
+        item.Button.IconHighlight:Show()
+        item.Backplate:SetAlpha(item.hoverBackplateAlpha)
+    end
+    GameTooltip:SetOwner(item.Button, "ANCHOR_RIGHT")
+    GameTooltip:SetSpellBookItem(item.slotIndex, item.spellBank)
+    local actionBarStatusToolTip = item.actionBarStatus and SpellSearchUtil.GetTooltipForActionBarStatus(item.actionBarStatus)
+    if actionBarStatusToolTip then
+        GameTooltip_AddColoredLine(GameTooltip, actionBarStatusToolTip, LIGHTBLUE_FONT_COLOR)
+    end
+    GameTooltip:Show()
 end
 
-function MenuCursor:ADDON_LOADED__Blizzard_PlayerSpells()
-    -- We hook the individual tabs for show behavior only, but we use the
-    -- common utility method for convenience and just make the unused hooks
-    -- no-ops.
-    self:HookShow(PlayerSpellsFrame.SpellBookFrame, "SpellBookFrame")
-    self:HookShow(PlayerSpellsFrame, "PlayerSpellsFrame")
-    EventRegistry:RegisterCallback(
-        "PlayerSpellsFrame.SpellBookFrame.DisplayedSpellsChanged",
-        function()
-            if PlayerSpellsFrame.SpellBookFrame:IsVisible() then
-                self:SpellBookFrame_RefreshTargets()
-            end
-        end);
-
-    local sbf = PlayerSpellsFrame.SpellBookFrame
-    local pc = sbf.PagedSpellsFrame.PagingControls
-    local buttons = {sbf.HidePassivesCheckButton.Button,
-                     pc.PrevPageButton, pc.NextPageButton}
-    for _, tab in ipairs(sbf.CategoryTabSystem.tabs) do
-        tinsert(buttons, tab)
+local function SpellBookFrame_OnLeaveButton(frame)
+    local item = frame:GetParent()
+    if not item:HasValidData() then
+        return
     end
-    for _, button in ipairs(buttons) do
-        hooksecurefunc(button, "Click", function()
-            if self.focus == PlayerSpellsFrame then
-                self:SpellBookFrame_RefreshTargets()
-            end
-        end)
-    end
-end
-
-function MenuCursor:SpellBookFrame_Hide() end
-
-function MenuCursor:PlayerSpellsFrame_Show()
-    if PlayerSpellsFrame.SpellBookFrame:IsShown() then
-        self:SpellBookFrame_Show()
-    end
-end
-
-function MenuCursor:SpellBookFrame_Show()
-    if not PlayerSpellsFrame:IsShown() then return end
-    if self.focus ~= PlayerSpellsFrame then
-        self:PushFocus(PlayerSpellsFrame)
-        self.cancel_func = self.HideUIPanel
-    end
-    self:SpellBookFrame_RefreshTargets()
+    item.Button.IconHighlight:Hide()
+    item.Button.IconHighlight:SetAlpha(item.iconHighlightHoverAlpha)
+    item.Backplate:SetAlpha(item.defaultBackplateAlpha)
+    GameTooltip:Hide()
 end
 
 -- Return the closest spell button to the given Y coordinate in the given
@@ -1721,7 +1883,9 @@ local function ClosestSpellButton(column, y)
     return best
 end
 
-function MenuCursor:SpellBookFrame_RefreshTargets()
+-- Returns the new cursor target.
+local function SpellBookFrame_RefreshTargets()
+    local self = menu_SpellBookFrame
     local sbf = PlayerSpellsFrame.SpellBookFrame
 
     --[[
@@ -1832,8 +1996,8 @@ function MenuCursor:SpellBookFrame_RefreshTargets()
             local is_bottom = (i == #column)
             self.targets[button] = {
                 can_activate = true,
-                on_enter = function(frame) self:SpellBookFrame_OnEnterButton(frame) end,
-                on_leave = function(frame) self:SpellBookFrame_OnLeaveButton(frame) end,
+                on_enter = function(frame) SpellBookFrame_OnEnterButton(frame) end,
+                on_leave = function(frame) SpellBookFrame_OnLeaveButton(frame) end,
                 up = is_top and top_target or column[i-1][1],
                 down = is_bottom and bottom_target or column[i+1][1],
                 left = not is_left and ClosestSpellButton(columns[column_x[x_index-1]], y),
@@ -1863,64 +2027,78 @@ function MenuCursor:SpellBookFrame_RefreshTargets()
 
     -- If the cursor was previously on a spell button, the button might
     -- have disappeared, so reset to the top of the page.
-    if not self.targets[self.cur_target] then self.cur_target = nil end
+    local cur_target = global_cursor:GetTargetForFrame(self)
+    if not self.targets[cur_target] then
+        cur_target = nil
+    end
 
-    self:SetTarget(self.cur_target or first_spell or default_page_tab)
-    self:UpdateCursor()
+    return cur_target or first_spell or default_page_tab
+end
+
+local function SpellBookFrame_OnShow()
+    local self = menu_SpellBookFrame
+    self.cancel_func = HideUIFrame
+    return SpellBookFrame_RefreshTargets()
+end
+
+function MenuCursor.handlers.PlayerSpellsFrame(cursor)
+    cursor:RegisterEvent("ADDON_LOADED")
+    if PlayerSpellsFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_PlayerSpells")
+    end
+end
+
+function MenuCursor:ADDON_LOADED__Blizzard_PlayerSpells()
+    menu_SpellBookFrame = MenuFrame(PlayerSpellsFrame.SpellBookFrame)
+
+    -- We hook the individual tabs for show behavior only, but we use the
+    -- common utility method for convenience and just make the unused hooks
+    -- no-ops.
+    self:HookShow(PlayerSpellsFrame.SpellBookFrame, "SpellBookFrame")
+    self:HookShow(PlayerSpellsFrame, "PlayerSpellsFrame")
+    EventRegistry:RegisterCallback(
+        "PlayerSpellsFrame.SpellBookFrame.DisplayedSpellsChanged",
+        function()
+            if PlayerSpellsFrame.SpellBookFrame:IsVisible() then
+                self:SetTargetForFrame(menu_SpellBookFrame,
+                                       SpellBookFrame_RefreshTargets())
+            end
+        end);
+
+    local sbf = PlayerSpellsFrame.SpellBookFrame
+    local pc = sbf.PagedSpellsFrame.PagingControls
+    local buttons = {sbf.HidePassivesCheckButton.Button,
+                     pc.PrevPageButton, pc.NextPageButton}
+    for _, tab in ipairs(sbf.CategoryTabSystem.tabs) do
+        tinsert(buttons, tab)
+    end
+    for _, button in ipairs(buttons) do
+        hooksecurefunc(button, "Click", function() self:SetTargetForFrame(menu_SpellBookFrame, SpellBookFrame_RefreshTargets()) end)
+    end
+end
+
+function MenuCursor:SpellBookFrame_Hide() end
+
+function MenuCursor:PlayerSpellsFrame_Show()
+    if PlayerSpellsFrame.SpellBookFrame:IsShown() then
+        self:SpellBookFrame_Show()
+    end
+end
+
+function MenuCursor:SpellBookFrame_Show()
+    if not PlayerSpellsFrame:IsShown() then return end
+    local target = SpellBookFrame_OnShow()
+    self:AddFrame(menu_SpellBookFrame, target)
 end
 
 function MenuCursor:PlayerSpellsFrame_Hide()
-    self:PopFocus(PlayerSpellsFrame)
-    self:UpdateCursor()
-end
-
--- Effectively the same as SpellBookItemMixin:OnIconEnter() and ...Leave()
--- from Blizzard_SpellBookItem.lua.  We need to reimplement them ourselves
--- because those functions touch global variables, which become tainted if
--- we call the functions directly.  (As a result, action bar highlights are
--- not updated as they would be from mouse movement.)
-function MenuCursor:SpellBookFrame_OnEnterButton(frame)
-    local item = frame:GetParent()
-    if not item:HasValidData() then
-        return
-    end
-    if not item.isUnlearned then
-        item.Button.IconHighlight:Show()
-        item.Backplate:SetAlpha(item.hoverBackplateAlpha)
-    end
-    GameTooltip:SetOwner(item.Button, "ANCHOR_RIGHT")
-    GameTooltip:SetSpellBookItem(item.slotIndex, item.spellBank)
-    local actionBarStatusToolTip = item.actionBarStatus and SpellSearchUtil.GetTooltipForActionBarStatus(item.actionBarStatus)
-    if actionBarStatusToolTip then
-        GameTooltip_AddColoredLine(GameTooltip, actionBarStatusToolTip, LIGHTBLUE_FONT_COLOR)
-    end
-    GameTooltip:Show()
-end
-
-function MenuCursor:SpellBookFrame_OnLeaveButton(frame)
-    local item = frame:GetParent()
-    if not item:HasValidData() then
-        return
-    end
-    item.Button.IconHighlight:Hide()
-    item.Button.IconHighlight:SetAlpha(item.iconHighlightHoverAlpha)
-    item.Backplate:SetAlpha(item.defaultBackplateAlpha)
-    GameTooltip:Hide()
+    self:RemoveFrame(menu_PlayerSpellsFrame)
 end
 
 
 -------- Professions frame
 
-function MenuCursor.handlers.ProfessionsBookFrame(cursor)
-    cursor.frame:RegisterEvent("ADDON_LOADED")
-    if ProfessionsBookFrame then
-        cursor:OnEvent("ADDON_LOADED", "Blizzard_ProfessionsBook")
-    end
-end
-
-function MenuCursor:ADDON_LOADED__Blizzard_ProfessionsBook()
-    self:HookShow(ProfessionsBookFrame, "ProfessionsBookFrame")
-end
+local menu_ProfessionsBookFrame
 
 local PROFESSION_BUTTONS_P = {
     "PrimaryProfession1SpellButtonTop",
@@ -1936,10 +2114,9 @@ local PROFESSION_BUTTONS_S = {
     "SecondaryProfession3SpellButtonLeft",
     "SecondaryProfession3SpellButtonRight",
 }
-function MenuCursor:ProfessionsBookFrame_Show()
-    assert(ProfessionsBookFrame:IsShown())
-    self:SetFocus(ProfessionsBookFrame)
-    self.cancel_func = self.CancelUIPanel
+local function ProfessionsBookFrame_OnShow()
+    local self = menu_ProfessionsBookFrame
+    self.cancel_func = CancelUIFrame
     self.targets = {}
     local initial = nil
     local bottom = nil
@@ -1949,7 +2126,7 @@ function MenuCursor:ProfessionsBookFrame_Show()
         if button:IsShown() then
             self.targets[button] = {can_activate = true, lock_highlight = true}
             if not initial then
-                self.targets[button].initial = true
+                self.targets[button].is_default = true
                 initial = button
             end
             bottom = button
@@ -1973,175 +2150,92 @@ function MenuCursor:ProfessionsBookFrame_Show()
             end
         end
     end
-    if initial then
-        self:SetTarget(initial)
-    else
-        self:ClearFocus()
+end
+
+function MenuCursor.handlers.ProfessionsBookFrame(cursor)
+    cursor:RegisterEvent("ADDON_LOADED")
+    if ProfessionsBookFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_ProfessionsBook")
     end
-    self:UpdateCursor()
+end
+
+function MenuCursor:ADDON_LOADED__Blizzard_ProfessionsBook()
+    menu_ProfessionsBookFrame = MenuFrame(ProfessionsBookFrame)
+    self:HookShow(ProfessionsBookFrame, "ProfessionsBookFrame")
+end
+
+function MenuCursor:ProfessionsBookFrame_Show()
+    assert(ProfessionsBookFrame:IsShown())
+    ProfessionsBookFrame_OnShow()
+    self:AddFrame(menu_ProfessionsBookFrame)
 end
 
 function MenuCursor:ProfessionsBookFrame_Hide()
-    assert(self.focus == nil or self.focus == ProfessionsBookFrame)
-    self:ClearFocus()
-    self:UpdateCursor()
+    self:RemoveFrame(menu_ProfessionsBookFrame)
 end
+
 
 -------- Crafting frame
 
-function MenuCursor.handlers.ProfessionsFrame(cursor)
-    cursor.frame:RegisterEvent("ADDON_LOADED")
-    if ProfessionsFrame then
-        cursor:OnEvent("ADDON_LOADED", "Blizzard_Professions")
-    end
-    cursor.frame:RegisterEvent("TRADE_SKILL_LIST_UPDATE")
-end
+local menu_ProfessionsFrame
+local menu_ProfessionsFrame_SchematicForm
+local menu_ProfessionsFrame_QualityDialog
+local menu_ProfessionsItemFlyout
 
-function MenuCursor:ADDON_LOADED__Blizzard_Professions()
-    self:HookShow(ProfessionsFrame, "ProfessionsFrame")
-    self:HookShow(ProfessionsFrame.CraftingPage.CreateAllButton, "ProfessionsFrame_CreateAllButton")
-    self:HookShow(ProfessionsFrame.CraftingPage.SchematicForm.QualityDialog, "ProfessionsFrame_QualityDialog")
-    -- Hack for interacting with the item selector popup.
-    local flyout = OpenProfessionsItemFlyout(UIParent, UIParent)
-    CloseProfessionsItemFlyout()
-    self:HookShow(flyout, "ProfessionsItemFlyout")
-end
+local function ProfessionsFrame_SchematicForm_UpdateMovement()
+    local self = menu_ProfessionsFrame_SchematicForm
 
-function MenuCursor:TRADE_SKILL_LIST_UPDATE()
-    if self.focus == ProfessionsFrame and self.ProfessionsFrame_need_refresh then
-        -- The list itself apparently isn't ready until the next frame.
-        RunNextFrame(function() self:ProfessionsFrame_RefreshTargets() end)
-    end
-end
-
-local PROFESSION_GEAR_SLOTS = {
-    "Prof0ToolSlot",
-    "Prof0Gear0Slot",
-    "Prof0Gear1Slot",
-    "Prof1ToolSlot",
-    "Prof1Gear0Slot",
-    "Prof1Gear1Slot",
-    "CookingToolSlot",
-    "CookingGear0Slot",
-    "FishingToolSlot",
-}
-function MenuCursor:ProfessionsFrame_Show()
-    assert(ProfessionsFrame:IsShown())
-    self:PushFocus(ProfessionsFrame)
-    self.cancel_func = self.HideUIPanel
-    self.ProfessionsFrame_need_refresh = true
-    self:ProfessionsFrame_RefreshTargets()
-end
-
-function MenuCursor:ProfessionsFrame_Hide()
-    self:PopFocus(ProfessionsFrame)
-    self:PopFocus(ProfessionsFrame.CraftingPage.SchematicForm)
-end
-
-function MenuCursor:ProfessionsFrame_RefreshTargets(initial_element)
     local CraftingPage = ProfessionsFrame.CraftingPage
-
-    self:SetTarget(nil)
-    self.targets = {}
-    local top, bottom, initial = nil, nil, nil
-
-    if CraftingPage:IsShown() then
-        self.targets[CraftingPage.LinkButton] = {
-            can_activate = true, lock_highlight = true,
-            up = false, down = false}
-        for _, slot_id in ipairs(PROFESSION_GEAR_SLOTS) do
-            local slot = CraftingPage[slot_id]
-            if slot:IsShown() then
-                self.targets[slot] = {
-                    lock_highlight = true, send_enter_leave = true,
-                    up = false, down = false}
-            end
-        end
-        local RecipeScroll = CraftingPage.RecipeList.ScrollBox
-        local index = 0
-        RecipeScroll:ForEachElementData(function(element)
-            self.ProfessionsFrame_need_refresh = false
-            index = index + 1
-            local data = element:GetData()
-            if data.categoryInfo or data.recipeInfo then
-                local pseudo_frame =
-                    self:PseudoFrameForScrollElement(RecipeScroll, index)
-                self.targets[pseudo_frame] = {
-                    is_scroll_box = true, can_activate = true,
-                    up = bottom or false, down = false,
-                    left = false, right = CraftingPage.LinkButton}
-                if data.recipeInfo then
-                    self.targets[pseudo_frame].on_click = function()
-                        self:ProfessionsFrame_FocusRecipe()
-                    end
-                else  -- is a category header
-                    self.targets[pseudo_frame].on_click = function()
-                        self:ProfessionsFrame_RefreshTargets(element)
-                    end
-                end
-                if bottom then
-                    self.targets[bottom].down = pseudo_frame
-                end
-                if not top then
-                    top = pseudo_frame
-                    self.targets[CraftingPage.LinkButton].left = pseudo_frame
-                end
-                bottom = pseudo_frame
-                if initial_element then
-                    if initial_element == element then
-                        initial = pseudo_frame
-                    end
-                else
-                    if not initial and self:GetTargetFrame(pseudo_frame) then
-                        initial = pseudo_frame
-                    end
-                end
-            end
-        end)
+    local create_left
+    if CraftingPage.CreateAllButton:IsShown() then
+        self.targets[CraftingPage.CreateButton].left = nil
+        self.targets[CraftingPage.SchematicForm.OutputIcon].up = CraftingPage.CreateAllButton
+        create_left = CraftingPage.CreateAllButton
+    else
+        self.targets[CraftingPage.CreateButton].left = false
+        self.targets[CraftingPage.SchematicForm.OutputIcon].up = CraftingPage.CreateButton
+        create_left = CraftingPage.CreateButton
     end
 
-    local default_tab = nil
-    for _, tab in ipairs(ProfessionsFrame.TabSystem.tabs) do
-        if tab:IsShown() then
-            self.targets[tab] = {can_activate = true, send_enter_leave = true,
-                                 up = bottom, down = top}
-            -- HACK: breaking encapsulation to access tab selected state
-            if not default_tab or tab.isSelected then default_tab = tab end
+    local r_bottom = self.r_bottom
+    if r_bottom then
+        self.targets[r_bottom].down = create_left
+    end
+    local SchematicForm = CraftingPage.SchematicForm
+    local frsc = SchematicForm.Details.CraftingChoicesContainer.FinishingReagentSlotContainer
+    if frsc and frsc:IsVisible() then
+        for _, frame in ipairs({frsc:GetChildren()}) do
+            local button = frame:GetChildren()
+            self.targets[button].down = create_left
         end
     end
-    if top then
-        self.targets[top].up = default_tab or bottom or false
+    if SchematicForm.OptionalReagents:IsShown() then
+        for _, frame in ipairs({SchematicForm.OptionalReagents:GetChildren()}) do
+            local button = frame:GetChildren()
+            if self.targets[button] then
+                self.targets[button].down = create_left
+            end
+        end
     end
-    if bottom then
-        self.targets[bottom].down = default_tab or top or false
-    end
-
-    if not initial then
-        initial = top or default_tab
-        assert(initial)
-    end
-    self:SetTarget(initial)
-    self:UpdateCursor()
 end
 
-function MenuCursor:ProfessionsFrame_FocusRecipe(tries)
+local function ProfessionsFrame_ClickItemButton(button)
+    local onMouseDown = button:GetScript("OnMouseDown")
+    assert(onMouseDown)
+    -- We pass down=true for completeness, but all current implementations
+    -- ignore that parameter and don't register for button-up events.
+    onMouseDown(button, "LeftButton", true)
+end
+
+local function ProfessionsFrame_SchematicForm_OnShow()
+    local self = menu_ProfessionsFrame_SchematicForm
     local CraftingPage = ProfessionsFrame.CraftingPage
     local SchematicForm = CraftingPage.SchematicForm
-    assert(SchematicForm:IsShown())
-    if SchematicForm.recraftSlot:IsShown() then
-        return  -- We don't currently handle the recrafting interface.
-    end
-    if not CraftingPage.CreateButton:IsShown() then
-        -- Recipe data is still loading, or recipe is not learned.
-        tries = tries or 10
-        if tries > 0 then
-            RunNextFrame(function() self:ProfessionsFrame_FocusRecipe(tries-1) end)
-        end
-        return
-    end
 
-    self:PushFocus(SchematicForm)
-    self.cancel_func = function(self) self:PopFocus(SchematicForm) end
+    self.cancel_func = function(self)
+        global_cursor:RemoveFrame(self)
+        self.targets = {}  -- suppress update calls from CreateAllButton:Show() hook
+    end
 
     self.targets = {
         [SchematicForm.OutputIcon] = {send_enter_leave = true},
@@ -2149,11 +2243,11 @@ function MenuCursor:ProfessionsFrame_FocusRecipe(tries)
             can_activate = true, lock_highlight = true,
             down = SchematicForm.OutputIcon, left = false},
         [CraftingPage.CreateMultipleInputBox.DecrementButton] = {
-            on_click = self.ClickNumericSpinnerButton,
+            on_click = ClickNumericSpinnerButton,
             lock_highlight = true,
             down = SchematicForm.OutputIcon},
         [CraftingPage.CreateMultipleInputBox.IncrementButton] = {
-            on_click = self.ClickNumericSpinnerButton,
+            on_click = ClickNumericSpinnerButton,
             lock_highlight = true,
             down = SchematicForm.OutputIcon},
         [CraftingPage.CreateButton] = {
@@ -2167,7 +2261,7 @@ function MenuCursor:ProfessionsFrame_FocusRecipe(tries)
         for _, frame in ipairs({frsc:GetChildren()}) do
             local button = frame:GetChildren()
             self.targets[button] = {
-                on_click = self.ProfessionsFrame_ClickItemButton,
+                on_click = ProfessionsFrame_ClickItemButton,
                 lock_highlight = true, send_enter_leave = true,
                 up = false, down = CraftingPage.CreateButton}
             if not r_left or button:GetLeft() < r_left:GetLeft() then
@@ -2201,7 +2295,7 @@ function MenuCursor:ProfessionsFrame_FocusRecipe(tries)
                     lock_highlight = true, send_enter_leave = true,
                     left = false, right = r_left}
                 if button:GetScript("OnMouseDown") then
-                    self.targets[button].on_click = self.ProfessionsFrame_ClickItemButton
+                    self.targets[button].on_click = ProfessionsFrame_ClickItemButton
                 elseif button:GetScript("OnClick") then
                     self.targets[button].can_activate = true
                 end
@@ -2227,7 +2321,7 @@ function MenuCursor:ProfessionsFrame_FocusRecipe(tries)
             local button = frame:GetChildren()
             if button:IsVisible() then
                 self.targets[button] = {
-                    on_click = self.ProfessionsFrame_ClickItemButton,
+                    on_click = ProfessionsFrame_ClickItemButton,
                     lock_highlight = true, send_enter_leave = true,
                     up = r_bottom, down = CraftingPage.CreateAllButton}
                 if not or_left or button:GetLeft() < or_left:GetLeft() then
@@ -2256,125 +2350,45 @@ function MenuCursor:ProfessionsFrame_FocusRecipe(tries)
     self.targets[CraftingPage.CreateMultipleInputBox.DecrementButton].up = create_left_up
     self.targets[CraftingPage.CreateMultipleInputBox.IncrementButton].up = create_left_up
     self.targets[CraftingPage.CreateButton].up = create_right_up
-    self.ProfessionsFrame_r_bottom = r_bottom
+    self.r_bottom = r_bottom
 
-    if r_top then
-        self:SetTarget(r_top)
-    end
-    self:ProfessionsFrame_UpdateMovement()
-    self:UpdateCursor()
+    ProfessionsFrame_SchematicForm_UpdateMovement()
+    return r_top
 end
 
-function MenuCursor.ProfessionsFrame_ClickItemButton(button)
-    local onMouseDown = button:GetScript("OnMouseDown")
-    assert(onMouseDown)
-    -- We pass down=true for completeness, but all current implementations
-    -- ignore that parameter and don't register for button-up events.
-    onMouseDown(button, "LeftButton", true)
-end
-
-function MenuCursor:ProfessionsFrame_UpdateMovement()
-    local CraftingPage = ProfessionsFrame.CraftingPage
-    local create_left
-    if CraftingPage.CreateAllButton:IsShown() then
-        self.targets[CraftingPage.CreateButton].left = nil
-        self.targets[CraftingPage.SchematicForm.OutputIcon].up = CraftingPage.CreateAllButton
-        create_left = CraftingPage.CreateAllButton
-    else
-        self.targets[CraftingPage.CreateButton].left = false
-        self.targets[CraftingPage.SchematicForm.OutputIcon].up = CraftingPage.CreateButton
-        create_left = CraftingPage.CreateButton
-    end
-
-    local r_bottom = self.ProfessionsFrame_r_bottom
-    if r_bottom then
-        self.targets[r_bottom].down = create_left
-    end
-    local SchematicForm = CraftingPage.SchematicForm
-    local frsc = SchematicForm.Details.CraftingChoicesContainer.FinishingReagentSlotContainer
-    if frsc and frsc:IsVisible() then
-        for _, frame in ipairs({frsc:GetChildren()}) do
-            local button = frame:GetChildren()
-            self.targets[button].down = create_left
-        end
-    end
-    if SchematicForm.OptionalReagents:IsShown() then
-        for _, frame in ipairs({SchematicForm.OptionalReagents:GetChildren()}) do
-            local button = frame:GetChildren()
-            if self.targets[button] then
-                self.targets[button].down = create_left
-            end
-        end
-    end
-end
-
-function MenuCursor:ProfessionsFrame_CreateAllButton_Show()
-    if (self.focus == ProfessionsFrame
-    and self.targets[ProfessionsFrame.CraftingPage.CreateButton]) then
-        self:ProfessionsFrame_UpdateMovement()
-    end
-end
-
-function MenuCursor:ProfessionsFrame_CreateAllButton_Hide()
-    if (self.focus == ProfessionsFrame
-    and self.targets[ProfessionsFrame.CraftingPage.CreateButton]) then
-        local CraftingPage = ProfessionsFrame.CraftingPage
-        if (self.cur_target == CraftingPage.CreateAllButton
-         or self.cur_target == CraftingPage.CreateMultipleInputBox.DecrementButton
-         or self.cur_target == CraftingPage.CreateMultipleInputBox.IncrementButton)
-        then
-            self:SetTarget(CraftingPage.CreateButton)
-        end
-        self:ProfessionsFrame_UpdateMovement()
-    end
-end
-
-function MenuCursor:ProfessionsFrame_QualityDialog_Show(frame)
-    local QualityDialog = frame
-    self:PushFocus(frame)
+local function ProfessionsFrame_QualityDialog_OnShow()
+    local self = menu_ProfessionsFrame_QualityDialog
+    local QualityDialog = ProfessionsFrame.CraftingPage.SchematicForm.QualityDialog
     self.cancel_button = QualityDialog.CancelButton
     self.targets = {
         [QualityDialog.Container1.EditBox.DecrementButton] = {
-            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            on_click = ClickNumericSpinnerButton, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.Container1.EditBox.IncrementButton] = {
-            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            on_click = ClickNumericSpinnerButton, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.Container2.EditBox.DecrementButton] = {
-            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            on_click = ClickNumericSpinnerButton, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.Container2.EditBox.IncrementButton] = {
-            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            on_click = ClickNumericSpinnerButton, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.Container3.EditBox.DecrementButton] = {
-            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            on_click = ClickNumericSpinnerButton, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.Container3.EditBox.IncrementButton] = {
-            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            on_click = ClickNumericSpinnerButton, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.AcceptButton] = {
             can_activate = true, lock_highlight = true, is_default = true},
         [QualityDialog.CancelButton] = {
             can_activate = true, lock_highlight = true},
     }
-    self:UpdateCursor()
 end
 
-function MenuCursor:ProfessionsFrame_QualityDialog_Hide()
-    self:PopFocus(ProfessionsFrame.CraftingPage.SchematicForm.QualityDialog)
-end
-
-function MenuCursor:ProfessionsItemFlyout_Show(frame)
-    self:PushFocus(frame)
-    self.cancel_func = CloseProfessionsItemFlyout
-    RunNextFrame(function() self:ProfessionsItemFlyout_RefreshTargets(frame) end)
-end
-
-function MenuCursor:ProfessionsItemFlyout_Hide(frame)
-    self:PopFocus(frame)
-end
-
-function MenuCursor:ProfessionsItemFlyout_RefreshTargets(frame)
+local function ProfessionsItemFlyout_RefreshTargets()
+    local self = menu_ProfessionsItemFlyout
+    local frame = self.frame
     local ItemScroll = frame.ScrollBox
     local checkbox = frame.HideUnownedCheckbox
     self.targets = {
@@ -2384,9 +2398,7 @@ function MenuCursor:ProfessionsItemFlyout_RefreshTargets(frame)
                           -- Ensure that a D-pad press during that frame
                           -- doesn't leave us on a vanished button.
                           self.targets = {[checkbox] = self.targets[checkbox]}
-                          RunNextFrame(function()
-                              self:ProfessionsItemFlyout_RefreshTargets(frame)
-                          end)
+                          RunNextFrame(ProfessionsItemFlyout_RefreshTargets)
                       end},
     }
     local default = nil
@@ -2400,7 +2412,7 @@ function MenuCursor:ProfessionsItemFlyout_RefreshTargets(frame)
             local button = ItemScroll:FindFrame(ItemScroll:FindElementData(index))
             if button then  -- FIXME: need to deal with overflowing lists (e.g. embellishments)
                 local pseudo_frame =
-                    self:PseudoFrameForScrollElement(ItemScroll, index)
+                    PseudoFrameForScrollElement(ItemScroll, index)
                 self.targets[pseudo_frame] = {
                     is_scroll_box = true, can_activate = true,
                     up = false, down = false, left = false, right = false}
@@ -2445,28 +2457,239 @@ function MenuCursor:ProfessionsItemFlyout_RefreshTargets(frame)
         self.targets[checkbox].up = last_row[1]
         self.targets[checkbox].down = first_row[1]
     end
-    self:SetTarget(self.cur_target or default or checkbox)
-    self:UpdateCursor()
+    local cur_target = global_cursor:GetTargetForFrame(self)
+    global_cursor:SetTargetForFrame(self, cur_target or default or checkbox)
+end
+
+local function ProfessionsItemFlyout_OnShow()
+    local self = menu_ProfessionsItemFlyout
+    self.cancel_func = CloseProfessionsItemFlyout
+    self.targets = {}
+    -- Call RefreshTargets() after adding the frame.
+end
+
+local function ProfessionsFrame_FocusRecipe(tries)
+    local self = menu_ProfessionsFrame
+    local CraftingPage = ProfessionsFrame.CraftingPage
+    local SchematicForm = CraftingPage.SchematicForm
+    assert(SchematicForm:IsShown())
+    if SchematicForm.recraftSlot:IsShown() then
+        return  -- We don't currently handle the recrafting interface.
+    end
+    if not CraftingPage.CreateButton:IsShown() then
+        -- Recipe data is still loading, or recipe is not learned.
+        tries = tries or 10
+        if tries > 0 then
+            RunNextFrame(function() ProfessionsFrame_FocusRecipe(tries-1) end)
+        end
+        return
+    end
+    local initial_target = ProfessionsFrame_SchematicForm_OnShow()
+    global_cursor:AddFrame(menu_ProfessionsFrame_SchematicForm, initial_target)
+end
+
+local PROFESSION_GEAR_SLOTS = {
+    "Prof0ToolSlot",
+    "Prof0Gear0Slot",
+    "Prof0Gear1Slot",
+    "Prof1ToolSlot",
+    "Prof1Gear0Slot",
+    "Prof1Gear1Slot",
+    "CookingToolSlot",
+    "CookingGear0Slot",
+    "FishingToolSlot",
+}
+local function ProfessionsFrame_RefreshTargets(initial_element)
+    local self = menu_ProfessionsFrame
+    local CraftingPage = ProfessionsFrame.CraftingPage
+
+    global_cursor:SetTargetForFrame(self, nil)
+    self.targets = {}
+    local top, bottom, initial = nil, nil, nil
+
+    if CraftingPage:IsShown() then
+        self.targets[CraftingPage.LinkButton] = {
+            can_activate = true, lock_highlight = true,
+            up = false, down = false}
+        for _, slot_id in ipairs(PROFESSION_GEAR_SLOTS) do
+            local slot = CraftingPage[slot_id]
+            if slot:IsShown() then
+                self.targets[slot] = {
+                    lock_highlight = true, send_enter_leave = true,
+                    up = false, down = false}
+            end
+        end
+        local RecipeScroll = CraftingPage.RecipeList.ScrollBox
+        local index = 0
+        RecipeScroll:ForEachElementData(function(element)
+            self.need_refresh = false
+            index = index + 1
+            local data = element:GetData()
+            if data.categoryInfo or data.recipeInfo then
+                local pseudo_frame =
+                    PseudoFrameForScrollElement(RecipeScroll, index)
+                self.targets[pseudo_frame] = {
+                    is_scroll_box = true, can_activate = true,
+                    up = bottom or false, down = false,
+                    left = false, right = CraftingPage.LinkButton}
+                if data.recipeInfo then
+                    self.targets[pseudo_frame].on_click = function()
+                        ProfessionsFrame_FocusRecipe()
+                    end
+                else  -- is a category header
+                    self.targets[pseudo_frame].on_click = function()
+                        local target = ProfessionsFrame_RefreshTargets(element)
+                        global_cursor:SetTargetForFrame(self, target)
+                    end
+                end
+                if bottom then
+                    self.targets[bottom].down = pseudo_frame
+                end
+                if not top then
+                    top = pseudo_frame
+                    self.targets[CraftingPage.LinkButton].left = pseudo_frame
+                end
+                bottom = pseudo_frame
+                if initial_element then
+                    if initial_element == element then
+                        initial = pseudo_frame
+                    end
+                else
+                    if not initial and self:GetTargetFrame(pseudo_frame) then
+                        initial = pseudo_frame
+                    end
+                end
+            end
+        end)
+    end
+
+    local default_tab = nil
+    for _, tab in ipairs(ProfessionsFrame.TabSystem.tabs) do
+        if tab:IsShown() then
+            self.targets[tab] = {can_activate = true, send_enter_leave = true,
+                                 up = bottom, down = top}
+            -- HACK: breaking encapsulation to access tab selected state
+            if not default_tab or tab.isSelected then default_tab = tab end
+        end
+    end
+    if top then
+        self.targets[top].up = default_tab or bottom or false
+    end
+    if bottom then
+        self.targets[bottom].down = default_tab or top or false
+    end
+
+    if not initial then
+        initial = top or default_tab
+        assert(initial)
+    end
+    return initial
+end
+
+local function ProfessionsFrame_OnShow()
+    local self = menu_ProfessionsFrame
+    self.cancel_func = HideUIFrame
+    self.need_refresh = true
+    return ProfessionsFrame_RefreshTargets()
+end
+
+function MenuCursor.handlers.ProfessionsFrame(cursor)
+    cursor:RegisterEvent("ADDON_LOADED")
+    if ProfessionsFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_Professions")
+    end
+    cursor:RegisterEvent("TRADE_SKILL_LIST_UPDATE")
+end
+
+function MenuCursor:ADDON_LOADED__Blizzard_Professions()
+    menu_ProfessionsFrame = MenuFrame(ProfessionsFrame)
+    self:HookShow(ProfessionsFrame, "ProfessionsFrame")
+    self:HookShow(ProfessionsFrame.CraftingPage.CreateAllButton, "ProfessionsFrame_CreateAllButton")
+
+    local SchematicForm = ProfessionsFrame.CraftingPage.SchematicForm
+    menu_ProfessionsFrame_SchematicForm = MenuFrame(SchematicForm)
+
+    local QualityDialog = SchematicForm.QualityDialog
+    menu_ProfessionsFrame_QualityDialog = MenuFrame(QualityDialog)
+    self:HookShow(QualityDialog, "ProfessionsFrame_QualityDialog")
+
+    -- Hack for interacting with the item selector popup.
+    local flyout = OpenProfessionsItemFlyout(UIParent, UIParent)
+    CloseProfessionsItemFlyout()
+    menu_ProfessionsItemFlyout = MenuFrame(flyout)
+    self:HookShow(flyout, "ProfessionsItemFlyout")
+end
+
+function MenuCursor:TRADE_SKILL_LIST_UPDATE()
+    if menu_ProfessionsFrame.need_refresh then
+        -- The list itself apparently isn't ready until the next frame.
+        RunNextFrame(function()
+            global_cursor:SetTargetForFrame(menu_ProfessionsFrame,
+                                            ProfessionsFrame_RefreshTargets())
+        end)
+    end
+end
+
+function MenuCursor:ProfessionsFrame_Show()
+    assert(ProfessionsFrame:IsShown())
+    local initial_target = ProfessionsFrame_OnShow()
+    self:AddFrame(menu_ProfessionsFrame, initial_target)
+end
+
+function MenuCursor:ProfessionsFrame_Hide()
+    self:RemoveFrame(menu_ProfessionsFrame)
+    self:RemoveFrame(menu_ProfessionsFrame_SchematicForm)
+end
+
+function MenuCursor:ProfessionsFrame_CreateAllButton_Show()
+    -- FIXME: this gets called every second, avoid update calls if no change
+    if menu_ProfessionsFrame_SchematicForm.targets[ProfessionsFrame.CraftingPage.CreateButton] then
+        ProfessionsFrame_SchematicForm_UpdateMovement()
+    end
+end
+
+function MenuCursor:ProfessionsFrame_CreateAllButton_Hide()
+    if menu_ProfessionsFrame_SchematicForm.targets[ProfessionsFrame.CraftingPage.CreateButton] then
+        local CraftingPage = ProfessionsFrame.CraftingPage
+        local cur_target = self:GetTargetForFrame(menu_ProfessionsFrame_SchematicForm)
+        if (cur_target == CraftingPage.CreateAllButton
+         or cur_target == CraftingPage.CreateMultipleInputBox.DecrementButton
+         or cur_target == CraftingPage.CreateMultipleInputBox.IncrementButton)
+        then
+            self:SetTargetForFrame(menu_ProfessionsFrame_SchematicForm,
+                                   CraftingPage.CreateButton)
+        end
+        ProfessionsFrame_SchematicForm_UpdateMovement()
+    end
+end
+
+function MenuCursor:ProfessionsFrame_QualityDialog_Show(frame)
+    ProfessionsFrame_QualityDialog_OnShow()
+    self:AddFrame(menu_ProfessionsFrame_QualityDialog)
+end
+
+function MenuCursor:ProfessionsFrame_QualityDialog_Hide()
+    self:RemoveFrame(menu_ProfessionsFrame_QualityDialog)
+end
+
+function MenuCursor:ProfessionsItemFlyout_Show()
+    ProfessionsItemFlyout_OnShow()
+    self:AddFrame(menu_ProfessionsItemFlyout)
+    RunNextFrame(ProfessionsItemFlyout_RefreshTargets)
+end
+
+function MenuCursor:ProfessionsItemFlyout_Hide(frame)
+    self:RemoveFrame(menu_ProfessionsItemFlyout)
 end
 
 
 -------- Great Vault
 
-function MenuCursor.handlers.WeeklyRewardsFrame(cursor)
-    cursor.frame:RegisterEvent("ADDON_LOADED")
-    if WeeklyRewardsFrame then
-        cursor:OnEvent("ADDON_LOADED", "Blizzard_WeeklyRewards")
-    end
-end
+local menu_WeeklyRewardsFrame
 
-function MenuCursor:ADDON_LOADED__Blizzard_WeeklyRewards()
-    self:HookShow(WeeklyRewardsFrame, "WeeklyRewardsFrame")
-end
-
-function MenuCursor:WeeklyRewardsFrame_Show()
-    assert(WeeklyRewardsFrame:IsShown())
-    self:SetFocus(WeeklyRewardsFrame)
-    self.cancel_func = self.CancelUIPanel
+local function WeeklyRewardsFrame_OnShow()
+    local self = menu_WeeklyRewardsFrame
+    self.cancel_func = CancelUIFrame
     self.targets = {}
     local first, bottom
     local can_claim = C_WeeklyRewards.CanClaimRewards()
@@ -2524,38 +2747,47 @@ function MenuCursor:WeeklyRewardsFrame_Show()
     if first then
         self.targets[first].is_default = true
     end
-    self:UpdateCursor()
+end
+
+function MenuCursor.handlers.WeeklyRewardsFrame(cursor)
+    cursor:RegisterEvent("ADDON_LOADED")
+    if WeeklyRewardsFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_WeeklyRewards")
+    end
+end
+
+function MenuCursor:ADDON_LOADED__Blizzard_WeeklyRewards()
+    self:HookShow(WeeklyRewardsFrame, "WeeklyRewardsFrame")
+end
+
+function MenuCursor:WeeklyRewardsFrame_Show()
+    assert(WeeklyRewardsFrame:IsShown())
+    WeeklyRewardsFrame_OnShow()
+    self:AddFrame(menu_WeeklyRewardsFrame)
 end
 
 function MenuCursor:WeeklyRewardsFrame_Hide()
-    assert(self.focus == nil or self.focus == WeeklyRewardsFrame)
-    self:ClearFocus()
-    self:UpdateCursor()
+    self:RemoveFrame(menu_WeeklyRewardsFrame)
 end
 
 
 -------- Delve companion setup frame
 
-function MenuCursor.handlers.DelvesCompanionConfigurationFrame(cursor)
-    cursor:HookShow(DelvesCompanionConfigurationFrame,
-                    "DelvesCompanionConfigurationFrame")
-    cursor:HookShow(DelvesCompanionConfigurationFrame.CompanionCombatRoleSlot.OptionsList,
-                    "DelvesCompanionConfigurationSlot")
-    cursor:HookShow(DelvesCompanionConfigurationFrame.CompanionCombatTrinketSlot.OptionsList,
-                    "DelvesCompanionConfigurationSlot")
-    cursor:HookShow(DelvesCompanionConfigurationFrame.CompanionUtilityTrinketSlot.OptionsList,
-                    "DelvesCompanionConfigurationSlot")
-    cursor:HookShow(DelvesCompanionAbilityListFrame,
-                    "DelvesCompanionAbilityListFrame")
+local menu_DelvesCompanionConfigurationFrame
+local menu_DelvesCompanionConfigurationSlot = {}
+local menu_DelvesCompanionAbilityListFrame
+local menu_DelvesCompanionRoleDropdown = {}
+
+local function DelvesCompanionConfigurationFrame_ClickSlot(frame)
+    frame:OnMouseDown("LeftButton", true)
 end
 
-function MenuCursor:DelvesCompanionConfigurationFrame_Show()
+local function DelvesCompanionConfigurationFrame_OnShow()
+    local self = menu_DelvesCompanionConfigurationFrame
     local dccf = DelvesCompanionConfigurationFrame
-    assert(dccf:IsShown())
-    self:SetFocus(dccf)
-    self.cancel_func = self.CancelUIPanel
+    self.cancel_func = CancelUIFrame
     local function ClickSlot(frame)
-        self:DelvesCompanionConfigurationFrame_ClickSlot(frame)
+        DelvesCompanionConfigurationFrame_ClickSlot(frame)
     end
     self.targets = {
         -- Mouse behavior brings up the tooltip when mousing over the
@@ -2587,25 +2819,11 @@ function MenuCursor:DelvesCompanionConfigurationFrame_Show()
             up = dccf.CompanionUtilityTrinketSlot, down = false,
             left = false, right = false},
     }
-    self:UpdateCursor()
 end
 
-function MenuCursor:DelvesCompanionConfigurationFrame_Hide()
-    -- FIXME: no assert because we could be focused on the dropdown, which
-    -- doesn't have a named variable; we should probably just switch to
-    -- using PopFocus() everywhere
-    self:ClearFocus()
-    self:UpdateCursor()
-end
-
-function MenuCursor:DelvesCompanionConfigurationFrame_ClickSlot(frame)
-    frame:OnMouseDown("LeftButton", true)
-end
-
-function MenuCursor:DelvesCompanionConfigurationSlot_Show(frame)
+local function DelvesCompanionConfigurationSlot_OnShow(frame)
+    local self = menu_DelvesCompanionConfigurationSlot[frame]
     local slot = frame:GetParent()
-    assert(self.focus == nil or self.focus == DelvesCompanionConfigurationFrame)
-    self:PushFocus(frame)
     self.cancel_func = function() frame:Hide() end
     self.targets = {}
     -- FIXME: see note in GossipFrame about getting button list
@@ -2625,31 +2843,48 @@ function MenuCursor:DelvesCompanionConfigurationSlot_Show(frame)
             end
         end
     end
-    self:SetTarget(default or top)
-    self:UpdateCursor()
+    local target = default or top
+    if target then
+        self.targets[target].is_default = true
+    end
 end
 
-function MenuCursor:DelvesCompanionConfigurationSlot_Hide(frame)
-    self:PopFocus(frame)
-end
-
-function MenuCursor:DelvesCompanionAbilityListFrame_Show()
+local function DelvesCompanionAbilityListFrame_ToggleRoleDropdown()
+    local self = menu_DelvesCompanionAbilityListFrame
     local dcalf = DelvesCompanionAbilityListFrame
-    assert(dcalf:IsShown())
-    self:PushFocus(dcalf)
-    self.cancel_func = self.HideUIPanel
-    self:DelvesCompanionAbilityListFrame_RefreshTargets()
+    local role_dropdown = dcalf.DelvesCompanionRoleDropdown
+
+    role_dropdown:SetMenuOpen(not role_dropdown:IsMenuOpen())
+    if role_dropdown:IsMenuOpen() then
+        local menu = role_dropdown.menu
+        local menu_menu = menu_DelvesCompanionRoleDropdown[menu]
+        if not menu_menu then
+            menu_menu = MenuFrame(menu)
+            menu_menu.cancel_func = function() role_dropdown:CloseMenu() end
+            local default = nil
+            for _, button in ipairs(menu:GetLayoutChildren()) do
+                menu_menu.targets[button] = {can_activate = true}
+                local selected = false  -- FIXME: how can we check whether the button is selected?
+                if not default or selected then
+                    default = button
+                end
+            end
+            if default then
+                menu_menu.targets[default].is_default = true
+            end
+            menu_DelvesCompanionRoleDropdown[menu] = menu_menu
+            hooksecurefunc(menu, "Hide", function() global_cursor:RemoveFrame(menu_menu) end)
+        end
+        global_cursor:AddFrame(menu_menu)
+    end
 end
 
-function MenuCursor:DelvesCompanionAbilityListFrame_Hide()
-    self:PopFocus(DelvesCompanionAbilityListFrame)
-end
-
-function MenuCursor:DelvesCompanionAbilityListFrame_RefreshTargets()
+local function DelvesCompanionAbilityListFrame_RefreshTargets()
+    local self = menu_DelvesCompanionAbilityListFrame
     local dcalf = DelvesCompanionAbilityListFrame
     self.targets = {
         [dcalf.DelvesCompanionRoleDropdown] = {
-            on_click = function() self:DelvesCompanionAbilityListFrame_ToggleRoleDropdown() end,
+            on_click = function() DelvesCompanionAbilityListFrame_ToggleRoleDropdown() end,
             send_enter_leave = true,
             up = false, down = false, left = false, right = false},
     }
@@ -2668,76 +2903,112 @@ function MenuCursor:DelvesCompanionAbilityListFrame_RefreshTargets()
         end
     end
     self.targets[dcalf.DelvesCompanionRoleDropdown].down = default
-    self:SetTarget(default)
-    self:UpdateCursor()
+    global_cursor:SetTargetForFrame(self, default)
 end
 
-function MenuCursor:DelvesCompanionAbilityListFrame_ToggleRoleDropdown()
+local function DelvesCompanionAbilityListFrame_OnShow()
+    local self = menu_DelvesCompanionAbilityListFrame
+    self.cancel_func = HideUIFrame
+    self.targets = {}
+    -- Call RefreshTargets() after adding the frame.
+end
+
+function MenuCursor.handlers.DelvesCompanionConfigurationFrame(cursor)
+    local dccf = DelvesCompanionConfigurationFrame
+    menu_DelvesCompanionConfigurationFrame = MenuFrame(dccf)
+    cursor:HookShow(dccf, "DelvesCompanionConfigurationFrame")
+    local lists = {dccf.CompanionCombatRoleSlot.OptionsList,
+                   dccf.CompanionCombatTrinketSlot.OptionsList,
+                   dccf.CompanionUtilityTrinketSlot.OptionsList}
+    for _, list in ipairs(lists) do
+        menu_DelvesCompanionConfigurationSlot[list] = MenuFrame(list)
+        cursor:HookShow(list, "DelvesCompanionConfigurationSlot")
+    end
     local dcalf = DelvesCompanionAbilityListFrame
-    local role_dropdown = dcalf.DelvesCompanionRoleDropdown
-
-    role_dropdown:SetMenuOpen(not role_dropdown:IsMenuOpen())
-    if role_dropdown:IsMenuOpen() then
-        local menu = role_dropdown.menu
-        self:PushFocus(menu)
-        -- FIXME: this adds a new hook every time the dropdown is opened
-        hooksecurefunc(menu, "Hide", function(frame) self:DelvesCompanionRoleDropdown_Hide(frame) end)
-        self.cancel_func = function() role_dropdown:CloseMenu() end
-        self.targets = {}
-        local default = nil
-        for _, button in ipairs(menu:GetLayoutChildren()) do
-            self.targets[button] = {can_activate = true,
-                                    send_enter_leave = true}
-            local selected = false  -- FIXME: how can we check whether the button is selected?
-            if not default or selected then
-                default = button
-            end
-        end
-        self:SetTarget(default)
-        self:UpdateCursor()
-    end
+    menu_DelvesCompanionAbilityListFrame = MenuFrame(dcalf)
+    cursor:HookShow(dcalf, "DelvesCompanionAbilityListFrame")
 end
 
-function MenuCursor:DelvesCompanionRoleDropdown_Hide(menu)
-    self:PopFocus(menu)
-    if self.focus == DelvesCompanionAbilityListFrame then
-        self:DelvesCompanionAbilityListFrame_RefreshTargets()
-    end
+function MenuCursor:DelvesCompanionConfigurationFrame_Show()
+    assert(DelvesCompanionConfigurationFrame:IsShown())
+    DelvesCompanionConfigurationFrame_OnShow()
+    self:AddFrame(menu_DelvesCompanionConfigurationFrame)
+end
+
+function MenuCursor:DelvesCompanionConfigurationFrame_Hide()
+    self:RemoveFrame(menu_DelvesCompanionConfigurationFrame)
+end
+
+function MenuCursor:DelvesCompanionConfigurationSlot_Show(frame)
+    DelvesCompanionConfigurationSlot_OnShow(frame)
+    self:AddFrame(menu_DelvesCompanionConfigurationSlot[frame])
+end
+
+function MenuCursor:DelvesCompanionConfigurationSlot_Hide(frame)
+    self:RemoveFrame(menu_DelvesCompanionConfigurationSlot[frame])
+end
+
+function MenuCursor:DelvesCompanionAbilityListFrame_Show()
+    assert(DelvesCompanionAbilityListFrame:IsShown())
+    DelvesCompanionAbilityListFrame_OnShow()
+    self:AddFrame(menu_DelvesCompanionAbilityListFrame)
+    DelvesCompanionAbilityListFrame_RefreshTargets()
+end
+
+function MenuCursor:DelvesCompanionAbilityListFrame_Hide()
+    self:RemoveFrame(menu_DelvesCompanionAbilityListFrame)
 end
 
 
 -------- Delve start frame
 
-function MenuCursor.handlers.DelvesDifficultyPickerFrame(cursor)
-    cursor.frame:RegisterEvent("ADDON_LOADED")
-    if DelvesDifficultyPickerFrame then
-        cursor:OnEvent("ADDON_LOADED", "Blizzard_DelvesDifficultyPicker")
+local menu_DelvesDifficultyPickerFrame
+local menu_DelvesDifficultyDropdown = {}
+
+local function DelvesDifficultyDropdown_Hide(menu)
+    self:PopFocus(menu)
+    if self.focus == DelvesDifficultyPickerFrame then
+        self:DelvesDifficultyPickerFrame_RefreshTargets()
     end
 end
 
-function MenuCursor:ADDON_LOADED__Blizzard_DelvesDifficultyPicker()
-    self:HookShow(DelvesDifficultyPickerFrame,
-                  "DelvesDifficultyPickerFrame")
+local function DelvesDifficultyPickerFrame_ToggleDropdown()
+    local ddpf = DelvesDifficultyPickerFrame
+    local dropdown = ddpf.Dropdown
+
+    dropdown:SetMenuOpen(not dropdown:IsMenuOpen())
+    if dropdown:IsMenuOpen() then
+        local menu = dropdown.menu
+        local menu_menu = menu_DelvesDifficultyDropdown[menu]
+        if not menu_menu then
+            menu_menu = MenuFrame(menu)
+            menu_menu.cancel_func = function() dropdown:CloseMenu() end
+            menu_menu.targets = {}
+            local default = nil
+            for _, button in ipairs(menu:GetLayoutChildren()) do
+                menu_menu.targets[button] = {can_activate = true,
+                                             send_enter_leave = true}
+                local selected = false  -- FIXME: how can we check whether the button is selected?
+                if not default or selected then
+                    default = button
+                end
+            end
+            if default then
+                menu_menu.targets[default].is_default = true
+            end
+            menu_DelvesCompanionRoleDropdown[menu] = menu_menu
+            hooksecurefunc(menu, "Hide", function() global_cursor:RemoveFrame(menu_menu) end)
+        end
+        global_cursor:AddFrame(menu_menu)
+    end
 end
 
-function MenuCursor:DelvesDifficultyPickerFrame_Show()
-    assert(DelvesDifficultyPickerFrame:IsShown())
-    self:SetFocus(DelvesDifficultyPickerFrame)
-    self.cancel_func = self.CancelUIPanel
-    self:DelvesDifficultyPickerFrame_RefreshTargets()
-end
-
-function MenuCursor:DelvesDifficultyPickerFrame_Hide()
-    -- FIXME: see note in DelvesCompanionConfigurationFrame_Hide()
-    self:ClearFocus()
-    self:UpdateCursor()
-end
-
-function MenuCursor:DelvesDifficultyPickerFrame_RefreshTargets()
+local function DelvesDifficultyPickerFrame_RefreshTargets()
+    local self = menu_DelvesDifficultyPickerFrame
     local ddpf = DelvesDifficultyPickerFrame
     self.targets = {
         [ddpf.Dropdown] = {
-            on_click = function() self:DelvesDifficultyPickerFrame_ToggleDropdown() end,
+            on_click = function() DelvesDifficultyPickerFrame_ToggleDropdown() end,
             send_enter_leave = true, left = false, right = false},
         [ddpf.EnterDelveButton] = {
             can_activate = true, send_enter_leave = true,
@@ -2763,7 +3034,7 @@ function MenuCursor:DelvesDifficultyPickerFrame_RefreshTargets()
         local function TryRewards()
             local rewards = {ddpf.DelveRewardsContainerFrame:GetChildren()}
             if ddpf.DelveRewardsContainerFrame:IsShown() and rewards and #rewards>0 then
-                self:DelvesDifficultyPickerFrame_RefreshTargets()
+                DelvesDifficultyPickerFrame_RefreshTargets()
             else
                 RunNextFrame(TryRewards)
             end
@@ -2806,73 +3077,65 @@ function MenuCursor:DelvesDifficultyPickerFrame_RefreshTargets()
         self.targets[ddpf.EnterDelveButton].up = rows[row_y[#row_y]][1]
     end
 
-    self:SetTarget(ddpf.EnterDelveButton:IsEnabled() and ddpf.EnterDelveButton
-                   or ddpf.Dropdown)
-    self:UpdateCursor()
+    global_cursor:SetTargetForFrame(self, ddpf.EnterDelveButton:IsEnabled() and ddpf.EnterDelveButton or ddpf.Dropdown)
 end
 
-function MenuCursor:DelvesDifficultyPickerFrame_ToggleDropdown()
-    local ddpf = DelvesDifficultyPickerFrame
-    local dropdown = ddpf.Dropdown
-
-    dropdown:SetMenuOpen(not dropdown:IsMenuOpen())
-    if dropdown:IsMenuOpen() then
-        local menu = dropdown.menu
-        self:PushFocus(menu)
-        -- FIXME: this adds a new hook every time the dropdown is opened
-        hooksecurefunc(menu, "Hide", function(frame) self:DelvesDifficultyDropdown_Hide(frame) end)
-        self.cancel_func = function() dropdown:CloseMenu() end
-        self.targets = {}
-        local default = nil
-        for _, button in ipairs(menu:GetLayoutChildren()) do
-            self.targets[button] = {can_activate = true,
-                                    send_enter_leave = true}
-            local selected = false  -- FIXME: how can we check whether the button is selected?
-            if not default or selected then
-                default = button
-            end
-        end
-        self:SetTarget(default)
-        self:UpdateCursor()
+function MenuCursor.handlers.DelvesDifficultyPickerFrame(cursor)
+    cursor:RegisterEvent("ADDON_LOADED")
+    if DelvesDifficultyPickerFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_DelvesDifficultyPicker")
     end
 end
 
-function MenuCursor:DelvesDifficultyDropdown_Hide(menu)
-    self:PopFocus(menu)
-    if self.focus == DelvesDifficultyPickerFrame then
-        self:DelvesDifficultyPickerFrame_RefreshTargets()
-    end
+function MenuCursor:ADDON_LOADED__Blizzard_DelvesDifficultyPicker()
+    menu_DelvesDifficultyPickerFrame = MenuFrame(DelvesDifficultyPickerFrame)
+    self:HookShow(DelvesDifficultyPickerFrame,
+                  "DelvesDifficultyPickerFrame")
+end
+
+function MenuCursor:DelvesDifficultyPickerFrame_Show()
+    assert(DelvesDifficultyPickerFrame:IsShown())
+    menu_DelvesDifficultyPickerFrame.cancel_func = CancelUIFrame
+    self:AddFrame(menu_DelvesDifficultyPickerFrame)
+    DelvesDifficultyPickerFrame_RefreshTargets()
+end
+
+function MenuCursor:DelvesDifficultyPickerFrame_Hide()
+    self:RemoveFrame(menu_DelvesDifficultyPickerFrame)
 end
 
 
 -------- Void storage purchase popup
 
-function MenuCursor.handlers.VoidStoragePurchaseFrame(cursor)
-    cursor.frame:RegisterEvent("ADDON_LOADED")
-    if VoidStoragePurchaseFrame then
-        cursor:OnEvent("ADDON_LOADED", "Blizzard_VoidStorageUI")
-    end
-end
+local menu_VoidStoragePurchaseFrame
 
-function MenuCursor:ADDON_LOADED__Blizzard_VoidStorageUI()
-    self:HookShow(VoidStoragePurchaseFrame,
-                  "VoidStoragePurchaseFrame")
-end
-
-function MenuCursor:VoidStoragePurchaseFrame_Show()
-    self:SetFocus(VoidStoragePurchaseFrame)
+local function VoidStoragePurchaseFrame_OnShow()
+    local self = menu_VoidStoragePurchaseFrame
     self.cancel_func = function() HideUIPanel(VoidStorageFrame) end
     self.targets = {
         [VoidStoragePurchaseButton] = {
             can_activate = true, lock_highlight = true, is_default = true,
             up = false, down = false, left = false, right = false},
     }
-    self:UpdateCursor()
+end
+
+function MenuCursor.handlers.VoidStoragePurchaseFrame(cursor)
+    cursor:RegisterEvent("ADDON_LOADED")
+    if VoidStoragePurchaseFrame then
+        cursor:OnEvent("ADDON_LOADED", "Blizzard_VoidStorageUI")
+    end
+end
+
+function MenuCursor:ADDON_LOADED__Blizzard_VoidStorageUI()
+    menu_VoidStoragePurchaseFrame = MenuFrame(VoidStoragePurchaseFrame)
+    self:HookShow(VoidStoragePurchaseFrame, "VoidStoragePurchaseFrame")
+end
+
+function MenuCursor:VoidStoragePurchaseFrame_Show()
+    VoidStoragePurchaseFrame_OnShow()
+    self:AddFrame(menu_VoidStoragePurchaseFrame)
 end
 
 function MenuCursor:VoidStoragePurchaseFrame_Hide()
-    if self.focus == VoidStoragePurchaseFrame then
-        self:ClearFocus()
-        self:UpdateCursor()
-    end
+    self:RemoveFrame(menu_VoidStoragePurchaseFrame)
 end
