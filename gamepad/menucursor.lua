@@ -36,6 +36,10 @@ function MenuCursor:__constructor()
     -- is a {frame,target} pair).  The current focus is on top of the
     -- stack (focus_stack[#focus_stack]).
     self.focus_stack = {}
+    -- Stack of active modal MenuFrames and their current targets.  If a
+    -- modal frame is active, the top frame on this stack is the current
+    -- focus and input frame cycling is disabled.
+    self.modal_stack = {}
 
     -- This is a SecureActionButtonTemplate only so that we can
     -- indirectly click the button pointed to by the cursor.
@@ -110,10 +114,20 @@ end
 -- If |target| is nil, the initial input element is taken by calling the
 -- frame's GetDefaultTarget() method.  If the frame is already in the focus
 -- stack, it is moved to the top, and if |target| is nil, the frame's
--- current target is left unchanged.
-function MenuCursor:AddFrame(frame, target)
+-- current target is left unchanged.  If |modal| is true, the frame becomes
+-- a modal frame, blocking menu cursor input to any other frame until it is
+-- removed.
+function MenuCursor:AddFrame(frame, target, modal)
+    local other_stack = modal and self.focus_stack or self.modal_stack
+    for _, v in ipairs(other_stack) do
+        if v == frame then
+            error("Invalid attempt to change modal state of frame "..tostring(frame))
+            modal = not modal  -- In case we decide to make this non-fatal.
+            break
+        end
+    end
     local found = false
-    local stack = self.focus_stack
+    local stack = modal and self.modal_stack or self.focus_stack
     for i, v in ipairs(stack) do
         if v[1] == frame then
             if i == #stack then
@@ -146,10 +160,19 @@ end
 -- frame on the stack.  Does nothing if the given frame is not in the
 -- focus stack.
 function MenuCursor:RemoveFrame(frame)
-    local stack = self.focus_stack
+    if #self.modal_stack > 0 then
+        self:InternalRemoveFrameFromStack(frame, self.modal_stack, true)
+        self:InternalRemoveFrameFromStack(frame, self.focus_stack, false)
+    else
+        self:InternalRemoveFrameFromStack(frame, self.focus_stack, true)
+    end
+end
+
+-- Internal helper for RemoveFrame().
+function MenuCursor:InternalRemoveFrameFromStack(frame, stack, is_top_stack)
     for i, v in ipairs(stack) do
         if v[1] == frame then
-            local is_top = (i == #stack)
+            local is_top = is_top_stack and i == #stack
             if is_top then
                 self:SetTarget(nil)
             end
@@ -159,14 +182,20 @@ function MenuCursor:RemoveFrame(frame)
                 new_focus:EnterTarget(new_target)
             end
             self:UpdateCursor()
-            break
+            return
         end
     end
 end
 
+-- Internal helper to get the topmost stack (modal or normal).
+function MenuCursor:InternalGetFocusStack()
+    local modal_stack = self.modal_stack
+    return #modal_stack > 0 and modal_stack or self.focus_stack
+end
+
 -- Return the MenuFrame which currently has focus, or nil if none.
 function MenuCursor:GetFocus()
-    local stack = self.focus_stack
+    local stack = self:InternalGetFocusStack()
     local top = #stack
     return top > 0 and stack[top][1] or nil
 end
@@ -174,14 +203,14 @@ end
 -- Return the input element in the current focus which is currently
 -- pointed to by the cursor, or nil if none (or if there is no focus).
 function MenuCursor:GetTarget()
-    local stack = self.focus_stack
+    local stack = self:InternalGetFocusStack()
     local top = #stack
     return top > 0 and stack[top][2] or nil
 end
 
 -- Return the current focus and target in a single function call.
 function MenuCursor:GetFocusAndTarget()
-    local stack = self.focus_stack
+    local stack = self:InternalGetFocusStack()
     local top = #stack
     if top > 0 then
         return unpack(stack[top])
@@ -190,19 +219,10 @@ function MenuCursor:GetFocusAndTarget()
     end
 end
 
--- Return the input element most recently selected in the given frame.
--- Returns nil if the given frame is not in the focus stack.
-function MenuCursor:GetTargetForFrame(frame)
-    for _, v in ipairs(self.focus_stack) do
-        if v[1] == frame then return v[2] end
-    end
-    return nil
-end
-
 -- Set the menu cursor target.  If nil, clears the current target.
 -- Handles all enter/leave interactions with the new and previous targets.
 function MenuCursor:SetTarget(target)
-    local stack = self.focus_stack
+    local stack = self:InternalGetFocusStack()
     local top = #stack
     assert(not target or top > 0)
     if top == 0 or target == stack[top][2] then return end
@@ -218,20 +238,42 @@ function MenuCursor:SetTarget(target)
     self:UpdateCursor()
 end
 
+-- Internal helper to find a frame in the regular or modal frame stack.
+-- Returns the stack and index, or (nil,nil) if not found.
+function MenuCursor:InternalFindFrame(frame)
+    local focus_stack = self.focus_stack
+    for i, v in ipairs(focus_stack) do
+        if v[1] == frame then
+            return focus_stack, i
+        end
+    end
+    local modal_stack = self.modal_stack
+    for i, v in ipairs(modal_stack) do
+        if v[1] == frame then
+            return modal_stack, i
+        end
+    end
+    return nil, nil
+end
+
+-- Return the input element most recently selected in the given frame.
+-- Returns nil if the given frame is not in the focus stack.
+function MenuCursor:GetTargetForFrame(frame)
+    local stack, index = self:InternalFindFrame(frame)
+    return stack and stack[index][2] or nil
+end
+
 -- Set the menu cursor target for a specific frame.  Equivalent to
 -- SetTarget() if the frame is topmost on the focus stack; otherwise, sets
 -- the input element to be activated next time that frame becomes topmost
 -- on the stack.  Does nothing if the given frame is not on the focus stack.
 function MenuCursor:SetTargetForFrame(frame, target)
-    local stack = self.focus_stack
-    for i, v in ipairs(stack) do
-        if v[1] == frame then
-            if i == #stack then
-                self:SetTarget(target)
-            else
-                v[2] = target
-            end
-            break
+    local stack, index = self:InternalFindFrame(frame)
+    if stack then
+        if stack == self:InternalGetFocusStack() and index == #stack then
+            self:SetTarget(target)
+        else
+            stack[index][2] = target
         end
     end
 end
@@ -300,6 +342,8 @@ function MenuCursor:OnShow()
                            WoWXIV_config["gamepad_menu_next_page"],
                            "CLICK "..next..":LeftButton")
     end
+    SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_window"],
+                       "CLICK WoWXIV_MenuCursor:CycleFrame")
     f:SetScript("OnUpdate", function() self:OnUpdate() end)
     self:OnUpdate()
 end
@@ -402,6 +446,24 @@ function MenuCursor:OnClick(button, down)
         -- as a separate event, so we only get here in the no-passthrough
         -- case.
         focus:OnCancel()
+    elseif button == "CycleFrame" then
+        if #self.modal_stack == 0 then
+            local stack = self.focus_stack
+            local top = #stack
+            if top > 1 then
+                local cur_entry = tremove(stack, top)
+                local cur_focus, cur_target = unpack(cur_entry)
+                if cur_target then
+                    cur_focus:LeaveTarget(cur_target)
+                end
+                tinsert(stack, 1, cur_entry)
+                assert(#stack == top)
+                local new_focus, new_target = unpack(stack[top])
+                if new_target then
+                    new_focus:EnterTarget(new_target)
+                end
+            end
+        end
     end
 end
 
@@ -1345,7 +1407,7 @@ function MenuCursor:StaticPopup_Show(frame)
     local menu_frame = menu_StaticPopup[frame]
     assert(menu_frame)
     StaticPopup_OnShow(menu_frame)
-    self:AddFrame(menu_frame)
+    self:AddFrame(menu_frame, nil, true)  -- Modal frame.
 end
 
 function MenuCursor:StaticPopup_Hide(frame)
