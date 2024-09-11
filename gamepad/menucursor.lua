@@ -873,8 +873,16 @@ local function PseudoFrameForScrollElement(box, index)
     return {box = box, index = index}
 end
 
--- Return a list of widgets in the given WidgetContainer, grouped by row.
-local function GetWidgetTargets(container)
+-- Add widgets in the given WidgetContainer whose type is one of the
+-- given types (supported: "Spell", "Bar") to the given target list.
+-- |{up,down,left,right}_target| give the targets immediately in each
+-- direction relative to the widget container, and can be nil for default
+-- movement rules.
+local function AddWidgetTargets(container, widget_types,
+                                targets, up_target, down_target,
+                                left_target, right_target)
+    if not container.widgetFrames then return end
+
     local rows = {}
     local row_y = {}
     -- FIXME: is there any better way to get the child list than
@@ -891,7 +899,54 @@ local function GetWidgetTargets(container)
     for _, row in pairs(rows) do
         table.sort(row, function(a,b) return a:GetLeft() < b:GetLeft() end)
     end
-    return rows, row_y
+
+    local top_first, bottom_first
+    local last_y = nil
+    for _, y in ipairs(row_y) do
+        local row = rows[y]
+        local first, last
+        for i, f in ipairs(row) do
+            local subframe
+            for _, widget_type in ipairs(widget_types) do
+                if f[widget_type] then
+                    subframe = f[widget_type]
+                    break
+                end
+            end
+            if subframe then
+                targets[f] = {
+                    -- We have to call the subframe's methods.
+                    on_enter = function(frame)
+                        subframe:OnEnter()
+                    end,
+                    on_leave = function(frame)
+                        subframe:OnLeave()
+                    end,
+                    up = bottom_first or up_target,
+                    down = down_target,  -- Possibly rewritten below.
+                }
+                first = first or f
+                last = f
+            end
+        end
+        if first then
+            if last_y then
+                for i, f in ipairs(rows[last_y]) do
+                    local params = self.targets[f]
+                    if params then
+                        params.down = first
+                    end
+                end
+            end
+            last_y = y
+            top_first = top_first or first
+            bottom_first = first
+            targets[first].left = left_target
+            targets[last].right = right_target
+        end
+    end
+    targets[up_target].down = top_first
+    targets[down_target].up = bottom_first
 end
 
 ------------------------------------------------------------------------
@@ -1324,48 +1379,8 @@ local function PlayerChoiceFrame_OnShow()
                 leftmost = button
             end
             if option.WidgetContainer:IsShown() then
-                local top_first, bottom_first
-                local rows, row_y = GetWidgetTargets(option.WidgetContainer)
-                local last_y = nil
-                for _, y in ipairs(row_y) do
-                    local row = rows[y]
-                    local first, last
-                    for i, f in ipairs(row) do
-                        local subframe = f.Spell or f.Bar
-                        if subframe then
-                            self.targets[f] = {
-                                -- We have to call the subframe's methods.
-                                on_enter = function(frame)
-                                    subframe:OnEnter()
-                                end,
-                                on_leave = function(frame)
-                                    subframe:OnLeave()
-                                end,
-                                up = bottom_first or button,
-                                down = button,  -- Possibly rewritten below.
-                            }
-                            first = first or f
-                            last = f
-                        end
-                    end
-                    if first then
-                        if last_y then
-                            for i, f in ipairs(rows[last_y]) do
-                                local params = self.targets[f]
-                                if params then
-                                    params.down = first
-                                end
-                            end
-                        end
-                        last_y = y
-                        top_first = top_first or first
-                        bottom_first = first
-                        self.targets[first].left = false
-                        self.targets[last].right = false
-                    end
-                end
-                self.targets[button].down = top_first
-                self.targets[button].up = bottom_first
+                AddWidgetTargets(option.WidgetContainer, {"Spell","Bar"},
+                                 self.targets, button, button, false, false)
             end
         end
     end
@@ -3130,6 +3145,8 @@ local function DelvesDifficultyDropdown_Hide(menu)
     end
 end
 
+local DelvesDifficultyPickerFrame_RefreshTargets  -- forward declaration
+
 local function DelvesDifficultyPickerFrame_ToggleDropdown()
     local ddpf = DelvesDifficultyPickerFrame
     local dropdown = ddpf.Dropdown
@@ -3144,8 +3161,13 @@ local function DelvesDifficultyPickerFrame_ToggleDropdown()
             menu_menu.targets = {}
             local default = nil
             for _, button in ipairs(menu:GetLayoutChildren()) do
-                menu_menu.targets[button] = {can_activate = true,
-                                             send_enter_leave = true}
+                menu_menu.targets[button] = {
+                    send_enter_leave = true,
+                    on_click = function(button)
+                        button:GetScript("OnClick")(button, "LeftButton", true)
+                        DelvesDifficultyPickerFrame_RefreshTargets(Dropdown)
+                    end,
+                }
                 local selected = false  -- FIXME: how can we check whether the button is selected?
                 if not default or selected then
                     default = button
@@ -3161,14 +3183,18 @@ local function DelvesDifficultyPickerFrame_ToggleDropdown()
     end
 end
 
-local function DelvesDifficultyPickerFrame_RefreshTargets()
+-- Forward-declared as local above.
+function DelvesDifficultyPickerFrame_RefreshTargets()
     local self = menu_DelvesDifficultyPickerFrame
     local ddpf = DelvesDifficultyPickerFrame
+    local Dropdown = ddpf.Dropdown
+    local EnterDelveButton = ddpf.EnterDelveButton
+
     self.targets = {
-        [ddpf.Dropdown] = {
+        [Dropdown] = {
             on_click = function() DelvesDifficultyPickerFrame_ToggleDropdown() end,
             send_enter_leave = true, left = false, right = false},
-        [ddpf.EnterDelveButton] = {
+        [EnterDelveButton] = {
             can_activate = true, send_enter_leave = true,
             left = false, right = false},
     }
@@ -3185,8 +3211,8 @@ local function DelvesDifficultyPickerFrame_RefreshTargets()
                 last_reward = f
             end
         end
-        self.targets[ddpf.Dropdown].right = first_reward
-        self.targets[ddpf.EnterDelveButton].right = last_reward
+        self.targets[Dropdown].right = first_reward
+        self.targets[EnterDelveButton].right = last_reward
     else
         -- Either no difficulty selected or rewards have not been loaded yet.
         local function TryRewards()
@@ -3202,26 +3228,15 @@ local function DelvesDifficultyPickerFrame_RefreshTargets()
 
     local dmwc = ddpf.DelveModifiersWidgetContainer
     if dmwc:IsShown() then
-        local rows, row_y = GetWidgetTargets(dmwc)
-        for _, row in pairs(rows) do
-            for i, f in ipairs(row) do
-                self.targets[f] = {
-                    -- We have to call the subframe's methods.
-                    on_enter = function(frame)
-                        frame.Spell:OnEnter()
-                    end,
-                    on_leave = function(frame)
-                        frame.Spell:OnLeave()
-                    end,
-                }
-            end
-            self.targets[row[1]].left = false
-        end
-        self.targets[ddpf.Dropdown].down = rows[row_y[1]][1]
-        self.targets[ddpf.EnterDelveButton].up = rows[row_y[#row_y]][1]
+        AddWidgetTargets(dmwc, {"Spell"}, self.targets,
+                         Dropdown, EnterDelveButton, false, nil)
     end
 
-    global_cursor:SetTargetForFrame(self, ddpf.EnterDelveButton:IsEnabled() and ddpf.EnterDelveButton or ddpf.Dropdown)
+    if not initial_target then
+        initial_target = (EnterDelveButton:IsEnabled() and EnterDelveButton
+                          or Dropdown)
+    end
+    global_cursor:SetTargetForFrame(self, initial_target)
 end
 
 function MenuCursor.handlers.DelvesDifficultyPickerFrame(cursor)
