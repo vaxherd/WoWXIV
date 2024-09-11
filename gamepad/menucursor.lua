@@ -766,6 +766,7 @@ end
 -- Perform all actions appropriate to the cursor leaving a target.
 function MenuFrame:LeaveTarget(target)
     local params = self.targets[target]
+    assert(params)
     local frame = self:GetTargetFrame(target)
     if params.lock_highlight then
         -- We could theoretically check highlight_locked here, but
@@ -1010,6 +1011,9 @@ function MenuCursor:GOSSIP_SHOW()
     if not GossipFrame:IsVisible() then
         return  -- Flight map, etc.
     end
+    -- Remove the frame once in case it's already active, as for the secnd
+    -- and later steps of a multi-step dialogue.
+    self:RemoveFrame(menu_GossipFrame)
     GossipFrame_OnShow(menu_GossipFrame)
     self:AddFrame(menu_GossipFrame)
 end
