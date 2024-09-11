@@ -451,9 +451,9 @@ local function ReplaceCombatTokens(format, event)
     end
     if event.absorbed and event.absorbed > 0 then
         if is_heal then
-            healinfo = healinfo.." ("..event.absorbed..")"
+            healinfo = healinfo.." ("..event.absorbed.." absorbed)"
         else
-            damageinfo = damageinfo.." ("..event.absorbed..")"
+            damageinfo = damageinfo.." ("..event.absorbed.." absorbed)"
         end
     end
     if event.overkill and event.overkill > 0 then
