@@ -474,6 +474,11 @@ local function ReplaceCombatTokens(format, event)
         spell = event.spell_id and C_Spell.GetSpellLink(event.spell_id)
                                 or event.spell_name,
     }
+    if event.subtype == "ENERGIZE" and not event.power_type then
+        -- ENERGIZE for 0 seems to not fill in the power_type field, so
+        -- put in a default to avoid ugly error text.
+        extra.power = "power"
+    end
     if not event.source_name then
         extra["source:n"] = ""
         extra["source:N"] = ""
