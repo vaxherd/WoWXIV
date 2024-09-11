@@ -968,38 +968,50 @@ local function GossipFrame_OnShow()
     local goodbye = GossipFrame.GreetingPanel.GoodbyeButton
     self.targets = {[goodbye] = {can_activate = true,
                                  lock_highlight = true}}
+    local up_target, down_target = goodbye, goodbye
     if GossipFrame.FriendshipStatusBar:IsShown() then
+        up_target = GossipFrame.FriendshipStatusBar
         self.targets[GossipFrame.FriendshipStatusBar] =
-            {send_enter_leave = true}
+            {send_enter_leave = true, up = goodbye}
+        self.targets[goodbye].down = GossipFrame.FriendshipStatusBar
     end
-    -- FIXME: This logic to find the quest / dialogue option buttons is
-    -- a bit kludgey and certainly won't work if the list is scrolled
-    -- to the point where some elements move offscreen.  Is there any
-    -- better way to get the positions of individual scroll list elements?
-    -- (see the professions frame recipe list for a possible solution)
-    local subframes = {GossipFrame.GreetingPanel.ScrollBox.ScrollTarget:GetChildren()}
-    local first_button, last_button = nil, nil
-    for _, f in ipairs(subframes) do
-        if f.GetElementData then
-            local data = f:GetElementData()
+
+    local GossipScroll = GossipFrame.GreetingPanel.ScrollBox
+    local first = nil
+    local last = up_target
+    -- Avoid errors in Blizzard code if the list is empty.
+    if GossipScroll:GetDataProvider() then
+        local index = 0
+        GossipScroll:ForEachElementData(function(data)
+            index = index + 1
             if (data.availableQuestButton or
                 data.activeQuestButton or
                 data.titleOptionButton)
             then
-                self.targets[f] = {can_activate = true,
-                                   lock_highlight = true}
-                local y = f:GetTop()
-                if not first_button then
-                    first_button = f
-                    last_button = f
-                else
-                    if y > first_button:GetTop() then first_button = f end
-                    if y < last_button:GetTop() then last_button = f end
-                end
+                local pseudo_frame =
+                    PseudoFrameForScrollElement(GossipScroll, index)
+                self.targets[pseudo_frame] = {
+                    is_scroll_box = true, can_activate = true,
+                    lock_highlight = true, up = last, down = down_target}
+                self.targets[last].down = pseudo_frame
+                if not first then first = pseudo_frame end
+                last = pseudo_frame
             end
-        end
+        end)
     end
-    self.targets[first_button or goodbye].is_default = true
+    self.targets[last].down = goodbye
+    self.targets[goodbye].up = last
+
+    -- If the frame is scrollable and also has selectable options, default
+    -- to the "goodbye" button to ensure that we start at the top of the
+    -- scrollable text (rather than automatically scrolling to the bottom
+    -- where the options are).  But we treat an extremely tiny scroll range
+    -- as zero, as for the right stick scrolling logic.
+    if GossipScroll:GetDerivedScrollRange() > 0.01 then
+        first = nil
+    end
+
+    self.targets[first or goodbye].is_default = true
 end
 
 function MenuCursor.handlers.GossipFrame(cursor)
