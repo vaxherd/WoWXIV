@@ -933,7 +933,7 @@ local function AddWidgetTargets(container, widget_types,
         if first then
             if last_y then
                 for i, f in ipairs(rows[last_y]) do
-                    local params = self.targets[f]
+                    local params = targets[f]
                     if params then
                         params.down = first
                     end
