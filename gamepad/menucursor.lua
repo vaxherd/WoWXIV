@@ -143,7 +143,8 @@ function MenuCursor:AddFrame(frame, target, modal)
             break
         end
     end
-    if #stack > 0 then
+    local cursor_active = self.cursor:IsShown()
+    if cursor_active and #stack > 0 then
         local last_focus, last_target = unpack(stack[#stack])
         if last_target then
             last_focus:LeaveTarget(last_target)
@@ -151,7 +152,9 @@ function MenuCursor:AddFrame(frame, target, modal)
     end
     target = target or frame:GetDefaultTarget()
     tinsert(stack, {frame, target})
-    if target then frame:EnterTarget(target) end
+    if cursor_active and target then
+        frame:EnterTarget(target)
+    end
     self:UpdateCursor()
 end
 
@@ -177,7 +180,8 @@ function MenuCursor:InternalRemoveFrameFromStack(frame, stack, is_top_stack)
                 self:SetTarget(nil)
             end
             tremove(stack, i)
-            if is_top and #stack > 0 then
+            local cursor_active = self.cursor:IsShown()
+            if cursor_active and is_top and #stack > 0 then
                 local new_focus, new_target = unpack(stack[#stack])
                 new_focus:EnterTarget(new_target)
             end
@@ -227,12 +231,13 @@ function MenuCursor:SetTarget(target)
     assert(not target or top > 0)
     if top == 0 or target == stack[top][2] then return end
 
+    local cursor_active = self.cursor:IsShown()
     local focus, old_target = unpack(stack[top])
-    if old_target then
+    if cursor_active and old_target then
         focus:LeaveTarget(old_target)
     end
     stack[top][2] = target
-    if target then
+    if cursor_active and target then
         focus:EnterTarget(target)
     end
     self:UpdateCursor()
@@ -451,15 +456,16 @@ function MenuCursor:OnClick(button, down)
             local stack = self.focus_stack
             local top = #stack
             if top > 1 then
+                local cursor_active = self.cursor:IsShown()
                 local cur_entry = tremove(stack, top)
                 local cur_focus, cur_target = unpack(cur_entry)
-                if cur_target then
+                if cursor_active and cur_target then
                     cur_focus:LeaveTarget(cur_target)
                 end
                 tinsert(stack, 1, cur_entry)
                 assert(#stack == top)
                 local new_focus, new_target = unpack(stack[top])
-                if new_target then
+                if cursor_active and new_target then
                     new_focus:EnterTarget(new_target)
                 end
             end
