@@ -956,6 +956,59 @@ local function AddWidgetTargets(container, widget_types,
     targets[down_target].up = bottom_first
 end
 
+-- Return the currently selected element(s) for the given dropdown menu
+-- (must be a button using Blizzard's DropdownButtonMixin).  The returned
+-- values are description tables, which should be examined as appropriate
+-- for the particular menu.
+function GetDropdownSelection(dropdown)
+    -- Note that DropdownButtonMixin provides a GetSelectionData(), but
+    -- it returns the wrong data!  It's not called from any other
+    -- Blizzard code, so presumably it never got updated during a
+    -- refactor or similar.
+    local selection = select(3, dropdown:CollectSelectionData())
+    if not selection then return nil end
+    return unpack(selection)
+end
+
+-- Return a MenuFrame and initial cursor target for a dropdown menu using
+-- the builtin DropdownButtonMixin.  Pass three arguments:
+--     dropdown: Dropdown button (a Button frame).
+--     cache: Table in which already-created MenuFrames will be cached.
+--     getIndex: Function to return the 1-based option index of a
+--         selection (as returned by GetDropdownSelection()).
+--     onClick: Function to be called when an option is clicked.
+function SetupDropdownMenu(dropdown, cache, getIndex, onClick)
+    local menu = dropdown.menu
+    local menu_menu = cache[menu]
+    if not menu_menu then
+        menu_menu = MenuFrame(menu)
+        menu_menu.cancel_func = function() dropdown:CloseMenu() end
+        cache[menu] = menu_menu
+        hooksecurefunc(menu, "Hide", function() global_cursor:RemoveFrame(menu_menu) end)
+    end
+    menu_menu.targets = {}
+    menu_menu.item_order = {}
+    local first = true
+    for _, button in ipairs(menu:GetLayoutChildren()) do
+        menu_menu.targets[button] = {
+            send_enter_leave = true,
+            on_click = function(button)
+                button:GetScript("OnClick")(button, "LeftButton", true)
+                onClick()
+            end,
+            is_default = first,
+        }
+        first = false
+        -- FIXME: are buttons guaranteed to be in order?
+        tinsert(menu_menu.item_order, button)
+    end
+    local initial_target
+    local selection = GetDropdownSelection(dropdown)
+    local index = selection and getIndex(selection)
+    local initial_target = index and menu_menu.item_order[index]
+    return menu_menu, initial_target
+end
+
 ------------------------------------------------------------------------
 -- Individual frame handlers
 ------------------------------------------------------------------------
@@ -2998,7 +3051,8 @@ local function DelvesCompanionConfigurationFrame_OnShow()
                 local portrait = dccf.CompanionPortraitFrame
                 portrait:GetScript("OnLeave")(portrait)
             end,
-            up = false, down = dccf.CompanionCombatRoleSlot,
+            up = dccf.CompanionConfigShowAbilitiesButton,
+            down = dccf.CompanionCombatRoleSlot,
             left = false, right = false},
         [dccf.CompanionCombatRoleSlot] = {
             on_click = ClickSlot, send_enter_leave = true, is_default = true,
@@ -3011,7 +3065,8 @@ local function DelvesCompanionConfigurationFrame_OnShow()
             left = false, right = false},
         [dccf.CompanionConfigShowAbilitiesButton] = {
             can_activate = true, lock_highlight = true,
-            up = dccf.CompanionUtilityTrinketSlot, down = false,
+            up = dccf.CompanionUtilityTrinketSlot,
+            down = dccf.CompanionLevelFrame,
             left = false, right = false},
     }
 end
@@ -3021,7 +3076,7 @@ local function DelvesCompanionConfigurationSlot_OnShow(frame)
     local slot = frame:GetParent()
     self.cancel_func = function() frame:Hide() end
     self.targets = {}
-    -- FIXME: see note in GossipFrame about getting button list
+    -- FIXME: rewrite with new algorithm in GossipFrame
     local subframes = {frame.ScrollBox.ScrollTarget:GetChildren()}
     local top, default
     local active_id = slot:HasActiveEntry() and slot.selectionNodeInfo.activeEntry.entryID
@@ -3044,6 +3099,8 @@ local function DelvesCompanionConfigurationSlot_OnShow(frame)
     end
 end
 
+local DelvesCompanionAbilityListFrame_RefreshTargets  -- forward declaration
+
 local function DelvesCompanionAbilityListFrame_ToggleRoleDropdown()
     local self = menu_DelvesCompanionAbilityListFrame
     local dcalf = DelvesCompanionAbilityListFrame
@@ -3051,30 +3108,22 @@ local function DelvesCompanionAbilityListFrame_ToggleRoleDropdown()
 
     role_dropdown:SetMenuOpen(not role_dropdown:IsMenuOpen())
     if role_dropdown:IsMenuOpen() then
-        local menu = role_dropdown.menu
-        local menu_menu = menu_DelvesCompanionRoleDropdown[menu]
-        if not menu_menu then
-            menu_menu = MenuFrame(menu)
-            menu_menu.cancel_func = function() role_dropdown:CloseMenu() end
-            local default = nil
-            for _, button in ipairs(menu:GetLayoutChildren()) do
-                menu_menu.targets[button] = {can_activate = true}
-                local selected = false  -- FIXME: how can we check whether the button is selected?
-                if not default or selected then
-                    default = button
+        local menu, initial_target = SetupDropdownMenu(
+            role_dropdown, menu_DelvesCompanionRoleDropdown,
+            function(selection)
+                if selection.data and selection.data.entryID == 123306 then
+                    return 2  -- DPS
+                else
+                    return 1  -- Healer
                 end
-            end
-            if default then
-                menu_menu.targets[default].is_default = true
-            end
-            menu_DelvesCompanionRoleDropdown[menu] = menu_menu
-            hooksecurefunc(menu, "Hide", function() global_cursor:RemoveFrame(menu_menu) end)
-        end
-        global_cursor:AddFrame(menu_menu)
+            end,
+            DelvesCompanionAbilityListFrame_RefreshTargets)
+        global_cursor:AddFrame(menu, initial_target)
     end
 end
 
-local function DelvesCompanionAbilityListFrame_RefreshTargets()
+-- Forward-declared as local above.
+function DelvesCompanionAbilityListFrame_RefreshTargets()
     local self = menu_DelvesCompanionAbilityListFrame
     local dcalf = DelvesCompanionAbilityListFrame
     self.targets = {
@@ -3087,18 +3136,33 @@ local function DelvesCompanionAbilityListFrame_RefreshTargets()
     local MAX_DISPLAYED_BUTTONS = 12
     local start_index = ((dcalf.DelvesCompanionAbilityListPagingControls.currentPage - 1) * MAX_DISPLAYED_BUTTONS) + 1
     local count = 0
-    local default = nil
+    local first, last1, last2, prev
     for i = start_index, #dcalf.buttons do
         if count >= MAX_DISPLAYED_BUTTONS then break end
         local button = dcalf.buttons[i]
         if button then
-            local first = (i == start_index)
-            self.targets[button] = {send_enter_leave = true}
-            if i == start_index then default = button end
+            self.targets[button] = {send_enter_leave = true, left = prev}
+            if prev then
+                self.targets[prev].right = button
+            end
+            first = first or button
+            if last1 and button:GetTop() == last1:GetTop() then
+                last2 = button
+            else
+                last1, last2 = button, nil
+            end
+            prev = button
         end
     end
-    self.targets[dcalf.DelvesCompanionRoleDropdown].down = default
-    global_cursor:SetTargetForFrame(self, default)
+    self.targets[dcalf.DelvesCompanionRoleDropdown].down = first
+    self.targets[dcalf.DelvesCompanionRoleDropdown].up = last1
+    self.targets[last1].down = dcalf.DelvesCompanionRoleDropdown
+    if last2 then
+        self.targets[last2].down = dcalf.DelvesCompanionRoleDropdown
+    end
+    self.targets[first].left = last2 or last1
+    self.targets[last2 or last1].right = first
+    global_cursor:SetTargetForFrame(self, first)
 end
 
 local function DelvesCompanionAbilityListFrame_OnShow()
@@ -3175,33 +3239,13 @@ local function DelvesDifficultyPickerFrame_ToggleDropdown()
 
     dropdown:SetMenuOpen(not dropdown:IsMenuOpen())
     if dropdown:IsMenuOpen() then
-        local menu = dropdown.menu
-        local menu_menu = menu_DelvesDifficultyDropdown[menu]
-        if not menu_menu then
-            menu_menu = MenuFrame(menu)
-            menu_menu.cancel_func = function() dropdown:CloseMenu() end
-            menu_menu.targets = {}
-            local default = nil
-            for _, button in ipairs(menu:GetLayoutChildren()) do
-                menu_menu.targets[button] = {
-                    send_enter_leave = true,
-                    on_click = function(button)
-                        button:GetScript("OnClick")(button, "LeftButton", true)
-                        DelvesDifficultyPickerFrame_RefreshTargets(Dropdown)
-                    end,
-                }
-                local selected = false  -- FIXME: how can we check whether the button is selected?
-                if not default or selected then
-                    default = button
-                end
-            end
-            if default then
-                menu_menu.targets[default].is_default = true
-            end
-            menu_DelvesCompanionRoleDropdown[menu] = menu_menu
-            hooksecurefunc(menu, "Hide", function() global_cursor:RemoveFrame(menu_menu) end)
-        end
-        global_cursor:AddFrame(menu_menu)
+        local menu, initial_target = SetupDropdownMenu(
+            dropdown, menu_DelvesDifficultyDropdown,
+            function(selection)
+                return selection.data and selection.data.orderIndex + 1
+            end,
+            DelvesDifficultyPickerFrame_RefreshTargets)
+        global_cursor:AddFrame(menu, initial_target)
     end
 end
 
@@ -3215,10 +3259,11 @@ function DelvesDifficultyPickerFrame_RefreshTargets()
     self.targets = {
         [Dropdown] = {
             on_click = function() DelvesDifficultyPickerFrame_ToggleDropdown() end,
-            send_enter_leave = true, left = false, right = false},
+            send_enter_leave = true,
+            left = false, right = false, up = EnterDelveButton},
         [EnterDelveButton] = {
             can_activate = true, send_enter_leave = true,
-            left = false, right = false},
+            left = false, right = false, down = Dropdown},
     }
 
     local rewards = {ddpf.DelveRewardsContainerFrame:GetChildren()}
