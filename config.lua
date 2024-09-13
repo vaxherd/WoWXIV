@@ -73,6 +73,9 @@ local CONFIG_DEFAULT = {
     -- Party list: when to use narrow format
     partylist_narrow_condition = "never",
 
+    -- Quest item button: also use for scenario actions?
+    questitem_scenario_action = true,
+
     -- Target bar: hide the native target and focus frames?
     targetbar_hide_native = true,
     -- Target bar: show target's power bar?
@@ -500,6 +503,10 @@ function ConfigPanel:__constructor()
                        "Always", "always",
                        "Only in raids", "raid",
                        "Only in raids with 21+ members", "raidlarge")
+
+    self:AddHeader("Quest item button settings")
+    self:AddCheckButton("Also use to activate scenario actions",
+                        "questitem_scenario_action")
 
     self:AddHeader("Target bar settings")
     self:AddCheckButton("Hide native target frames |cffff0000(requires reload)|r",

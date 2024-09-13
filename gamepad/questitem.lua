@@ -231,6 +231,9 @@ local ITEM_TARGET = {
     [227669] = "skip",    -- Teleportation Scroll (81930: The War Within)
     [228582] = "none",    -- Streamlined Relic (84520: Ancient Curiosity: Utility)
     [228984] = "none",    -- Unbreakable Iron Idol (84519: Ancient Curiosity: Combat)
+
+    -- The following are scenario action spells:
+    [-469854] = "none",   -- Drop Air Totem (Delve: Earthen Waterworks)
 }
 
 -- Special cases for quests which don't have items assigned but really should.
@@ -276,6 +279,18 @@ local QUEST_ITEM = {
 
 ------------------------------------------------------------------------
 
+-- Helper to get an item or spell icon.
+local function GetItemOrSpellIcon(item)
+    local icon
+    if item < 0 then  -- spell
+        local info = C_Spell.GetSpellInfo(-item)
+        icon = info and info.iconID
+    else
+        icon = select(10, GetItemInfo(item))
+    end
+    return icon
+end
+
 -- Custom button used to securely activate quest items.
 Gamepad.QuestItemButton = class(Gamepad.GamepadBoundButton)
 local QuestItemButton = Gamepad.QuestItemButton
@@ -310,6 +325,7 @@ function QuestItemButton:__constructor()
 
     f:SetAttribute("*type1", "item")
     f:SetAttribute("item", nil)
+    f:SetAttribute("spell", nil)
     f:SetAttribute("unit", nil)
     f:RegisterForClicks("LeftButtonDown", "RightButtonDown")
     self:__super(f, "gamepad_use_quest_item",
@@ -405,12 +421,18 @@ function QuestItemButton:UpdateQuestItem(force, is_retry)
     self.selected_item = item
 
     if item then
-        -- Note that we have to use the "item:" format rather than just
-        -- the numeric item ID, because the latter would be treated as an
-        -- inventory index instead.  We can't use the item name because
-        -- that fails when multiple items have the same name, such as the
-        -- quest items for the various gormling world quests in Ardenweald.
-        self.frame:SetAttribute("item", "item:"..item)
+        if item < 0 then
+            self.frame:SetAttribute("*type1", "spell")
+            self.frame:SetAttribute("spell", -item)
+        else
+            self.frame:SetAttribute("*type1", "item")
+            -- Note that we have to use the "item:" format rather than just
+            -- the numeric item ID, because the latter would be treated as an
+            -- inventory index instead.  We can't use the item name because
+            -- that fails when multiple items have the same name, such as the
+            -- quest items for the various gormling world quests in Ardenweald.
+            self.frame:SetAttribute("item", "item:"..item)
+        end
         local known_target = ITEM_TARGET[item]
         if known_target then
             if #known_target then
@@ -423,17 +445,29 @@ function QuestItemButton:UpdateQuestItem(force, is_retry)
         else
             self.frame:SetAttribute("unit", "player")
         end
-        local icon_id = (select(10, GetItemInfo(item))
+        local icon_id = (GetItemOrSpellIcon(item)
                          or "Interface/ICONS/INV_Misc_QuestionMark")
         self.icon:SetTexture(icon_id)
         if self.frame:GetAlpha() < 1 and (self.frame.fadeout:IsPlaying() or not self.frame.fadein:IsPlaying()) then
             self.frame.fadeout:Stop()
             self.frame.fadein:Play()
         end
-        local start, duration = C_Item.GetItemCooldown(item)
+        local start, duration
+        if item < 0 then
+            local cooldown = C_Spell.GetSpellCooldown(-item)
+            if cooldown and cooldown.isEnabled then
+                start = cooldown.startTime
+                duration = cooldown.duration
+            else
+                start, duration = 0, 0
+            end
+        else
+            start, duration = C_Item.GetItemCooldown(item)
+        end
         self.cooldown:SetCooldown(start, duration)
     else
         self.frame:SetAttribute("item", nil)
+        self.frame:SetAttribute("spell", nil)
         if self.frame:GetAlpha() > 0 and (self.frame.fadein:IsPlaying() or not self.frame.fadeout:IsPlaying()) then
             self.frame.fadein:Stop()
             self.frame.fadeout:Play()
@@ -448,8 +482,22 @@ end
 -- which the predicate returned true and |n| is the index of that item in
 -- the overall quest item list.  If no item is found (or no predicate is
 -- given), |item| is nil and |n| is the number of available quest items.
+-- The predicate function should accept a single argument, which is the
+-- item ID.  When a scenario action is selected, the "item ID" is a
+-- negative number whose arithmetic inverse is the spell ID.
 function QuestItemButton:IterateQuestItems(predicate)
     local index = 0
+
+    if WoWXIV_config["questitem_scenario_action"] and ScenarioObjectiveTracker:IsShown() then
+        for frame in ScenarioObjectiveTracker.spellFramePool:EnumerateActive() do
+            -- The spell button doesn't have a getter equivalent to SetSpell(),
+            -- so we have to break encapsulation here.
+            local spell_id = frame.SpellButton.spellID
+            if predicate and predicate(-spell_id) then
+                return -spell_id, index
+            end
+        end
+    end
 
     for quest, info in pairs(QUEST_ITEM) do
         if C_QuestLog.IsOnQuest(quest) then
