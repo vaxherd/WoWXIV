@@ -3225,12 +3225,14 @@ function DelvesDifficultyPickerFrame_RefreshTargets()
     if ddpf.DelveRewardsContainerFrame:IsShown() and rewards and #rewards>0 then
         local first_reward, last_reward
         for _, f in ipairs(rewards) do
-            self.targets[f] = {send_enter_leave = true, right = false}
-            if not first_reward or f:GetTop() > first_reward:GetTop() then
-                first_reward = f
-            end
-            if not last_reward or f:GetTop() < last_reward:GetTop() then
-                last_reward = f
+            if f:IsVisible() then
+                self.targets[f] = {send_enter_leave = true, right = false}
+                if not first_reward or f:GetTop() > first_reward:GetTop() then
+                    first_reward = f
+                end
+                if not last_reward or f:GetTop() < last_reward:GetTop() then
+                    last_reward = f
+                end
             end
         end
         self.targets[Dropdown].right = first_reward
