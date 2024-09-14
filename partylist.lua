@@ -552,7 +552,7 @@ function PartyList:SetParty(is_retry)
     if not is_retry and self.pending_SetParty then return end
     if InCombatLockdown() then
         self.pending_SetParty = true
-        C_Timer.After(1, function() self:SetParty(true) end)
+        RunNextFrame(function() self:SetParty(true) end)
         return
     end
     self.pending_SetParty = false
