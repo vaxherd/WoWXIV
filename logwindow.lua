@@ -352,7 +352,7 @@ local COMBAT_EVENT_FORMATS = {
     _DISPEL_FAILED       = "$(source:P)$(spell) fails to dispel $(target:p)$(extraspell).",
     _HEAL                = "$(source:P)$(spell) heals $(target:n) for $(amount)$(healinfo).",
     _PERIODIC_HEAL       = "$(source:P)$(spell) effect heals $(target:n) for $(amount)$(healinfo).",
-    _ENERGIZE            = "$(source:P)$(spell) restores $(amount) $(power) to $(target:n).",
+    _ENERGIZE            = "$(source:P)$(spell) restores $(amount) $(power) to $(target:n)$(healinfo).",
     _CAST_START          = "$(source:N) $(source:#:start:starts) casting $(spell).",
     _CAST_SUCCESS        = "$(source:N) $(source:#:cast:casts) $(spell).",
     _CAST_FAILED         = "$(source:P)cast of $(spell) failed: $(failinfo).",
@@ -426,7 +426,7 @@ local function ReplaceCombatToken(token, event, extra)
     else
         result = extra[token]
     end
-     return result
+    return result
         or WoWXIV.FormatColoredText("<invalid token $("..token..")>", 1, 0, 0)
 end
 
@@ -469,16 +469,14 @@ local function ReplaceCombatTokens(format, event)
         failinfo = event.failed_type,
         healinfo = healinfo,
         missinfo = event.miss_type and COMBAT_MISS_TEXT[event.miss_type],
-        power = event.power_type and COMBAT_POWER_TEXT[event.power_type],
+        power = event.power_type and (COMBAT_POWER_TEXT[event.power_type] or WoWXIV.FormatColoredText("<unknown power type $("..event.power_type..")>", 1, 0, 0)),
         school = event.spell_school and GetSchoolString(event.spell_school),
         spell = event.spell_id and C_Spell.GetSpellLink(event.spell_id)
                                 or event.spell_name,
+        extraspell = event.extra_spell_id
+                         and C_Spell.GetSpellLink(event.extra_spell_id)
+                         or event.extra_spell_name,
     }
-    if event.subtype == "ENERGIZE" and not event.power_type then
-        -- ENERGIZE for 0 seems to not fill in the power_type field, so
-        -- put in a default to avoid ugly error text.
-        extra.power = "power"
-    end
     if not event.source_name then
         extra["source:n"] = ""
         extra["source:N"] = ""

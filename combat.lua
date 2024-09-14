@@ -146,8 +146,9 @@ function CombatEvent:ParseEvent()
         self.absorbed = event[argi+2]
         self.critical = event[argi+3]
     elseif subtype == "ENERGIZE" then
-        self.amount = event[argi]
-        self.power_type = event[argi+1]
+        self.amount = event[argi] + event[argi+1]
+        self.overheal = event[argi+1]
+        self.power_type = event[argi+2]
     elseif subtype == "DRAIN" or subtype == "LEECH" then
         self.amount = event[argi]
         self.power_type = event[argi+1]
@@ -307,7 +308,8 @@ end
 --        For DAMAGE/HEAL, this includes any overkill or overheal amount
 --        but does not include any absorbed amount
 --    overkill (number): Amount of overkill damage (only for subtype DAMAGE)
---    overheal (number): Amount of overheal (only for subtype HEAL)
+--    overheal (number): Amount of overheal (only for subtypes HEAL and
+--        ENERGIZE)
 --    school (number): Elemental school of damage (only for subtype DAMAGE)
 --    resisted (number): Amount of damage resisted (only for subtype DAMAGE)
 --    blocked (number): Amount of damage blocked (only for subtype DAMAGE)
@@ -317,8 +319,8 @@ end
 --        (only for subtype FAILED)
 --    power_type (string): Type of power ("Mana" etc.) (only for subtype
 --        ENERGIZE)
---    extra_amount (number): Additional numeric argument for subtype ENERGIZE
---        (possibly maximum value of relevant power type)
+--    extra_amount (number): Additional numeric argument for subtypes DRAIN
+--        and LEECH (usage unknown)
 --    aura_type (string): Either "BUFF" or "DEBUFF" (for AURA_*, DISPEL, and
 --        STOLEN subtypes)
 --    extra_spell_id (number): Spell ID of interrupted action (for subtype
