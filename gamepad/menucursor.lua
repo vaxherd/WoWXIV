@@ -74,10 +74,13 @@ function MenuCursor:__constructor()
     texture:SetTexCoord(1, 0, 0, 1)
 end
 
--- RegisterEvent() wrapper so frame handlers don't need to peek at the
--- actual cursor frame.
+-- {Register,Unregister}Event() wrappers so frame handlers don't need to
+-- peek at the actual cursor frame.
 function MenuCursor:RegisterEvent(...)
     self.cursor:RegisterEvent(...)
+end
+function MenuCursor:UnregisterEvent(...)
+    self.cursor:UnregisterEvent(...)
 end
 
 -- Generic event handler.  Forwards events to same-named methods, optionally
@@ -3366,4 +3369,165 @@ end
 
 function MenuCursor:VoidStoragePurchaseFrame_Hide()
     self:RemoveFrame(menu_VoidStoragePurchaseFrame)
+end
+
+
+-------- Pet battle UI
+
+local menu_PetBattleFrame, menu_PetBattlePetSelectionFrame
+
+local function PetBattleFrame_RefreshTargets(initial_target)
+    local self = menu_PetBattleFrame
+    local bf = PetBattleFrame.BottomFrame
+
+    local button1 = bf.abilityButtons[1]
+    local button2 = bf.abilityButtons[2]
+    local button3 = bf.abilityButtons[3]
+    local button4 = bf.SwitchPetButton
+    local button5 = bf.CatchButton
+    local button6 = bf.ForfeitButton
+    local button_pass = bf.TurnTimer.SkipButton
+    if button1 and not button1:IsVisible() then print("foo") button1 = nil end
+    if button2 and not button2:IsVisible() then button2 = nil end
+    if button3 and not button3:IsVisible() then button3 = nil end
+
+    local first_action = button1 or button2 or button3 or button4
+    local last_action = button3 or button2 or button1 or button6
+    self.targets = {
+        [button4] = {
+            can_activate = true, lock_highlight = true, send_enter_leave = true,
+            up = button_pass, down = button_pass,
+            left = last_action, right = button5},
+        [button5] = {
+            can_activate = true, lock_highlight = true, send_enter_leave = true,
+            up = button_pass, down = button_pass,
+            left = button4, right = button6},
+        [button6] = {
+            can_activate = true, lock_highlight = true, send_enter_leave = true,
+            up = button_pass, down = button_pass,
+            left = button5, right = first_action},
+        [button_pass] = {
+            can_activate = true, lock_highlight = true,
+            up = first_action, down = first_action,
+            left = false, right = false},
+    }
+    if button1 then
+        self.targets[button1] = {
+            can_activate = true, lock_highlight = true, send_enter_leave = true,
+            up = button_pass, down = button_pass,
+            left = button6, right = button2 or button3 or button4}
+    end
+    if button2 then
+        self.targets[button2] = {
+            can_activate = true, lock_highlight = true, send_enter_leave = true,
+            up = button_pass, down = button_pass,
+            left = button1 or button6, right = button3 or button4}
+    end
+    if button3 then
+        self.targets[button3] = {
+            can_activate = true, lock_highlight = true, send_enter_leave = true,
+            up = button_pass, down = button_pass,
+            left = button2 or button1 or button6, right = button4}
+    end
+
+    if self.targets[initial_target] then
+        return initial_target
+    else
+        return first_action
+    end
+end
+
+local function PetBattleFrame_OnShow()
+    local self = menu_PetBattleFrame
+    self.cancel_func = function()
+        global_cursor:SetTargetForFrame(
+            self, PetBattleFrame.BottomFrame.ForfeitButton)
+    end
+    return PetBattleFrame_RefreshTargets(nil)
+end
+
+local function PetBattlePetSelectionFrame_OnShow()
+    local self = menu_PetBattlePetSelectionFrame
+    local psf = PetBattleFrame.BottomFrame.PetSelectionFrame
+
+    self.cancel_func = nil
+    self.targets = {
+        [psf.Pet1] = {can_activate = true, send_enter_leave = true},
+        [psf.Pet2] = {can_activate = true, send_enter_leave = true},
+        [psf.Pet3] = {can_activate = true, send_enter_leave = true},
+    }
+    if C_PetBattles.CanPetSwapIn(1) then
+        return psf.Pet1
+    elseif C_PetBattles.CanPetSwapIn(2) then
+        return psf.Pet2
+    else  -- Should never get here.
+        return psf.Pet3
+    end
+end
+
+function MenuCursor.handlers.PetBattleFrame(cursor)
+    menu_PetBattleFrame = MenuFrame(PetBattleFrame)
+    menu_PetBattlePetSelectionFrame =
+        MenuFrame(PetBattleFrame.BottomFrame.PetSelectionFrame)
+    cursor:HookShow(PetBattleFrame, "PetBattleFrame")
+    cursor:HookShow(PetBattleFrame.BottomFrame.PetSelectionFrame,
+                    "PetBattlePetSelectionFrame")
+    -- If we're in the middle of a pet battle, these might already be active!
+    if PetBattleFrame:IsVisible() then
+        cursor:PetBattleFrame_Show()
+    end
+    if PetBattleFrame.BottomFrame.PetSelectionFrame:IsVisible() then
+        cursor:PetBattlePetSelectionFrame_Show()
+    end
+end
+
+function MenuCursor:PetBattleFrame_Show()
+    PetBattleFrame_OnShow()
+    -- Don't activate input focus unless a battle is already in progress
+    -- (i.e. we just reloaded the UI).
+    if C_PetBattles.GetBattleState() == Enum.PetbattleState.WaitingForFrontPets then
+        -- In this case, the pet battle UI (specifically the action buttons)
+        -- won't be set up until later this frame, so wait a frame before
+        -- setting input focus.
+        RunNextFrame(function()
+            local initial_target = PetBattleFrame_RefreshTargets(nil)
+            self:AddFrame(menu_PetBattleFrame, initial_target)
+        end)
+    end
+    self:RegisterEvent("PET_BATTLE_PET_CHANGED")
+    self:RegisterEvent("PET_BATTLE_ACTION_SELECTED")
+    self:RegisterEvent("PET_BATTLE_PET_ROUND_PLAYBACK_COMPLETE")
+end
+
+function MenuCursor:PetBattleFrame_Hide()
+    self:UnregisterEvent("PET_BATTLE_PET_CHANGED")
+    self:UnregisterEvent("PET_BATTLE_ACTION_SELECTED")
+    self:UnregisterEvent("PET_BATTLE_PET_ROUND_PLAYBACK_COMPLETE")
+    self:RemoveFrame(menu_PetBattleFrame)
+end
+
+function MenuCursor:PetBattlePetSelectionFrame_Show()
+    local initial_target = PetBattlePetSelectionFrame_OnShow()
+    self:AddFrame(menu_PetBattlePetSelectionFrame, initial_target, true)  -- modal
+end
+
+function MenuCursor:PetBattlePetSelectionFrame_Hide()
+    self:RemoveFrame(menu_PetBattlePetSelectionFrame)
+end
+
+function MenuCursor:PET_BATTLE_PET_CHANGED()
+    local target = PetBattleFrame_RefreshTargets(nil)
+    self:SetTargetForFrame(menu_PetBattleFrame, target)
+end
+
+function MenuCursor:PET_BATTLE_ACTION_SELECTED()
+    menu_PetBattleFrame.last_target =
+        self:GetTargetForFrame(menu_PetBattleFrame)
+    self:RemoveFrame(menu_PetBattleFrame)
+end
+
+function MenuCursor:PET_BATTLE_PET_ROUND_PLAYBACK_COMPLETE()
+    local target =
+        PetBattleFrame_RefreshTargets(menu_PetBattleFrame.last_target)
+    self:AddFrame(menu_PetBattleFrame, target)
 end
