@@ -482,8 +482,12 @@ end
 -- direction keyword for checking target-specific movement overrides.
 function MenuCursor:Move(dx, dy, dir)
     local focus, target = self:GetFocusAndTarget()
-    if not target then return end
-    local new_target = focus:NextTarget(target, dx, dy, dir)
+    local new_target
+    if target then
+        new_target = focus:NextTarget(target, dx, dy, dir)
+    else
+        new_target = focus:GetDefaultTarget()
+    end
     if new_target then
         self:SetTarget(new_target)
     end
@@ -1073,11 +1077,22 @@ local function GossipFrame_OnShow()
         first = nil
     end
 
-    self.targets[first or goodbye].is_default = true
+    local default_target = first or goodbye
+    self.targets[default_target].is_default = true
+    return default_target
+end
+
+function GossipFrame_OnConfirmCancel()
+    local self = menu_GossipFrame
+    -- Clear all targets to prevent further inputs until the next event
+    -- (typically GOSSIP_SHOW or GOSSIP_CLOSED).
+    global_cursor:SetTargetForFrame(self, nil)
+    self.targets = {}
 end
 
 function MenuCursor.handlers.GossipFrame(cursor)
     cursor:RegisterEvent("GOSSIP_CLOSED")
+    cursor:RegisterEvent("GOSSIP_CONFIRM_CANCEL")
     cursor:RegisterEvent("GOSSIP_SHOW")
 end
 
@@ -1085,11 +1100,12 @@ function MenuCursor:GOSSIP_SHOW()
     if not GossipFrame:IsVisible() then
         return  -- Flight map, etc.
     end
-    -- Remove the frame once in case it's already active, as for the secnd
-    -- and later steps of a multi-step dialogue.
-    self:RemoveFrame(menu_GossipFrame)
-    GossipFrame_OnShow(menu_GossipFrame)
-    self:AddFrame(menu_GossipFrame)
+    local initial_target = GossipFrame_OnShow(menu_GossipFrame)
+    self:AddFrame(menu_GossipFrame, initial_target)
+end
+
+function MenuCursor:GOSSIP_CONFIRM_CANCEL()
+    GossipFrame_OnConfirmCancel()
 end
 
 function MenuCursor:GOSSIP_CLOSED()
