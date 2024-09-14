@@ -566,7 +566,11 @@ function FlyTextManager:OnCurrencyUpdate(event, id, total, change)
     local icon = info.iconFileID
     local name = info.name
     WoWXIV.LogWindow.AddMessage("WOWXIV_DEBUG", id.." "..name.." "..total)
-    if not icon or not name or name:find("Hidden") or name:find("DNT") then
+    if (not icon or not name
+        or name:find("Hidden", 1, true)
+        or name:find("DNT", 1, true)
+        or name:find("Delves - System", 1, true)  -- affix event trackers (3103/3104)
+    ) then
         return
     end
 
