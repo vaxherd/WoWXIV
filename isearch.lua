@@ -390,7 +390,8 @@ function isearch_event_frame:PLAYERREAGENTBANKSLOTS_CHANGED(slot)
             local bag_id = Enum.BagIndex.Reagentbank  -- for brevity
             local info = C_Container.GetContainerItemInfo(bag_id, slot)
             if info then
-                WoWXIV_isearch_cache[cache_id][slot] = {info.itemID, info.stackCount}
+                WoWXIV_isearch_cache[cache_id][slot] =
+                    {info.itemID, info.stackCount, info.hyperlink}
             elseif self.bankframe_open then
                 WoWXIV_isearch_cache[cache_id][slot] = nil
             else
