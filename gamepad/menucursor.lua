@@ -2472,7 +2472,9 @@ local function ProfessionsFrame_SchematicForm_UpdateMovement()
     if frsc and frsc:IsVisible() then
         for _, frame in ipairs({frsc:GetChildren()}) do
             local button = frame:GetChildren()
-            self.targets[button].down = create_left
+            if self.targets[button] then
+                self.targets[button].down = create_left
+            end
         end
     end
     if SchematicForm.OptionalReagents:IsShown() then
