@@ -369,12 +369,16 @@ function Member:Refresh()
     if not id then return end
     local spec_role = (unit=="player" and GetSpecialization()
                                       or UnitGroupRolesAssigned(unit))
-    if id == self.current_id and spec_role == self.current_spec_role then
+    local alt_power_type = UnitAlternatePowerType(unit)
+    if (id == self.current_id
+        and spec_role == self.current_spec_role 
+        and alt_power_type == self.alt_power_type)
+    then
         return
     end
     self.current_id = id
     self.current_spec_role = spec_role
-    self.alt_power_type = UnitAlternatePowerType(unit)
+    self.alt_power_type = alt_power_type
 
     local role_id, class
     if unit ~= "vehicle" then
@@ -571,6 +575,7 @@ function PartyList:__constructor()
     f.events["UNIT_MAXHEALTH"] = f.OnMemberUpdate
     f.events["UNIT_MAXPOWER"] = f.OnMemberUpdate
     f.events["UNIT_NAME_UPDATE"] = f.OnMemberUpdateName
+    f.events["UNIT_POWER_FREQUENT"] = f.OnMemberUpdate
     f.events["UNIT_POWER_UPDATE"] = f.OnMemberUpdate
 
     -- We could theoretically register the unit-specific events for just
