@@ -190,6 +190,25 @@ local function NameForUnit(unit, with_level)
     return name
 end
 
+local function UnitAlternatePowerType(unit)
+    -- This is apparently the official way (see AlternatePowerBar.lua in
+    -- the Blizzard_UnitFrame module) to get the additional power type for
+    -- classes with two power types, e.g. Shadow Priest (insanity/mana).
+    -- There's a UnitPowerType() API function which takes an optional
+    -- second parameter "index", which one would think lets you enumerate
+    -- all power types of a unit, but in fact it only ever returns data for
+    -- index 0, and even Blizzard's own code never passes a second argument.
+    local _, class = UnitClass(unit)
+    local class_info = ALT_POWER_BAR_PAIR_DISPLAY_INFO[class]
+    if class_info then
+        local power_info = class_info[UnitPowerType(unit)]
+        if power_info then
+            return power_info.powerType, power_info.powerName
+        end
+    end
+    return nil, nil
+end
+
 -- Height of a single party member entry.
 Member.HEIGHT = 37
 
@@ -199,9 +218,10 @@ function Member:__constructor(parent, unit)
     self.narrow = false
     self.missing = false
 
-    -- Cached ID and spec/role of current unit to avoid expensive refreshes.
+    -- Cached ID of and data for current unit to avoid expensive refreshes.
     self.current_id = nil
     self.current_spec_role = nil
+    self.alt_power_type = nil
 
     -- Use SecureUnitButtonTemplate to allow targeting the member on click.
     -- Note that SecureActionButtonTemplate doesn't work here for some reason;
@@ -237,7 +257,7 @@ function Member:__constructor(parent, unit)
 
     local name = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     self.name = name
-    name:SetPoint("TOPLEFT", f, "TOPLEFT", 36, -2)
+    name:SetPoint("TOPLEFT", f, "TOPLEFT", 36, -3)
     name:SetTextScale(1.1)
     name:SetWordWrap(false)
     name:SetJustifyH("LEFT")
@@ -250,15 +270,23 @@ function Member:__constructor(parent, unit)
     hp:SetBarColor(1, 1, 1)
     hp:SetShowOvershield(true)
     hp:SetShowValue(true)
-    hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 32, -9)
+    hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 32, -11)
 
-    local mp = WoWXIV.UI.Gauge(f, 86)
-    self.mp = mp
-    mp:SetBoxColor(0.416, 0.725, 0.890)
-    mp:SetBarBackgroundColor(0.027, 0.161, 0.306)
-    mp:SetBarColor(1, 1, 1)
-    mp:SetShowValue(true)
-    mp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 136, -9)
+    local power = WoWXIV.UI.Gauge(f, 86)
+    self.power = power
+    power:SetBoxColor(0.416, 0.725, 0.890)
+    power:SetBarBackgroundColor(0.027, 0.161, 0.306)
+    power:SetBarColor(1, 1, 1)
+    power:SetShowValue(true)
+    power:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 136, -11)
+
+    local alt_power = WoWXIV.UI.Gauge(f, 86)
+    self.alt_power = alt_power
+    alt_power:SetBoxColor(0.416, 0.725, 0.890)
+    alt_power:SetBarBackgroundColor(0.027, 0.161, 0.306)
+    alt_power:SetBarColor(1, 1, 1)
+    alt_power:SetShowValue(true)
+    alt_power:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 136, -16)
 
     self.buffbar = WoWXIV.UI.AuraBar("ALL", "TOPLEFT", 9, 1, f, 240, 2)
     self.buffbar:SetUnit(unit)
@@ -296,7 +324,8 @@ function Member:SetNarrow(narrow)
     local f = self.frame
     if narrow then
         self.class_icon:Hide()
-        self.mp:Hide()
+        self.power:Hide()
+        self.alt_power:Hide()
         f:SetWidth(228)
         self.name:SetWidth(127)
         self.name:ClearAllPoints()
@@ -306,13 +335,14 @@ function Member:SetNarrow(narrow)
         self.buffbar:SetRelPosition(100, -1)
     else
         self.class_icon:Show()
-        self.mp:Show()
+        self.power:Show()
+        self.alt_power:SetShown(self.alt_power_type ~= nil)
         f:SetWidth(256)
         self.name:SetWidth(200)
         self.name:ClearAllPoints()
         self.name:SetPoint("TOPLEFT", f, "TOPLEFT", 36, -3)
         self.hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 32, -11)
-        self.mp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 136, -11)
+        self.power:SetShowValue(true, self.alt_power_type ~= nil)
         self.buffbar:SetSize(9, 1)
         self.buffbar:SetRelPosition(240, -1)
     end
@@ -344,6 +374,7 @@ function Member:Refresh()
     end
     self.current_id = id
     self.current_spec_role = spec_role
+    self.alt_power_type = UnitAlternatePowerType(unit)
 
     local role_id, class
     if unit ~= "vehicle" then
@@ -364,6 +395,8 @@ function Member:Refresh()
     end
     self.bg:SetVertexColor((bg_color or DEFAULT_BG_COLOR):GetRGBA())
     self.name:SetTextColor((name_color or NORMAL_FONT_COLOR):GetRGB())
+    self.power:SetShowValue(true, self.alt_power_type ~= nil)
+    self.alt_power:SetShown(self.alt_power_type ~= nil)
     self:Update(true)
 end
 
@@ -372,7 +405,11 @@ function Member:Update(updateLabel)
     self.hp:Update(UnitHealthMax(unit), UnitHealth(unit),
                    UnitGetTotalAbsorbs(unit),
                    UnitGetTotalHealAbsorbs(unit))
-    self.mp:Update(UnitPowerMax(unit), UnitPower(unit))
+    self.power:Update(UnitPowerMax(unit), UnitPower(unit))
+    if self.alt_power_type then
+        self.alt_power:Update(UnitPowerMax(unit, self.alt_power_type),
+                              UnitPower(unit, self.alt_power_type))
+    end
 
     if updateLabel then
         self:UpdateLabel()

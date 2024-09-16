@@ -105,6 +105,10 @@ function Gauge:Hide()
     self.frame:Hide()
 end
 
+function Gauge:SetShown(shown)
+    self.frame:SetShown(shown)
+end
+
 function Gauge:SetAlpha(alpha)
     self.frame:SetAlpha(alpha)
 end
@@ -134,12 +138,12 @@ function Gauge:SetShowOvershield(show)
      self.show_overshield = show
 end
 
-function Gauge:SetShowValue(show, on_top)
+function Gauge:SetShowValue(show, on_top, offset)
     self.show_value = show
     if show then
         self.value:ClearAllPoints()
         if on_top then
-            self.value:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", -3, 10)
+            self.value:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", -3, 8.5)
         else
             self.value:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", -3, -13.5)
         end
