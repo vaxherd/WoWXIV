@@ -9,6 +9,7 @@ local bor = bit.bor
 local strfind = string.find
 local strgsub = string.gsub
 local strlower = string.lower
+local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 local strsub = string.sub
 local tinsert = tinsert
 
@@ -415,7 +416,7 @@ local function ReplaceCombatToken(token, event, extra)
     local result
     if strsub(token,1,9) == "source:#:" or strsub(token,1,9) == "target:#:" then
         local selector = extra[strsub(token, 1, 8)]
-        local sep = strfind(token, ":", 10, true)
+        local sep = strstr(token, ":", 10)
         if sep then
             if selector == 1 then
                 result = strsub(token, 10, sep-1)
@@ -599,14 +600,14 @@ function Tab:SetMessageTypes(message_types)
         tinsert(self.message_types, msg_type)
         for _, event in ipairs(MESSAGE_TYPES[msg_type]) do
             if strsub(event, 1, 4) == "CLM_" then
-                local sep1 = strfind(event, ".", 5, true)
+                local sep1 = strstr(event, ".", 5)
                 local sep2, source
                 if sep1 then
-                    sep2 = strfind(event, ":", sep1+1, true)
+                    sep2 = strstr(event, ":", sep1+1)
                     source = strsub(event, sep1+1, sep2 and sep2-1)
                 else
                     source = "*"
-                    sep2 = strfind(event, ":", 5, true)
+                    sep2 = strstr(event, ":", 5)
                 end
                 local target = sep2 and strsub(event, sep2+1) or "*"
                 if source == "*" or target == "*" then
@@ -631,9 +632,9 @@ end
 function Tab:Filter(event, text)
     if self.event_lookup[event] then return true end
     if strsub(event, 1, 4) == "CLM_" then
-        local sep1 = strfind(event, ".", 5, true)
+        local sep1 = strstr(event, ".", 5)
         assert(sep1)
-        local sep2 = strfind(event, ":", sep1+1, true)
+        local sep2 = strstr(event, ":", sep1+1)
         assert(sep2)
         local base_event = strsub(event, 1, sep1-1)
         local source = strsub(event, sep1+1, sep2-1)

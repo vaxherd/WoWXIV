@@ -5,8 +5,9 @@ local class = WoWXIV.class
 
 local CLM = WoWXIV.CombatLogManager
 local CombatLogGetCurrentEventInfo = _G.CombatLogGetCurrentEventInfo
-local strsub = string.sub
 local strfind = string.find
+local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
+local strsub = string.sub
 
 ------------------------------------------------------------------------
 
@@ -98,7 +99,7 @@ function CombatEvent:ParseEvent()
         type = "SPELL_MISSED"
     end
 
-    local sep = strfind(type, "_")
+    local sep = strstr(type, "_")
     if not sep then
         print("Unhandled combat event:", rawtype)
         self.category = type

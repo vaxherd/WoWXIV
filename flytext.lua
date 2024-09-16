@@ -5,8 +5,9 @@ local class = WoWXIV.class
 
 local CLM = WoWXIV.CombatLogManager
 local GetItemInfo = C_Item.GetItemInfo
-local strsub = string.sub
 local strfind = string.find
+local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
+local strsub = string.sub
 local tinsert = tinsert
 
 ------------------------------------------------------------------------
@@ -461,25 +462,25 @@ end
 
 -- Returns: type, id, color, count [, name]
 local function ParseLootMsg(msg)
-    local color = strfind(msg, "|c")
+    local color = strstr(msg, "|c")
     if color then
         color = strsub(msg, color+4, color+9)
     else
         color = "ffffff"
     end
-    local link = strfind(msg, "|H")
+    local link = strstr(msg, "|H")
     if link then
-        colon1 = strfind(msg, ":", link+2)
+        colon1 = strstr(msg, ":", link+2)
         if colon1 then
             local type = strsub(msg, link+2, colon1-1)
-            local colon2 = strfind(msg, ":", colon1+1)
+            local colon2 = strstr(msg, ":", colon1+1)
             if colon2 then
                 local id = strsub(msg, colon1+1, colon2-1)
                 local name, count
-                local link_end = strfind(msg, "|h|r", colon2+1)
+                local link_end = strstr(msg, "|h|r", colon2+1)
                 if link_end then
                     if strsub(msg, link_end-1, link_end-1) == "]" then
-                        local name_start = strfind(msg, "%[", colon2+1)
+                        local name_start = strstr(msg, "[", colon2+1)
                         if name_start then
                             name = strsub(msg, name_start+1, link_end-2)
                         end
@@ -567,17 +568,17 @@ function FlyTextManager:OnCurrencyUpdate(event, id, total, change)
     local name = info.name
     WoWXIV.LogWindow.AddMessage("WOWXIV_DEBUG", id.." "..name.." "..total)
     if (not icon or not name
-        or name:find("Hidden", 1, true)
-        or name:find("DNT", 1, true)
-        or name:find("Delves - System", 1, true)  -- affix event trackers (3103/3104)
+        or strstr(name, "Hidden")
+        or strstr(name, "DNT")
+        or strstr(name, "Delves - System")  -- affix event trackers (3103/3104)
     ) then
         return
     end
 
-    -- Strip the covenant from Shadowlands covenant and DF+ Renown currencies
+    -- Strip the faction from Shadowlands covenant and DF+ Renown currencies
     -- (which are internally named e.g. "Reservoir Anima-Night Fae" or
     -- "Renown - Council of Dornogal").
-    local dash = strfind(name, "-")
+    local dash = strstr(name, " - ") or strstr(name, "-")
     if dash then
         name = strsub(name, 1, dash-1)
     end

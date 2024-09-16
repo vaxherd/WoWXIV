@@ -5,6 +5,7 @@ local class = WoWXIV.class
 
 local GameTooltip = GameTooltip
 local strfind = string.find
+local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 local strsub = string.sub
 local tinsert = tinsert
 
@@ -418,6 +419,14 @@ function PartyList:__constructor()
     f:RegisterForClicks("LeftButtonDown")
     f:WrapScript(f, "OnClick", [[ -- (self, button, down)
         if PlayerInCombat() then return false end  -- FIXME: can't call IsShown() in combat
+        -- Note that we need our own copies of these str* locals because
+        -- this snippet is run in the restricted environment.  Also note
+        -- that the restricted environment disallows local func definitions
+        -- (and in fact any use of that literal word, even in comments), so
+        -- we have to remember to pass true to strfind() instead of using
+        -- the strstr() wrapper.
+        local strfind = string.find
+        local strsub = string.sub
         local unitlist = self:GetAttribute("unitlist")
         local first, prev, target
         local pos = 1
@@ -621,7 +630,7 @@ function PartyList:SetParty(is_retry)
                 -- presumably internal objects not intended to be shown
                 -- to the player, so hide them from the list.
                 local name = UnitName(unit)
-                if name and strfind(name, "%[DNT]") then id = nil end
+                if name and strstr(name, "[DNT]") then id = nil end
             end
         end
         if id then
@@ -649,7 +658,7 @@ function PartyList:SetParty(is_retry)
         end
     end
     -- Note that unitlist ends with a trailing space; this is what we want,
-    -- as it provides a convenient delimiter for strfind() rather than
+    -- as it provides a convenient delimiter for strstr() rather than
     -- having to special-case the last entry in the list.
     f:SetAttribute("unitlist", unitlist)
 
@@ -686,9 +695,9 @@ function WoWXIV.PartyList.Create()
     WoWXIV.PartyList.list = PartyList()
     
     local enable = "," .. WoWXIV_config["partylist_enable"] .. ","
-    enable_solo  = (strfind(enable, ",solo,") ~= nil)
-    enable_party = (strfind(enable, ",party,") ~= nil)
-    enable_raid  = (strfind(enable, ",raid,") ~= nil)
+    enable_solo  = (strstr(enable, ",solo,") ~= nil)
+    enable_party = (strstr(enable, ",party,") ~= nil)
+    enable_raid  = (strstr(enable, ",raid,") ~= nil)
     if enable_party then
         WoWXIV.HideBlizzardFrame(PartyFrame)
     end

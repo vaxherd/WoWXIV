@@ -307,7 +307,7 @@ function CPGamepadBinding:SetBinding(value, suppress_onchange)
     assert(type(value) == "string")
     local old_value
     if self.is_cvar then
-        assert(not value:find("-"))
+        assert(not value:find("-", 1, true))
         old_value = C_CVar.GetCVar(self.setting)
         C_CVar.SetCVar(self.setting, value)
     else

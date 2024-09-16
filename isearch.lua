@@ -1,6 +1,8 @@
 local module_name, WoWXIV = ...
 
 local class = WoWXIV.class
+local strfind = string.find
+local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 local strsub = string.sub
 local tinsert = tinsert
 
@@ -272,6 +274,10 @@ local EQUIPS = {
     EQUIPDEF("FISHINGGEAR1SLOT", "Fishing Accessory 2"),
 }
 
+local function NameIsMatch(name, search_key)
+    return name and strstr(name:lower(), search_key)
+end
+
 local function SlotString(slot_count)
     local slot, count = unpack(slot_count)
     if count > 1 then
@@ -486,7 +492,7 @@ function WoWXIV.isearch(arg)
                     local loc = ItemLocation:CreateFromBagAndSlot(bag.id, slot)
                     if loc and loc:IsValid() then
                         local name = C_Item.GetItemName(loc)
-                        if name:lower():find(search_key, 1, true) then
+                        if NameIsMatch(name, search_key) then
                             local link = C_Item.GetItemLink(loc)
                             local count = GetItemCountOrCharges(loc)
                             found_slots[link] = found_slots[link] or {}
@@ -550,7 +556,7 @@ function WoWXIV.isearch(arg)
                     if data then
                         local item, count, link = unpack(data)
                         local name = item and C_Item.GetItemInfo(item)
-                        if name and name:lower():find(search_key, 1, true) then
+                        if NameIsMatch(name, search_key) then
                             found_slots[link] = found_slots[link] or {}
                             tinsert(found_slots[link], {slot, count})
                             used_cache = used_cache or is_cached
@@ -573,7 +579,7 @@ function WoWXIV.isearch(arg)
         local loc = ItemLocation:CreateFromEquipmentSlot(slot_info)
         if loc and loc:IsValid() then
             local name = C_Item.GetItemName(loc)
-            if name:lower():find(search_key, 1, true) then
+            if NameIsMatch(name, search_key) then
                 local link = C_Item.GetItemLink(loc)
                 tinsert(results, {link, " equipped on " .. Blue(slot.name)})
             end
