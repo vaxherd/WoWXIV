@@ -109,6 +109,14 @@ function Gauge:SetShown(shown)
     self.frame:SetShown(shown)
 end
 
+function Gauge:GetFrameLevel()
+    return self.frame:GetFrameLevel()
+end
+
+function Gauge:SetFrameLevel(level)
+    self.frame:SetFrameLevel(level)
+end
+
 function Gauge:SetAlpha(alpha)
     self.frame:SetAlpha(alpha)
 end
