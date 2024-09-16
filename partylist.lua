@@ -129,8 +129,11 @@ function ClassIcon:Set(unit)
         local spec_id, spec_icon
         if spec_index then
             local class_role
+            -- NOTE: GetSpecializationInfo() seems to not return any data
+            -- immediately after login / UI reload, so we explicitly call
+            -- the ...ForClassID() version.
             spec_id, spec_name, _, spec_icon, class_role =
-                GetSpecializationInfo(spec_index)
+                GetSpecializationInfoForClassID(class_id, spec_index)
             if not role or role == "NONE" then role = class_role end
         end
 
