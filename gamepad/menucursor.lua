@@ -995,7 +995,7 @@ function SetupDropdownMenu(dropdown, cache, getIndex, onClick)
     end
     menu_menu.targets = {}
     menu_menu.item_order = {}
-    local first = true
+    local is_first = true
     for _, button in ipairs(menu:GetLayoutChildren()) do
         menu_menu.targets[button] = {
             send_enter_leave = true,
@@ -1003,12 +1003,16 @@ function SetupDropdownMenu(dropdown, cache, getIndex, onClick)
                 button:GetScript("OnClick")(button, "LeftButton", true)
                 onClick()
             end,
-            is_default = first,
+            is_default = is_first,
         }
-        first = false
+        is_first = false
         -- FIXME: are buttons guaranteed to be in order?
         tinsert(menu_menu.item_order, button)
     end
+    local first = menu_menu.item_order[1]
+    local last = menu_menu.item_order[#menu_menu.item_order]
+    menu_menu.targets[first].up = last
+    menu_menu.targets[last].down = first
     local initial_target
     local selection = GetDropdownSelection(dropdown)
     local index = selection and getIndex(selection)
