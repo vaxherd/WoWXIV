@@ -62,19 +62,28 @@ local ITEM_TARGET = {
     [136970] = "none",    -- Mask of Mirror Image (42079: Masquerade)
     [137120] = "target",  -- Stack Of Vellums (39877: In the Loop)
     [137189] = "none",    -- Satyr Horn (41464: Not Here, Not Now, Not Ever)
-    [137299] = "target",  -- Nightborne Spellblade (40947: Special Delivery)
+    [137299] = "target",  -- Nightborne Spellblade (40947: Special Delivery / 42962: Secret Correspondence)
     [139463] = "target",  -- Felbat Toxin Salve (43376: Problem Salver)
     [139882] = "target",  -- Vial of Hippogryph Pheromones (40963: Take Them in Claw)
     [140257] = "none",    -- Advanced Telemancy Beacon (43565: Bring Home the Beacon)
+    [140319] = "none",    -- Khadgar's Beacon (44004: Bringer of the Light)  -- This is a teleport item we'd normally skip, but it's only granted during a scenario in order to exit the scenario, so we make it available on the button.
     [140916] = "target",  -- Satchel of Locklimb Powder (42090: Skittering Subjects)
     [141652] = "skip",    -- Mana Divining Stone (44672: Ancient Mana)  -- This has effect by being in the inventory rather than being used.
     [141878] = "none",    -- Arcane-Infused Vial (44684: Corruption Runs Deep)
     [142065] = "target",  -- Dusk Lily Sigil (44723: More Like Me)
+    [142118] = "none",    -- Telemancy Orbs (44719: Breaching the Sanctum)
     [142208] = "none",    -- Essence of Wyrmtongue (44733: The Power of Corruption)
     [142213] = "none",    -- Empowered Arcane Ward (44685: Reclaiming the Ramparts)
+    [142216] = "none",    -- Nightborne Armaments (44769: Arming the Populace)
+    [142260] = "target",  -- Arcane Nullifier (44842: Shield, Meet Spell)
+    [142375] = "none",    -- Dispelling Crystal (44928: Something's Not Quite Right...)
+    [142399] = "none",    -- Experimental Targeting Orb (45063: The Felsoul Experiments)
+    [142400] = "none",    -- Advanced Targeting Orb (45062: Resisting Arrest)
+    [142405] = "none",    -- Advanced Telemancy Beacon (45065: Survey the City)
     [142446] = "none",    -- Leysight Spectacles (44813: Ley Line Interference)
+    [142491] = "none",    -- Experimental Telemancy Orb (45064: Felborne No More)
     [142509] = "none",    -- Withered Targeting Orb (44816: Continued Exposure)
-    [143597] = "target",  -- Fruit of the Arcan'dor (45260: One Day at a Time / 45261: Continuing the Cure)
+    [143597] = "target",  -- Fruit of the Arcan'dor (45260: One Day at a Time / 45261: Continuing the Cure / 45262: A Message From Ly'leth / 45263: Eating Before the Meeting / 45265: Feeding the Rebellion / 45266: A United Front / 45267: Before the Siege / 45268: The Advisor and the Arcanist / 45269: A Taste of Freedom)
     [157540] = "none",    -- Battered S.E.L.F.I.E. Camera (51092: Picturesque Boralus)
     [167231] = "none",    -- Delormi's Synchronous Thread (53807: A Stitch in Time)
     [168482] = "none",    -- Benthic Sealant (56160: Plug the Geysers)
@@ -214,6 +223,7 @@ local ITEM_TARGET = {
     [217309] = "none",    -- Arathi Warhorn (78943: Steel and Flames)
     [219198] = "none",    -- Attica's Cave Torch (76169: Glow in the Dark)
     [219284] = "none",    -- Explosive Sticks (81621: Tunnels Be Gone!)
+    [219323] = "target",  -- Gelatinous Unguent (81482: Testing Formulae: Gelatinous Unguent)
     [219324] = "target",  -- Roiling Elixir (81501: Testing Formulae: Roiling Elixir)
     [219469] = "target",  -- Fog Beast Tracker (81557: Fog Tags)
     [219525] = "target",  -- Globe of Nourishment (81675: Water the Sheep)
@@ -221,6 +231,7 @@ local ITEM_TARGET = {
     [219960] = "none",    -- Honey Drone Vac (81869: Can Catch More Fires with Honey)
     [220483] = "none",    -- Tuning Wand (78718: Strengthen the Wards)
     [222976] = "target",  -- Flame-Tempered Harpoon (82220: Eagle Eye, Eagle Die)
+    [223220] = "target",  -- Kaheti All-Purpose Cleaner (82266: Tower Washing Simulator)
     [223322] = "target",  -- Hannan's Scythe (80568: Leave No Trace)
     [223515] = "none",    -- Breastplate and Tinderbox (82284: Remembrance for the Fallen)
     [223988] = "skip",    -- Dalaran Hearthstone (79009: The Harbinger)
@@ -233,6 +244,7 @@ local ITEM_TARGET = {
     [228984] = "none",    -- Unbreakable Iron Idol (84519: Ancient Curiosity: Combat)
 
     -- The following are scenario action spells:
+    [-469853] = "none",   -- Drop Candle (Delve: Kriegval's Rest))
     [-469854] = "none",   -- Drop Air Totem (Delve: Earthen Waterworks)
 }
 
@@ -302,6 +314,10 @@ function QuestItemButton:__constructor()
     self.pending_update = false
     self.last_update = 0
 
+    -- Hacks to work around objective tracker glitches, see IterateQuestItems()
+    self.scenario_action_hack_time = nil
+    self.scenario_action_hack_map = nil
+
     local f = CreateFrame("Button", "WoWXIV_QuestItemButton", UIParent,
                           "SecureActionButtonTemplate, FadeableFrameTemplate")
     self.frame = f
@@ -336,7 +352,7 @@ function QuestItemButton:__constructor()
     f:RegisterUnitEvent("UNIT_QUEST_LOG_CHANGED", "player")
     f:RegisterEvent("BAG_UPDATE")  -- for QUEST_ITEM quests
     f:RegisterEvent("BAG_UPDATE_COOLDOWN")
-    f:SetScript("OnEvent", function() self:UpdateQuestItem() end)
+    f:SetScript("OnEvent", function(_,event) self:UpdateQuestItem() end)
     f:SetScript("OnEnter", function() self:OnEnter() end)
     f:SetScript("OnLeave", function() self:OnLeave() end)
     f:HookScript("OnClick", function(frame,...) self:OnClick(...) end)
@@ -419,6 +435,7 @@ function QuestItemButton:UpdateQuestItem(force, is_retry)
         item = first_item
     end
     self.selected_item = item
+    self.scenario_action_hack_time = nil
 
     if item then
         if item < 0 then
@@ -489,12 +506,39 @@ function QuestItemButton:IterateQuestItems(predicate)
     local index = 0
 
     if WoWXIV_config["questitem_scenario_action"] and ScenarioObjectiveTracker:IsShown() then
+        local found = false  -- For delve hack, see below.
         for frame in ScenarioObjectiveTracker.spellFramePool:EnumerateActive() do
+            index = index + 1
             -- The spell button doesn't have a getter equivalent to SetSpell(),
             -- so we have to break encapsulation here.
             local spell_id = frame.SpellButton.spellID
             if predicate and predicate(-spell_id) then
                 return -spell_id, index
+            end
+            if -spell_id == self.selected_item then found = true end
+        end
+        if self.selected_item and self.selected_item < 0 and not found then
+            -- When starting a "safety item carry" type delve such as
+            -- Kriegval's Rest or Earthen Waterworks, if picking up the
+            -- safety item (candle, air totem) triggers scenario
+            -- progression (as it typically does at the entrance), the
+            -- spell icon will disappear for a moment as the objective
+            -- tracker refreshes.  We typically get a BAG_UPDATE_COOLDOWN
+            -- event at the same time, so to avoid losing the spell until
+            -- the next update chance (which may not occur until the next
+            -- end of combat), we treat the spell as available for a short
+            -- time after first detecting this state.
+            if not self.scenario_action_hack_time then
+                self.scenario_action_hack_time = GetTime() + 2.0
+                self.scenario_action_hack_map = C_Map.GetBestMapForUnit("player")
+            end
+            if (GetTime() < self.scenario_action_hack_time
+                and C_Map.GetBestMapForUnit("player") == self.scenario_action_hack_map)
+            then
+                index = index + 1
+                if predicate and predicate(self.selected_item) then
+                    return self.selected_item, index
+                end
             end
         end
     end
