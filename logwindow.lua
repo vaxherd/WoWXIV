@@ -271,6 +271,7 @@ local MESSAGE_TYPES = {
 
     Combat_Cast_Self = {"CLM_SPELL_CAST_START.self",
                         "CLM_SPELL_CAST_SUCCESS.self",
+                        "CLM_SPELL_SUMMON.self",
                         "CLM_SPELL_INTERRUPT.*:self"},
 
     Combat_CastFail_Self = {"CLM_SPELL_CAST_FAILED.self"},
@@ -372,6 +373,7 @@ local COMBAT_EVENT_FORMATS = {
     _DEBUFF_RERFESH      = "$(target:P)$(spell) is refreshed.",
     _DEBUFF_BROKEN       = "$(target:P)$(spell) is broken.",
     _DISPEL_DEBUFF       = "$(source:P)$(spell) dispels $(target:p)$(extraspell).",
+    _SUMMON              = "$(source:N) $(source:#:summon:summons) $(target:N) with $(spell).",
 }
 
 -- Descriptive strings for miss types.
