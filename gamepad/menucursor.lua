@@ -1598,6 +1598,37 @@ local function StaticPopup_OnShow(self)
             self.cancel_button = frame.button2
         end
     end
+    -- Special cases for item icons (etc) in specific popups.
+    if frame.which == "CONFIRM_SELECT_WEEKLY_REWARD" then
+        assert(frame.insertedFrame)
+        local ItemFrame = frame.insertedFrame.ItemFrame
+        assert(ItemFrame)
+        assert(ItemFrame:IsShown())
+        self.targets[ItemFrame] = {send_enter_leave = true,
+                                   left = false, right = false}
+        local AlsoItemsFrame = frame.insertedFrame.AlsoItemsFrame
+        assert(AlsoItemsFrame)
+        if AlsoItemsFrame:IsShown() then
+            local row = {}
+            for subframe in AlsoItemsFrame.pool:EnumerateActive() do
+                self.targets[subframe] =
+                    {send_enter_leave = true, up = ItemFrame, down = leftmost}
+                tinsert(row, {subframe:GetLeft(), subframe})
+            end
+            table.sort(row, function(a,b) return a[1] < b[1] end)
+            local first = row[1][2]
+            local last = row[#row][2]
+            for i = 1, #row do
+                local target = row[i][2]
+                self.targets[target].left = i==1 and last or row[i-1][2]
+                self.targets[target].right = i==#row and first or row[i+1][2]
+            end
+            self.targets[ItemFrame].up = leftmost
+            self.targets[ItemFrame].down = first
+            self.targets[leftmost].up = first
+            self.targets[leftmost].down = ItemFrame
+        end
+    end
 end
 
 function MenuCursor.handlers.StaticPopup(cursor)
@@ -2963,30 +2994,56 @@ local function WeeklyRewardsFrame_OnShow()
     local self = menu_WeeklyRewardsFrame
     self.cancel_func = CancelUIFrame
     self.targets = {}
-    local first, bottom
+    if WeeklyRewardsFrame.Overlay and WeeklyRewardsFrame.Overlay:IsShown() then
+        return  -- Prevent any menu input if the blocking overlay is up.
+    end
     local can_claim = C_WeeklyRewards.CanClaimRewards()
+    local row_y = {}
+    local rows = {}
     for _, info in ipairs(C_WeeklyRewards.GetActivities()) do
         local frame = WeeklyRewardsFrame:GetActivityFrame(info.type, info.index)
         if frame and frame ~= WeeklyRewardsFrame.ConcessionFrame then
             local unlocked = can_claim and #info.rewards > 0
-            self.targets[frame] = {send_enter_leave = true}
+            local x = frame:GetLeft()
+            local y = frame:GetTop()
+            -- If a reward is available, we want to target the item itself
+            -- rather than the activity box, but the activity box is still
+            -- the frame that needs to get the click on activation.
+            local target
             if unlocked then
-                self.targets[frame].on_click = function()
-                    frame:GetScript("OnMouseUp")(frame, "LeftButton", true)
-                end
+                target = frame.ItemFrame
+                self.targets[target] = {
+                    send_enter_leave = true,
+                    on_click = function()
+                        frame:GetScript("OnMouseUp")(frame, "LeftButton", true)
+                    end,
+                }
+            else
+                target = frame
+                self.targets[target] = {send_enter_leave = true}
             end
-            if not first or frame:GetTop() > first:GetTop()
-                         or (frame:GetTop() == first:GetTop()
-                             and frame:GetLeft() < first:GetLeft()) then
-                first = frame
+            if not rows[y] then
+                rows[y] = {}
+                tinsert(row_y, y)
             end
-            if not bottom or frame:GetTop() < bottom:GetTop()
-                          or (frame:GetTop() == bottom:GetTop()
-                              and frame:GetLeft() < bottom:GetLeft()) then
-                bottom = frame
-            end
+            tinsert(rows[y], {x, target})
         end
     end
+    table.sort(row_y, function(a,b) return a > b end)
+    local top_row = rows[row_y[1]]
+    local bottom_row = rows[row_y[#row_y]]
+    local n_columns = #top_row
+    for _, row in pairs(rows) do
+        assert(#row == n_columns)
+        table.sort(row, function(a,b) return a[1] < b[1] end)
+        local left = row[1][2]
+        local right = row[n_columns][2]
+        self.targets[left].left = right
+        self.targets[right].right = left
+    end
+    local first = top_row[1][2]
+    local bottom = bottom_row[1][2]
+    self.targets[first].is_default = true
     if can_claim then
         local cf = WeeklyRewardsFrame.ConcessionFrame
         self.targets[cf] = {
@@ -3014,10 +3071,18 @@ local function WeeklyRewardsFrame_OnShow()
             left = false, right = false, up = bottom}
         self.targets[WeeklyRewardsFrame.SelectRewardButton] = {
             can_activate = true, lock_highlight = true,
-            left = false, right = false}
-    end
-    if first then
-        self.targets[first].is_default = true
+            left = false, right = false, down = first}
+        for _, activity in ipairs(top_row) do
+            local target = activity[2]
+            self.targets[target].up = WeeklyRewardsFrame.SelectRewardButton
+        end
+    else
+        for i = 1, n_columns do
+            local top = top_row[i][2]
+            local bottom = bottom_row[i][2]
+            self.targets[top].up = bottom
+            self.targets[bottom].down = top
+        end
     end
 end
 
