@@ -1104,6 +1104,7 @@ function MenuCursor:GOSSIP_SHOW()
     if not GossipFrame:IsVisible() then
         return  -- Flight map, etc.
     end
+    self:SetTargetForFrame(menu_GossipFrame, nil) -- In case it's already open.
     local initial_target = GossipFrame_OnShow(menu_GossipFrame)
     self:AddFrame(menu_GossipFrame, initial_target)
 end
