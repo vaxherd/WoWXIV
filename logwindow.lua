@@ -409,6 +409,8 @@ local COMBAT_POWER_TEXT = {
     [Enum.PowerType.Fury] = FURY,
     [Enum.PowerType.Pain] = PAIN,
     [Enum.PowerType.Essence] = POWER_TYPE_ESSENCE,
+    -- Not in Blizzard code:
+    [Enum.PowerType.AlternateMount] = "Vigor",
 }
 
 
