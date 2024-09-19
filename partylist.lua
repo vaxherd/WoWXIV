@@ -238,7 +238,7 @@ function Member:__constructor(parent, unit)
     f:SetAttribute("unit", unit=="vehicle" and "player" or unit)
     f:RegisterForClicks("LeftButtonDown")
     f:Hide()
-    f:SetSize(256, self.HEIGHT)
+    f:SetSize(240, self.HEIGHT)
 
     local bg = f:CreateTexture(nil, "BACKGROUND")
     self.bg = bg
@@ -296,12 +296,16 @@ function Member:__constructor(parent, unit)
     self.buffbar = WoWXIV.UI.AuraBar("ALL", "TOPLEFT", 9, 1, f, 240, 2)
     self.buffbar:SetUnit(unit)
 
-    -- Hack to expose targeted state to secure code
-    self.selected_frame = CreateFrame("Frame")
-    self.selected_frame:Hide()
-
     self:Refresh()
     self:Update()
+end
+
+function Member:GetUnit()
+    return self.unit
+end
+
+function Member:GetFrame()
+    return self.frame
 end
 
 function Member:Show()
@@ -331,7 +335,7 @@ function Member:SetNarrow(narrow)
         self.class_icon:Hide()
         self.power:Hide()
         self.alt_power:Hide()
-        f:SetWidth(228)
+        f:SetWidth(100)
         self.name:SetWidth(127)
         self.name:ClearAllPoints()
         self.name:SetPoint("TOPLEFT", f, "TOPLEFT", 9, -1)
@@ -342,7 +346,7 @@ function Member:SetNarrow(narrow)
         self.class_icon:Show()
         self.power:Show()
         self.alt_power:SetShown(self.alt_power_type ~= nil)
-        f:SetWidth(256)
+        f:SetWidth(240)
         self.name:SetWidth(200)
         self.name:ClearAllPoints()
         self.name:SetPoint("TOPLEFT", f, "TOPLEFT", 36, -1)
@@ -426,15 +430,149 @@ function Member:Update(updateLabel)
 
     if UnitIsUnit("target", unit=="vehicle" and "player" or unit) then
         self.highlight:Show()
-        self.selected_frame:Show()
     else
         self.highlight:Hide()
-        self.selected_frame:Hide()
     end
 end
 
 function Member:UpdateLabel()
     self.name:SetText(NameForUnit(self.unit, not self.narrow))
+end
+
+---------------------------------------------------------------------------
+
+local PartyCursor = class()
+
+function PartyCursor:__constructor(frame_level)
+    local f = CreateFrame("Button", "WoWXIV_PartyCursor", UIParent,
+                          "SecureUnitButtonTemplate, SecureHandlerBaseTemplate")
+    self.frame = f
+    f:SetFrameLevel(frame_level)
+    f:Hide()
+
+    local texture = f:CreateTexture(nil, "OVERLAY")
+    self.texture = texture
+    texture:SetAllPoints()
+    WoWXIV.SetUITexture(texture, 160, 208, 16, 64)
+    texture:SetTextureSliceMargins(12, 12, 12, 12)
+
+    f:SetAttribute("type", "target")
+    f:SetAttribute("unit", nil)
+    f:SetAttribute("unitlist", "")
+    f:SetAttribute("cur_unit", "")
+    f:RegisterForClicks("LeftButtonDown")
+    f:WrapScript(f, "OnClick", [[ -- (self, button, down)
+        local cur_unit = self:GetAttribute("cur_unit")
+        if button == "Confirm" then
+            self:SetAttribute("unit", cur_unit)
+            self:SetAttribute("cur_unit", "")
+            self:Hide()
+            -- Returning here continues with standard OnClick behavior,
+            -- which ignores the button type except for modified attribute
+            -- selection (which we don't use, so we don't need to
+            -- explicitly return LeftButton).
+            return
+        end
+        -- Suppress target setting in all other cases.
+        self:SetAttribute("unit", nil)
+        if button == "Cancel" then
+            self:SetAttribute("cur_unit", "")
+            self:Hide()
+            return
+        elseif button ~= "CycleForward" and button ~= "CycleBackward" then
+            -- Should be impossible, but just in case.
+            return
+        end
+        -- Note that we need our own copies of these str* locals because
+        -- this snippet is run in the restricted environment.  Also note
+        -- that the restricted environment disallows local func definitions
+        -- (and in fact any use of that literal word, even in comments), so
+        -- we have to remember to pass true to strfind() instead of using
+        -- the strstr() wrapper.
+        local strfind = string.find
+        local strsub = string.sub
+        local unitlist = self:GetAttribute("unitlist")
+        local first, prev, new_unit
+        local pos = 1
+        while pos < #unitlist do
+            local delim = strfind(unitlist, " ", pos, true)
+            local unit = strsub(unitlist, pos, delim-1)
+            pos = delim+1
+            first = first or unit
+            local is_current = (unit == cur_unit)
+            if is_current then
+                if button == "CycleBackward" then
+                    if prev then
+                        new_unit = prev
+                    else
+                        while delim < #unitlist do
+                            pos = delim+1
+                            delim = strfind(unitlist, " ", pos, true)
+                        end
+                        if delim > pos then
+                            new_unit = strsub(unitlist, pos, delim-1)
+                        else
+                            new_unit = unit  -- Must be the only one.
+                        end
+                    end
+                elseif pos < #unitlist then
+                    delim = strfind(unitlist, " ", pos, true)
+                    new_unit = strsub(unitlist, pos, delim-1)
+                else
+                    new_unit = first
+                end
+                break
+            end
+            prev = unit
+        end
+        if not new_unit then
+            new_unit = "player"
+        end
+        self:SetAttribute("cur_unit", new_unit)
+        self:ClearAllPoints()
+        local unit_frame = self:GetFrameRef("frame_"..new_unit)
+        self:SetPoint("TOPLEFT", unit_frame, "TOPLEFT", -6, 6)
+        self:SetPoint("BOTTOMRIGHT", unit_frame, "BOTTOMRIGHT", 6, -6)
+        self:Show()
+    ]])
+
+    SetOverrideBinding(f, false, "PADDDOWN",
+                       "CLICK WoWXIV_PartyCursor:CycleForward")
+    SetOverrideBinding(f, false, "PADDUP",
+                       "CLICK WoWXIV_PartyCursor:CycleBackward")
+    SetOverrideBinding(f, false, "ALT-"..WoWXIV_config["gamepad_menu_confirm"],
+                       "CLICK WoWXIV_PartyCursor:Confirm")
+    SetOverrideBinding(f, false, "ALT-"..WoWXIV_config["gamepad_menu_cancel"],
+                       "CLICK WoWXIV_PartyCursor:Cancel")
+end
+
+function PartyCursor:OnShow()
+    local f = self.frame
+    ClearOverrideBindings(f)
+end
+
+function PartyCursor:OnHide()
+    local f = self.frame
+    ClearOverrideBindings(f)
+    SetOverrideBinding(f, false, "PADDDOWN",
+                       "CLICK WoWXIV_PartyCursor:CycleForward")
+    SetOverrideBinding(f, false, "PADDUP",
+                       "CLICK WoWXIV_PartyCursor:CycleBackward")
+end
+
+-- Pass list of Member instances.
+function PartyCursor:SetPartyList(party_list)
+    local f = self.frame
+    local unitlist = ""
+    for _, member in ipairs(party_list) do
+        local unit = member:GetUnit()
+        unitlist = unitlist .. unit .. " "
+        f:SetFrameRef("frame_"..unit, member:GetFrame())
+    end
+    -- Note that unitlist ends with a trailing space; this is what we want,
+    -- as it provides a convenient delimiter for strstr() rather than
+    -- having to special-case the last entry in the list.
+    f:SetAttribute("unitlist", unitlist)
 end
 
 ---------------------------------------------------------------------------
@@ -450,68 +588,12 @@ function PartyList:__constructor()
     self.party = {}  -- mapping from unit token to Member instance
     self.pending_SetParty = false  -- see SetParty()
 
-    local f = CreateFrame("Button", "WoWXIV_PartyList", UIParent,
-                          --"SecureHandlerClickTemplate")
-                          --"SecureActionButtonTemplate")
-                          "SecureUnitButtonTemplate, SecureHandlerBaseTemplate")
+    local f = CreateFrame("Frame", "WoWXIV_PartyList", UIParent)
     self.frame = f
     f.owner = self
     f:Hide()
     f:SetPoint("TOPLEFT", 30, -24)
     f:SetSize(256, 44)
-    f:SetAttribute("type", "target")
-    f:SetAttribute("unit", nil)
-    f:SetAttribute("unitlist", "")
-    f:RegisterForClicks("LeftButtonDown")
-    f:WrapScript(f, "OnClick", [[ -- (self, button, down)
-        if PlayerInCombat() then return false end  -- FIXME: can't call IsShown() in combat
-        -- Note that we need our own copies of these str* locals because
-        -- this snippet is run in the restricted environment.  Also note
-        -- that the restricted environment disallows local func definitions
-        -- (and in fact any use of that literal word, even in comments), so
-        -- we have to remember to pass true to strfind() instead of using
-        -- the strstr() wrapper.
-        local strfind = string.find
-        local strsub = string.sub
-        local unitlist = self:GetAttribute("unitlist")
-        local first, prev, target
-        local pos = 1
-        while pos < #unitlist do
-            local delim = strfind(unitlist, " ", pos, true)
-            local unit = strsub(unitlist, pos, delim-1)
-            pos = delim+1
-            first = first or unit
-            local is_target = self:GetFrameRef("sel_"..unit):IsShown()
-            if is_target then
-                if button == "CycleBackward" then
-                    if prev then
-                        target = prev
-                    else
-                        while delim < #unitlist do
-                            pos = delim+1
-                            delim = strfind(unitlist, " ", pos, true)
-                        end
-                        target = strsub(unitlist, pos, delim-1)
-                    end
-                elseif pos < #unitlist then
-                    delim = strfind(unitlist, " ", pos, true)
-                    target = strsub(unitlist, pos, delim-1)
-                else
-                    target = first
-                end
-                break
-            end
-            prev = unit
-        end
-        if not target then
-            target = "player"
-        end
-        self:SetAttribute("unit", target)
-    ]])
-    SetOverrideBinding(f, false, "PADDDOWN",
-                       "CLICK WoWXIV_PartyList:CycleForward")
-    SetOverrideBinding(f, false, "PADDUP",
-                       "CLICK WoWXIV_PartyList:CycleBackward")
 
     local bg_t = f:CreateTexture(nil, "BACKGROUND")
     self.bg_t = bg_t
@@ -543,7 +625,6 @@ function PartyList:__constructor()
 
     for _, unit in ipairs(PARTY_UNIT_TOKENS) do
         self.party[unit] = Member(f, unit)
-        f:SetFrameRef("sel_"..unit, self.party[unit].selected_frame)
     end
 
     function f:OnPartyChange()
@@ -596,6 +677,9 @@ function PartyList:__constructor()
             self.events[event](self, ...)
         end
     end)
+
+    -- Ensure cursor is over everything (Member instance, class icon, auras)
+    self.cursor = PartyCursor(f:GetFrameLevel() + 4)
 
     self:SetParty()
     f:Show()
@@ -650,7 +734,7 @@ function PartyList:SetParty(is_retry)
     end
 
     local f = self.frame
-    local unitlist = ""
+    local cursor_list = {}
     local col_width = narrow and 228 or 256
     local row_height = Member.HEIGHT
     local col_spacing = col_width + (narrow and 0 or 8)
@@ -698,16 +782,14 @@ function PartyList:SetParty(is_retry)
                 row = 0
             end
             if unit ~= "vehicle" then
-                unitlist = unitlist .. unit .. " "
+                tinsert(cursor_list, member)
             end
         else
             member:Hide()
         end
     end
-    -- Note that unitlist ends with a trailing space; this is what we want,
-    -- as it provides a convenient delimiter for strstr() rather than
-    -- having to special-case the last entry in the list.
-    f:SetAttribute("unitlist", unitlist)
+
+    self.cursor:SetPartyList(cursor_list)
 
     f:SetSize(width, height+4)
     self.bg_t:SetWidth(col_width)

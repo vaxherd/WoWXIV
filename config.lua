@@ -261,8 +261,8 @@ function CPGamepadBinding:__constructor(panel, x, y, text, setting, is_cvar,
 
     local f = CreateFrame("Frame", nil, panel.frame)
     self.frame = f
-    f:SetPoint("TOPLEFT", x, y-10)
-    f:SetPoint("TOPRIGHT", -10, y-10)
+    f:SetPoint("TOPLEFT", x, y+1)
+    f:SetPoint("TOPRIGHT", -10, y+1)
     f:SetHeight(25)
 
     local label = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
@@ -424,6 +424,7 @@ function ConfigPanel:__constructor()
     self:AddBindingCvar("Modifier button 1 (Shift)", "GamePadEmulateShift")
     self:AddBindingCvar("Modifier button 2 (Ctrl)", "GamePadEmulateCtrl")
     self:AddBindingCvar("Modifier button 3 (Alt)", "GamePadEmulateAlt")
+    self:AddComment("The Alt modifier is used to confirm/cancel target selection from the party list.")
     self:AddBindingCvar("Confirm ground target", "GamePadCursorLeftClick")
     self:AddBindingCvar("RMB emulation (unused)", "GamePadCursorRightClick")
     self:AddBindingLocal("Confirm menu selection", "gamepad_menu_confirm")
