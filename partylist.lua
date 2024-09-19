@@ -9,7 +9,8 @@ local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 local strsub = string.sub
 local tinsert = tinsert
 
--- Role type constants returned from ClassIcon:Set().
+-- Role type constants returned from ClassIcon:Set() and Member:GetRole().
+local ROLE_UNKNOWN = 0
 local ROLE_TANK = 1
 local ROLE_HEALER = 2
 local ROLE_DPS = 3
@@ -217,9 +218,11 @@ Member.HEIGHT = 37
 
 function Member:__constructor(parent, unit)
     self.unit = unit
+    self.role = ROLE_UNKNOWN
     self.shown = false
     self.narrow = false
     self.missing = false
+    self.fn_index = nil
 
     -- Cached ID of and data for current unit to avoid expensive refreshes.
     self.current_id = nil
@@ -310,11 +313,17 @@ end
 
 function Member:Show()
     self.frame:Show()
+    if not self.shown and self.fn_index then
+        self:InternalBindKey(self.fn_index)
+    end
     self.shown = true
 end
 
 function Member:Hide()
     self.frame:Hide()
+    if self.shown and self.fn_index then
+        self:InternalUnbindKey()
+    end
     self.shown = false
 end
 
@@ -371,6 +380,34 @@ function Member:SetMissing(missing)
     end
 end
 
+function Member:SetBinding(enable, index)
+    self.fn_index = enable and index
+    if self.shown then
+        if enable then
+            self:InternalBindKey(index)
+        else
+            self:InternalUnbindKey()
+        end
+    end
+end
+
+function Member:InternalBindKey(index)
+    local key = "F" .. ((index-1) % 10 + 1)
+    if index >= 31 then
+        key = "CTRL-SHIFT-"..key
+    elseif index >= 21 then
+        key = "CTRL-"..key
+    elseif index >= 11 then
+        key = "SHIFT-"..key
+    end
+    SetOverrideBinding(self.frame, false, key,
+                       "CLICK "..self.frame:GetName()..":LeftButton")
+end
+
+function Member:InternalUnbindKey(index)
+    ClearOverrideBindings(self.frame)
+end
+
 function Member:Refresh()
     local unit = self.unit
 
@@ -393,6 +430,7 @@ function Member:Refresh()
     if unit ~= "vehicle" then
         role_id, class = self.class_icon:Set(unit)
     end
+    self.role = role_id
     local role_color = role_id and ROLE_COLORS[role_id]
     local class_bg_color = class and CLASS_BG_COLORS[class]
     local class_text_color = class and CLASS_TEXT_COLORS[class]
@@ -411,6 +449,10 @@ function Member:Refresh()
     self.power:SetShowValue(true, self.alt_power_type ~= nil)
     self.alt_power:SetShown(self.alt_power_type ~= nil)
     self:Update(true)
+end
+
+function Member:GetRole()
+    return self.role
 end
 
 function Member:Update(updateLabel)
@@ -734,13 +776,7 @@ function PartyList:SetParty(is_retry)
     end
 
     local f = self.frame
-    local cursor_list = {}
-    local col_width = narrow and 228 or 256
-    local row_height = Member.HEIGHT
-    local col_spacing = col_width + (narrow and 0 or 8)
-    local width, height = 0, 0
-    local x0, y0 = 0, -4
-    local row, col, ncols = 0, 0, 0
+    local party_order = {}
     for _, unit in ipairs(PARTY_UNIT_TOKENS) do
         local member = self.party[unit]
         assert(member)
@@ -765,27 +801,50 @@ function PartyList:SetParty(is_retry)
             end
         end
         if id then
-            local x = x0 + col*(col_spacing)
-            local y = y0 + row*(-row_height)
-            member:SetRelPosition(f, x, y)
-            member:SetNarrow(narrow)
-            member:Refresh()
-            member:Show()
-            local right = x + col_width
-            local bottom = -y + row_height
-            if right > width then width = right end
-            if bottom > height then height = bottom end
-            if col+1 > ncols then ncols = col+1 end
-            row = row+1
-            if row >= 20 then
-                col = col+1
-                row = 0
-            end
-            if unit ~= "vehicle" then
-                tinsert(cursor_list, member)
-            end
+            tinsert(party_order,
+                    {member, unit=="player" and -2 or
+                             unit=="vehicle" and -1 or member:GetRole()})
         else
             member:Hide()
+        end
+    end
+
+    local do_sort = WoWXIV_config["partylist_sort"]
+    local do_bindkeys = do_sort and WoWXIV_config["partylist_fn_override"]
+    if do_sort then
+        table.sort(party_order, function(a,b) return a[2] < b[2] end)
+    end
+
+    local cursor_list = {}
+    local col_width = narrow and 228 or 256
+    local row_height = Member.HEIGHT
+    local col_spacing = col_width + (narrow and 0 or 8)
+    local width, height = 0, 0
+    local x0, y0 = 0, -4
+    local row, col, ncols = 0, 0, 0
+    local index = 1
+    for _, v in ipairs(party_order) do
+        local member = v[1]
+        member:SetBinding(do_bindkeys, index)
+        local x = x0 + col*(col_spacing)
+        local y = y0 + row*(-row_height)
+        member:SetRelPosition(f, x, y)
+        member:SetNarrow(narrow)
+        member:Refresh()
+        member:Show()
+        local right = x + col_width
+        local bottom = -y + row_height
+        if right > width then width = right end
+        if bottom > height then height = bottom end
+        if col+1 > ncols then ncols = col+1 end
+        row = row+1
+        if row >= 20 then
+            col = col+1
+            row = 0
+        end
+        if unit ~= "vehicle" then
+            tinsert(cursor_list, member)
+            index = index + 1
         end
     end
 

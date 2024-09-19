@@ -72,6 +72,10 @@ local CONFIG_DEFAULT = {
     partylist_colors = "none",
     -- Party list: when to use narrow format
     partylist_narrow_condition = "never",
+    -- Party list: sort by role?
+    partylist_sort = true,
+    -- Party list: override Fn key bindings? (only when partylist_sort is true)
+    partylist_fn_override = true,
 
     -- Quest item button: also use for scenario actions?
     questitem_scenario_action = true,
@@ -504,6 +508,11 @@ function ConfigPanel:__constructor()
                        "Always", "always",
                        "Only in raids", "raid",
                        "Only in raids with 21+ members", "raidlarge")
+    self:AddCheckButton("Sort party list by role",
+                       "partylist_sort", WoWXIV.PartyList.Refresh)
+    self:AddCheckButton("Override Fn hotkeys to match sorted party order",
+                        "partylist_fn_override", WoWXIV.PartyList.Refresh,
+                        "partylist_sort")
 
     self:AddHeader("Quest item button settings")
     self:AddCheckButton("Also use to activate scenario actions",
