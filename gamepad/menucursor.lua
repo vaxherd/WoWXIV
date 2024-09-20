@@ -3615,7 +3615,11 @@ function MenuCursor:PET_BATTLE_ACTION_SELECTED()
 end
 
 function MenuCursor:PET_BATTLE_PET_ROUND_PLAYBACK_COMPLETE()
-    local target =
-        PetBattleFrame_RefreshTargets(menu_PetBattleFrame.last_target)
+    -- If the previous round ended with an enemy pet death, the player
+    -- already has menu control, so don't move the cursor back to its
+    -- previous position.
+    local last_target = (self:GetTargetForFrame(menu_PetBattleFrame)
+                         or menu_PetBattleFrame.last_target)
+    local target = PetBattleFrame_RefreshTargets(last_target)
     self:AddFrame(menu_PetBattleFrame, target)
 end
