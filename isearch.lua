@@ -208,7 +208,7 @@ end
 -- multiple bags of the same name and (2) it doesn't work for special bags
 -- like the main bank bag, so we use our own names here (but still append
 -- the bag item name for player-created bags).
-function BAGDEF(getter, cache_id, in_combined)
+local function BAGDEF(getter, cache_id, in_combined)
     return {getter = getter, cache_id = cache_id, in_combined = in_combined}
 end
 local BAGS = {
@@ -239,7 +239,7 @@ end
 
 -- For equipment, names are available as global constants, but again they
 -- don't provide a way to distinguish between multiple slots of the same type.
-function EQUIPDEF(id, name)
+local function EQUIPDEF(id, name)
     return {id = id, name = name}
 end
 local EQUIPS = {

@@ -821,7 +821,7 @@ function MenuFrame:GetTargetClickable(target)
 end
 
 ------------------------------------------------------------------------
--- Utility methods
+-- Utility methods/functions
 ------------------------------------------------------------------------
 
 -- Hook a frame's Show/Hide/SetShown methods, calling OnEvent() with tne
@@ -967,7 +967,7 @@ end
 -- (must be a button using Blizzard's DropdownButtonMixin).  The returned
 -- values are description tables, which should be examined as appropriate
 -- for the particular menu.
-function GetDropdownSelection(dropdown)
+local function GetDropdownSelection(dropdown)
     -- Note that DropdownButtonMixin provides a GetSelectionData(), but
     -- it returns the wrong data!  It's not called from any other
     -- Blizzard code, so presumably it never got updated during a
@@ -984,7 +984,7 @@ end
 --     getIndex: Function to return the 1-based option index of a
 --         selection (as returned by GetDropdownSelection()).
 --     onClick: Function to be called when an option is clicked.
-function SetupDropdownMenu(dropdown, cache, getIndex, onClick)
+local function SetupDropdownMenu(dropdown, cache, getIndex, onClick)
     local menu = dropdown.menu
     local menu_menu = cache[menu]
     if not menu_menu then
@@ -1086,7 +1086,7 @@ local function GossipFrame_OnShow()
     return default_target
 end
 
-function GossipFrame_OnConfirmCancel()
+local function GossipFrame_OnConfirmCancel()
     local self = menu_GossipFrame
     -- Clear all targets to prevent further inputs until the next event
     -- (typically GOSSIP_SHOW or GOSSIP_CLOSED).
