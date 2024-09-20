@@ -164,16 +164,28 @@ function Aura:UpdateTooltip()
     end
 end
 
+local DRAGON_GLYPH_DIRECTION = {
+    [ 2] = "Up",
+    [ 3] = "Down",
+    [ 4] = "N",
+    [ 5] = "NW",
+    [ 6] = "W",
+    [ 7] = "SW",
+    [ 8] = "S",
+    [ 9] = "SE",
+    [10] = "E",
+    [11] = "NE",
+}
 function Aura:UpdateTimeLeft()
     local time_str, timer_special
     if self.icon_id == ICON_DRAGON_GLYPH_RESONANCE and WoWXIV_config["buffbar_dragon_glyph_distance"] then
         timer_special = true
-        local dist = self.data.points[1]
-        -- TWW auras have units of roughly 10y instead of 1y.
-        if self.spell_id > 440000 then
-            dist = dist*10
+        local value = self.data.points[1]
+        if self.spell_id < 440000 then  -- DF value gives distance in yards.
+            time_str = dist .. "y"
+        else  -- TWW value gives direction as a table index.
+            time_str = DRAGON_GLYPH_DIRECTION[value] or ""
         end
-        time_str = dist .. "y"
     elseif self.spell_id == SPELL_WITHERED_COMMANDER then
         timer_special = true
         local withered_health = self.data.points[1]

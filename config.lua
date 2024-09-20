@@ -457,9 +457,9 @@ function ConfigPanel:__constructor()
     self.y = self.y - 10
 
     self:AddHeader("Buff/debuff bar settings")
-    self:AddCheckButton("Show distance for Skyriding Glyph Resonance",
+    self:AddCheckButton("Show direction/distance for Skyriding Glyph Resonance",
                         "buffbar_dragon_glyph_distance")
-    self:AddComment("Note: The game only updates the distance once every 5 seconds.")
+    self:AddComment("Note: Dragon Isles glyphs show distance instead of direction, updated every 5 seconds.")
 
     self:AddHeader("Enmity list settings")
     self:AddCheckButton("Enable enmity list",
