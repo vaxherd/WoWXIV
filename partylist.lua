@@ -430,7 +430,7 @@ function Member:Refresh()
     if unit ~= "vehicle" then
         role_id, class = self.class_icon:Set(unit)
     end
-    self.role = role_id
+    self.role = role_id or ROLE_UNKNOWN
     local role_color = role_id and ROLE_COLORS[role_id]
     local class_bg_color = class and CLASS_BG_COLORS[class]
     local class_text_color = class and CLASS_TEXT_COLORS[class]
@@ -605,16 +605,24 @@ end
 -- Pass list of Member instances.
 function PartyCursor:SetPartyList(party_list)
     local f = self.frame
+    local cur_unit = f:GetAttribute("cur_unit")
+    local have_cur_unit = false
     local unitlist = ""
     for _, member in ipairs(party_list) do
         local unit = member:GetUnit()
         unitlist = unitlist .. unit .. " "
         f:SetFrameRef("frame_"..unit, member:GetFrame())
+        have_cur_unit = have_cur_unit or unit == cur_unit
     end
     -- Note that unitlist ends with a trailing space; this is what we want,
     -- as it provides a convenient delimiter for strstr() rather than
     -- having to special-case the last entry in the list.
     f:SetAttribute("unitlist", unitlist)
+    -- Clear the cursor if the unit it was on disappeared.
+    if not have_cur_unit then
+        f:SetAttribute("cur_unit", "")
+        f:Hide()
+    end
 end
 
 ---------------------------------------------------------------------------
