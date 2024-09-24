@@ -68,6 +68,7 @@ local ITEM_TARGET = {
     [140257] = "none",    -- Advanced Telemancy Beacon (43565: Bring Home the Beacon)
     [140319] = "none",    -- Khadgar's Beacon (44004: Bringer of the Light)  -- This is a teleport item we'd normally skip, but it's only granted during a scenario in order to exit the scenario, so we make it available on the button.
     [140916] = "target",  -- Satchel of Locklimb Powder (42090: Skittering Subjects)
+    [141253] = "target",  -- Nightblade Pendant (44067: Consolidating Power)
     [141652] = "skip",    -- Mana Divining Stone (44672: Ancient Mana)  -- This has effect by being in the inventory rather than being used.
     [141878] = "none",    -- Arcane-Infused Vial (44684: Corruption Runs Deep)
     [142065] = "target",  -- Dusk Lily Sigil (44723: More Like Me)
