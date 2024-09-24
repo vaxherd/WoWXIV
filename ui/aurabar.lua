@@ -182,7 +182,7 @@ function Aura:UpdateTimeLeft()
         timer_special = true
         local value = self.data.points[1]
         if self.spell_id < 440000 then  -- DF value gives distance in yards.
-            time_str = dist .. "y"
+            time_str = value .. "y"
         else  -- TWW value gives direction as a table index.
             time_str = DRAGON_GLYPH_DIRECTION[value] or ""
         end
