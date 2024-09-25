@@ -88,30 +88,63 @@ must explicitly name the parent class when calling overridden methods.
 local _, module = ...
 module = module or {} -- so the file can also be loaded with a simple require()
 
+-- Error message is defined as a constant for testing convenience.
 local super_error_msg = "__super() called from class with no superclass"
-local function super_error()
-    error(super_error_msg)
+
+local function call_super(...)
+    local super = getmetatable(getfenv(2)).parent
+    if super then
+        super.__constructor(...)
+    else
+        error(super_error_msg)
+    end
 end
 
 function module.class(parent)
-    local classdef = {}
+    local classdef = {__super = call_super}
     local instance_metatable = {__index = classdef}
-    local class_metatable = {
-        __call = function(thisclass, ...)
-            local instance = setmetatable({}, instance_metatable)
-            instance:__constructor(...)
-            return instance
-        end
-    }
-    if parent then
-        classdef.__super = function(...) parent.__constructor(...) end
-        class_metatable.__index = parent
-    else
-        classdef.__super = super_error
-        -- Define a default constructor for base classes so the "new"
-        -- operation doesn't need to check for its presence.
-        classdef.__constructor = function() end
+    local class_metatable = {}
+    class_metatable.__call = function(thisclass, ...)
+        local instance = setmetatable({}, instance_metatable)
+        instance:__constructor(...)
+        return instance
     end
+    -- Hide the constructor so we can attach the parent class to its
+    -- definition when (if) it is later declared.
+    class_metatable.__newindex = function(t, k, v)
+        if k == "__constructor" then
+            assert(t == classdef,
+                   "Cannot redefine __constructor in an instance")
+            assert(type(v) == "function",
+                   "__constructor must be a function")
+            -- We need to attach the parent class to the function
+            -- definition itself, since each constructor in an inheritance
+            -- chain needs to know its own parent and we can only store a
+            -- single parent in the instance table.  Rather than storing
+            -- the parent in a function-local variable which could
+            -- potentially interfere with the constructor code itself, we
+            -- put it in a metatable entry which is much less likely to
+            -- cause a conflict.
+            setfenv(v, setmetatable({}, {__index=getfenv(v), parent=parent}))
+            class_metatable.constructor = v
+        else
+            rawset(t, k, v)
+        end
+    end
+    class_metatable.__index = function(t, k)
+        if k == "__constructor" then
+            return class_metatable.constructor
+        else
+            return parent and parent[k]
+        end
+    end
+    local constructor = parent and parent.__constructor
+    if not constructor then
+        -- Define a default constructor so the "new" operation doesn't
+        -- need to check for its presence.
+        constructor = function() end
+    end
+    class_metatable.constructor = constructor
     setmetatable(classdef, class_metatable)
     return classdef
 end
@@ -451,6 +484,35 @@ local tests = {
         local instance3 = Class()
         assert(instance3.x == 230)
         assert(instance3.y == nil)
+    end,
+
+    NestedSuperCall = function()
+        local Class = class()
+        function Class:__constructor()
+            self.x = 240
+        end
+        local SubClass = class(Class)
+        function SubClass:__constructor()
+            self:__super()
+            self.y = 241
+        end
+        local SubSubClass = class(SubClass)
+        function SubSubClass:__constructor()
+            self:__super()
+            self.z = 242
+        end
+        local instance = SubSubClass()
+        assert(instance.x == 240)
+        assert(instance.y == 241)
+        assert(instance.z == 242)
+        local instance2 = SubClass()
+        assert(instance2.x == 240)
+        assert(instance2.y == 241)
+        assert(instance2.z == nil)
+        local instance3 = Class()
+        assert(instance3.x == 240)
+        assert(instance3.y == nil)
+        assert(instance3.z == nil)
     end,
 }
 
