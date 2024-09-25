@@ -60,11 +60,10 @@ Multiple inheritance is not supported.
 A constructor may be provided in the class definition by declaring a
 method named "__constructor":
 
-    MyClass = class({
-        __constructor = function(self, arg)
-            self.value = arg
-        end
-    })
+    MyClass = class()
+    function MyClass:__constructor(arg)
+        self.value = arg
+    end
 
     instance = MyClass(123)
     print(instance.value)  -- prints "123"
