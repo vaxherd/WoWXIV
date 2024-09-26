@@ -363,12 +363,23 @@ function MenuCursor:OnShow()
     self:SetCancelBinding(focus)
     local prev, next = focus:GetPageButtons()
     if prev and next then
+        local prev_button, next_button
+        if type(prev) == "string" then
+            prev_button = "CLICK "..prev..":LeftButton"
+        else
+            prev_button = "CLICK WoWXIV_MenuCursor:PrevPage"
+        end
+        if type(next) == "string" then
+            next_button = "CLICK "..next..":LeftButton"
+        else
+            next_button = "CLICK WoWXIV_MenuCursor:NextPage"
+        end
         SetOverrideBinding(f, true,
                            WoWXIV_config["gamepad_menu_prev_page"],
-                           "CLICK "..prev..":LeftButton")
+                           prev_button)
         SetOverrideBinding(f, true,
                            WoWXIV_config["gamepad_menu_next_page"],
-                           "CLICK "..next..":LeftButton")
+                           next_button)
     end
     SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_window"],
                        "CLICK WoWXIV_MenuCursor:CycleFrame")
@@ -474,6 +485,12 @@ function MenuCursor:OnClick(button, down)
         -- as a separate event, so we only get here in the no-passthrough
         -- case.
         focus:OnCancel()
+    elseif button == "PrevPage" then
+        local button = focus:GetPageButtons()
+        button:GetScript("OnClick")(button, "LeftButton", down)
+    elseif button == "NextPage" then
+        local _, button = focus:GetPageButtons()
+        button:GetScript("OnClick")(button, "LeftButton", down)
     elseif button == "CycleFrame" then
         if #self.modal_stack == 0 then
             local stack = self.focus_stack
@@ -512,7 +529,6 @@ function MenuCursor:Move(dx, dy, dir)
         self:SetTarget(new_target)
     end
 end
-
 
 ------------------------------------------------------------------------
 -- Frame manager class
@@ -1757,10 +1773,14 @@ function InboxFrameHandler:UpdateMovement()
     -- Ensure "up" from all bottom-row buttons goes to the bottommost mail item
     -- (by default, OpenAll and NextPage will go to the top item due to a lower
     -- angle of movement).
+    local first_item = false
     local last_item = false
     for i = 1, 7 do
         local button = _G["MailItem"..i.."Button"]
         if button:IsShown() then
+            if not first_item or button:GetTop() > first_item:GetTop() then
+                first_item = button
+            end
             if not last_item or button:GetTop() < last_item:GetTop() then
                 last_item = button
             end
@@ -1769,6 +1789,13 @@ function InboxFrameHandler:UpdateMovement()
     self.targets[OpenAllMail].up = last_item
     self.targets[InboxPrevPageButton].up = last_item
     self.targets[InboxNextPageButton].up = last_item
+    self.targets[OpenAllMail].down = first_item
+    self.targets[InboxPrevPageButton].down = first_item
+    self.targets[InboxNextPageButton].down = first_item
+    if first_item then
+        self.targets[first_item].up = OpenAllMail
+        self.targets[last_item].down = OpenAllMail
+    end
 end
 
 
@@ -1864,12 +1891,27 @@ function OpenMailFrameHandler:SetTargets()
         [OpenMailDeleteButton] = {can_activate = true, lock_highlight = true,
                                   up = false, down = false},
         [OpenMailCancelButton] = {can_activate = true, lock_highlight = true,
-                                  up = false, down = false}
+                                  up = false, down = false, right = false}
     }
+    if OpenMailReplyButton:IsShown() then
+        self.targets[OpenMailReplyButton].left = false
+    elseif OpenMailReplyButton:IsShown() then
+        self.targets[OpenMailDeleteButton].left = false
+    else
+        self.targets[OpenMailCancelButton].left = false
+    end
     local have_report_spam = OpenMailReportSpamButton:IsShown()
     if have_report_spam then
-        self.targets[OpenMailReportSpamButton] = {can_activate = true,
-                                                  lock_highlight = true}
+        self.targets[OpenMailReportSpamButton] =
+            {can_activate = true, lock_highlight = true,
+             up = OpenMailCancelButton, down = OpenMailCancelButton,
+             left = false, right = false}
+        self.targets[OpenMailReplyButton].up = OpenMailReportSpamButton
+        self.targets[OpenMailReplyButton].down = OpenMailReportSpamButton
+        self.targets[OpenMailDeleteButton].up = OpenMailReportSpamButton
+        self.targets[OpenMailDeleteButton].down = OpenMailReportSpamButton
+        self.targets[OpenMailCancelButton].up = OpenMailReportSpamButton
+        self.targets[OpenMailCancelButton].down = OpenMailReportSpamButton
     end
     local first_attachment = nil
     if OpenMailMoneyButton:IsShown() then
@@ -1893,9 +1935,6 @@ function OpenMailFrameHandler:SetTargets()
         end
         return first_attachment
     else
-        if have_report_spam then
-            self.targets[OpenMailReportSpamButton].down = OpenMailCancelButton
-        end
         return OpenMailCancelButton
     end
 end
@@ -2035,18 +2074,60 @@ function MerchantFrameHandler:UpdateMovement()
     if global_cursor:GetFocus() ~= self then
         return  -- Deal with calls during frame setup on UI reload.
     end
-    -- Ensure correct up/down behavior, as for mail inbox.
-    local last_left, last_right = false, false
-    for i = 1, 12 do
-        local holder = _G["MerchantItem"..i]
-        local button = _G["MerchantItem"..i.."ItemButton"]
-        if holder:IsShown() and button:IsShown() then
-            if not last_left or button:GetTop() < last_left:GetTop() then
-                last_left = button
-                last_right = button
-            elseif button:GetTop() == last_left:GetTop() and button:GetLeft() > last_left:GetLeft() then
-                last_right = button
+    -- Ensure correct up/down behavior, as for mail inbox.  Also allow
+    -- left/right to move through all items in sequence.  We assume the
+    -- buttons are numbered in display order and that there are no holes
+    -- in the sequence, which should be guaranteed by core game code.
+    local function ItemButton(n)
+        return _G["MerchantItem"..n.."ItemButton"]
+    end
+    local last_item = 12
+    while last_item >= 1 do
+        if ItemButton(last_item):IsVisible() then
+            break
+        end
+        last_item = last_item - 1
+    end
+    local first_left, first_right, last_left, last_right
+    if last_item > 0 then
+        first_left = ItemButton(1)
+        first_right = ItemButton(last_item==1 and 1 or 2)
+        local i = last_item
+        if i%2 == 0 then i = i-1 end
+        last_left = ItemButton(i)
+        last_right = ItemButton(last_item)
+        local prev = last_right
+        for i = 1, last_item do
+            local button = ItemButton(i)
+            local next = ItemButton(i==last_item and 1 or i+1)
+            self.targets[button].left = prev
+            self.targets[button].right = next
+            prev = button
+        end
+    else
+        if MerchantPrevPageButton:IsShown() then
+            first_left = MerchantPrevPageButton
+            first_right = MerchantNextPageButton
+        elseif MerchantSellAllJunkButton:IsShown() then
+            if MerchantRepairItemButton:IsShown() then
+                first_left = MerchantRepairItemButton
+            else
+                first_left = MerchantSellAllJunkButton
             end
+            first_right = MerchantSellAllJunkButton
+        else
+            first_left = false
+            first_right = false
+        end
+        last_left = MerchantFrameTab1
+        last_right = MerchantFrameTab2
+    end
+    if first_left then
+        self.targets[first_left].up = MerchantFrameTab1
+        self.targets[MerchantFrameTab1].down = first_left
+        if first_right ~= first_left then
+            self.targets[first_right].up = MerchantFrameTab2
+            self.targets[MerchantFrameTab2].down = first_right
         end
     end
     if MerchantPrevPageButton:IsShown() then
@@ -2075,7 +2156,7 @@ function MerchantFrameHandler:UpdateMovement()
                 self.targets[last_right].down = MerchantBuyBackItemItemButton
             end
         end
-    elseif MerchantFrameTab1:IsShown() then
+    else
         self.targets[MerchantFrameTab1].up = last_left
         self.targets[MerchantFrameTab2].up = last_right
         if last_left then
@@ -2158,6 +2239,8 @@ function SpellBookFrameHandler:__constructor()
     self.cancel_func = function()
         HideUIPanel(PlayerSpellsFrame)
     end
+    self.prev_page_button = PlayerSpellsFrame.SpellBookFrame.PagedSpellsFrame.PagingControls.PrevPageButton
+    self.next_page_button = PlayerSpellsFrame.SpellBookFrame.PagedSpellsFrame.PagingControls.NextPageButton
 end
 
 function SpellBookFrameHandler:OnShow()
@@ -2403,21 +2486,24 @@ local PROFESSION_BUTTONS_S = {
 }
 function ProfessionsBookFrameHandler:SetTargets()
     self.targets = {}
-    local initial = nil
-    local bottom = nil
+    local initial, top_l, top_r, bottom_l, bottom_r
     for _, bname in ipairs(PROFESSION_BUTTONS_P) do
         local button = _G[bname]
         assert(button)
         if button:IsShown() then
-            self.targets[button] = {can_activate = true, lock_highlight = true}
+            self.targets[button] = {can_activate = true, lock_highlight = true,
+                                    left = false, right = false}
             if not initial then
                 self.targets[button].is_default = true
                 initial = button
+                top_l = button
+                top_r = button
             end
-            bottom = button
+            bottom_l = button
+            bottom_r = button
         end
     end
-    local bottom_primary = bottom or false
+    local bottom_primary = bottom_l
     local first_secondary = nil
     for _, bname in ipairs(PROFESSION_BUTTONS_S) do
         local button = _G[bname]
@@ -2434,10 +2520,19 @@ function ProfessionsBookFrameHandler:SetTargets()
             if button:GetTop() == first_secondary:GetTop() then
                 self.targets[button].up = bottom_primary
             end
-            if not bottom or button:GetTop() < bottom:GetTop() then
-                bottom = button
+            if not bottom_l or button:GetTop() < bottom_l:GetTop() then
+                bottom_l = button
+            end
+            if not bottom_r or button:GetTop() == bottom_l:GetTop() then
+                bottom_r = button
             end
         end
+    end
+    if top_l then
+        self.targets[top_l].up = bottom_l
+        self.targets[top_r].up = bottom_r
+        self.targets[bottom_l].down = top_l
+        self.targets[bottom_r].down = top_r
     end
 end
 
