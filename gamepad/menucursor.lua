@@ -394,9 +394,13 @@ function MenuCursor:OnHide()
     f:SetScript("OnUpdate", nil)
 end
 
--- Per-frame update routine which implements cursor bouncing.
+-- Per-frame update routine.  This serves two purposes: to implement
+-- cursor bouncing, and to record the current focus frame and target
+-- element to avoid a single click activating multiple elements (see
+-- notes in OnClick()).
 function MenuCursor:OnUpdate()
     local focus, target = self:GetFocusAndTarget()
+    self.last_focus, self.last_target = focus, target
     local target_frame = target and focus:GetTargetFrame(target)
     if not target_frame then return end
 
@@ -473,9 +477,8 @@ function MenuCursor:OnClick(button, down)
         -- changed the cursor state.  If we blindly proceed with calling
         -- the on_click handler here, we could potentially perform a second
         -- click action from a single button press, so ensure that the
-        -- focus state has not in fact changed.
-        local new_focus, new_target = self:GetFocusAndTarget()
-        if new_focus == focus and new_target == target then
+        -- focus state has not in fact changed since the last OnUpdate() call.
+        if focus == self.last_focus and target == self.last_target then
             if target then
                 focus:OnConfirm(target)
             end
