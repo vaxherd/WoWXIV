@@ -1811,14 +1811,14 @@ function OpenMailFrameHandler:OnHideAttachmentButton(frame)
             if button:IsShown() then new_target = button end
             id = id - 1
         end
+        if not new_target and OpenMailMoneyButton:IsShown() then
+            new_target = OpenMailMoneyButton
+        end
         id = frame:GetID() + 1
         while id <= 16 and not new_target do
             local button = _G["OpenMailAttachmentButton"..id]
             if button:IsShown() then new_target = button end
             id = id + 1
-        end
-        if not new_target and OpenMailMoneyButton:IsShown() then
-            new_target = OpenMailMoneyButton
         end
         global_cursor:SetTarget(new_target or OpenMailDeleteButton)
     end
@@ -1843,11 +1843,11 @@ function OpenMailFrameHandler:OnHideMoneyButton(frame)
     local focus, target = global_cursor:GetFocusAndTarget()
     if focus == self and target == frame then
         local new_target = nil
-        local id = 16
-        while id >= 1 and not new_target do
+        local id = 1
+        while id <= 16 and not new_target do
             local button = _G["OpenMailAttachmentButton"..id]
             if button:IsShown() then new_target = button end
-            id = id - 1
+            id = id + 1
         end
         global_cursor:SetTarget(new_target or OpenMailDeleteButton)
     end
@@ -1872,6 +1872,10 @@ function OpenMailFrameHandler:SetTargets()
                                                   lock_highlight = true}
     end
     local first_attachment = nil
+    if OpenMailMoneyButton:IsShown() then
+        self:OnShowMoneyButton(OpenMailMoneyButton)
+        first_attachment = OpenMailMoneyButton
+    end
     for i = 1, 16 do
         local button = _G["OpenMailAttachmentButton"..i]
         assert(button)
@@ -1879,10 +1883,6 @@ function OpenMailFrameHandler:SetTargets()
             self:OnShowAttachmentButton(button)
             if not first_attachment then first_attachment = button end
         end
-    end
-    if OpenMailMoneyButton:IsShown() then
-        self:OnShowMoneyButton(OpenMailMoneyButton)
-        if not first_attachment then first_attachment = OpenMailMoneyButton end
     end
     if first_attachment then
         self.targets[OpenMailReplyButton].up = first_attachment
