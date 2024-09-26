@@ -3052,6 +3052,17 @@ MenuCursor.RegisterFrameHandler(WeeklyRewardsFrameHandler)
 
 function WeeklyRewardsFrameHandler:__constructor()
     self:__super(WeeklyRewardsFrame)
+    self:RegisterEvent(global_cursor, "WEEKLY_REWARDS_UPDATE")
+end
+
+function WeeklyRewardsFrameHandler:WEEKLY_REWARDS_UPDATE()
+    -- The first time the player opens the vault in a week, CanClaimRewards()
+    -- returns false when the frame is opened, and we receive this event a
+    -- short time later when the reward data is updated.  We assume the
+    -- player will not have moved the cursor in that time, and just refresh
+    -- the target list from scratch.
+    self:SetTargets()
+    global_cursor:SetTargetForFrame(self, self:GetDefaultTarget())
 end
 
 function WeeklyRewardsFrameHandler:SetTargets()
