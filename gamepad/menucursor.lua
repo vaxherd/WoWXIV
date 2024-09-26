@@ -1824,6 +1824,8 @@ function OpenMailFrameHandler:__constructor()
     end
     self:HookShow(OpenMailMoneyButton, self.OnShowMoneyButton,
                                        self.OnHideMoneyButton)
+    self:HookShow(OpenMailLetterButton, self.OnShowLetterButton,
+                                        self.OnHideLetterButton)
 end
 
 function OpenMailFrameHandler:OnShowAttachmentButton(frame)
@@ -1843,6 +1845,9 @@ function OpenMailFrameHandler:OnHideAttachmentButton(frame)
         end
         if not new_target and OpenMailMoneyButton:IsShown() then
             new_target = OpenMailMoneyButton
+        end
+        if not new_target and OpenMailLetterButton:IsShown() then
+            new_target = OpenMailLetterButton
         end
         id = frame:GetID() + 1
         while id <= 16 and not new_target do
@@ -1873,6 +1878,39 @@ function OpenMailFrameHandler:OnHideMoneyButton(frame)
     local focus, target = global_cursor:GetFocusAndTarget()
     if focus == self and target == frame then
         local new_target = nil
+        if OpenMailLetterButton:IsShown() then
+            new_target = OpenMailLetterButton
+        end
+        local id = 1
+        while id <= 16 and not new_target do
+            local button = _G["OpenMailAttachmentButton"..id]
+            if button:IsShown() then new_target = button end
+            id = id + 1
+        end
+        global_cursor:SetTarget(new_target or OpenMailDeleteButton)
+    end
+    self.targets[frame] = nil
+end
+
+function OpenMailFrameHandler:OnShowLetterButton(frame)
+    self.targets[frame] = {
+        can_activate = true, lock_highlight = true,
+        on_enter = function(frame)  -- hardcoded in XML
+            GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
+            GameTooltip:SetText(MAIL_LETTER_TOOLTIP)
+            GameTooltip:Show()
+        end,
+        on_leave = MenuFrame.HideTooltip,
+    }
+end
+
+function OpenMailFrameHandler:OnHideLetterButton(frame)
+    local focus, target = global_cursor:GetFocusAndTarget()
+    if focus == self and target == frame then
+        local new_target = nil
+        if OpenMailMoneyButton:IsShown() then
+            new_target = OpenMailMoneyButton
+        end
         local id = 1
         while id <= 16 and not new_target do
             local button = _G["OpenMailAttachmentButton"..id]
@@ -1917,7 +1955,10 @@ function OpenMailFrameHandler:SetTargets()
         self.targets[OpenMailCancelButton].down = OpenMailReportSpamButton
     end
     local first_attachment = nil
-    if OpenMailMoneyButton:IsShown() then
+    if OpenMailLetterButton:IsShown() then
+        self:OnShowLetterButton(OpenMailLetterButton)
+        first_attachment = OpenMailLetterButton
+    elseif OpenMailMoneyButton:IsShown() then
         self:OnShowMoneyButton(OpenMailMoneyButton)
         first_attachment = OpenMailMoneyButton
     end
