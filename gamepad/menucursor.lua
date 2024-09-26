@@ -2125,13 +2125,14 @@ function MerchantFrameHandler:UpdateMovement()
     local function ItemButton(n)
         return _G["MerchantItem"..n.."ItemButton"]
     end
-    local last_item = 12
-    while last_item >= 1 do
-        if ItemButton(last_item):IsVisible() then
+    local last_item = 1
+    while last_item <= 12 do
+        if not ItemButton(last_item):IsVisible() then
             break
         end
-        last_item = last_item - 1
+        last_item = last_item + 1
     end
+    last_item = last_item - 1
     local first_left, first_right, last_left, last_right
     if last_item > 0 then
         first_left = ItemButton(1)
