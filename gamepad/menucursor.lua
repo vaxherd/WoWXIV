@@ -1073,6 +1073,74 @@ end
 
 
 ------------------------------------------------------------------------
+-- MenuFrame subclasses for common patterns
+------------------------------------------------------------------------
+
+--[[
+    MenuFrame subclass for handling a core frame (one which is initialized
+    by core game code before any addons are loaded).  Includes OnShow/OnHide
+    handlers which respectively call AddFocus and RemoveFocus for the frame,
+    and a default cancel_func of MenuFrame.CancelUIFrame.
+
+    If the subclass defines a SetTargets() method, it will be called by
+    OnShow() and its return value will be used as the initial target to
+    pass to AddFrame().  If the method returns false (as opposed to nil),
+    the OnShow event will instead be ignored.
+
+    A singleton instance for the (presumed also singleton) managed frame
+    will be created and stored in class.instance by the default Initialize()
+    implementation; the global cursor instance will be stored in class.cursor.
+    No other default methods reference these values; they are provided for
+    subclasses' convenience, and overriding methods do not need to initialize
+    them if they are not needed.
+]]--
+local CoreMenuFrame = class(MenuFrame)
+
+function CoreMenuFrame.Initialize(class, cursor)
+    class.cursor = cursor
+    class.instance = class()
+end
+
+function CoreMenuFrame:__constructor(frame)
+    self:__super(frame)
+    self:HookShow(frame)
+    self.cancel_func = MenuFrame.CancelUIFrame
+end
+
+function CoreMenuFrame:OnShow()
+    assert(self.frame:IsVisible())
+    local initial_target = self.SetTargets and self:SetTargets()
+    if initial_target ~= false then
+        global_cursor:AddFrame(self, initial_target)
+    end
+end
+
+function CoreMenuFrame:OnHide()
+    global_cursor:RemoveFrame(self)
+end
+
+
+--[[
+    MenuFrame subclass for handling an addon frame (one which is not
+    available until a specific addon has been loaded).  Functions
+    identically to (and in fact subclasses) CoreMenuFrame except in that
+    the default Initialize() implementation sets up an addon watch for
+    the addon named by class.ADDON_NAME (which must be declared by the
+    subclass if it uses this implementation) and creates the singleton
+    instance in the default OnAddOnLoaded() implementation.
+]]--
+local AddOnMenuFrame = class(CoreMenuFrame)
+
+function AddOnMenuFrame.Initialize(class, cursor)
+    class.cursor = cursor
+    class:RegisterAddOnWatch(cursor, class.ADDON_NAME)
+end
+
+function AddOnMenuFrame.OnAddOnLoaded(class)
+    class.instance = class()
+end
+
+------------------------------------------------------------------------
 -- Individual frame handlers
 ------------------------------------------------------------------------
 
@@ -1376,30 +1444,12 @@ end
 
 -------- Legion/BfA troop recruitment frame
 
-local TroopRecruitmentFrameHandler = class(MenuFrame)
+local TroopRecruitmentFrameHandler = class(AddOnMenuFrame)
+TroopRecruitmentFrameHandler.ADDON_NAME = "Blizzard_GarrisonUI"
 MenuCursor.RegisterFrameHandler(TroopRecruitmentFrameHandler)
-
-function TroopRecruitmentFrameHandler.Initialize(class, cursor)
-    class:RegisterAddOnWatch(cursor, "Blizzard_GarrisonUI")
-end
-
-function TroopRecruitmentFrameHandler.OnAddOnLoaded(class)
-    local instance = class()
-    class.instance = instance
-    instance:RegisterEvent(global_cursor, "SHIPMENT_CRAFTER_CLOSED")
-    instance:RegisterEvent(global_cursor, "SHIPMENT_CRAFTER_OPENED")
-    -- If the addon was already loaded, we may not see the OPENED event
-    -- (possibly because the addon was loaded in an OPENED handler, so the
-    -- event had technically already been sent), so manually check whether
-    -- the frame is already open.
-    if GarrisonCapacitiveDisplayFrame:IsVisible() then
-        instance:SHIPMENT_CRAFTER_OPENED()
-    end
-end
 
 function TroopRecruitmentFrameHandler:__constructor()
     self:__super(GarrisonCapacitiveDisplayFrame)
-    self.cancel_func = MenuFrame.CancelUIFrame
     self.targets = {
         [GarrisonCapacitiveDisplayFrame.CreateAllWorkOrdersButton] =
             {can_activate = true, lock_highlight = true},
@@ -1415,36 +1465,21 @@ function TroopRecruitmentFrameHandler:__constructor()
     }
 end
 
-function TroopRecruitmentFrameHandler:SHIPMENT_CRAFTER_OPENED()
-    assert(GarrisonCapacitiveDisplayFrame:IsVisible())
-    global_cursor:AddFrame(self)
-end
-
-function TroopRecruitmentFrameHandler:SHIPMENT_CRAFTER_CLOSED()
-    global_cursor:RemoveFrame(self)
-end
-
 
 -------- Shadowlands covenant sanctum frame
 
-local CovenantSanctumFrameHandler = class(MenuFrame)
+local CovenantSanctumFrameHandler = class(AddOnMenuFrame)
+CovenantSanctumFrameHandler.ADDON_NAME = "Blizzard_CovenantSanctum"
 local CovenantSanctumTalentFrameHandler = class(MenuFrame)
 MenuCursor.RegisterFrameHandler(CovenantSanctumFrameHandler)
 
-function CovenantSanctumFrameHandler.Initialize(class, cursor)
-    class:RegisterAddOnWatch(cursor, "Blizzard_CovenantSanctum")
-end
-
 function CovenantSanctumFrameHandler.OnAddOnLoaded(class)
-    local instance = class()
-    class.instance = instance
-    instance:HookShow(CovenantSanctumFrame)
+    AddOnMenuHandler.OnAddOnLoaded(class)
     class.talent_instance = CovenantSanctumTalentFrameHandler()
 end
 
 function CovenantSanctumFrameHandler:__constructor()
     self:__super(CovenantSanctumFrame)
-    self.cancel_func = MenuFrame.CancelUIFrame
     local function ChooseTalent(button)
         self:OnChooseTalent(button)
     end
@@ -1463,27 +1498,10 @@ function CovenantSanctumFrameHandler:__constructor()
     }
 end
 
-function CovenantSanctumFrameHandler:OnShow()
-    assert(CovenantSanctumFrame:IsVisible())
-    global_cursor:AddFrame(self)
-end
-
-function CovenantSanctumFrameHandler:OnHide()
-    global_cursor:RemoveFrame(self)
-end
-
 function CovenantSanctumFrameHandler:OnChooseTalent(upgrade_button)
     upgrade_button:OnMouseDown()
     local talent_menu = CovenantSanctumFrameHandler.talent_instance
-    talent_menu.targets = {
-        [CovenantSanctumFrame.UpgradesTab.TalentsList.UpgradeButton] =
-            {can_activate = true, lock_highlight = true,
-             is_default = true},
-    }
-    for frame in CovenantSanctumFrame.UpgradesTab.TalentsList.talentPool:EnumerateActive() do
-        talent_menu.targets[frame] = {send_enter_leave = true}
-    end
-    global_cursor:AddFrame(talent_menu)
+    global_cursor:AddFrame(talent_menu, talent_menu:SetTargets())
 end
 
 function CovenantSanctumTalentFrameHandler:__constructor()
@@ -1491,36 +1509,27 @@ function CovenantSanctumTalentFrameHandler:__constructor()
     self.cancel_func = function(self) global_cursor:RemoveFrame(self) end
 end
 
+function CovenantSanctumTalentFrameHandler:SetTargets()
+    local TalentsList = CovenantSanctumFrame.UpgradesTab.TalentsList
+    self.targets = {
+        [TalentsList.UpgradeButton] =
+            {can_activate = true, lock_highlight = true},
+    }
+    for frame in TalentsList.talentPool:EnumerateActive() do
+        talent_menu.targets[frame] = {send_enter_leave = true}
+    end
+    return TalentsList.UpgradeButton
+end
+
 
 -------- Generic player choice frame
 
-local PlayerChoiceFrameHandler = class(MenuFrame)
+local PlayerChoiceFrameHandler = class(AddOnMenuFrame)
+PlayerChoiceFrameHandler.ADDON_NAME = "Blizzard_PlayerChoice"
 MenuCursor.RegisterFrameHandler(PlayerChoiceFrameHandler)
-
-function PlayerChoiceFrameHandler.Initialize(class, cursor)
-    class:RegisterAddOnWatch(cursor, "Blizzard_PlayerChoice")
-end
-
-function PlayerChoiceFrameHandler.OnAddOnLoaded(class)
-    local instance = class()
-    class.instance = instance
-    instance:HookShow(PlayerChoiceFrame)
-end
 
 function PlayerChoiceFrameHandler:__constructor()
     self:__super(PlayerChoiceFrame)
-    self.cancel_func = MenuFrame.CancelUIFrame
-end
-
-function PlayerChoiceFrameHandler:OnShow()
-    assert(PlayerChoiceFrame:IsVisible())
-    if self:SetTargets() then
-        global_cursor:AddFrame(self)
-    end
-end
-
-function PlayerChoiceFrameHandler:OnHide()
-    global_cursor:RemoveFrame(self)
 end
 
 function PlayerChoiceFrameHandler:SetTargets()
@@ -1563,74 +1572,40 @@ function PlayerChoiceFrameHandler:SetTargets()
             end
         end
     end
-    if leftmost then  -- i.e., if we found any buttons
-        self.targets[leftmost].is_default = true
-    else
-        return false
-    end
-    return true
+    return leftmost or false  -- Ignore frame if no buttons found.
 end
 
 
 -------- New content splash frame
 
-local SplashFrameHandler = class(MenuFrame)
+local SplashFrameHandler = class(CoreMenuFrame)
 MenuCursor.RegisterFrameHandler(SplashFrameHandler)
-
-function SplashFrameHandler.Initialize(class, cursor)
-    local instance = class()
-    class.instance = instance
-    instance:HookShow(SplashFrame)
-end
 
 function SplashFrameHandler:__constructor()
     self:__super(SplashFrame)
-    self.cancel_func = MenuFrame.CancelUIFrame
 end
 
-function SplashFrameHandler:OnShow()
-    assert(SplashFrame:IsVisible())
+function SplashFrameHandler:SetTargets()
     self.targets = {}
     local StartQuestButton = SplashFrame.RightFeature.StartQuestButton
     if StartQuestButton:IsVisible() then
         self.targets[StartQuestButton] =
             {can_activate = true, send_enter_leave = true, is_default = true}
     end
-    global_cursor:AddFrame(self)
-end
-
-function SplashFrameHandler:OnHide()
-    global_cursor:RemoveFrame(self)
 end
 
 
 -------- Info popup frame ("Campaign Complete!" etc.) (FIXME: untested)
 
-local UIWidgetCenterDisplayFrameHandler = class(MenuFrame)
+local UIWidgetCenterDisplayFrameHandler = class(CoreMenuFrame)
 MenuCursor.RegisterFrameHandler(UIWidgetCenterDisplayFrameHandler)
-
-function UIWidgetCenterDisplayFrameHandler.Initialize(class, cursor)
-    local instance = class()
-    class.instance = instance
-    instance:HookShow(UIWidgetCenterDisplayFrame)
-end
 
 function UIWidgetCenterDisplayFrameHandler:__constructor()
     self:__super(UIWidgetCenterDisplayFrame)
-    self.cancel_func = MenuFrame.CancelUIFrame
     self.targets = {
         [UIWidgetCenterDisplayFrame.CloseButton] = {
             can_activate = true, lock_highlight = true, is_default = true},
     }
-end
-
-function UIWidgetCenterDisplayFrameHandler:OnShow()
-    assert(UIWidgetCenterDisplayFrame:IsVisible())
-    global_cursor:AddFrame(self)
-end
-
-function UIWidgetCenterDisplayFrameHandler:OnHide()
-    global_cursor:RemoveFrame(self)
 end
 
 
@@ -1720,39 +1695,22 @@ end
 
 -------- Mail inbox
 
-local InboxFrameHandler = class(MenuFrame)
+local InboxFrameHandler = class(CoreMenuFrame)
 MenuCursor.RegisterFrameHandler(InboxFrameHandler)
 
-function InboxFrameHandler.Initialize(class, cursor)
-    local instance = class()
-    class.instance = instance
+function InboxFrameHandler:__constructor()
     -- We could react to PLAYER_INTERACTION_MANAGER_FRAME_{SHOW,HIDE}
     -- with arg1 == Enum.PlayerInteractionType.MailInfo (17) for mailbox
     -- handling, but we don't currently have any support for the send UI,
     -- so we isolate our handling to the inbox frame.
-    instance:HookShow(InboxFrame)
+    self:__super(InboxFrame)
     for i = 1, 7 do
         local frame_name = "MailItem" .. i .. "Button"
         local frame = _G[frame_name]
         assert(frame)
-        instance:HookShow(frame, instance.OnShowMailItemButton,
-                                 instance.OnHideMailItemButton)
+        self:HookShow(frame, self.OnShowMailItemButton,
+                             self.OnHideMailItemButton)
     end
-end
-
-function InboxFrameHandler:__constructor()
-    self:__super(InboxFrame)
-    self.cancel_func = MenuFrame.CancelUIFrame
-end
-
-function InboxFrameHandler:OnShow()
-    assert(InboxFrame:IsShown())
-    self:SetTargets()
-    global_cursor:AddFrame(self)
-end
-
-function InboxFrameHandler:OnHide()
-    global_cursor:RemoveFrame(self)
 end
 
 function InboxFrameHandler:OnShowMailItemButton(frame)
@@ -1816,40 +1774,26 @@ end
 
 -------- Mail item
 
-local OpenMailFrameHandler = class(MenuFrame)
+local OpenMailFrameHandler = class(CoreMenuFrame)
 MenuCursor.RegisterFrameHandler(OpenMailFrameHandler)
 
-function OpenMailFrameHandler.Initialize(class, cursor)
-    local instance = class()
-    class.instance = instance
-    instance:HookShow(OpenMailFrame)
+function OpenMailFrameHandler:__constructor()
+    self:__super(OpenMailFrame)
+    -- Note that the Hide event appears to fire sporadically even when the
+    -- frame isn't shown in the first place.  RemoveFrame() ignores frames
+    -- not in the focus list, so this isn't a problem for us and we don't
+    -- need to override OnHide().
+    self.cancel_func = nil
+    self.cancel_button = OpenMailCancelButton
     for i = 1, 16 do
         local frame_name = "OpenMailAttachmentButton" .. i
         local frame = _G[frame_name]
         assert(frame)
-        instance:HookShow(frame, instance.OnShowAttachmentButton,
-                                 instance.OnHideAttachmentButton)
+        self:HookShow(frame, self.OnShowAttachmentButton,
+                             self.OnHideAttachmentButton)
     end
-    instance:HookShow(OpenMailMoneyButton, instance.OnShowMoneyButton,
-                                           instance.OnHideMoneyButton)
-end
-
-function OpenMailFrameHandler:__constructor()
-    self:__super(OpenMailFrame)
-    self.cancel_button = OpenMailCancelButton
-end
-
-function OpenMailFrameHandler:OnShow()
-    assert(OpenMailFrame:IsShown())
-    local initial_target = self:SetTargets()
-    global_cursor:AddFrame(self, initial_target)
-end
-
-function OpenMailFrameHandler:OnHide()
-    -- Note that this event appears to fire sporadically even when the
-    -- frame isn't shown in the first place.  RemoveFrame() ignores frames
-    -- not in the focus list so this isn't a problem for us.
-    global_cursor:RemoveFrame(self)
+    self:HookShow(OpenMailMoneyButton, self.OnShowMoneyButton,
+                                       self.OnHideMoneyButton)
 end
 
 function OpenMailFrameHandler:OnShowAttachmentButton(frame)
@@ -1959,47 +1903,34 @@ end
 
 -------- Shop menu
 
-local MerchantFrameHandler = class(MenuFrame)
+local MerchantFrameHandler = class(CoreMenuFrame)
 MenuCursor.RegisterFrameHandler(MerchantFrameHandler)
 
-function MerchantFrameHandler.Initialize(class, cursor)
-    local instance = class()
-    class.instance = instance
-    instance:HookShow(MerchantFrame)
+function MerchantFrameHandler:__constructor()
+    self:__super(MerchantFrame)
+    self.prev_page_button = "MerchantPrevPageButton"
+    self.next_page_button = "MerchantNextPageButton"
     -- We use the "sell all junk" button (which is always displayed on the
     -- "buy" tab and never displayed on the "sell" tab) as a proxy for tab
     -- change detection.
-    instance:HookShow(MerchantSellAllJunkButton,
-                      instance.OnTabChange, instance.OnTabChange)
+    self:HookShow(MerchantSellAllJunkButton,
+                  self.OnTabChange, self.OnTabChange)
     for i = 1, 12 do
         local frame_name = "MerchantItem" .. i .. "ItemButton"
         local frame = _G[frame_name]
         assert(frame)
-        instance:HookShow(frame, instance.OnShowItemButton,
-                                 instance.OnHideItemButton)
+        self:HookShow(frame, self.OnShowItemButton,
+                             self.OnHideItemButton)
     end
 end
 
-function MerchantFrameHandler:__constructor()
-    self:__super(MerchantFrame)
-    self.cancel_func = MenuFrame.CancelUIFrame
-    self.prev_page_button = "MerchantPrevPageButton"
-    self.next_page_button = "MerchantNextPageButton"
-end
-
-function MerchantFrameHandler:OnShow()
-    assert(MerchantFrame:IsShown())
+function MerchantFrameHandler:SetTargets()
     assert(MerchantFrame.selectedTab == 1)
     self:UpdateTargets()
     self:UpdateMovement()
-    local initial_target = (self.targets[MerchantItem1ItemButton]
-                            and MerchantItem1ItemButton
-                            or MerchantSellAllJunkButton)
-    global_cursor:AddFrame(self, initial_target)
-end
-
-function MerchantFrameHandler:OnHide()
-    global_cursor:RemoveFrame(self)
+    return (self.targets[MerchantItem1ItemButton]
+            and MerchantItem1ItemButton
+            or MerchantSellAllJunkButton)
 end
 
 function MerchantFrameHandler:OnTabChange()
@@ -2159,22 +2090,12 @@ end
 
 -------- Profession training menu
 
-local ClassTrainerFrameHandler = class(MenuFrame)
+local ClassTrainerFrameHandler = class(AddOnMenuFrame)
+ClassTrainerFrameHandler.ADDON_NAME = "Blizzard_TrainerUI"
 MenuCursor.RegisterFrameHandler(ClassTrainerFrameHandler)
-
-function ClassTrainerFrameHandler.Initialize(class, cursor)
-    class:RegisterAddOnWatch(cursor, "Blizzard_TrainerUI")
-end
-
-function ClassTrainerFrameHandler.OnAddOnLoaded(class)
-    local instance = class()
-    class.instance = instance
-    instance:HookShow(ClassTrainerFrame)
-end
 
 function ClassTrainerFrameHandler:__constructor()
     self:__super(ClassTrainerFrame)
-    self.cancel_func = MenuFrame.CancelUIFrame
     self.targets = {
         [ClassTrainerFrameSkillStepButton] = {
             can_activate = true, lock_highlight = true,
@@ -2185,8 +2106,7 @@ function ClassTrainerFrameHandler:__constructor()
     }
 end
 
-function ClassTrainerFrameHandler:OnShow()
-    assert(ClassTrainerFrame:IsShown())
+function ClassTrainerFrameHandler:SetTargets()
     -- FIXME: also allow moving through list (ClassTrainerFrame.ScrollBox)
     -- (this temporary hack selects the first item so that we can still train)
     RunNextFrame(function()
@@ -2195,11 +2115,6 @@ function ClassTrainerFrameHandler:OnShow()
             break
         end
     end)
-    global_cursor:AddFrame(self)
-end
-
-function ClassTrainerFrameHandler:OnHide()
-    global_cursor:RemoveFrame(self)
 end
 
 
@@ -2464,32 +2379,12 @@ end
 
 -------- Professions frame
 
-local ProfessionsBookFrameHandler = class(MenuFrame)
+local ProfessionsBookFrameHandler = class(AddOnMenuFrame)
+ProfessionsBookFrameHandler.ADDON_NAME = "Blizzard_ProfessionsBook"
 MenuCursor.RegisterFrameHandler(ProfessionsBookFrameHandler)
-
-function ProfessionsBookFrameHandler.Initialize(class, cursor)
-    class:RegisterAddOnWatch(cursor, "Blizzard_ProfessionsBook")
-end
-
-function ProfessionsBookFrameHandler.OnAddOnLoaded(class)
-    local instance = class()
-    class.instance = instance
-    instance:HookShow(ProfessionsBookFrame)
-end
 
 function ProfessionsBookFrameHandler:__constructor()
     self:__super(ProfessionsBookFrame)
-    self.cancel_func = MenuFrame.CancelUIFrame
-end
-
-function ProfessionsBookFrameHandler:OnShow()
-    assert(ProfessionsBookFrame:IsShown())
-    self:SetTargets()
-    global_cursor:AddFrame(self)
-end
-
-function ProfessionsBookFrameHandler:OnHide()
-    global_cursor:RemoveFrame(self)
 end
 
 local PROFESSION_BUTTONS_P = {
@@ -3056,32 +2951,12 @@ end
 
 -------- Great Vault
 
-local WeeklyRewardsFrameHandler = class(MenuFrame)
+local WeeklyRewardsFrameHandler = class(AddOnMenuFrame)
+WeeklyRewardsFrameHandler.ADDON_NAME = "Blizzard_WeeklyRewards"
 MenuCursor.RegisterFrameHandler(WeeklyRewardsFrameHandler)
-
-function WeeklyRewardsFrameHandler.Initialize(class, cursor)
-    class:RegisterAddOnWatch(cursor, "Blizzard_WeeklyRewards")
-end
-
-function WeeklyRewardsFrameHandler.OnAddOnLoaded(class)
-    local instance = class()
-    class.instance = instance
-end
 
 function WeeklyRewardsFrameHandler:__constructor()
     self:__super(WeeklyRewardsFrame)
-    self:HookShow(WeeklyRewardsFrame)
-    self.cancel_func = MenuFrame.CancelUIFrame
-end
-
-function WeeklyRewardsFrameHandler:OnShow()
-    assert(WeeklyRewardsFrame:IsShown())
-    self:SetTargets()
-    global_cursor:AddFrame(self)
-end
-
-function WeeklyRewardsFrameHandler:OnHide()
-    global_cursor:RemoveFrame(self)
 end
 
 function WeeklyRewardsFrameHandler:SetTargets()
@@ -3181,13 +3056,13 @@ end
 
 -------- Delve companion setup frame
 
-local DelvesCompanionConfigurationFrameHandler = class(MenuFrame)
-local DelvesCompanionConfigurationSlotHandler = class(MenuFrame)
-local DelvesCompanionAbilityListFrameHandler = class(MenuFrame)
+local DelvesCompanionConfigurationFrameHandler = class(CoreMenuFrame)
+local DelvesCompanionConfigurationSlotHandler = class(CoreMenuFrame)
+local DelvesCompanionAbilityListFrameHandler = class(CoreMenuFrame)
 MenuCursor.RegisterFrameHandler(DelvesCompanionConfigurationFrameHandler)
 
 function DelvesCompanionConfigurationFrameHandler.Initialize(class, cursor)
-    class.instance = class()
+    CoreMenuFrame.Initialize(class, cursor)
     class.instance_slot = {}
     local dccf = DelvesCompanionConfigurationFrame
     local lists = {dccf.CompanionCombatRoleSlot.OptionsList,
@@ -3203,11 +3078,9 @@ end
 function DelvesCompanionConfigurationFrameHandler:__constructor()
     local dccf = DelvesCompanionConfigurationFrame
     self:__super(dccf)
-    self:HookShow(dccf)
     local function ClickSlot(frame)
         frame:OnMouseDown("LeftButton", true)
     end
-    self.cancel_func = MenuFrame.CancelUIFrame
     self.targets = {
         -- Mouse behavior brings up the tooltip when mousing over the
         -- portrait rather than the experience ring; we take the
@@ -3244,33 +3117,12 @@ end
 
 function DelvesCompanionConfigurationSlotHandler:__constructor(frame)
     self:__super(frame)
-    self:HookShow(frame)
     self.cancel_func = function() frame:Hide() end
 end
 
 function DelvesCompanionAbilityListFrameHandler:__constructor()
-    local dcalf = DelvesCompanionAbilityListFrame
-    self:__super(dcalf)
-    self:HookShow(dcalf)
+    self:__super(DelvesCompanionAbilityListFrame)
     self.cancel_func = MenuFrame.HideUIFrame
-end
-
-function DelvesCompanionConfigurationFrameHandler:OnShow()
-    assert(DelvesCompanionConfigurationFrame:IsShown())
-    global_cursor:AddFrame(self)
-end
-
-function DelvesCompanionConfigurationFrameHandler:OnHide()
-    global_cursor:RemoveFrame(self)
-end
-
-function DelvesCompanionConfigurationSlotHandler:OnShow(frame)
-    self:SetTargets()
-    global_cursor:AddFrame(self)
-end
-
-function DelvesCompanionConfigurationSlotHandler:OnHide(frame)
-    global_cursor:RemoveFrame(self)
 end
 
 function DelvesCompanionAbilityListFrameHandler:OnShow()
@@ -3278,10 +3130,6 @@ function DelvesCompanionAbilityListFrameHandler:OnShow()
     self.targets = {}
     global_cursor:AddFrame(self)
     self:RefreshTargets()
-end
-
-function DelvesCompanionAbilityListFrameHandler:OnHide()
-    global_cursor:RemoveFrame(self)
 end
 
 function DelvesCompanionConfigurationSlotHandler:SetTargets(frame)
@@ -3377,22 +3225,12 @@ end
 
 local cache_DelvesDifficultyDropdown = {}
 
-local DelvesDifficultyPickerFrameHandler = class(MenuFrame)
+local DelvesDifficultyPickerFrameHandler = class(AddOnMenuFrame)
+DelvesDifficultyPickerFrameHandler.ADDON_NAME = "Blizzard_DelvesDifficultyPicker"
 MenuCursor.RegisterFrameHandler(DelvesDifficultyPickerFrameHandler)
 
-function DelvesDifficultyPickerFrameHandler.Initialize(class, cursor)
-    class:RegisterAddOnWatch(cursor, "Blizzard_DelvesDifficultyPicker")
-end
-
-function DelvesDifficultyPickerFrameHandler.OnAddOnLoaded(class)
-    class.instance = class()
-end
-
 function DelvesDifficultyPickerFrameHandler:__constructor()
-    local ddpf = DelvesDifficultyPickerFrame
-    self:__super(ddpf)
-    self:HookShow(ddpf)
-    self.cancel_func = MenuFrame.CancelUIFrame
+    self:__super(DelvesDifficultyPickerFrame)
 end
 
 function DelvesDifficultyPickerFrameHandler:OnShow()
@@ -3400,10 +3238,6 @@ function DelvesDifficultyPickerFrameHandler:OnShow()
     self.targets = {}
     global_cursor:AddFrame(self)
     self:RefreshTargets()
-end
-
-function DelvesDifficultyPickerFrameHandler:OnHide()
-    global_cursor:RemoveFrame(self)
 end
 
 local cache_DelvesDifficultyDropdown = {}
@@ -3483,34 +3317,18 @@ end
 
 -------- Void storage purchase popup
 
-local VoidStoragePurchaseFrameHandler = class(MenuFrame)
+local VoidStoragePurchaseFrameHandler = class(AddOnMenuFrame)
+VoidStoragePurchaseFrameHandler.ADDON_NAME = "Blizzard_VoidStorageUI"
 MenuCursor.RegisterFrameHandler(VoidStoragePurchaseFrameHandler)
-
-function VoidStoragePurchaseFrameHandler.Initialize(class, cursor)
-    class:RegisterAddOnWatch(cursor, "Blizzard_VoidStorageUI")
-end
-
-function VoidStoragePurchaseFrameHandler.OnAddOnLoaded(class)
-    class.instance = class()
-end
 
 function VoidStoragePurchaseFrameHandler:__constructor()
     self:__super(VoidStoragePurchaseFrame)
-    self:HookShow(VoidStoragePurchaseFrame)
     self.cancel_func = function() HideUIPanel(VoidStorageFrame) end
     self.targets = {
         [VoidStoragePurchaseButton] = {
             can_activate = true, lock_highlight = true, is_default = true,
             up = false, down = false, left = false, right = false},
     }
-end
-
-function VoidStoragePurchaseFrameHandler:OnShow()
-    global_cursor:AddFrame(self)
-end
-
-function VoidStoragePurchaseFrameHandler:OnHide()
-    global_cursor:RemoveFrame(self)
 end
 
 
