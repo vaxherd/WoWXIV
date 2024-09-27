@@ -176,6 +176,7 @@ local MESSAGE_TYPES = {
                             "CLM_SPELL_LEECH.*:self",
                             "CLM_SPELL_INSTAKILL.*:self"},
 
+
     Combat_Attack_Pet = {"CLM_SWING_DAMAGE.pet",
                          "CLM_SWING_MISSED.pet",
                          "CLM_RANGE_DAMAGE.pet",
@@ -197,6 +198,26 @@ local MESSAGE_TYPES = {
                            "CLM_SPELL_LEECH.*:pet",
                            "CLM_SPELL_INSTAKILL.*:pet"},
 
+    Combat_Attack_Enemy = {"CLM_SWING_DAMAGE.*:enemy",
+                           "CLM_SWING_MISSED.*:enemy",
+                           "CLM_RANGE_DAMAGE.*:enemy",
+                           "CLM_RANGE_MISSED.*:enemy",
+                           "CLM_SPELL_DAMAGE.*:enemy",
+                           "CLM_SPELL_MISSED.*:enemy",
+                           "CLM_SPELL_DRAIN.*:enemy",
+                           "CLM_SPELL_LEECH.*:enemy",
+                           "CLM_SPELL_INSTAKILL.*:enemy"},
+
+    Combat_Attack_ToEnemy = {"CLM_SWING_DAMAGE.*:enemy",
+                             "CLM_SWING_MISSED.*:enemy",
+                             "CLM_RANGE_DAMAGE.*:enemy",
+                             "CLM_RANGE_MISSED.*:enemy",
+                             "CLM_SPELL_DAMAGE.*:enemy",
+                             "CLM_SPELL_MISSED.*:enemy",
+                             "CLM_SPELL_DRAIN.*:enemy",
+                             "CLM_SPELL_LEECH.*:enemy",
+                             "CLM_SPELL_INSTAKILL.*:enemy"},
+
     Combat_DoT_Self = {"CLM_SPELL_PERIODIC_DAMAGE.self"},
 
     Combat_DoT_ToSelf = {"CLM_SPELL_PERIODIC_DAMAGE.*:self"},
@@ -204,6 +225,10 @@ local MESSAGE_TYPES = {
     Combat_DoT_Pet = {"CLM_SPELL_PERIODIC_DAMAGE.pet"},
 
     Combat_DoT_ToPet = {"CLM_SPELL_PERIODIC_DAMAGE.*:pet"},
+
+    Combat_DoT_Enemy = {"CLM_SPELL_PERIODIC_DAMAGE.enemy"},
+
+    Combat_DoT_ToEnemy = {"CLM_SPELL_PERIODIC_DAMAGE.*:enemy"},
 
     Combat_Heal_Self = {"CLM_SPELL_HEAL.self",
                         "CLM_SPELL_HEAL_ABSORBED.self",
@@ -221,6 +246,14 @@ local MESSAGE_TYPES = {
                          "CLM_SPELL_HEAL_ABSORBED.*:pet",
                          "CLM_SPELL_ENERGIZE.pet"},
 
+    Combat_Heal_Enemy = {"CLM_SPELL_HEAL.enemy",
+                         "CLM_SPELL_HEAL_ABSORBED.enemy",
+                         "CLM_SPELL_ENERGIZE.enemy"},
+
+    Combat_Heal_ToEnemy = {"CLM_SPELL_HEAL.*:enemy",
+                           "CLM_SPELL_HEAL_ABSORBED.*:enemy",
+                           "CLM_SPELL_ENERGIZE.enemy"},
+
     Combat_HoT_Self = {"CLM_SPELL_PERIODIC_HEAL.self"},
 
     Combat_HoT_ToSelf = {"CLM_SPELL_PERIODIC_HEAL.*:self"},
@@ -228,6 +261,10 @@ local MESSAGE_TYPES = {
     Combat_HoT_Pet = {"CLM_SPELL_PERIODIC_HEAL.pet"},
 
     Combat_HoT_ToPet = {"CLM_SPELL_PERIODIC_HEAL.*:pet"},
+
+    Combat_HoT_Enemy = {"CLM_SPELL_PERIODIC_HEAL.enemy"},
+
+    Combat_HoT_ToEnemy = {"CLM_SPELL_PERIODIC_HEAL.*:enemy"},
 
     Combat_Aura_Self = {"CLM_SPELL_AURA_APPLIED.self",
                         "CLM_SPELL_AURA_REMOVED.self",
@@ -269,6 +306,26 @@ local MESSAGE_TYPES = {
                           "CLM_SPELL_DISPEL.*:pet",
                           "CLM_SPELL_DISPEL_FAILED.*:pet"},
 
+    Combat_Aura_Enemy = {"CLM_SPELL_AURA_APPLIED.enemy",
+                         "CLM_SPELL_AURA_REMOVED.enemy",
+                         "CLM_SPELL_AURA_APPLIED_DOSE.enemy",
+                         "CLM_SPELL_AURA_REMOVED_DOSE.enemy",
+                         "CLM_SPELL_AURA_REFRESH.enemy",
+                         "CLM_SPELL_AURA_BROKEN.enemy",
+                         "CLM_SPELL_AURA_BROKEN_SPELL.enemy",
+                         "CLM_SPELL_DISPEL.enemy",
+                         "CLM_SPELL_DISPEL_FAILED.enemy"},
+
+    Combat_Aura_ToEnemy = {"CLM_SPELL_AURA_APPLIED.*:enemy",
+                           "CLM_SPELL_AURA_REMOVED.*:enemy",
+                           "CLM_SPELL_AURA_APPLIED_DOSE.*:enemy",
+                           "CLM_SPELL_AURA_REMOVED_DOSE.*:enemy",
+                           "CLM_SPELL_AURA_REFRESH.*:enemy",
+                           "CLM_SPELL_AURA_BROKEN.*:enemy",
+                           "CLM_SPELL_AURA_BROKEN_SPELL.*:enemy",
+                           "CLM_SPELL_DISPEL.*:enemy",
+                           "CLM_SPELL_DISPEL_FAILED.*:enemy"},
+
     Combat_Cast_Self = {"CLM_SPELL_CAST_START.self",
                         "CLM_SPELL_CAST_SUCCESS.self",
                         "CLM_SPELL_SUMMON.self",
@@ -286,6 +343,8 @@ local MESSAGE_TYPES = {
                          "CLM_SPELL_CAST_SUCCESS.enemy",
                          "CLM_SPELL_CAST_FAILED.enemy",
                          "CLM_SPELL_INTERRUPT.*:enemy"},
+
+    Combat_CastFail_Enemy = {"CLM_SPELL_CAST_FAILED.enemy"},
 
 }
 
@@ -703,10 +762,13 @@ function TabBar:__constructor(parent)
         "PetBattle",
         "Combat_Attack_Self", "Combat_Attack_ToSelf",
         "Combat_Attack_Pet", "Combat_Attack_ToPet",
+        "Combat_Attack_Enemy", "Combat_Attack_ToEnemy",
         "Combat_Heal_Self", "Combat_Heal_ToSelf",
         "Combat_Heal_Pet", "Combat_Heal_ToPet",
+        "Combat_Heal_Enemy", "Combat_Heal_ToEnemy",
         "Combat_Aura_Self", "Combat_Aura_ToSelf",
         "Combat_Aura_Pet", "Combat_Aura_ToPet",
+        "Combat_Aura_Enemy", "Combat_Aura_ToEnemy",
         "Combat_Cast_Self", "Combat_Cast_Pet", "Combat_Cast_Enemy"}))
     -- FIXME: temporary tab to check that all events are caught
     self:AddTab(Tab("Other", {"Gathering", "TradeSkill", "PetInfo", "Debug"}))
