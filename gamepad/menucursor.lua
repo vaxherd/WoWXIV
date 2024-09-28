@@ -2641,10 +2641,18 @@ end
 -------- Crafting frame
 
 local ProfessionsFrameHandler = class(MenuFrame)
+-- These are technically addon frames, but we add the addon watch in
+-- ProfessionsFrameHandler and don't create these instances until it's
+-- loaded.  We inherit CoreMenuFrame for its other conveniences.
+local CraftingPageHandler = class(CoreMenuFrame)
 local SchematicFormHandler = class(MenuFrame)
-local QualityDialogHandler = class(MenuFrame)
-local ItemFlyoutHandler = class(MenuFrame)
+local QualityDialogHandler = class(CoreMenuFrame)
+local ItemFlyoutHandler = class(CoreMenuFrame)
+local SpecPageHandler = class(CoreMenuFrame)
+local DetailedViewHandler = class(MenuFrame)
+local OrdersPageHandler = class(CoreMenuFrame)
 MenuCursor.RegisterFrameHandler(ProfessionsFrameHandler)
+
 
 function ProfessionsFrameHandler.Initialize(class, cursor)
     class:RegisterAddOnWatch(cursor, "Blizzard_Professions")
@@ -2653,78 +2661,57 @@ end
 function ProfessionsFrameHandler.OnAddOnLoaded(class)
     local instance = class()
     class.instance = instance
+    class.instance_CraftingPage = CraftingPageHandler()
     class.instance_SchematicForm = SchematicFormHandler()
     class.instance_QualityDialog = QualityDialogHandler()
     class.instance_ItemFlyout = ItemFlyoutHandler()
+    class.instance_SpecPage = SpecPageHandler()
+    class.instance_DetailedView = DetailedViewHandler()
+    class.instance_OrdersPage = OrdersPageHandler()
 end
 
 function ProfessionsFrameHandler:__constructor()
     self:__super(ProfessionsFrame)
+    -- ProfessionsFrame itself is just a holder for the tabs and the
+    -- individual tab content pages, so we don't have any menu behavior
+    -- of our own.  We still HookShow() because the current tab page
+    -- remains shown even while this frame is closed.
     self:HookShow(ProfessionsFrame)
-    self:RegisterEvent(global_cursor, "TRADE_SKILL_LIST_UPDATE")
-    self.cancel_func = MenuFrame.HideUIFrame
-    self.tab_system = ProfessionsFrame.TabSystem
 end
 
-function SchematicFormHandler:__constructor()
-    self:__super(ProfessionsFrame.CraftingPage.SchematicForm)
-    self:HookShow(ProfessionsFrame.CraftingPage.CreateAllButton,
-                  self.OnShowCreateAllButton, self.OnHideCreateAllButton)
-    self.cancel_func = function(self)
-        global_cursor:RemoveFrame(self)
-        self.targets = {}  -- suppress update calls from CreateAllButton:Show() hook
+function ProfessionsFrameHandler.CancelMenu()  -- Static method.
+    HideUIPanel(ProfessionsFrame)
+end
+
+function ProfessionsFrameHandler:OnShow()
+    if ProfessionsFrame.CraftingPage:IsShown() then
+        ProfessionsFrameHandler.instance_CraftingPage:OnShow()
+    elseif ProfessionsFrame.SpecPage:IsShown() then
+        ProfessionsFrameHandler.instance_SpecPage:OnShow()
+    elseif ProfessionsFrame.OrdersPage:IsShown() then
+        ProfessionsFrameHandler.instance_OrdersPage:OnShow()
     end
+end
+
+function ProfessionsFrameHandler:OnHide()
+    if ProfessionsFrame.CraftingPage:IsShown() then
+        ProfessionsFrameHandler.instance_CraftingPage:OnHide()
+    elseif ProfessionsFrame.SpecPage:IsShown() then
+        ProfessionsFrameHandler.instance_SpecPage:OnHide()
+    elseif ProfessionsFrame.OrdersPage:IsShown() then
+        ProfessionsFrameHandler.instance_OrdersPage:OnHide()
+    end
+end
+
+
+function CraftingPageHandler:__constructor()
+    self:__super(ProfessionsFrame.CraftingPage)
+    self:RegisterEvent(global_cursor, "TRADE_SKILL_LIST_UPDATE")
+    self.cancel_func = ProfessionsFrameHandler.CancelMenu
     self.tab_system = ProfessionsFrame.TabSystem
 end
 
-function QualityDialogHandler:__constructor()
-    local QualityDialog = ProfessionsFrame.CraftingPage.SchematicForm.QualityDialog
-    self:__super(QualityDialog)
-    self:HookShow(QualityDialog)
-    self.cancel_button = QualityDialog.CancelButton
-    self.targets = {
-        [QualityDialog.Container1.EditBox.DecrementButton] = {
-            on_click = MenuFrame.ClickNumericSpinnerButton,
-            lock_highlight = true,
-            up = false, down = QualityDialog.AcceptButton},
-        [QualityDialog.Container1.EditBox.IncrementButton] = {
-            on_click = MenuFrame.ClickNumericSpinnerButton,
-            lock_highlight = true,
-            up = false, down = QualityDialog.AcceptButton},
-        [QualityDialog.Container2.EditBox.DecrementButton] = {
-            on_click = MenuFrame.ClickNumericSpinnerButton,
-            lock_highlight = true,
-            up = false, down = QualityDialog.AcceptButton},
-        [QualityDialog.Container2.EditBox.IncrementButton] = {
-            on_click = MenuFrame.ClickNumericSpinnerButton,
-            lock_highlight = true,
-            up = false, down = QualityDialog.AcceptButton},
-        [QualityDialog.Container3.EditBox.DecrementButton] = {
-            on_click = MenuFrame.ClickNumericSpinnerButton,
-            lock_highlight = true,
-            up = false, down = QualityDialog.AcceptButton},
-        [QualityDialog.Container3.EditBox.IncrementButton] = {
-            on_click = MenuFrame.ClickNumericSpinnerButton,
-            lock_highlight = true,
-            up = false, down = QualityDialog.AcceptButton},
-        [QualityDialog.AcceptButton] = {
-            can_activate = true, lock_highlight = true, is_default = true},
-        [QualityDialog.CancelButton] = {
-            can_activate = true, lock_highlight = true},
-    }
-end
-
-function ItemFlyoutHandler:__constructor()
-    -- The item selector popup doesn't have a global reference, so we need
-    -- this hack to get the frame.
-    local ItemFlyout = OpenProfessionsItemFlyout(UIParent, UIParent)
-    CloseProfessionsItemFlyout()
-    self:__super(ItemFlyout)
-    self:HookShow(ItemFlyout)
-    self.cancel_func = CloseProfessionsItemFlyout  -- Blizzard function.
-end
-
-function ProfessionsFrameHandler:TRADE_SKILL_LIST_UPDATE()
+function CraftingPageHandler:TRADE_SKILL_LIST_UPDATE()
     if self.need_refresh then
         -- The list itself apparently isn't ready until the next frame.
         RunNextFrame(function()
@@ -2733,7 +2720,7 @@ function ProfessionsFrameHandler:TRADE_SKILL_LIST_UPDATE()
     end
 end
 
-function ProfessionsFrameHandler:OnShow()
+function CraftingPageHandler:OnShow()
     assert(ProfessionsFrame:IsShown())
     self.need_refresh = true
     self.targets = {}
@@ -2743,293 +2730,12 @@ function ProfessionsFrameHandler:OnShow()
     end)
 end
 
-function ProfessionsFrameHandler:OnHide()
+function CraftingPageHandler:OnHide()
     global_cursor:RemoveFrame(self)
     global_cursor:RemoveFrame(ProfessionsFrameHandler.instance_SchematicForm)
 end
 
-function SchematicFormHandler:OnShowCreateAllButton()
-    -- FIXME: this gets called every second, avoid update calls if no change
-    if self.targets[ProfessionsFrame.CraftingPage.CreateButton] then
-        self:UpdateMovement()
-    end
-end
-
-function SchematicFormHandler:OnHideCreateAllButton()
-    if self.targets[ProfessionsFrame.CraftingPage.CreateButton] then
-        local CraftingPage = ProfessionsFrame.CraftingPage
-        local cur_target = global_cursor:GetTargetForFrame(self)
-        if (cur_target == CraftingPage.CreateAllButton
-         or cur_target == CraftingPage.CreateMultipleInputBox.DecrementButton
-         or cur_target == CraftingPage.CreateMultipleInputBox.IncrementButton)
-        then
-            global_cursor:SetTargetForFrame(self, CraftingPage.CreateButton)
-        end
-        self:UpdateMovement()
-    end
-end
-
-function QualityDialogHandler:OnShow()
-    global_cursor:AddFrame(self)
-end
-
-function QualityDialogHandler:OnHide()
-    global_cursor:RemoveFrame(self)
-end
-
-function ItemFlyoutHandler:OnShow()
-    self.targets = {}
-    global_cursor:AddFrame(self)
-    RunNextFrame(function() self:RefreshTargets() end)
-end
-
-function ItemFlyoutHandler:OnHide(frame)
-    global_cursor:RemoveFrame(self)
-end
-
-function SchematicFormHandler:UpdateMovement()
-    local CraftingPage = ProfessionsFrame.CraftingPage
-    local create_left
-    if CraftingPage.CreateAllButton:IsShown() then
-        self.targets[CraftingPage.CreateButton].left = nil
-        self.targets[CraftingPage.SchematicForm.OutputIcon].up = CraftingPage.CreateAllButton
-        create_left = CraftingPage.CreateAllButton
-    else
-        self.targets[CraftingPage.CreateButton].left = false
-        self.targets[CraftingPage.SchematicForm.OutputIcon].up = CraftingPage.CreateButton
-        create_left = CraftingPage.CreateButton
-    end
-
-    local r_bottom = self.r_bottom
-    if r_bottom then
-        self.targets[r_bottom].down = create_left
-    end
-    local SchematicForm = CraftingPage.SchematicForm
-    local frsc = SchematicForm.Details.CraftingChoicesContainer.FinishingReagentSlotContainer
-    if frsc and frsc:IsVisible() then
-        for _, frame in ipairs({frsc:GetChildren()}) do
-            local button = frame:GetChildren()
-            if self.targets[button] then
-                self.targets[button].down = create_left
-            end
-        end
-    end
-    if SchematicForm.OptionalReagents:IsShown() then
-        for _, frame in ipairs({SchematicForm.OptionalReagents:GetChildren()}) do
-            local button = frame:GetChildren()
-            if self.targets[button] then
-                self.targets[button].down = create_left
-            end
-        end
-    end
-end
-
-local function ProfessionsFrame_ClickItemButton(button)
-    local onMouseDown = button:GetScript("OnMouseDown")
-    assert(onMouseDown)
-    -- We pass down=true for completeness, but all current implementations
-    -- ignore that parameter and don't register for button-up events.
-    onMouseDown(button, "LeftButton", true)
-end
-
-function SchematicFormHandler:SetTargets()
-    local CraftingPage = ProfessionsFrame.CraftingPage
-    local SchematicForm = CraftingPage.SchematicForm
-
-    self.targets = {
-        [SchematicForm.OutputIcon] = {send_enter_leave = true},
-        [CraftingPage.CreateAllButton] = {
-            can_activate = true, lock_highlight = true,
-            down = SchematicForm.OutputIcon, left = false},
-        [CraftingPage.CreateMultipleInputBox.DecrementButton] = {
-            on_click = MenuFrame.ClickNumericSpinnerButton,
-            lock_highlight = true,
-            down = SchematicForm.OutputIcon},
-        [CraftingPage.CreateMultipleInputBox.IncrementButton] = {
-            on_click = MenuFrame.ClickNumericSpinnerButton,
-            lock_highlight = true,
-            down = SchematicForm.OutputIcon},
-        [CraftingPage.CreateButton] = {
-            can_activate = true, lock_highlight = true, is_default = true,
-            down = SchematicForm.OutputIcon, right = false},
-    }
-
-    local r_left, r_right = false, false
-    local frsc = SchematicForm.Details.CraftingChoicesContainer.FinishingReagentSlotContainer
-    if frsc and frsc:IsVisible() then
-        for _, frame in ipairs({frsc:GetChildren()}) do
-            local button = frame:GetChildren()
-            self.targets[button] = {
-                on_click = ProfessionsFrame_ClickItemButton,
-                lock_highlight = true, send_enter_leave = true,
-                up = false, down = CraftingPage.CreateButton}
-            if not r_left or button:GetLeft() < r_left:GetLeft() then
-                r_left = button
-            end
-            if not r_right or button:GetLeft() > r_right:GetLeft() then
-                r_right = button
-            end
-        end
-    end
-    local ctb = SchematicForm.Details.CraftingChoicesContainer.ConcentrateContainer.ConcentrateToggleButton
-    if ctb and ctb:IsVisible() then
-        self.targets[ctb] = {
-            can_activate = true, lock_highlight = true,
-            send_enter_leave = true,
-            up = false, down = CraftingPage.CreateButton}
-        if not r_left or ctb:GetLeft() < r_left:GetLeft() then
-            r_left = ctb
-        end
-        if not r_right or ctb:GetLeft() > r_right:GetLeft() then
-            r_right = ctb
-        end
-    end
-
-    local r_top, r_bottom = false, false
-    if SchematicForm.Reagents:IsShown() then
-        for _, frame in ipairs({SchematicForm.Reagents:GetChildren()}) do
-            local button = frame:GetChildren()
-            if button:IsVisible() then
-                self.targets[button] = {
-                    lock_highlight = true, send_enter_leave = true,
-                    left = false, right = r_left}
-                if button:GetScript("OnMouseDown") then
-                    self.targets[button].on_click = ProfessionsFrame_ClickItemButton
-                elseif button:GetScript("OnClick") then
-                    self.targets[button].can_activate = true
-                end
-                if not r_top or button:GetTop() > r_top:GetTop() then
-                    r_top = button
-                end
-                if not r_bottom or button:GetTop() < r_bottom:GetTop() then
-                    r_bottom = button
-                end
-            end
-        end
-        if r_top then
-            self.targets[r_top].up = SchematicForm.OutputIcon
-        end
-        if r_bottom and r_left then
-            self.targets[r_left].left = r_bottom
-        end
-    end
-
-    if SchematicForm.OptionalReagents:IsShown() then
-        local or_left, or_right
-        for _, frame in ipairs({SchematicForm.OptionalReagents:GetChildren()}) do
-            local button = frame:GetChildren()
-            if button:IsVisible() then
-                self.targets[button] = {
-                    on_click = ProfessionsFrame_ClickItemButton,
-                    lock_highlight = true, send_enter_leave = true,
-                    up = r_bottom, down = CraftingPage.CreateAllButton}
-                if not or_left or button:GetLeft() < or_left:GetLeft() then
-                    or_left = button
-                end
-                if not or_right or button:GetLeft() > or_right:GetLeft() then
-                    or_right = button
-                end
-            end
-        end
-        if or_left then
-            self.targets[or_left].left = false
-            r_bottom = or_left
-        end
-        if or_right then
-            self.targets[or_right].right = r_left
-            if r_left then
-                self.targets[r_left].left = or_right
-            end
-        end
-    end
-
-    local create_left_up = r_left or r_bottom or SchematicForm.OutputIcon
-    local create_right_up = r_right or r_bottom or SchematicForm.OutputIcon
-    self.targets[CraftingPage.CreateAllButton].up = create_left_up
-    self.targets[CraftingPage.CreateMultipleInputBox.DecrementButton].up = create_left_up
-    self.targets[CraftingPage.CreateMultipleInputBox.IncrementButton].up = create_left_up
-    self.targets[CraftingPage.CreateButton].up = create_right_up
-    self.r_bottom = r_bottom
-
-    self:UpdateMovement()
-    return r_top
-end
-
-function ItemFlyoutHandler:RefreshTargets()
-    local frame = self.frame
-    local ItemScroll = frame.ScrollBox
-    local checkbox = frame.HideUnownedCheckbox
-    self.targets = {
-        [checkbox] = {can_activate = true, lock_highlight = true,
-                      on_click = function()
-                          -- We have to wait a frame for button layout.
-                          -- Ensure that a D-pad press during that frame
-                          -- doesn't leave us on a vanished button.
-                          self.targets = {[checkbox] = self.targets[checkbox]}
-                          RunNextFrame(function() self:RefreshTargets() end)
-                      end},
-    }
-    local default = nil
-    local last_y = nil
-    local rows = {}
-    -- Avoid errors in Blizzard code if the list is empty.
-    if ItemScroll:GetDataProvider() then
-        local index = 0
-        ItemScroll:ForEachElementData(function(element)
-            index = index + 1
-            local button = ItemScroll:FindFrame(ItemScroll:FindElementData(index))
-            if button then  -- FIXME: need to deal with overflowing lists (e.g. embellishments)
-                local pseudo_frame =
-                    MenuFrame.PseudoFrameForScrollElement(ItemScroll, index)
-                self.targets[pseudo_frame] = {
-                    is_scroll_box = true, can_activate = true,
-                    up = false, down = false, left = false, right = false}
-                default = default or pseudo_frame
-                assert(self:GetTargetFrame(pseudo_frame) == button)
-                assert(button:IsShown())
-                assert(button:GetTop() ~= nil)
-                local y = button:GetTop()
-                if y == last_y then
-                    tinsert(rows[#rows], pseudo_frame)
-                else
-                    last_y = y
-                    tinsert(rows, {pseudo_frame})
-                end
-            end
-        end)
-        local first_row = rows[1]
-        local last_row = rows[#rows]
-        for i, row in ipairs(rows) do
-            local prev_row = i > 1 and rows[i-1]
-            local next_row = i < #rows and rows[i+1]
-            for j, pseudo_frame in ipairs(row) do
-                local target_info = self.targets[pseudo_frame]
-                target_info.up = prev_row and prev_row[j] or checkbox
-                target_info.down = next_row and (next_row[j] or next_row[#next_row]) or checkbox
-                if j > 1 then
-                    target_info.left = row[j-1]
-                elseif prev_row then
-                    target_info.left = prev_row[#prev_row]
-                else
-                    target_info.left = last_row[#last_row]
-                end
-                if j < #row then
-                    target_info.right = row[j+1]
-                elseif next_row then
-                    target_info.right = next_row[1]
-                else
-                    target_info.right = first_row[1]
-                end
-            end
-        end
-        self.targets[checkbox].up = last_row[1]
-        self.targets[checkbox].down = first_row[1]
-    end
-    local cur_target = global_cursor:GetTargetForFrame(self)
-    global_cursor:SetTargetForFrame(self, cur_target or default or checkbox)
-end
-
-function ProfessionsFrameHandler:FocusRecipe(tries)
+function CraftingPageHandler:FocusRecipe(tries)
     local CraftingPage = ProfessionsFrame.CraftingPage
     local SchematicForm = CraftingPage.SchematicForm
     assert(SchematicForm:IsShown())
@@ -3060,7 +2766,7 @@ local PROFESSION_GEAR_SLOTS = {
     "CookingGear0Slot",
     "FishingToolSlot",
 }
-function ProfessionsFrameHandler:RefreshTargets(initial_element)
+function CraftingPageHandler:RefreshTargets(initial_element)
     local CraftingPage = ProfessionsFrame.CraftingPage
 
     global_cursor:SetTargetForFrame(self, nil)
@@ -3144,6 +2850,484 @@ function ProfessionsFrameHandler:RefreshTargets(initial_element)
         assert(initial)
     end
     return initial
+end
+
+
+function SchematicFormHandler:__constructor()
+    self:__super(ProfessionsFrame.CraftingPage.SchematicForm)
+    self:HookShow(ProfessionsFrame.CraftingPage.CreateAllButton,
+                  self.OnShowCreateAllButton, self.OnHideCreateAllButton)
+    self.cancel_func = function(self)
+        global_cursor:RemoveFrame(self)
+        self.targets = {}  -- suppress update calls from CreateAllButton:Show() hook
+    end
+    self.tab_system = ProfessionsFrame.TabSystem
+end
+
+function SchematicFormHandler:OnShowCreateAllButton()
+    -- FIXME: this gets called every second, avoid update calls if no change
+    if self.targets[ProfessionsFrame.CraftingPage.CreateButton] then
+        self:UpdateMovement()
+    end
+end
+
+function SchematicFormHandler:OnHideCreateAllButton()
+    if self.targets[ProfessionsFrame.CraftingPage.CreateButton] then
+        local CraftingPage = ProfessionsFrame.CraftingPage
+        local cur_target = global_cursor:GetTargetForFrame(self)
+        if (cur_target == CraftingPage.CreateAllButton
+         or cur_target == CraftingPage.CreateMultipleInputBox.DecrementButton
+         or cur_target == CraftingPage.CreateMultipleInputBox.IncrementButton)
+        then
+            global_cursor:SetTargetForFrame(self, CraftingPage.CreateButton)
+        end
+        self:UpdateMovement()
+    end
+end
+
+local function SchematicForm_ClickItemButton(button)
+    local onMouseDown = button:GetScript("OnMouseDown")
+    assert(onMouseDown)
+    -- We pass down=true for completeness, but all current implementations
+    -- ignore that parameter and don't register for button-up events.
+    onMouseDown(button, "LeftButton", true)
+end
+
+function SchematicFormHandler:SetTargets()
+    local CraftingPage = ProfessionsFrame.CraftingPage
+    local SchematicForm = CraftingPage.SchematicForm
+
+    self.targets = {
+        [SchematicForm.OutputIcon] = {send_enter_leave = true},
+        [CraftingPage.CreateAllButton] = {
+            can_activate = true, lock_highlight = true,
+            down = SchematicForm.OutputIcon, left = false},
+        [CraftingPage.CreateMultipleInputBox.DecrementButton] = {
+            on_click = MenuFrame.ClickNumericSpinnerButton,
+            lock_highlight = true,
+            down = SchematicForm.OutputIcon},
+        [CraftingPage.CreateMultipleInputBox.IncrementButton] = {
+            on_click = MenuFrame.ClickNumericSpinnerButton,
+            lock_highlight = true,
+            down = SchematicForm.OutputIcon},
+        [CraftingPage.CreateButton] = {
+            can_activate = true, lock_highlight = true, is_default = true,
+            down = SchematicForm.OutputIcon, right = false},
+    }
+
+    local r_left, r_right = false, false
+    local frsc = SchematicForm.Details.CraftingChoicesContainer.FinishingReagentSlotContainer
+    if frsc and frsc:IsVisible() then
+        for _, frame in ipairs({frsc:GetChildren()}) do
+            local button = frame:GetChildren()
+            self.targets[button] = {
+                on_click = SchematicForm_ClickItemButton,
+                lock_highlight = true, send_enter_leave = true,
+                up = false, down = CraftingPage.CreateButton}
+            if not r_left or button:GetLeft() < r_left:GetLeft() then
+                r_left = button
+            end
+            if not r_right or button:GetLeft() > r_right:GetLeft() then
+                r_right = button
+            end
+        end
+    end
+    local ctb = SchematicForm.Details.CraftingChoicesContainer.ConcentrateContainer.ConcentrateToggleButton
+    if ctb and ctb:IsVisible() then
+        self.targets[ctb] = {
+            can_activate = true, lock_highlight = true,
+            send_enter_leave = true,
+            up = false, down = CraftingPage.CreateButton}
+        if not r_left or ctb:GetLeft() < r_left:GetLeft() then
+            r_left = ctb
+        end
+        if not r_right or ctb:GetLeft() > r_right:GetLeft() then
+            r_right = ctb
+        end
+    end
+
+    local r_top, r_bottom = false, false
+    if SchematicForm.Reagents:IsShown() then
+        for _, frame in ipairs({SchematicForm.Reagents:GetChildren()}) do
+            local button = frame:GetChildren()
+            if button:IsVisible() then
+                self.targets[button] = {
+                    lock_highlight = true, send_enter_leave = true,
+                    left = false, right = r_left}
+                if button:GetScript("OnMouseDown") then
+                    self.targets[button].on_click = SchematicForm_ClickItemButton
+                elseif button:GetScript("OnClick") then
+                    self.targets[button].can_activate = true
+                end
+                if not r_top or button:GetTop() > r_top:GetTop() then
+                    r_top = button
+                end
+                if not r_bottom or button:GetTop() < r_bottom:GetTop() then
+                    r_bottom = button
+                end
+            end
+        end
+        if r_top then
+            self.targets[r_top].up = SchematicForm.OutputIcon
+        end
+        if r_bottom and r_left then
+            self.targets[r_left].left = r_bottom
+        end
+    end
+
+    if SchematicForm.OptionalReagents:IsShown() then
+        local or_left, or_right
+        for _, frame in ipairs({SchematicForm.OptionalReagents:GetChildren()}) do
+            local button = frame:GetChildren()
+            if button:IsVisible() then
+                self.targets[button] = {
+                    on_click = SchematicForm_ClickItemButton,
+                    lock_highlight = true, send_enter_leave = true,
+                    up = r_bottom, down = CraftingPage.CreateAllButton}
+                if not or_left or button:GetLeft() < or_left:GetLeft() then
+                    or_left = button
+                end
+                if not or_right or button:GetLeft() > or_right:GetLeft() then
+                    or_right = button
+                end
+            end
+        end
+        if or_left then
+            self.targets[or_left].left = false
+            r_bottom = or_left
+        end
+        if or_right then
+            self.targets[or_right].right = r_left
+            if r_left then
+                self.targets[r_left].left = or_right
+            end
+        end
+    end
+
+    local create_left_up = r_left or r_bottom or SchematicForm.OutputIcon
+    local create_right_up = r_right or r_bottom or SchematicForm.OutputIcon
+    self.targets[CraftingPage.CreateAllButton].up = create_left_up
+    self.targets[CraftingPage.CreateMultipleInputBox.DecrementButton].up = create_left_up
+    self.targets[CraftingPage.CreateMultipleInputBox.IncrementButton].up = create_left_up
+    self.targets[CraftingPage.CreateButton].up = create_right_up
+    self.r_bottom = r_bottom
+
+    self:UpdateMovement()
+    return r_top
+end
+
+function SchematicFormHandler:UpdateMovement()
+    local CraftingPage = ProfessionsFrame.CraftingPage
+    local create_left
+    if CraftingPage.CreateAllButton:IsShown() then
+        self.targets[CraftingPage.CreateButton].left = nil
+        self.targets[CraftingPage.SchematicForm.OutputIcon].up = CraftingPage.CreateAllButton
+        create_left = CraftingPage.CreateAllButton
+    else
+        self.targets[CraftingPage.CreateButton].left = false
+        self.targets[CraftingPage.SchematicForm.OutputIcon].up = CraftingPage.CreateButton
+        create_left = CraftingPage.CreateButton
+    end
+
+    local r_bottom = self.r_bottom
+    if r_bottom then
+        self.targets[r_bottom].down = create_left
+    end
+    local SchematicForm = CraftingPage.SchematicForm
+    local frsc = SchematicForm.Details.CraftingChoicesContainer.FinishingReagentSlotContainer
+    if frsc and frsc:IsVisible() then
+        for _, frame in ipairs({frsc:GetChildren()}) do
+            local button = frame:GetChildren()
+            if self.targets[button] then
+                self.targets[button].down = create_left
+            end
+        end
+    end
+    if SchematicForm.OptionalReagents:IsShown() then
+        for _, frame in ipairs({SchematicForm.OptionalReagents:GetChildren()}) do
+            local button = frame:GetChildren()
+            if self.targets[button] then
+                self.targets[button].down = create_left
+            end
+        end
+    end
+end
+
+
+function QualityDialogHandler:__constructor()
+    local QualityDialog = ProfessionsFrame.CraftingPage.SchematicForm.QualityDialog
+    self:__super(QualityDialog)
+    self.cancel_func = nil
+    self.cancel_button = QualityDialog.CancelButton
+    self.targets = {
+        [QualityDialog.Container1.EditBox.DecrementButton] = {
+            on_click = MenuFrame.ClickNumericSpinnerButton,
+            lock_highlight = true,
+            up = false, down = QualityDialog.AcceptButton},
+        [QualityDialog.Container1.EditBox.IncrementButton] = {
+            on_click = MenuFrame.ClickNumericSpinnerButton,
+            lock_highlight = true,
+            up = false, down = QualityDialog.AcceptButton},
+        [QualityDialog.Container2.EditBox.DecrementButton] = {
+            on_click = MenuFrame.ClickNumericSpinnerButton,
+            lock_highlight = true,
+            up = false, down = QualityDialog.AcceptButton},
+        [QualityDialog.Container2.EditBox.IncrementButton] = {
+            on_click = MenuFrame.ClickNumericSpinnerButton,
+            lock_highlight = true,
+            up = false, down = QualityDialog.AcceptButton},
+        [QualityDialog.Container3.EditBox.DecrementButton] = {
+            on_click = MenuFrame.ClickNumericSpinnerButton,
+            lock_highlight = true,
+            up = false, down = QualityDialog.AcceptButton},
+        [QualityDialog.Container3.EditBox.IncrementButton] = {
+            on_click = MenuFrame.ClickNumericSpinnerButton,
+            lock_highlight = true,
+            up = false, down = QualityDialog.AcceptButton},
+        [QualityDialog.AcceptButton] = {
+            can_activate = true, lock_highlight = true, is_default = true},
+        [QualityDialog.CancelButton] = {
+            can_activate = true, lock_highlight = true},
+    }
+end
+
+
+function ItemFlyoutHandler:__constructor()
+    -- The item selector popup doesn't have a global reference, so we need
+    -- this hack to get the frame.
+    local ItemFlyout = OpenProfessionsItemFlyout(UIParent, UIParent)
+    CloseProfessionsItemFlyout()
+    self:__super(ItemFlyout)
+    self.cancel_func = CloseProfessionsItemFlyout  -- Blizzard function.
+end
+
+function ItemFlyoutHandler:OnShow()
+    self.targets = {}
+    global_cursor:AddFrame(self)
+    RunNextFrame(function() self:RefreshTargets() end)
+end
+
+function ItemFlyoutHandler:RefreshTargets()
+    local frame = self.frame
+    local ItemScroll = frame.ScrollBox
+    local checkbox = frame.HideUnownedCheckbox
+    self.targets = {
+        [checkbox] = {can_activate = true, lock_highlight = true,
+                      on_click = function()
+                          -- We have to wait a frame for button layout.
+                          -- Ensure that a D-pad press during that frame
+                          -- doesn't leave us on a vanished button.
+                          self.targets = {[checkbox] = self.targets[checkbox]}
+                          RunNextFrame(function() self:RefreshTargets() end)
+                      end},
+    }
+    local default = nil
+    local last_y = nil
+    local rows = {}
+    -- Avoid errors in Blizzard code if the list is empty.
+    if ItemScroll:GetDataProvider() then
+        local index = 0
+        ItemScroll:ForEachElementData(function(element)
+            index = index + 1
+            local button = ItemScroll:FindFrame(ItemScroll:FindElementData(index))
+            if button then  -- FIXME: need to deal with overflowing lists (e.g. embellishments)
+                local pseudo_frame =
+                    MenuFrame.PseudoFrameForScrollElement(ItemScroll, index)
+                self.targets[pseudo_frame] = {
+                    is_scroll_box = true, can_activate = true,
+                    up = false, down = false, left = false, right = false}
+                default = default or pseudo_frame
+                assert(self:GetTargetFrame(pseudo_frame) == button)
+                assert(button:IsShown())
+                assert(button:GetTop() ~= nil)
+                local y = button:GetTop()
+                if y == last_y then
+                    tinsert(rows[#rows], pseudo_frame)
+                else
+                    last_y = y
+                    tinsert(rows, {pseudo_frame})
+                end
+            end
+        end)
+        local first_row = rows[1]
+        local last_row = rows[#rows]
+        for i, row in ipairs(rows) do
+            local prev_row = i > 1 and rows[i-1]
+            local next_row = i < #rows and rows[i+1]
+            for j, pseudo_frame in ipairs(row) do
+                local target_info = self.targets[pseudo_frame]
+                target_info.up = prev_row and prev_row[j] or checkbox
+                target_info.down = next_row and (next_row[j] or next_row[#next_row]) or checkbox
+                if j > 1 then
+                    target_info.left = row[j-1]
+                elseif prev_row then
+                    target_info.left = prev_row[#prev_row]
+                else
+                    target_info.left = last_row[#last_row]
+                end
+                if j < #row then
+                    target_info.right = row[j+1]
+                elseif next_row then
+                    target_info.right = next_row[1]
+                else
+                    target_info.right = first_row[1]
+                end
+            end
+        end
+        self.targets[checkbox].up = last_row[1]
+        self.targets[checkbox].down = first_row[1]
+    end
+    local cur_target = global_cursor:GetTargetForFrame(self)
+    global_cursor:SetTargetForFrame(self, cur_target or default or checkbox)
+end
+
+
+function SpecPageHandler:__constructor()
+    local SpecPage = ProfessionsFrame.SpecPage
+    self:__super(SpecPage)
+    self.cancel_func = ProfessionsFrameHandler.CancelMenu
+    self.tab_system = ProfessionsFrame.TabSystem
+    self:HookShow(SpecPage.TreePreview, self.RefreshTargetsForViewToggle,
+                                        self.RefreshTargetsForViewToggle)
+    self:HookShow(SpecPage.UndoButton, self.SetTargets,
+                                       self.RefreshTargetsForUndoOff)
+    EventRegistry:RegisterCallback(
+        "ProfessionsSpecializations.TabSelected",
+        function() global_cursor:SetTargetForFrame(self, self:SetTargets()) end)
+end
+
+function SpecPageHandler:OnHide()
+    global_cursor:RemoveFrame(self)
+    global_cursor:RemoveFrame(ProfessionsFrameHandler.instance_DetailedView)
+end
+
+function SpecPageHandler:SetTargets(is_view_toggle)
+    local SpecPage = ProfessionsFrame.SpecPage
+
+    self.targets = {}
+    local initial = nil
+
+    for tab in SpecPage.tabsPool:EnumerateActive() do
+        self.targets[tab] = {can_activate = true, lock_highlight = true,
+                             send_enter_leave = true}
+    end
+
+    if SpecPage.ApplyButton:IsVisible() then
+        self.targets[SpecPage.ApplyButton] =
+            {can_activate = true, lock_highlight = true,
+             left = SpecPage.ViewPreviewButton, right = false}
+        if SpecPage.UndoButton:IsShown() then
+            self.targets[SpecPage.ApplyButton].right = SpecPage.UndoButton
+            self.targets[SpecPage.UndoButton] =
+                {can_activate = true, lock_highlight = true,
+                 left = SpecPage.ApplyButton, right = false}
+        end
+        self.targets[SpecPage.ViewPreviewButton] =
+            {can_activate = true, lock_highlight = true,
+             left = false, right = SpecPage.ApplyButton}
+        if is_view_toggle then
+            initial = SpecPage.ViewPreviewButton
+        end
+        local parent = {}  -- FIXME: Any way to get the root node directly?
+        local buttons = {}
+        for button in SpecPage:EnumerateAllTalentButtons() do
+            local info = button:GetNodeInfo()
+            buttons[info.ID] = button
+            for _, edge in ipairs(info.visibleEdges) do
+                assert(not parent[edge.targetNode])
+                parent[edge.targetNode] = info.ID
+            end
+            self.targets[button] = {
+                lock_highlight = true,
+                -- ProfessionsSpecPathMixin:OnEnter() has an explicit
+                -- IsMouseMotionFocus() check, so we have to override that.
+                on_enter = function(frame)
+                    local saved_IsMouseMotionFocus = button.IsMouseMotionFocus
+                    button.IsMouseMotionFocus = function() return true end
+                    frame:OnEnter()
+                    button.IsMouseMotionFocus = saved_IsMouseMotionFocus
+                end,
+                on_leave = function(frame) frame:OnLeave() end,
+                on_click = function(frame) self:OnClickTalent(frame) end,
+            }
+        end
+        if not initial then
+            for id, button in pairs(buttons) do
+                if not parent[id] then
+                    assert(not initial)
+                    initial = button
+                end
+            end
+        end
+    elseif SpecPage.BackToFullTreeButton:IsVisible() then
+        self.targets[SpecPage.BackToFullTreeButton] =
+            {can_activate = true, lock_highlight = true}
+        initial = SpecPage.BackToFullTreeButton
+    end
+
+    return initial
+end
+
+function SpecPageHandler:RefreshTargetsForViewToggle()
+    global_cursor:SetTargetForFrame(self, nil)
+    local new_target = self:SetTargets(true)
+    global_cursor:SetTargetForFrame(self, new_target)
+end
+
+function SpecPageHandler:RefreshTargetsForUndoOff()
+    local SpecPage = ProfessionsFrame.SpecPage
+    if global_cursor:GetTargetForFrame(self) == SpecPage.UndoButton then
+        global_cursor:SetTargetForFrame(self, SpecPage.ApplyButton)
+    end
+    self:SetTargets()
+end
+
+function SpecPageHandler:OnClickTalent(button)
+    button:OnClick("LeftButton", true)
+    global_cursor:AddFrame(ProfessionsFrameHandler.instance_DetailedView)
+end
+
+
+function DetailedViewHandler:__constructor()
+    local DetailedView = ProfessionsFrame.SpecPage.DetailedView
+    self:__super(DetailedView)
+    -- We need to hook both show and hide events to ensure we end up in
+    -- the proper state regardless of the show/hide order.
+    self:HookShow(DetailedView.UnlockPathButton,
+                  self.RefreshTargets, self.RefreshTargets)
+    self:HookShow(DetailedView.SpendPointsButton,
+                  self.RefreshTargets, self.RefreshTargets)
+    self.cancel_func = function() global_cursor:RemoveFrame(self) end
+    self.targets = {}
+end
+
+function DetailedViewHandler:SetTargets()
+    local DetailedView = ProfessionsFrame.SpecPage.DetailedView
+    self.targets = {}
+    local target
+    if DetailedView.UnlockPathButton:IsShown() then
+        target = DetailedView.UnlockPathButton
+    elseif DetailedView.SpendPointsButton:IsShown() then
+        target = DetailedView.SpendPointsButton
+    end
+    if target then
+        self.targets[target] = {can_activate = true, lock_highlight = true,
+                                is_default = true}
+    end
+    return target
+end
+
+function DetailedViewHandler:RefreshTargets()
+    global_cursor:SetTargetForFrame(self, nil)
+    local new_target = self:SetTargets()
+    global_cursor:SetTargetForFrame(self, new_target)
+end
+
+
+function OrdersPageHandler:__constructor()
+    self:__super(ProfessionsFrame.OrdersPage)
+    self.cancel_func = ProfessionsFrameHandler.CancelMenu
+    self.tab_system = ProfessionsFrame.TabSystem
 end
 
 
