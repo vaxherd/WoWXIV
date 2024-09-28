@@ -289,6 +289,9 @@ function CPGamepadBinding:__constructor(panel, x, y, text, setting, is_cvar,
     self.button_text = button_text
     button_text:SetPoint("CENTER")
     self:UpdateButtonText()
+    -- Ensure the labels are updated when the frame is opened so that
+    -- the proper labels for the current gamepad type are used.
+    f:SetScript("OnShow", function() self:UpdateButtonText() end)
 end
 
 function CPGamepadBinding:GetSpacing()
