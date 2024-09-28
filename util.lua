@@ -131,6 +131,12 @@ function WoWXIV.HideBlizzardFrame(frame)
     function frame:Show() end
     function frame:SetShown() end
     function frame:Update() end
+    -- Also cleared to prevent taint warnings:
+    function frame:Hide() end
+    function frame:SetWidth() end
+    function frame:SetHeight() end
+    function frame:SetSize() end
+    function frame:SetPoint() end
 end
 
 ------------------------------------------------------------------------

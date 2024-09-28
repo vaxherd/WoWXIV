@@ -896,11 +896,15 @@ function WoWXIV.PartyList.Create()
     enable_raid  = (strstr(enable, ",raid,") ~= nil)
     if enable_party then
         WoWXIV.HideBlizzardFrame(PartyFrame)
+        -- Technically not needed, but avoids tons and tons of taint errors:
+        WoWXIV.HideBlizzardFrame(CompactPartyFrame)
+        for i = 1, 5 do
+            WoWXIV.HideBlizzardFrame(_G["CompactPartyFrameMember"..i])
+            WoWXIV.HideBlizzardFrame(_G["CompactPartyFramePet"..i])
+        end
     end
     if enable_raid then
         WoWXIV.HideBlizzardFrame(CompactRaidFrameContainer)
-        -- Also null out functions which would directly show/hide subframes.
-        CompactRaidFrameManager_UpdateContainerVisibility = function() end
     end
 end
 
