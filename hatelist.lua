@@ -137,7 +137,8 @@ function Enemy:Update(new_name)
 
     -- Despite the name, this function returns a real number from 0.0 to 1.0,
     -- not a percentage!
-    self.hp:Update(1.0, UnitPercentHealthFromGUID(self.guid) or 0, 0, 0)
+    local hp_frac = UnitPercentHealthFromGUID(self.guid) or 0
+    self.hp:Update(1.0, hp_frac, 0, 0, 0)
 end
 
 --------------------------------------------------------------------------

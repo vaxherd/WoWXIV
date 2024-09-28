@@ -457,7 +457,11 @@ end
 
 function Member:Update(updateLabel)
     local unit = self.unit
-    self.hp:Update(UnitHealthMax(unit), UnitHealth(unit),
+    local hpmax = UnitHealthMax(unit)
+    local hpmax_mod = GetUnitMaxHealthModifier(unit)
+    if not (hpmax_mod and hpmax_mod > 0) then hpmax_mod = 1 end
+    local true_hpmax = hpmax / hpmax_mod
+    self.hp:Update(hpmax, UnitHealth(unit), true_hpmax,
                    UnitGetTotalAbsorbs(unit),
                    UnitGetTotalHealAbsorbs(unit))
     self.power:Update(UnitPowerMax(unit), UnitPower(unit))
@@ -710,6 +714,7 @@ function PartyList:__constructor()
     f.events["UNIT_LEVEL"] = f.OnMemberUpdateName
     f.events["UNIT_MAXHEALTH"] = f.OnMemberUpdate
     f.events["UNIT_MAXPOWER"] = f.OnMemberUpdate
+    f.events["UNIT_MAX_HEALTH_MODIFIERS_CHANGED"] = f.OnMemberUpdate
     f.events["UNIT_NAME_UPDATE"] = f.OnMemberUpdateName
     f.events["UNIT_POWER_FREQUENT"] = f.OnMemberUpdate
     f.events["UNIT_POWER_UPDATE"] = f.OnMemberUpdate

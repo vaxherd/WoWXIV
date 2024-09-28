@@ -15,10 +15,6 @@ function Gauge:__constructor(parent, width)
     self.show_shield_value = false
     self.show_overshield = false
 
-    self.max = 1
-    self.cur = 1
-    self.shield = 0
-
     local f = CreateFrame("Frame", nil, parent)
     self.frame = f
     f:SetSize(width+10, 30)
@@ -45,19 +41,31 @@ function Gauge:__constructor(parent, width)
     bar_bg:SetSize(width, 5)
     bar_bg:SetColorTexture(0, 0, 0)
 
-    local bar = f:CreateTexture(nil, "ARTWORK", nil, 0)
+    local lossbar = f:CreateTexture(nil, "ARTWORK", nil, -1)
+    self.lossbar = lossbar
+    lossbar:SetPoint("TOPRIGHT", f, "TOPRIGHT", -5, -7)
+    lossbar:SetSize(width, 5)
+    lossbar:SetColorTexture(1, 0, 0)
+
+    local bar = f:CreateTexture(nil, "ARTWORK", nil, -2)
     self.bar = bar
     bar:SetPoint("TOPLEFT", f, "TOPLEFT", 5, -7)
     bar:SetSize(width, 5)
     bar:SetColorTexture(1, 1, 1)
 
-    local absorbbar = f:CreateTexture(nil, "ARTWORK", nil, -1)
+    local addbar = f:CreateTexture(nil, "ARTWORK", nil, -3)
+    self.addbar = addbar
+    addbar:SetPoint("TOPLEFT", f, "TOPLEFT", 5, -7)
+    addbar:SetSize(width, 5)
+    addbar:SetColorTexture(0.25, 1, 0.25)
+
+    local absorbbar = f:CreateTexture(nil, "ARTWORK", nil, -4)
     self.absorbbar = absorbbar
     absorbbar:SetPoint("TOPLEFT", f, "TOPLEFT", 5, -7)
     absorbbar:SetSize(width, 5)
     absorbbar:SetColorTexture(0.5, 0.5, 0.5)
 
-    local shieldbar = f:CreateTexture(nil, "ARTWORK", nil, -2)
+    local shieldbar = f:CreateTexture(nil, "ARTWORK", nil, -5)
     self.shieldbar = shieldbar
     shieldbar:SetPoint("TOPLEFT", f, "TOPLEFT", 5, -7)
     shieldbar:SetSize(width, 5)
@@ -169,16 +177,12 @@ function Gauge:SetValueScale(scale)
     self.value:SetTextScale(scale)
 end
 
-function Gauge:Update(max, cur, shield, heal_absorb)
+function Gauge:Update(max, cur, true_max, shield, heal_absorb)
+    true_max = (true_max and true_max > 0) and true_max or max
     shield = shield or 0
     heal_absorb = heal_absorb or 0
 
-    self.max = max
-    self.cur = cur
-    self.shield = shield
-    self.heal_absorb = heal_absorb
-
-    local bar_rel, absorb_rel, shield_rel, overshield_rel
+    local bar_rel, add_rel, absorb_rel, loss_rel, shield_rel, overshield_rel
     if max > 0 then
         bar_rel = (cur - heal_absorb) / max
         if bar_rel < 0 then bar_rel = 0 end
@@ -190,11 +194,29 @@ function Gauge:Update(max, cur, shield, heal_absorb)
         else
             overshield_rel = 0
         end
+        if cur - heal_absorb > true_max then
+            add_rel = bar_rel
+            bar_rel = true_max / max
+        else
+            add_rel = 0
+        end
+        if max < true_max then
+            loss_rel = 1 - (max / true_max)
+            if loss_rel > 0.95 then loss_rel = 0.95 end
+            local max_scale = 1 - loss_rel
+            bar_rel = bar_rel * max_scale
+            absorb_rel = absorb_rel * max_scale
+            shield_rel = shield_rel * max_scale
+        else
+            loss_rel = 0
+        end
     else
+        loss_rel = 0
         bar_rel = 0
+        add_rel = 0
+        absorb_rel = 0
         shield_rel = 0
         overshield_rel = 0
-        absorb_rel = 0
     end
     if not self.show_overshield then
         overshield_rel = 0
@@ -202,10 +224,19 @@ function Gauge:Update(max, cur, shield, heal_absorb)
 
     local width = self.width
     local bar_w = bar_rel * width
+    local add_w = add_rel * width
     local absorb_w = absorb_rel * width
+    local loss_w = loss_rel * width
     local shield_w = shield_rel * width
     local overshield_w = overshield_rel * width
     if overshield_w > width then overshield_w = width end
+
+    if loss_w > 0 then
+        self.lossbar:Show()
+        self.lossbar:SetWidth(loss_w)
+    else
+        self.lossbar:Hide()
+    end
 
     if bar_w > 0 then
         self.bar:Show()
@@ -214,7 +245,14 @@ function Gauge:Update(max, cur, shield, heal_absorb)
         self.bar:Hide()
     end
 
-    if absorb_w > bar_w then
+    if add_w > bar_w then
+        self.addbar:Show()
+        self.addbar:SetWidth(add_w)
+    else
+        self.addbar:Hide()
+    end
+
+    if absorb_w > add_w then
         self.absorbbar:Show()
         self.absorbbar:SetWidth(absorb_w)
     else

@@ -295,7 +295,7 @@ function TargetBar:Update()
     local name_label = self.name
     name_label:SetText(name_str)
 
-    self.hp:Update(hpmax, hp, UnitGetTotalAbsorbs(unit),
+    self.hp:Update(hpmax, hp, 0, UnitGetTotalAbsorbs(unit),
                    UnitGetTotalHealAbsorbs(unit))
     self.mp:Update(UnitPowerMax(unit), UnitPower(unit))
 
@@ -349,7 +349,7 @@ function TargetBar:Update()
         end
 
         if target_id then
-            self.target_hp:Update(thpmax, thp,
+            self.target_hp:Update(thpmax, thp, 0,
                                   UnitGetTotalAbsorbs("targettarget"),
                                   UnitGetTotalHealAbsorbs("targettarget"))
         end
