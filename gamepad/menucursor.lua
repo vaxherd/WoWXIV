@@ -1852,8 +1852,13 @@ function InboxFrameHandler:UpdateMovement()
     self.targets[InboxPrevPageButton].down = first_item
     self.targets[InboxNextPageButton].down = first_item
     if first_item then
-        self.targets[first_item].up = OpenAllMail
-        self.targets[last_item].down = OpenAllMail
+        -- Targets might not yet be set up when switching to the inbox tab.
+        if self.targets[first_item] then
+            self.targets[first_item].up = OpenAllMail
+        end
+        if self.targets[last_item] then
+            self.targets[last_item].down = OpenAllMail
+        end
     end
 end
 
