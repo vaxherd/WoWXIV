@@ -23,6 +23,10 @@ local CONFIG_DEFAULT = {
     gamepad_menu_prev_page = "PADLSHOULDER",
     -- Gamepad binding: next page in menus
     gamepad_menu_next_page = "PADRSHOULDER",
+    -- Gamepad binding: previous tab in menus
+    gamepad_menu_prev_tab = "PADLTRIGGER",
+    -- Gamepad binding: next tab in menus
+    gamepad_menu_next_tab = "PADRTRIGGER",
     -- Gamepad binding: focus next input window
     gamepad_menu_next_window = "PADBACK",
     -- Gamepad binding: use quest item
@@ -435,6 +439,8 @@ function ConfigPanel:__constructor()
     self:AddBindingLocal("Cancel menu selection", "gamepad_menu_cancel")
     self:AddBindingLocal("Previous menu page", "gamepad_menu_prev_page")
     self:AddBindingLocal("Next menu page", "gamepad_menu_next_page")
+    self:AddBindingLocal("Previous menu tab", "gamepad_menu_prev_tab")
+    self:AddBindingLocal("Next menu tab", "gamepad_menu_next_tab")
     self:AddBindingLocal("Select next window", "gamepad_menu_next_window")
     self:AddBindingLocal("Use quest item", "gamepad_use_quest_item")
     self:AddBindingLocal("Select quest item", "gamepad_select_quest_item")

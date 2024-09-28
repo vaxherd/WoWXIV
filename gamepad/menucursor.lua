@@ -381,6 +381,12 @@ function MenuCursor:OnShow()
                            WoWXIV_config["gamepad_menu_next_page"],
                            next_button)
     end
+    if focus:GetTabSystem() then
+        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_prev_tab"],
+                           "CLICK WoWXIV_MenuCursor:PrevTab")
+        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_tab"],
+                           "CLICK WoWXIV_MenuCursor:NextTab")
+    end
     SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_window"],
                        "CLICK WoWXIV_MenuCursor:CycleFrame")
     f:SetScript("OnUpdate", function() self:OnUpdate() end)
@@ -489,11 +495,53 @@ function MenuCursor:OnClick(button, down)
         -- case.
         focus:OnCancel()
     elseif button == "PrevPage" then
-        local button = focus:GetPageButtons()
-        button:GetScript("OnClick")(button, "LeftButton", down)
+        local page_button = focus:GetPageButtons()
+        page_button:GetScript("OnClick")(page_button, "LeftButton", down)
     elseif button == "NextPage" then
-        local _, button = focus:GetPageButtons()
-        button:GetScript("OnClick")(button, "LeftButton", down)
+        local _, page_button = focus:GetPageButtons()
+        page_button:GetScript("OnClick")(page_button, "LeftButton", down)
+    elseif button == "PrevTab" or button == "NextTab" then
+        local tabs = focus:GetTabSystem()
+        local direction = button=="PrevTab" and -1 or 1
+        local new_tab, first_tab, stop_next
+        local i = 1
+        while true do
+            local tab = tabs:GetTabButton(i)
+            i = i + 1
+            if not tab then break end
+            -- HACK: breaking encapsulation to access tab selected state
+            if tab.isSelected then
+                if direction < 0 then
+                    -- If we already have a new_tab, it's the previous
+                    -- (enabled) tab, so we're done.  Otherwise, let the
+                    -- loop finish, so new_tab will point to the last
+                    -- (again enabled) tab.
+                    if new_tab then break end
+                else  -- direction > 0
+                    stop_next = true
+                end
+            end
+            if tab:IsEnabled() then
+                if stop_next then
+                    new_tab = tab
+                    break
+                end
+                if not first_tab then
+                    first_tab = tab
+                end
+                if direction < 0 then
+                    new_tab = tab
+                end
+            end
+        end
+        if stop_next and not new_tab then
+            -- The current tab must be the last enabled one, so cycle back
+            -- to the first tab.
+            new_tab = first_tab
+        end
+        if new_tab then
+            tabs:SetTab(new_tab:GetTabID())
+        end
     elseif button == "CycleFrame" then
         if #self.modal_stack == 0 then
             local stack = self.focus_stack
@@ -582,13 +630,16 @@ function MenuFrame:__constructor(frame)
     -- Subframe (button) to be clicked on a gamepad cancel button press,
     -- or nil for none.  If set, cancel_func is ignored.
     self.cancel_button = nil
-    -- Global name of button to be clicked on a gamepad previous-page
-    -- button press, or nil if none.  (Gamepad page flipping is only
-    -- enabled if both this and next_page_button are non-nil.)
+    -- Global name or Button instance of button to be clicked on a gamepad
+    -- previous-page button press, or nil if none.  (Gamepad page flipping
+    -- is only enabled if both this and next_page_button are non-nil.)
     self.prev_page_button = nil
-    -- Global name of button to be clicked on a gamepad next-page button
-    -- press, or nil if none.
+    -- Global name or Button instance of button to be clicked on a gamepad
+    -- next-page button press, or nil if none.
     self.next_page_button = nil
+    -- TabSystem instance of tab list to be controlled with gamepad
+    -- previous-tab and next-tab button presses, or nil if none.
+    self.tab_system = nil
     -- Should the current button be highlighted if enabled?
     -- (This is a cache of the current button's lock_highlight parameter.)
     self.want_highlight = true
@@ -737,10 +788,15 @@ function MenuFrame:NextTarget(target, dx, dy, dir)
     return best
 end
 
--- Return the global names of the previous and next page buttons for this
--- frame, or (nil,nil) if none.
+-- Return the global names or Button instances of the previous and next
+-- page buttons for this frame, or (nil,nil) if none.
 function MenuFrame:GetPageButtons()
     return self.prev_page_button, self.next_page_button
+end
+
+-- Return the TabSystem instance of the tab set for this frame, or nil if none.
+function MenuFrame:GetTabSystem()
+    return self.tab_system
 end
 
 -- Return the frame (WoW Button instance) of the cancel button for this
@@ -2607,6 +2663,7 @@ function ProfessionsFrameHandler:__constructor()
     self:HookShow(ProfessionsFrame)
     self:RegisterEvent(global_cursor, "TRADE_SKILL_LIST_UPDATE")
     self.cancel_func = MenuFrame.HideUIFrame
+    self.tab_system = ProfessionsFrame.TabSystem
 end
 
 function SchematicFormHandler:__constructor()
@@ -2617,6 +2674,7 @@ function SchematicFormHandler:__constructor()
         global_cursor:RemoveFrame(self)
         self.targets = {}  -- suppress update calls from CreateAllButton:Show() hook
     end
+    self.tab_system = ProfessionsFrame.TabSystem
 end
 
 function QualityDialogHandler:__constructor()
