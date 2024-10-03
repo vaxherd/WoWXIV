@@ -2845,28 +2845,12 @@ function CraftingPageHandler:RefreshTargets(initial_element)
             end
         end
     end)
-
-    local default_tab = nil
-    for _, tab in ipairs(ProfessionsFrame.TabSystem.tabs) do
-        if tab:IsShown() then
-            self.targets[tab] = {can_activate = true, send_enter_leave = true,
-                                 up = bottom, down = top}
-            -- HACK: breaking encapsulation to access tab selected state
-            if not default_tab or tab.isSelected then default_tab = tab end
-        end
-    end
     if top then
-        self.targets[top].up = default_tab or bottom or false
-    end
-    if bottom then
-        self.targets[bottom].down = default_tab or top or false
+        self.targets[top].up = bottom
+        self.targets[bottom].down = top
     end
 
-    if not initial then
-        initial = top or default_tab
-        assert(initial)
-    end
-    return initial
+    return initial or top
 end
 
 
