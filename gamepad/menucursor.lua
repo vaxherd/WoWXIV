@@ -617,8 +617,8 @@ function MenuFrame:__constructor(frame)
     --    - scroll_frame: If non-nil, a ScrollFrame which should be scrolled
     --         to make the element visible when targeted.
     --    - send_enter_leave: If true, the frame's OnEnter and OnLeave
-    --         srcipts will be called when the frame is targeted and
-    --         untargeted, respectively.
+    --         scripts (if any) will be called when the frame is targeted
+    --         and untargeted, respectively.
     --    - up, down, left, right: If non-nil, specifies the frame to be
     --         targeted on the corresponding movement input from this frame.
     --         A value of false prevents movement in the corresponding
@@ -866,7 +866,8 @@ function MenuFrame:EnterTarget(target)
         end
     end
     if params.send_enter_leave then
-        frame:GetScript("OnEnter")(frame)
+        local script = frame:GetScript("OnEnter")
+        if script then script(frame) end
     elseif params.on_enter then
         params.on_enter(frame)
     end
@@ -885,7 +886,8 @@ function MenuFrame:LeaveTarget(target)
         frame:UnlockHighlight()
     end
     if params.send_enter_leave then
-        frame:GetScript("OnLeave")(frame)
+        local script = frame:GetScript("OnLeave")
+        if script then script(frame) end
     elseif params.on_leave then
         params.on_leave(frame)
     end
@@ -959,8 +961,8 @@ end
 -- The value false can be used to suppress a specific callback, when only
 -- one of the two callbacks is needed.
 function MenuFrame:HookShow(frame, show_method, hide_method)
-    show_method = show_method ~= nil and show_method or self.OnShow
-    hide_method = hide_method ~= nil and hide_method or self.OnHide
+    if show_method == nil then show_method = self.OnShow end
+    if hide_method == nil then hide_method = self.OnHide end
     if show_method then
         hooksecurefunc(frame, "Show", function() show_method(self, frame) end)
     end
@@ -2655,7 +2657,8 @@ local QualityDialogHandler = class(CoreMenuFrame)
 local ItemFlyoutHandler = class(CoreMenuFrame)
 local SpecPageHandler = class(CoreMenuFrame)
 local DetailedViewHandler = class(MenuFrame)
-local OrdersPageHandler = class(CoreMenuFrame)
+local OrderListHandler = class(CoreMenuFrame)
+local OrderViewHandler = class(CoreMenuFrame)
 MenuCursor.RegisterFrameHandler(ProfessionsFrameHandler)
 
 
@@ -2672,7 +2675,8 @@ function ProfessionsFrameHandler.OnAddOnLoaded(class)
     class.instance_ItemFlyout = ItemFlyoutHandler()
     class.instance_SpecPage = SpecPageHandler()
     class.instance_DetailedView = DetailedViewHandler()
-    class.instance_OrdersPage = OrdersPageHandler()
+    class.instance_OrderList = OrderListHandler()
+    class.instance_OrderView = OrderViewHandler()
 end
 
 function ProfessionsFrameHandler:__constructor()
@@ -2694,7 +2698,11 @@ function ProfessionsFrameHandler:OnShow()
     elseif ProfessionsFrame.SpecPage:IsShown() then
         ProfessionsFrameHandler.instance_SpecPage:OnShow()
     elseif ProfessionsFrame.OrdersPage:IsShown() then
-        ProfessionsFrameHandler.instance_OrdersPage:OnShow()
+        if ProfessionsFrame.OrdersPage.BrowseFrame:IsShown() then
+            ProfessionsFrameHandler.instance_OrderList:OnShow()
+        elseif ProfessionsFrame.OrdersPage.OrderView:IsShown() then
+            ProfessionsFrameHandler.instance_OrderView:OnShow()
+        end
     end
 end
 
@@ -2703,8 +2711,14 @@ function ProfessionsFrameHandler:OnHide()
         ProfessionsFrameHandler.instance_CraftingPage:OnHide()
     elseif ProfessionsFrame.SpecPage:IsShown() then
         ProfessionsFrameHandler.instance_SpecPage:OnHide()
+    elseif ProfessionsFrame.OrdersPage.BrowseFrame:IsShown() then
+        ProfessionsFrameHandler.instance_OrderList:OnHide()
     elseif ProfessionsFrame.OrdersPage:IsShown() then
-        ProfessionsFrameHandler.instance_OrdersPage:OnHide()
+        if ProfessionsFrame.OrdersPage.BrowseFrame:IsShown() then
+            ProfessionsFrameHandler.instance_OrderList:OnHide()
+        elseif ProfessionsFrame.OrdersPage.OrderView:IsShown() then
+            ProfessionsFrameHandler.instance_OrderView:OnHide()
+        end
     end
 end
 
@@ -3329,10 +3343,221 @@ function DetailedViewHandler:RefreshTargets()
 end
 
 
-function OrdersPageHandler:__constructor()
-    self:__super(ProfessionsFrame.OrdersPage)
+function OrderListHandler:__constructor()
+    self:__super(ProfessionsFrame.OrdersPage.BrowseFrame)
     self.cancel_func = ProfessionsFrameHandler.CancelMenu
     self.tab_system = ProfessionsFrame.TabSystem
+    self:HookShow(ProfessionsFrame.OrdersPage.BrowseFrame.OrderList.ScrollBox,
+                  self.OnOrderListUpdate, self.OnOrderListUpdate)
+end
+
+function OrderListHandler:OnOrderListUpdate()
+    RunNextFrame(function()  -- Frame is shown before it's ready...
+        local cur_target = global_cursor:GetTargetForFrame(self)
+        global_cursor:SetTargetForFrame(self, self:SetTargets(cur_target))
+    end)
+end
+
+function OrderListHandler:SetTargets(cur_target)
+    local bf = ProfessionsFrame.OrdersPage.BrowseFrame
+
+    if not cur_target or not self.targets[cur_target] then
+        cur_target = nil
+    elseif self.targets[cur_target].is_scroll_box then
+        assert(cur_target.index and type(cur_target).index == "number")
+        cur_target = cur_target.index
+    end
+
+    -- We deliberately ignore the recipe list since the public order system
+    -- is so grossly misdesigned as to be useless.  We still include the
+    -- public order tab to avoid user confusion, so orders for recipes
+    -- marked as favorites (via mouse control, naturally) will still show up.
+    self.targets = {
+        [bf.PublicOrdersButton] = {
+            can_activate = true, lock_highlight = true,
+            left = false, right = bf.NpcOrdersButton},
+        [bf.NpcOrdersButton] = {
+            can_activate = true, lock_highlight = true,
+            left = bf.PublicOrdersButton, right = bf.PersonalOrdersButton},
+        [bf.PersonalOrdersButton] = {
+            can_activate = true, lock_highlight = true,
+            left = bf.NpcOrdersButton, right = false},
+    }
+    local first, last
+    local OrderScroll = bf.OrderList.ScrollBox
+    if OrderScroll:IsVisible() and OrderScroll:GetDataProvider() then
+        local index = 0
+        OrderScroll:ForEachElementData(function(element)
+            index = index + 1
+            local button = OrderScroll:FindFrame(OrderScroll:FindElementData(index))
+            if button then  -- FIXME: scroll handling not yet implemented
+                local pseudo_frame =
+                    MenuFrame.PseudoFrameForScrollElement(OrderScroll, index)
+                self.targets[pseudo_frame] = {
+                    is_scroll_box = true, can_activate = true,
+                    up = false, down = false, left = false, right = false}
+                -- FIXME: can we safely assume elements are in display order?
+                if last then
+                    self.targets[pseudo_frame].up = last
+                    self.targets[last].down = pseudo_frame
+                end
+                first = first or pseudo_frame
+                last = pseudo_frame
+                if cur_target and type(cur_target) == "number" then
+                    cur_target = pseudo_frame
+                end
+            end
+        end)
+    end
+    local cur_tab
+    for _, button in ipairs({bf.PublicOrdersButton, bf.NpcOrdersButton,
+                             bf.PersonalOrdersButton}) do
+        self.targets[button].down = first
+        self.targets[button].up = last
+        if button.isSelected then cur_tab = button end
+    end
+    cur_tab = cur_tab or bf.PublicOrdersButton  -- Sanity check.
+    if first then
+        self.targets[first].up = cur_tab
+        self.targets[last].down = cur_tab
+    end
+
+    if cur_target and type(cur_target) == "table" then
+        return cur_target
+    end
+    return cur_tab
+end
+
+
+function OrderViewHandler:__constructor()
+    self:__super(ProfessionsFrame.OrdersPage.OrderView)
+    self.cancel_func = nil
+    self.tab_system = ProfessionsFrame.TabSystem
+    -- Use button show events to handle order progression.
+    local ov = ProfessionsFrame.OrdersPage.OrderView
+    self:HookShow(ov.OrderInfo.StartOrderButton, self.RefreshTargets, false)
+    self:HookShow(ov.OrderInfo.ReleaseOrderButton, self.RefreshTargets, false)
+    self:HookShow(ov.CompleteOrderButton, self.RefreshTargets, false)
+end
+
+function OrderViewHandler:SetTargets()
+    local ov = ProfessionsFrame.OrdersPage.OrderView
+    local oi = ov.OrderInfo
+
+    local reward_u, reward_d, reward_l, reward_r = false, false, false, false
+
+    if oi.StartOrderButton:IsShown() then
+        -- Order not yet started
+        self.cancel_func = nil
+        self.cancel_button = oi.BackButton
+        self.targets = {
+            [oi.BackButton] = {
+                can_activate = true, lock_highlight = true,
+                up = oi.StartOrderButton, down = oi.StartOrderButton,
+                left = false, right = false},
+            [oi.StartOrderButton] = {
+                can_activate = true, lock_highlight = true, is_default = true,
+                up = oi.BackButton, down = oi.BackButton,
+                left = false, right = false},
+        }
+        local rsb = ov.OrderDetails.SchematicForm.RecipeSourceButton
+        if rsb:IsShown() then
+            self.targets[rsb] = {
+                send_enter_leave = true, up = false, down = false,
+                left = oi.BackButton, right = oi.BackButton}
+            self.targets[oi.BackButton].left = rsb
+            self.targets[oi.BackButton].right = rsb
+            self.targets[oi.StartOrderButton].left = rsb
+            self.targets[oi.StartOrderButton].right = rsb
+        end
+        reward_u = oi.BackButton
+        reward_d = oi.StartOrderButton
+
+    elseif oi.ReleaseOrderButton:IsShown() then
+        -- Order in progress
+        self.cancel_func = ProfessionsFrameHandler.CancelMenu
+        self.cancel_button = nil
+        local bqc = ov.OrderDetails.SchematicForm.AllocateBestQualityCheckbox
+        local ctb = (ProfessionsFrame
+                     .OrdersPage
+                     .OrderView
+                     .OrderDetails
+                     .SchematicForm
+                     .Details
+                     .CraftingChoicesContainer
+                     .ConcentrateContainer
+                     .ConcentrateToggleButton)  -- sheesh, enough layers?
+        self.targets = {
+            [oi.ReleaseOrderButton] = {
+                can_activate = true, lock_highlight = true,
+                up = false, down = false,
+                left = ov.CreateButton, right = bqc},
+            [bqc] = {
+                can_activate = true, lock_highlight = true,
+                up = false, down = false,
+                left = oi.ReleaseOrderButton, right = ov.CreateButton},
+            [ov.CreateButton] = {
+                can_activate = true, lock_highlight = true, is_default = true,
+                send_enter_leave = true, up = ctb, down = ctb,
+                left = bqc, right = oi.ReleaseOrderButton},
+            [ctb] = {
+                can_activate = true, lock_highlight = true,
+                send_enter_leave = true,
+                up = ov.CreateButton, down = ov.CreateButton,
+                left = false, right = false}
+        }
+        -- FIXME: reagent selection not yet implemented
+        reward_u = oi.ReleaseOrderButton
+        reward_d = oi.ReleaseOrderButton
+
+    elseif ov.CompleteOrderButton:IsShown() then
+        -- Order crafted, waiting for completion click
+        self.cancel_func = ProfessionsFrameHandler.CancelMenu
+        self.cancel_button = nil
+        self.targets = {
+            [ov.CompleteOrderButton] = {
+                can_activate = true, lock_highlight = true, is_default = true,
+                up = false, down = false, left = false, right = false},
+        }
+        reward_l = ov.CompleteOrderButton
+        reward_r = ov.CompleteOrderButton
+
+    else
+        error("Unknown OrderView frame state")
+    end
+
+    -- FIXME: these are missing immediately after a /reload while visible
+    local reward1 = ProfessionsCrafterOrderRewardItem1
+    if oi.NPCRewardsFrame:IsShown() and reward1:IsShown() then
+        self.targets[reward1] = {send_enter_leave = true,
+                                 up = reward_u, down = reward_d,
+                                 left = reward_l, right = reward_r}
+        local reward2 = ProfessionsCrafterOrderRewardItem2
+        if reward2:IsShown() then
+            self.targets[reward2] = {send_enter_leave = true,
+                                     up = reward_u, down = reward_d,
+                                     left = reward1, right = reward_r}
+            self.targets[reward1].right = reward2
+            if not reward_l then
+                self.targets[reward1].left = reward2
+            end
+            if not reward_r then
+                self.targets[reward2].right = reward1
+            end
+        else
+            reward2 = reward1  -- for simplicity below
+        end
+        if reward_u then self.targets[reward_u].down = reward1 end
+        if reward_d then self.targets[reward_d].up = reward1 end
+        if reward_l then self.targets[reward_l].right = reward1 end
+        if reward_r then self.targets[reward_r].left = reward2 end
+    end
+end
+
+function OrderViewHandler:RefreshTargets()
+    global_cursor:SetTargetForFrame(self, nil)
+    self:SetTargets()
+    global_cursor:SetTargetForFrame(self, self:GetDefaultTarget())
 end
 
 
