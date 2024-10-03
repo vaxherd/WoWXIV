@@ -266,6 +266,17 @@ function MenuCursor:SetTarget(target)
     self:UpdateCursor()
 end
 
+-- Internal helper to clear the menu cursor target without calling the
+-- leave callback.  For use when the current target is invalid (and thus
+-- attempting to call the leave callback may trigger an error).
+function MenuCursor:InternalForceClearTarget()
+    local stack = self:InternalGetFocusStack()
+    local top = #stack
+    if top > 0 then
+        stack[top][2] = nil
+    end
+end
+
 -- Internal helper to find a frame in the regular or modal frame stack.
 -- Returns the stack and index, or (nil,nil) if not found.
 function MenuCursor:InternalFindFrame(frame)
@@ -409,6 +420,10 @@ function MenuCursor:OnUpdate()
     self.last_focus, self.last_target = focus, target
     local target_frame = target and focus:GetTargetFrame(target)
     if not target_frame then return end
+    if not target_frame.GetLeft then
+        self:InternalForceClearTarget()
+        error("Invalid target frame ("..tostring(target_frame)..") for target "..tostring(target))
+    end
 
     --[[
          Calling out to fetch the target's position and resetting the
@@ -578,6 +593,9 @@ function MenuCursor:Move(dx, dy, dir)
     end
     if new_target then
         self:SetTarget(new_target)
+        if focus.OnMove then
+            focus:OnMove(target, new_target)
+        end
     end
 end
 
@@ -605,9 +623,9 @@ function MenuFrame:__constructor(frame)
     --         UnlockHighlight() methods will be called when the frame is
     --         targeted and untargeted, respectively.
     --    - on_click: If non-nil, a function to be called when the element
-    --         is activated.  The element is passed as an argument.  When set
-    --         with can_activate, this is called after the click event is
-    --         passed down to the frame.
+    --         is activated.  The element is passed as an argument.  When
+    --         set along with can_activate, this is called after the click
+    --         event is passed down to the frame.
     --    - on_enter: If non-nil, a function to be called when the cursor
     --         is moved onto the element.  The frame is passed as an argument.
     --         Ignored if send_enter_leave is set.
@@ -876,7 +894,7 @@ end
 -- Perform all actions appropriate to the cursor leaving a target.
 function MenuFrame:LeaveTarget(target)
     local params = self.targets[target]
-    assert(params)
+    assert(params, "Target is not defined: "..tostring(target))
     local frame = self:GetTargetFrame(target)
     if params.lock_highlight then
         -- We could theoretically check highlight_locked here, but
@@ -893,6 +911,11 @@ function MenuFrame:LeaveTarget(target)
     end
     self.want_highlight = false
     self.highlight_locked = false
+end
+
+-- Callback for cursor movement events.  Called immediately after the
+-- new target has been set as active.
+function MenuFrame:OnMove(old_target, new_target)
 end
 
 -- Return the WoW Frame instance for this frame.
@@ -3335,20 +3358,45 @@ end
 
 function OrderListHandler:OnOrderListUpdate()
     RunNextFrame(function()  -- Frame is shown before it's ready...
-        local cur_target = global_cursor:GetTargetForFrame(self)
-        global_cursor:SetTargetForFrame(self, self:SetTargets(cur_target))
+        local target = global_cursor:GetTargetForFrame(self)
+        global_cursor:SetTargetForFrame(self, nil)  -- FIXME: this sequence is very awkward
+        global_cursor:SetTargetForFrame(self, self:SetTargets(target))
     end)
 end
 
-function OrderListHandler:SetTargets(cur_target)
+function OrderListHandler:OnClickOrderTab(button)
+    self.saved_index = 1
+    button:GetScript("OnClick")(button, "LeftButton", true)
+end
+
+function OrderListHandler:OnClickOrder(button)
+    assert(self.targets[button].is_scroll_box)
+    assert(type(button.index) == "number")
+    self.saved_index = button.index
+    local frame = self:GetTargetFrame(button)
+    frame:GetScript("OnClick")(frame, "LeftButton", true)
+end
+
+function OrderListHandler:SetTargets(initial_target)
     local bf = ProfessionsFrame.OrdersPage.BrowseFrame
 
-    if not cur_target or not self.targets[cur_target] then
-        cur_target = nil
-    elseif self.targets[cur_target].is_scroll_box then
-        assert(cur_target.index and type(cur_target).index == "number")
-        cur_target = cur_target.index
+    if type(initial_target) == "table" then
+        if not self.targets[initial_target] then
+            initial_target = nil
+        elseif self.targets[initial_target].is_scroll_box then
+            assert(type(initial_target.index) == "number")
+            initial_target = initial_target.index
+        else
+            assert(initial_target == bf.PublicOrdersButton
+                   or initial_target == bf.NpcOrdersButton
+                   or initial_target == bf.PersonalOrdersButton)
+        end
     end
+
+    -- Click helpers to save the position in the order list, since the
+    -- list disappears every time we move away from it.
+    function ClickTab(button) self:OnClickOrderTab(button) end
+    function ClickOrder(button) self:OnClickOrder(button) end
 
     -- We deliberately ignore the recipe list since the public order system
     -- is so grossly misdesigned as to be useless.  We still include the
@@ -3356,13 +3404,13 @@ function OrderListHandler:SetTargets(cur_target)
     -- marked as favorites (via mouse control, naturally) will still show up.
     self.targets = {
         [bf.PublicOrdersButton] = {
-            can_activate = true, lock_highlight = true,
+            on_click = ClickTab, lock_highlight = true,
             left = false, right = bf.NpcOrdersButton},
         [bf.NpcOrdersButton] = {
-            can_activate = true, lock_highlight = true,
+            on_click = ClickTab, lock_highlight = true,
             left = bf.PublicOrdersButton, right = bf.PersonalOrdersButton},
         [bf.PersonalOrdersButton] = {
-            can_activate = true, lock_highlight = true,
+            on_click = ClickTab, lock_highlight = true,
             left = bf.NpcOrdersButton, right = false},
     }
     local first, last
@@ -3376,7 +3424,7 @@ function OrderListHandler:SetTargets(cur_target)
                 local pseudo_frame =
                     MenuFrame.PseudoFrameForScrollElement(OrderScroll, index)
                 self.targets[pseudo_frame] = {
-                    is_scroll_box = true, can_activate = true,
+                    is_scroll_box = true, on_click = ClickOrder,
                     up = false, down = false, left = false, right = false}
                 -- FIXME: can we safely assume elements are in display order?
                 if last then
@@ -3385,11 +3433,30 @@ function OrderListHandler:SetTargets(cur_target)
                 end
                 first = first or pseudo_frame
                 last = pseudo_frame
-                if cur_target and type(cur_target) == "number" then
-                    cur_target = pseudo_frame
+                if self.saved_index == index then
+                    initial_target = pseudo_frame
+                    self.saved_index = nil
+                elseif initial_target == index then
+                    initial_target = pseudo_frame
                 end
             end
         end)
+    end
+    if not self.saved_index and type(initial_target) == "number" then
+        -- The cursor was previously on an order which disappeared from
+        -- the list.  This typically happens when returning from viewing
+        -- an order's details, because the frame immediately refreshes the
+        -- order list and displays 0 orders until the refresh completes.
+        -- Save the desired target for the next refresh, so we can properly
+        -- restore the cursor position.
+        self.saved_index = initial_target
+    elseif self.saved_index and last then
+        -- We had a desired target position and a non-empty list, but we
+        -- didn't find the desired target.  This probably means that the
+        -- player just completed the last order in the list, so position
+        -- the cursor at the new last order.
+        initial_target = last
+        self.saved_index = nil
     end
     local cur_tab
     for _, button in ipairs({bf.PublicOrdersButton, bf.NpcOrdersButton,
@@ -3404,10 +3471,14 @@ function OrderListHandler:SetTargets(cur_target)
         self.targets[last].down = cur_tab
     end
 
-    if cur_target and type(cur_target) == "table" then
-        return cur_target
+    if initial_target and type(initial_target) == "table" then
+        return initial_target
     end
     return cur_tab
+end
+
+function OrderListHandler:OnMove(old_target, new_target)
+    self.saved_index = nil
 end
 
 
