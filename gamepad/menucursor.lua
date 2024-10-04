@@ -4120,22 +4120,32 @@ function PetBattlePetSelectionFrameHandler:__constructor()
     local psf = PetBattleFrame.BottomFrame.PetSelectionFrame
     self:__super(psf)
     self.cancel_func = nil
-    self.targets = {
-        [psf.Pet1] = {can_activate = true, send_enter_leave = true},
-        [psf.Pet2] = {can_activate = true, send_enter_leave = true},
-        [psf.Pet3] = {can_activate = true, send_enter_leave = true},
-    }
 end
 
 function PetBattlePetSelectionFrameHandler:OnShow()
-    local psf = PetBattleFrame.BottomFrame.PetSelectionFrame
-    local initial_target
-    if C_PetBattles.CanPetSwapIn(1) then
-        initial_target = psf.Pet1
-    elseif C_PetBattles.CanPetSwapIn(2) then
-        initial_target = psf.Pet2
-    else  -- Should never get here.
-        initial_target = psf.Pet3
-    end
+    local initial_target = self:SetTargets()
     global_cursor:AddFrame(self, initial_target, true)  -- modal
+end
+
+function PetBattlePetSelectionFrameHandler:SetTargets()
+    self.targets = {}
+    local psf = PetBattleFrame.BottomFrame.PetSelectionFrame
+    local first, last, initial
+    for _, button in ipairs({psf.Pet1, psf.Pet2, psf.Pet3}) do
+        if button:IsShown() then
+            self.targets[button] =
+                {can_activate = true, send_enter_leave = true,
+                 up = false, down = false}
+            first = first or button
+            last = button
+            if not initial and C_PetBattles.CanPetSwapIn(button.petIndex) then
+                initial = button
+            end
+        end
+    end
+    if first then
+        self.targets[first].left = last
+        self.targets[last].right = first
+    end
+    return initial or first
 end
