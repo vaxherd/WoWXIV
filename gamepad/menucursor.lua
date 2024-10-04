@@ -1826,6 +1826,17 @@ function InboxFrameHandler:OnHideMailItemButton(frame)
     end
     self.targets[frame] = nil
     self:UpdateMovement()
+    -- Work around a Blizzard bug that shows an empty inbox even with
+    -- mail available if it was previously closed after an "Open All"
+    -- invocation on a page greater than the number of available pages.
+    -- (For example, after pressing Open All on page 2, then later
+    -- checking for mail with only 1 item available.)
+    if (type(InboxFrame.pageNum) == "number"  -- be safe against changes
+        and InboxFrame.pageNum > 1
+        and not MailItem1Button:IsShown())
+    then
+        InboxPrevPage()
+    end
 end
 
 function InboxFrameHandler:SetTargets()
