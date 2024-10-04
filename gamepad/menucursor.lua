@@ -4010,12 +4010,12 @@ end
 
 -------- Pet battle UI
 
-local PetBattleFrameHandler = class(MenuFrame)
-local PetBattlePetSelectionFrameHandler = class(MenuFrame)
+local PetBattleFrameHandler = class(CoreMenuFrame)
+local PetBattlePetSelectionFrameHandler = class(CoreMenuFrame)
 MenuCursor.RegisterFrameHandler(PetBattleFrameHandler)
 
 function PetBattleFrameHandler.Initialize(class, cursor)
-    class.instance = class()
+    CoreMenuFrame.Initialize(class, cursor)
     class.instance_PetSelection = PetBattlePetSelectionFrameHandler()
     -- If we're in the middle of a pet battle, these might already be active!
     if PetBattleFrame:IsVisible() then
@@ -4028,87 +4028,34 @@ end
 
 function PetBattleFrameHandler:__constructor()
     self:__super(PetBattleFrame)
-    self:HookShow(PetBattleFrame)
-    self:RegisterEvent(global_cursor, "PET_BATTLE_PET_CHANGED")
-    self:RegisterEvent(global_cursor, "PET_BATTLE_ACTION_SELECTED")
-    self:RegisterEvent(global_cursor, "PET_BATTLE_PET_ROUND_PLAYBACK_COMPLETE")
     self.cancel_func = function()
         global_cursor:SetTargetForFrame(
             self, PetBattleFrame.BottomFrame.ForfeitButton)
     end
 end
 
-function PetBattlePetSelectionFrameHandler:__constructor()
-    local psf = PetBattleFrame.BottomFrame.PetSelectionFrame
-    self:__super(psf)
-    self:HookShow(psf)
-    self.cancel_func = nil
-    self.targets = {
-        [psf.Pet1] = {can_activate = true, send_enter_leave = true},
-        [psf.Pet2] = {can_activate = true, send_enter_leave = true},
-        [psf.Pet3] = {can_activate = true, send_enter_leave = true},
-    }
-end
-
 function PetBattleFrameHandler:OnShow()
-    -- Don't activate input focus unless a battle is already in progress
-    -- (i.e. we just reloaded the UI).
-    if C_PetBattles.GetBattleState() == Enum.PetbattleState.WaitingForFrontPets then
-        -- In this case, the pet battle UI (specifically the action buttons)
-        -- won't be set up until later this frame, so wait a frame before
-        -- setting input focus.
-        RunNextFrame(function()
-            local initial_target = self:RefreshTargets(nil)
-            global_cursor:AddFrame(self, initial_target)
-        end)
+    -- Buttons may not be available immediately, so wait if necessary.
+    -- The pet swap button is shown before the first pet is loaded, so
+    -- wait for one of the primary action buttons instead of just any button.
+    local bf = PetBattleFrame.BottomFrame
+    if (bf.abilityButtons and bf.abilityButtons[3]
+        and (bf.abilityButtons[1]:IsVisible() or
+             bf.abilityButtons[2]:IsVisible() or
+             bf.abilityButtons[3]:IsVisible()))
+    then
+        local initial_target = self:SetTargets(nil)
+        global_cursor:AddFrame(self, initial_target)
+    else
+        RunNextFrame(function() self:OnShow() end)
     end
 end
 
-function PetBattleFrameHandler:OnHide()
-    global_cursor:RemoveFrame(self)
-end
+-- FIXME: For a short time when switching a new pet in, the new pet's
+-- action buttons are not shown but the cursor can still move across them.
+-- Should suppress input for that interval.
 
-function PetBattlePetSelectionFrameHandler:OnShow()
-    local psf = PetBattleFrame.BottomFrame.PetSelectionFrame
-    local initial_target
-    if C_PetBattles.CanPetSwapIn(1) then
-        initial_target = psf.Pet1
-    elseif C_PetBattles.CanPetSwapIn(2) then
-        initial_target = psf.Pet2
-    else  -- Should never get here.
-        initial_target = psf.Pet3
-    end
-    global_cursor:AddFrame(self, initial_target, true)  -- modal
-end
-
-function PetBattlePetSelectionFrameHandler:OnHide()
-    global_cursor:RemoveFrame(self)
-end
-
-function PetBattleFrameHandler:PET_BATTLE_PET_CHANGED()
-    if not self.frame:IsShown() then return end
-    local target = self:RefreshTargets(nil)
-    global_cursor:SetTargetForFrame(self, target)
-end
-
-function PetBattleFrameHandler:PET_BATTLE_ACTION_SELECTED()
-    if not self.frame:IsShown() then return end
-    self.last_target = global_cursor:GetTargetForFrame(self)
-    global_cursor:RemoveFrame(self)
-end
-
-function PetBattleFrameHandler:PET_BATTLE_PET_ROUND_PLAYBACK_COMPLETE()
-    if not self.frame:IsShown() then return end
-    -- If the previous round ended with an enemy pet death, the player
-    -- already has menu control, so don't move the cursor back to its
-    -- previous position.
-    local last_target = (global_cursor:GetTargetForFrame(self)
-                         or self.last_target)
-    local target = self:RefreshTargets(last_target)
-    global_cursor:AddFrame(self, target)
-end
-
-function PetBattleFrameHandler:RefreshTargets(initial_target)
+function PetBattleFrameHandler:SetTargets(initial_target)
     local bf = PetBattleFrame.BottomFrame
 
     local button1 = bf.abilityButtons[1]
@@ -4166,4 +4113,29 @@ function PetBattleFrameHandler:RefreshTargets(initial_target)
     else
         return first_action
     end
+end
+
+
+function PetBattlePetSelectionFrameHandler:__constructor()
+    local psf = PetBattleFrame.BottomFrame.PetSelectionFrame
+    self:__super(psf)
+    self.cancel_func = nil
+    self.targets = {
+        [psf.Pet1] = {can_activate = true, send_enter_leave = true},
+        [psf.Pet2] = {can_activate = true, send_enter_leave = true},
+        [psf.Pet3] = {can_activate = true, send_enter_leave = true},
+    }
+end
+
+function PetBattlePetSelectionFrameHandler:OnShow()
+    local psf = PetBattleFrame.BottomFrame.PetSelectionFrame
+    local initial_target
+    if C_PetBattles.CanPetSwapIn(1) then
+        initial_target = psf.Pet1
+    elseif C_PetBattles.CanPetSwapIn(2) then
+        initial_target = psf.Pet2
+    else  -- Should never get here.
+        initial_target = psf.Pet3
+    end
+    global_cursor:AddFrame(self, initial_target, true)  -- modal
 end
