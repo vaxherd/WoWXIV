@@ -403,7 +403,7 @@ function WoWXIV.TargetBar.Create()
         local f = CreateFrame("Frame")
         WoWXIV.TargetBar.tmtc_hack_frame = f
         f.saved_x = 0
-	f:SetScript("OnUpdate", function(self)
+        f:SetScript("OnUpdate", function(self)
             local offset_x = UIParent:GetWidth() * 0.262
             if offset_x ~= self.saved_x then
                 self.saved_x = offset_x
