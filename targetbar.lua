@@ -64,12 +64,12 @@ function TargetBar:__constructor(is_focus)
                        hp:GetValueObject(), "BOTTOMLEFT", -SPACING, 0)
     end
 
-    local mp = WoWXIV.UI.Gauge(f, f:GetWidth())
-    self.mp = mp
-    mp:SetBoxColor(0.9, 0.9, 0.9)
-    mp:SetBarBackgroundColor(0, 0, 0)
-    mp:SetBarColor(0.05, 0.45, 0.95)
-    mp:SetSinglePoint("TOP", 0, -(hp_yofs+7))
+    local power = WoWXIV.UI.Gauge(f, f:GetWidth())
+    self.power = power
+    power:SetBoxColor(0.9, 0.9, 0.9)
+    power:SetBarBackgroundColor(0, 0, 0)
+    power:SetBarColor(0.05, 0.45, 0.95)
+    power:SetSinglePoint("TOP", 0, -(hp_yofs+7))
 
     local auras = WoWXIV.UI.AuraBar(
         "ALL", "TOPLEFT", is_focus and 6 or 16, is_focus and 1 or 5,
@@ -241,15 +241,15 @@ function TargetBar:RefreshUnit()
 
     self.hp:SetShowShieldValue(WoWXIV_config["targetbar_show_shield_value"])
 
-    local mp = self.mp
+    local power = self.power
     local show = (WoWXIV_config["targetbar_power"]
                   and (not WoWXIV_config["targetbar_power_boss_only"]
                        or UnitIsBossMob(unit)))
     if show then
-        mp:Show()
+        power:Show()
         auras:SetRelPosition(0, -(self.hp_yofs+21))
     else
-        mp:Hide()
+        power:Hide()
         auras:SetRelPosition(0, -(self.hp_yofs+14))
     end
 
@@ -297,7 +297,7 @@ function TargetBar:Update()
 
     self.hp:Update(hpmax, hp, 0, UnitGetTotalAbsorbs(unit),
                    UnitGetTotalHealAbsorbs(unit))
-    self.mp:Update(UnitPowerMax(unit), UnitPower(unit))
+    self.power:Update(UnitPowerMax(unit), UnitPower(unit))
 
     if unit == "target" then
         local target_id = UnitGUID("targettarget")
