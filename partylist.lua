@@ -110,6 +110,14 @@ function ClassIcon:Hide()
     self.frame:Hide()
 end
 
+function ClassIcon:GetWidth()
+    return self.frame:GetWidth()
+end
+
+function ClassIcon:GetFrameLevel()
+    return self.frame:GetFrameLevel()
+end
+
 function ClassIcon:SetAnchor(anchor, x, y, tooltip_anchor)
     self.frame:SetPoint(anchor, self.parent, anchor, x, y)
     self.tooltip_anchor = tooltip_anchor
@@ -177,6 +185,73 @@ function ClassIcon:Set(unit)
     self:UpdateTooltip()
 
     return role_id, class
+end
+
+--------------------------------------------------------------------------
+
+-- Ideally this would be a subclass of UI.Gauge, but that may not be
+-- available yet depending on load order.
+local HateGauge = class()
+
+local HATE_GAUGE_COLORS = {
+    -- Red (current threat target)
+    {{1, 0.604, 0.604}, {1, 0.753, 0.761}, {0.302, 0.094, 0.094}},
+    -- Yellow (highest threat of non-targeted characters)
+    {{0.88, 0.62, 0.17}, {1, 1, 0.94}, {0.118, 0.118, 0.11}},
+    -- Blue (all others)
+    {{0.416, 0.725, 0.890}, {1, 1, 1}, {0, 0, 0}},
+}
+
+function HateGauge:__constructor(parent, width)
+    self.gauge = WoWXIV.UI.Gauge(parent, width)
+    self.gauge:Hide()
+    self.order_color = 0  -- 0 if not shown, else 1/2/3 indicating color
+    local status_text =
+        self.gauge.frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    self.status_text = status_text
+    status_text:SetPoint("BOTTOM", parent, "BOTTOMLEFT", 0, -6)
+    status_text:SetTextColor(1, 1, 1)
+end
+
+function HateGauge:SetFrameLevel(level)
+    self.gauge.frame:SetFrameLevel(level)
+end
+
+function HateGauge:SetSinglePoint(...)
+    self.gauge:SetSinglePoint(...)
+end
+
+-- Parameters:
+--     order: threat order (1 = highest threat)
+--     is_target: true if unit is enemy's current threat target
+--     value: normalized threat value (1.0 = max raw threat among all units)
+-- Call with no or nil arguments to indicate "no threat".
+function HateGauge:Update(order, is_target, value)
+    if value then
+        local gauge = self.gauge
+        local status_text = self.status_text
+        gauge:Update(1, value)
+        status_text:SetText(is_target and "A" or order)
+        if self.order_color == 0 then
+            gauge:Show()
+            status_text:Show()
+        end
+        local order_color = order>=3 and 3 or order
+        if order_color ~= self.order_color then
+            local colors = HATE_GAUGE_COLORS[order_color]
+            gauge:SetBoxColor(unpack(colors[1]))
+            gauge:SetBarColor(unpack(colors[2]))
+            gauge:SetBarBackgroundColor(unpack(colors[3]))
+            status_text:SetTextScale(order==1 and 1.3 or 1.2)
+            self.order_color = order_color
+        end
+    else
+        if self.order_color ~= 0 then
+            self.status_text:Hide()
+            self.gauge:Hide()
+            self.order_color = 0
+        end
+    end
 end
 
 --------------------------------------------------------------------------
@@ -257,8 +332,13 @@ function Member:__constructor(parent, unit)
     highlight:Hide()
 
     if self.unit ~= "vehicle" then
-        self.class_icon = ClassIcon(f)
-        self.class_icon:SetAnchor("TOPLEFT", 0, -3, "BOTTOMRIGHT")
+        local class_icon = ClassIcon(f)
+        self.class_icon = class_icon
+        class_icon:SetAnchor("TOPLEFT", 0, -3, "BOTTOMRIGHT")
+        local hate_gauge = HateGauge(class_icon.frame, class_icon:GetWidth())
+        self.hate_gauge = hate_gauge
+        hate_gauge:SetFrameLevel(class_icon:GetFrameLevel() + 1)
+        hate_gauge:SetSinglePoint("BOTTOMLEFT", -4, -20)
     end
 
     local name = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
@@ -271,28 +351,28 @@ function Member:__constructor(parent, unit)
 
     local hp = WoWXIV.UI.Gauge(f, 86)
     self.hp = hp
+    hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 32, -9)
     hp:SetBoxColor(0.416, 0.725, 0.890)
     hp:SetBarBackgroundColor(0.027, 0.161, 0.306)
     hp:SetBarColor(1, 1, 1)
     hp:SetShowOvershield(true)
     hp:SetShowValue(true)
-    hp:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 32, -9)
 
     local power = WoWXIV.UI.Gauge(f, 86)
     self.power = power
+    power:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 136, -9)
     power:SetBoxColor(0.416, 0.725, 0.890)
     power:SetBarBackgroundColor(0.027, 0.161, 0.306)
     power:SetBarColor(1, 1, 1)
     power:SetShowValue(true)
-    power:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 136, -9)
 
     local alt_power = WoWXIV.UI.Gauge(f, 86)
     self.alt_power = alt_power
+    alt_power:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 136, -15)
     alt_power:SetBoxColor(0.416, 0.725, 0.890)
     alt_power:SetBarBackgroundColor(0.027, 0.161, 0.306)
     alt_power:SetBarColor(1, 1, 1)
     alt_power:SetShowValue(true)
-    alt_power:SetSinglePoint("TOPLEFT", f, "TOPLEFT", 136, -15)
     -- Raise power bar over alternate so borders display properly.
     power:SetFrameLevel(alt_power:GetFrameLevel() + 1)
 
@@ -485,6 +565,10 @@ function Member:UpdateLabel()
     self.name:SetText(NameForUnit(self.unit, not self.narrow))
 end
 
+function Member:UpdateHate(order, is_target, value)
+    self.hate_gauge:Update(order, is_target, value)
+end
+
 ---------------------------------------------------------------------------
 
 local PartyCursor = class()
@@ -636,6 +720,10 @@ local PartyList = class()
 local PARTY_UNIT_TOKENS = {"player", "vehicle"}
 for i = 1, 4 do tinsert(PARTY_UNIT_TOKENS, "party"..i) end
 for i = 1, 40 do tinsert(PARTY_UNIT_TOKENS, "raid"..i) end
+local PARTY_UNIT_ORDER = {}
+for i, token in ipairs(PARTY_UNIT_TOKENS) do
+    PARTY_UNIT_ORDER[token] = i
+end
 
 function PartyList:__constructor()
     self.enabled = false  -- currently enabled?
@@ -682,21 +770,26 @@ function PartyList:__constructor()
     end
 
     function f:OnPartyChange()
-        f.owner:SetParty()
+        self.owner:SetParty()
     end
 
     function f:OnTargetChange()
-        for _, member in pairs(f.owner.party) do
+        for _, member in pairs(self.owner.party) do
             member:Update(false)
         end
+        self.owner:UpdateHate()
+    end
+
+    function f:OnTargetHateUpdate()
+        self.owner:UpdateHate()
     end
 
     function f:OnMemberUpdate(unit)
-        f.owner:UpdateParty(unit, false)
+        self.owner:UpdateParty(unit, false)
     end
 
     function f:OnMemberUpdateName(unit)
-        f.owner:UpdateParty(unit, true)
+        self.owner:UpdateParty(unit, true)
     end
 
     f.events = {}
@@ -726,6 +819,12 @@ function PartyList:__constructor()
     for event, _ in pairs(f.events) do
         f:RegisterEvent(event)
     end
+
+    -- However, we only ever want to see threat updates for the current
+    -- target, and if there are a lot of enemies around, a blanket Register
+    -- will result in a lot of spam.
+    f.events["UNIT_THREAT_LIST_UPDATE"] = f.OnTargetHateUpdate
+    f:RegisterUnitEvent("UNIT_THREAT_LIST_UPDATE", "target")
 
     f:SetScript("OnEvent", function(self, event, ...)
         if self.events[event] then
@@ -887,6 +986,41 @@ function PartyList:UpdateParty(unit, updateLabel)
     local member = self.party[unit]
     if not member then return end
     member:Update(updateLabel)
+
+end
+
+local function HateSort(a, b)  -- Helper for UpdateHate().
+    if a[3] > b[3] then
+        return true
+    elseif a[3] == b[3] then
+        return PARTY_UNIT_ORDER[a[1]] < PARTY_UNIT_ORDER[b[1]]
+    else
+        return false
+    end
+end
+
+function PartyList:UpdateHate(unit)
+    local hate = {}
+    for token, member in pairs(self.party) do
+        if token ~= "vehicle" and member:IsShown() then
+            local is_target, _, _, _, threat =
+                UnitDetailedThreatSituation(token, "target")
+            tinsert(hate, {token, is_target, threat or -1})
+        end
+    end
+    table.sort(hate, HateSort)
+    local max_threat = hate[1][3]
+    if max_threat < 1 then max_hate = 1 end
+    for index, data in ipairs(hate) do
+        local token, is_target, threat = unpack(data)
+        local member = self.party[token]
+        if threat < 0 then
+            threat = nil
+        else
+            threat = threat / max_threat
+        end
+        self.party[token]:UpdateHate(index, is_target, threat)
+    end
 end
 
 ---------------------------------------------------------------------------
