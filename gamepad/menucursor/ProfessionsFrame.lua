@@ -637,7 +637,8 @@ function SpecPageHandler:__constructor()
     self.on_next_page = function() self:CycleTabs(1) end
     self:HookShow(SpecPage.TreePreview, self.RefreshTargets,
                                         self.RefreshTargets)
-    self:HookShow(SpecPage.UndoButton, false, self.RefreshTargetsForUndoOff)
+    self:HookShow(SpecPage.UndoButton, self.RefreshTargetsForUndoOn,
+                                       self.RefreshTargetsForUndoOff)
     EventRegistry:RegisterCallback("ProfessionsSpecializations.TabSelected",
                                    function() self:RefreshTargets() end)
 
@@ -861,6 +862,21 @@ function SpecPageHandler:RefreshTargets()
     end
 end
 
+function SpecPageHandler:RefreshTargetsForUndoOn()
+    local SpecPage = ProfessionsFrame.SpecPage
+    -- Just add it directly, since it won't impact anything else (aside
+    -- from movement on the apply button).  We don't want to use
+    -- RefreshTargets() in order not to affect the current target, and
+    -- we actually can't because we might be in the middle of a skill
+    -- allocation action, in which case the refresh will get discarded.
+    if self.targets[SpecPage.ApplyButton] then
+        self.targets[SpecPage.ApplyButton].right = SpecPage.UndoButton
+        self.targets[SpecPage.UndoButton] =
+            {can_activate = true, lock_highlight = true,
+             left = SpecPage.ApplyButton, right = false}
+    end
+end
+
 function SpecPageHandler:RefreshTargetsForUndoOff()
     local SpecPage = ProfessionsFrame.SpecPage
     if self:GetTarget() == SpecPage.UndoButton then
@@ -975,6 +991,9 @@ end
 -- in order to suppress the skill tree refresh.
 function DetailedViewHandler:Click(frame)
     ProfessionsFrameHandler.instance_SpecPage.refresh_is_skill_allocation = true
+    -- It looks like sometimes we don't get a refresh event, so force one
+    -- to ensure refresh_is_skill_allocation is cleared next frame.
+    ProfessionsFrameHandler.instance_SpecPage:RefreshTargets()
     frame:GetScript("OnClick")(frame, "LeftButton", true)
 end
 
