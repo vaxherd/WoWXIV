@@ -127,10 +127,8 @@ function CraftingPageHandler:FocusRecipe(tries)
     local CraftingPage = ProfessionsFrame.CraftingPage
     local SchematicForm = CraftingPage.SchematicForm
     assert(SchematicForm:IsShown())
-    if SchematicForm.recraftSlot:IsShown() then
-        return  -- We don't currently handle the recrafting interface.
-    end
-    if not CraftingPage.CreateButton:IsShown() then
+    if not (CraftingPage.CreateButton:IsShown()
+            or SchematicForm.recraftSlot:IsShown()) then
         -- Recipe data is still loading, or recipe is not learned.
         tries = tries or 10
         if tries > 0 then
@@ -223,10 +221,15 @@ function CraftingPageHandler:RefreshTargets(initial_element)
 end
 
 
+-------- Recipe details frame
+
 function SchematicFormHandler:__constructor()
     self:__super(ProfessionsFrame.CraftingPage.SchematicForm)
     self:HookShow(ProfessionsFrame.CraftingPage.CreateAllButton,
                   self.OnShowCreateAllButton, self.OnHideCreateAllButton)
+    self:HookShow(
+        ProfessionsFrame.CraftingPage.SchematicForm.recraftSlot.OutputSlot,
+        self.OnShowRecraftOutputSlot, false)
     self.cancel_func = function(self)
         self:Disable()
         self.targets = {}  -- suppress update calls from CreateAllButton:Show() hook
@@ -255,6 +258,19 @@ function SchematicFormHandler:OnHideCreateAllButton()
     end
 end
 
+function SchematicFormHandler:OnShowRecraftOutputSlot()
+    local SchematicForm = ProfessionsFrame.CraftingPage.SchematicForm
+    if SchematicForm:IsShown() then
+        if not self.targets[SchematicForm.recraftSlot.OutputSlot] then
+            RunNextFrame(function()
+                local target = self:GetTarget()
+                self:SetTargets()  -- Should not invalidate any existing targets.
+                assert(not target or self.targets[target])
+            end)
+        end
+    end
+end
+
 local function SchematicForm_ClickItemButton(button)
     local onMouseDown = button:GetScript("OnMouseDown")
     assert(onMouseDown)
@@ -267,23 +283,39 @@ function SchematicFormHandler:SetTargets()
     local CraftingPage = ProfessionsFrame.CraftingPage
     local SchematicForm = CraftingPage.SchematicForm
 
-    self.targets = {
-        [SchematicForm.OutputIcon] = {send_enter_leave = true},
-        [CraftingPage.CreateAllButton] = {
-            can_activate = true, lock_highlight = true,
-            down = SchematicForm.OutputIcon, left = false},
-        [CraftingPage.CreateMultipleInputBox.DecrementButton] = {
-            on_click = MenuFrame.ClickNumericSpinnerButton,
-            lock_highlight = true,
-            down = SchematicForm.OutputIcon},
-        [CraftingPage.CreateMultipleInputBox.IncrementButton] = {
-            on_click = MenuFrame.ClickNumericSpinnerButton,
-            lock_highlight = true,
-            down = SchematicForm.OutputIcon},
-        [CraftingPage.CreateButton] = {
-            can_activate = true, lock_highlight = true, is_default = true,
-            down = SchematicForm.OutputIcon, right = false},
-    }
+    self.targets = {}
+
+    local top_icon
+    local rs = SchematicForm.recraftSlot
+    if rs:IsShown() then
+        self.targets[rs.InputSlot] = {
+            on_click = SchematicForm_ClickItemButton, send_enter_leave = true,
+            left = false, right = false}
+        if rs.OutputSlot:IsShown() then
+            self.targets[rs.InputSlot].right = rs.OutputSlot
+            self.targets[rs.OutputSlot] = {
+                send_enter_leave = true, left = rs.InputSlot, right = false}
+        end
+        top_icon = rs.InputSlot
+    else
+        self.targets[SchematicForm.OutputIcon] = {send_enter_leave = true}
+        top_icon = SchematicForm.OutputIcon
+    end
+
+    -- We add these unconditionally, and then exclude buttons that aren't
+    -- shown from the cursor movement logic in UpdateMovement().
+    self.targets[CraftingPage.CreateAllButton] = {
+        can_activate = true, lock_highlight = true,
+        down = top_icon, left = false}
+    self.targets[CraftingPage.CreateMultipleInputBox.DecrementButton] = {
+        on_click = MenuFrame.ClickNumericSpinnerButton, lock_highlight = true,
+        down = top_icon}
+    self.targets[CraftingPage.CreateMultipleInputBox.IncrementButton] = {
+        on_click = MenuFrame.ClickNumericSpinnerButton, lock_highlight = true,
+        down = top_icon}
+    self.targets[CraftingPage.CreateButton] = {
+        can_activate = true, lock_highlight = true, send_enter_leave = true,
+        down = top_icon, right = false}
 
     local r_left, r_right = false, false
     local frsc = SchematicForm.Details.CraftingChoicesContainer.FinishingReagentSlotContainer
@@ -338,11 +370,14 @@ function SchematicFormHandler:SetTargets()
             end
         end
         if r_top then
-            self.targets[r_top].up = SchematicForm.OutputIcon
+            self.targets[r_top].up = top_icon
         end
         if r_bottom and r_left then
             self.targets[r_left].left = r_bottom
         end
+    elseif rs:IsShown() then
+        r_top = rs.InputSlot
+        r_bottom = rs.InputSlot
     end
 
     if SchematicForm.OptionalReagents:IsShown() then
@@ -374,8 +409,8 @@ function SchematicFormHandler:SetTargets()
         end
     end
 
-    local create_left_up = r_left or r_bottom or SchematicForm.OutputIcon
-    local create_right_up = r_right or r_bottom or SchematicForm.OutputIcon
+    local create_left_up = r_left or r_bottom or top_icon
+    local create_right_up = r_right or r_bottom or top_icon
     self.targets[CraftingPage.CreateAllButton].up = create_left_up
     self.targets[CraftingPage.CreateMultipleInputBox.DecrementButton].up = create_left_up
     self.targets[CraftingPage.CreateMultipleInputBox.IncrementButton].up = create_left_up
@@ -388,15 +423,27 @@ end
 
 function SchematicFormHandler:UpdateMovement()
     local CraftingPage = ProfessionsFrame.CraftingPage
+    local SchematicForm = CraftingPage.SchematicForm
+
     local create_left
     if CraftingPage.CreateAllButton:IsShown() then
         self.targets[CraftingPage.CreateButton].left = nil
-        self.targets[CraftingPage.SchematicForm.OutputIcon].up = CraftingPage.CreateAllButton
         create_left = CraftingPage.CreateAllButton
-    else
+    elseif CraftingPage.CreateButton:IsShown() then
         self.targets[CraftingPage.CreateButton].left = false
-        self.targets[CraftingPage.SchematicForm.OutputIcon].up = CraftingPage.CreateButton
         create_left = CraftingPage.CreateButton
+    else
+        create_left = false
+    end
+
+    if self.targets[SchematicForm.OutputIcon] then
+        self.targets[SchematicForm.OutputIcon].up = create_left
+    end
+    if self.targets[SchematicForm.recraftSlot.InputSlot] then
+        self.targets[SchematicForm.recraftSlot.InputSlot].up = create_left
+    end
+    if self.targets[SchematicForm.recraftSlot.OutputSlot] then
+        self.targets[SchematicForm.recraftSlot.OutputSlot].up = create_left
     end
 
     local r_bottom = self.r_bottom
