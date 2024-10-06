@@ -605,6 +605,9 @@ end
 
 local MenuFrame = class()
 
+
+-------- Instance constructor
+
 -- Instance constructor.  Pass the WoW Frame instance to be managed.
 function MenuFrame:__constructor(frame)
     self.frame = frame
@@ -667,37 +670,57 @@ function MenuFrame:__constructor(frame)
     self.highlight_locked = false
 end
 
--- Per-frame update handler.  Handles locking highlight on a newly
--- enabled button.
-function MenuFrame:OnUpdate(target_frame)
-    if self.want_highlight and not self.highlight_locked then
-        -- The button was previously disabled.  See if it is now enabled,
-        -- such as in the Revival Catalyst confirmation dialog after the
-        -- 5-second delay ends.  (The reverse case of an enabled button
-        -- being disabled is also theoretically possible, but we ignore
-        -- that case pending evidence that it can occur in practice.)
-        if not target_frame.IsEnabled or target_frame:IsEnabled() then
-            self.highlight_locked = true
-            target_frame:LockHighlight()
+
+-------- Cursor interface (methods intended only to be called from MenuCursor)
+
+-- Return the WoW Frame instance for this frame.
+function MenuFrame:GetFrame()
+    return self.frame
+end
+
+-- Return the global names or Button instances of the previous and next
+-- page buttons for this frame, or (nil,nil) if none.
+function MenuFrame:GetPageButtons()
+    return self.prev_page_button, self.next_page_button
+end
+
+-- Return the TabSystem instance of the tab set for this frame, or nil if none.
+function MenuFrame:GetTabSystem()
+    return self.tab_system
+end
+
+-- Return the frame (WoW Button instance) of the cancel button for this
+-- frame, or nil if none.
+function MenuFrame:GetCancelButton()
+    return self.cancel_button
+end
+
+-- Return the frame's default cursor target.
+function MenuFrame:GetDefaultTarget()
+    for frame, params in pairs(self.targets) do
+        if params.is_default then
+            return frame
         end
     end
+    return nil
 end
 
--- Confirm input event handler, called from MenuCursor:OnClick() for
--- confirm button presses after secure click passthrough.  Receives the
--- target on which the confirm action occurred.
-function MenuFrame:OnConfirm(target)
+-- Return the frame associated with the given targets[] key.
+function MenuFrame:GetTargetFrame(target)
     local params = self.targets[target]
-    if params.on_click then params.on_click(target) end
+    if params and params.is_scroll_box then
+        local box = target.box
+        return box:FindFrame(box:FindElementData(target.index))
+    else
+        return target
+    end
 end
 
--- Cancel input event handler, called from MenuCursor:OnClick() for cancel
--- button presses.  Not called if the frame declares a cancel button (the
--- input is securely passed through to the button instead).
-function MenuFrame:OnCancel()
-    if self.cancel_func then
-        self:cancel_func()
-    end
+-- Return whether click events should be securely passed down to the
+-- given target's frame.
+function MenuFrame:GetTargetClickable(target)
+    local params = self.targets[target]
+    return params and params.can_activate
 end
 
 -- Return the next target in the given direction from the given target,
@@ -806,33 +829,6 @@ function MenuFrame:NextTarget(target, dx, dy, dir)
     return best
 end
 
--- Return the global names or Button instances of the previous and next
--- page buttons for this frame, or (nil,nil) if none.
-function MenuFrame:GetPageButtons()
-    return self.prev_page_button, self.next_page_button
-end
-
--- Return the TabSystem instance of the tab set for this frame, or nil if none.
-function MenuFrame:GetTabSystem()
-    return self.tab_system
-end
-
--- Return the frame (WoW Button instance) of the cancel button for this
--- frame, or nil if none.
-function MenuFrame:GetCancelButton()
-    return self.cancel_button
-end
-
--- Return the frame's default cursor target.
-function MenuFrame:GetDefaultTarget()
-    for frame, params in pairs(self.targets) do
-        if params.is_default then
-            return frame
-        end
-    end
-    return nil
-end
-
 -- Perform all actions appropriate to the cursor entering a target.
 function MenuFrame:EnterTarget(target)
     local params = self.targets[target]
@@ -913,50 +909,62 @@ function MenuFrame:LeaveTarget(target)
     self.highlight_locked = false
 end
 
--- Callback for cursor movement events.  Called immediately after the
--- new target has been set as active.
-function MenuFrame:OnMove(old_target, new_target)
-end
 
--- Return the WoW Frame instance for this frame.
-function MenuFrame:GetFrame()
-    return self.frame
-end
+-------- Cursor callbacks (can be overridden by specializations if needed)
 
--- Return the frame associated with the given targets[] key.
-function MenuFrame:GetTargetFrame(target)
-    local params = self.targets[target]
-    if params and params.is_scroll_box then
-        local box = target.box
-        return box:FindFrame(box:FindElementData(target.index))
-    else
-        return target
+-- Per-frame update handler.  Handles locking highlight on a newly
+-- enabled button.
+function MenuFrame:OnUpdate(target_frame)
+    if self.want_highlight and not self.highlight_locked then
+        -- The button was previously disabled.  See if it is now enabled,
+        -- such as in the Revival Catalyst confirmation dialog after the
+        -- 5-second delay ends.  (The reverse case of an enabled button
+        -- being disabled is also theoretically possible, but we ignore
+        -- that case pending evidence that it can occur in practice.)
+        if not target_frame.IsEnabled or target_frame:IsEnabled() then
+            self.highlight_locked = true
+            target_frame:LockHighlight()
+        end
     end
 end
 
--- Return whether click events should be securely passed down to the
--- given target's frame.
-function MenuFrame:GetTargetClickable(target)
+-- Confirm input event handler, called from MenuCursor:OnClick() for
+-- confirm button presses after secure click passthrough.  Receives the
+-- target on which the confirm action occurred.
+function MenuFrame:OnConfirm(target)
     local params = self.targets[target]
-    return params and params.can_activate
+    if params.on_click then params.on_click(target) end
+end
+
+-- Cancel input event handler, called from MenuCursor:OnClick() for cancel
+-- button presses.  Not called if the frame declares a cancel button (the
+-- input is securely passed through to the button instead).
+function MenuFrame:OnCancel()
+    if self.cancel_func then
+        self:cancel_func()
+    end
+end
+
+-- Callback for cursor movement events.  Called immediately after the
+-- new target has been set as active.
+function MenuFrame:OnMove(old_target, new_target)
+    -- No-op by default.
 end
 
 
-------------------------------------------------------------------------
--- Utility methods/functions
-------------------------------------------------------------------------
+-------- Subclass interface (methods intended be called by specializations)
 
 -- Register a watch on an ADDON_LOADED event for the given-named addon.
 -- When the addon is loaded, the class method OnAddOnLoaded() is called,
 -- passing the addon name as an argument.  If the addon is already loaded,
 -- the method is called immediately.
 -- This is a class method.
-function MenuFrame.RegisterAddOnWatch(class, cursor, addon)
+function MenuFrame.RegisterAddOnWatch(class, addon)
     if C_AddOns.IsAddOnLoaded(addon) then
         class:OnAddOnLoaded(addon)
     else
-        cursor:RegisterEvent(function() class:OnAddOnLoaded(addon) end,
-                             "ADDON_LOADED", addon)
+        global_cursor:RegisterEvent(function() class:OnAddOnLoaded(addon) end,
+                                    "ADDON_LOADED", addon)
     end
 end
 
@@ -964,7 +972,7 @@ end
 -- instance.  If handler_method is omitted, the method named the same as
 -- the event and optional argument (in the same style as MenuCursor:OnEvent())
 -- is taken as the handler method,  Wraps MenuCursor:RegisterEvent().
-function MenuFrame:RegisterEvent(cursor, handler, event, event_arg)
+function MenuFrame:RegisterEvent(handler, event, event_arg)
     if type(handler) ~= "function" then
         assert(type(handler) == "string",
                "Invalid arguments: cursor, [handler_method,] event [, event_arg]")
@@ -972,8 +980,8 @@ function MenuFrame:RegisterEvent(cursor, handler, event, event_arg)
         handler = self[event]
         assert(handler, "Handler method is not defined")
     end
-    cursor:RegisterEvent(function(...) handler(self, ...) end,
-                         event, event_arg)
+    global_cursor:RegisterEvent(function(...) handler(self, ...) end,
+                                event, event_arg)
 end
 
 -- Hook a frame's Show/Hide/SetShown methods, calling the given instance
@@ -997,6 +1005,9 @@ function MenuFrame:HookShow(frame, show_method, hide_method)
         if func then func(self, frame) end
     end)
 end
+
+
+-------- Utility functions (these are all MenuFrame class methods)
 
 -- Generic cancel_func to close a frame.
 function MenuFrame.CancelFrame(frame)
@@ -1233,12 +1244,13 @@ local AddOnMenuFrame = class(CoreMenuFrame)
 
 function AddOnMenuFrame.Initialize(class, cursor)
     class.cursor = cursor
-    class:RegisterAddOnWatch(cursor, class.ADDON_NAME)
+    class:RegisterAddOnWatch(class.ADDON_NAME)
 end
 
 function AddOnMenuFrame.OnAddOnLoaded(class)
     class.instance = class()
 end
+
 
 ------------------------------------------------------------------------
 -- Individual frame handlers
@@ -1252,9 +1264,9 @@ MenuCursor.RegisterFrameHandler(GossipFrameHandler)
 function GossipFrameHandler.Initialize(class, cursor)
     local instance = class()
     class.instance = instance
-    instance:RegisterEvent(cursor, "GOSSIP_CLOSED")
-    instance:RegisterEvent(cursor, "GOSSIP_CONFIRM_CANCEL")
-    instance:RegisterEvent(cursor, "GOSSIP_SHOW")
+    instance:RegisterEvent("GOSSIP_CLOSED")
+    instance:RegisterEvent("GOSSIP_CONFIRM_CANCEL")
+    instance:RegisterEvent("GOSSIP_SHOW")
 end
 
 function GossipFrameHandler:__constructor()
@@ -1343,11 +1355,11 @@ MenuCursor.RegisterFrameHandler(QuestFrameHandler)
 function QuestFrameHandler.Initialize(class, cursor)
     local instance = class()
     class.instance = instance
-    instance:RegisterEvent(cursor, "QUEST_COMPLETE")
-    instance:RegisterEvent(cursor, "QUEST_DETAIL")
-    instance:RegisterEvent(cursor, "QUEST_FINISHED")
-    instance:RegisterEvent(cursor, "QUEST_GREETING")
-    instance:RegisterEvent(cursor, "QUEST_PROGRESS")
+    instance:RegisterEvent("QUEST_COMPLETE")
+    instance:RegisterEvent("QUEST_DETAIL")
+    instance:RegisterEvent("QUEST_FINISHED")
+    instance:RegisterEvent("QUEST_GREETING")
+    instance:RegisterEvent("QUEST_PROGRESS")
 end
 
 function QuestFrameHandler:__constructor()
@@ -2347,7 +2359,7 @@ local SpellBookFrameHandler = class(MenuFrame)
 MenuCursor.RegisterFrameHandler(SpellBookFrameHandler)
 
 function SpellBookFrameHandler.Initialize(class, cursor)
-    class:RegisterAddOnWatch(cursor, "Blizzard_PlayerSpells")
+    class:RegisterAddOnWatch("Blizzard_PlayerSpells")
 end
 
 function SpellBookFrameHandler.OnAddOnLoaded(class)
@@ -2697,7 +2709,7 @@ MenuCursor.RegisterFrameHandler(ProfessionsFrameHandler)
 
 
 function ProfessionsFrameHandler.Initialize(class, cursor)
-    class:RegisterAddOnWatch(cursor, "Blizzard_Professions")
+    class:RegisterAddOnWatch("Blizzard_Professions")
 end
 
 function ProfessionsFrameHandler.OnAddOnLoaded(class)
@@ -2759,7 +2771,7 @@ end
 
 function CraftingPageHandler:__constructor()
     self:__super(ProfessionsFrame.CraftingPage)
-    self:RegisterEvent(global_cursor, "TRADE_SKILL_LIST_UPDATE")
+    self:RegisterEvent("TRADE_SKILL_LIST_UPDATE")
     self.cancel_func = ProfessionsFrameHandler.CancelMenu
     self.tab_system = ProfessionsFrame.TabSystem
 end
@@ -3633,7 +3645,7 @@ MenuCursor.RegisterFrameHandler(WeeklyRewardsFrameHandler)
 
 function WeeklyRewardsFrameHandler:__constructor()
     self:__super(WeeklyRewardsFrame)
-    self:RegisterEvent(global_cursor, "WEEKLY_REWARDS_UPDATE")
+    self:RegisterEvent("WEEKLY_REWARDS_UPDATE")
 end
 
 function WeeklyRewardsFrameHandler:WEEKLY_REWARDS_UPDATE()
