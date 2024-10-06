@@ -3280,6 +3280,16 @@ function SpecPageHandler:__constructor()
                                        self.RefreshTargetsForUndoOff)
     EventRegistry:RegisterCallback("ProfessionsSpecializations.TabSelected",
                                    function() self:RefreshTargets() end)
+
+    -- Set to true on on tab cycling.  Causes SetTargets() to try and
+    -- preserve the previous cursor position if possible.
+    self.refresh_is_tab_cycle = false
+    -- Set to true o switching between tree and summary views.  Causes
+    -- SetTargets() to set the cursor position to the view-switch button
+    -- instead of the usual default.
+    self.refresh_is_view_toggle = false
+    -- Used to prevent repeated calls in a single frame (see RefreshTargets()).
+    self.refresh_pending = false
 end
 
 function SpecPageHandler:OnHide()
@@ -3294,17 +3304,17 @@ function SpecPageHandler:CycleTabs(dir)
         tinsert(tabs, {tab, tab:GetLeft()})
     end
     table.sort(tabs, function(a, b) return a[2] < b[2] end)
-    local first, prev, found_cur, target
+    local first, prev, cur, target
     for _, v in ipairs(tabs) do
         local tab = v[1]
         if tab.isSelected then
+            cur = tab
             if dir < 0 and prev then
                 target = prev
                 break
             end
-            found_cur = true
         else
-            if dir > 0 and found_cur then
+            if dir > 0 and cur then
                 target = tab
                 break
             end
@@ -3315,20 +3325,19 @@ function SpecPageHandler:CycleTabs(dir)
     if not target then
         target = dir > 0 and first or prev
     end
+    self.refresh_is_tab_cycle = true
     target:GetScript("OnClick")(target, "LeftButton", true)
 end
 
-function SpecPageHandler:SetTargets()
+function SpecPageHandler:SetTargets(prev_target, is_tab_cycle, is_view_toggle)
     local SpecPage = ProfessionsFrame.SpecPage
     if not SpecPage:IsVisible() then
         return nil
     end
 
-    local initial = nil
-    local is_view_toggle = self.refresh_is_view_toggle
-    self.refresh_is_view_toggle = false
-
+    local new_target = nil
     self.targets = {}
+
     if SpecPage.ApplyButton:IsVisible() then
         self.targets[SpecPage.ApplyButton] =
             {can_activate = true, lock_highlight = true,
@@ -3344,41 +3353,60 @@ function SpecPageHandler:SetTargets()
              lock_highlight = true,
              left = false, right = SpecPage.ApplyButton}
         local root = self:AddSpecTreeTargets(true)
-        initial = is_view_toggle and SpecPage.ViewPreviewButton or root
+        self.targets[root].up = SpecPage.ApplyButton
+        self.targets[SpecPage.ApplyButton].down = root
+        self.targets[SpecPage.ViewPreviewButton].down = root
+        if is_tab_cycle and (prev_target == SpecPage.ApplyButton or
+                             prev_target == SpecPage.UndoButton or
+                             prev_target == SpecPage.ViewPreviewButton) then
+            new_target = prev_target
+        elseif is_tab_cycle and prev_target == SpecPage.UnlockTabButton then
+            new_target = SpecPage.ApplyButton
+        elseif is_tab_cycle and (prev_target == SpecPage.BackToPreviewButton or
+                                 prev_target == SpecPage.ViewTreeButton) then
+            new_target = SpecPage.ViewPreviewButton
+        else
+            new_target = is_view_toggle and SpecPage.ViewPreviewButton or root
+        end
+
     elseif SpecPage.BackToFullTreeButton:IsVisible() then
         self.targets[SpecPage.BackToFullTreeButton] =
             {on_click = function(frame) self:ClickViewToggleButton(frame) end,
              lock_highlight = true}
-        initial = SpecPage.BackToFullTreeButton
+        new_target = SpecPage.BackToFullTreeButton
+
     elseif SpecPage.ViewTreeButton:IsVisible() then
         self.targets[SpecPage.ViewTreeButton] =
             {on_click = function(frame) self:ClickViewToggleButton(frame) end,
              lock_highlight = true}
         self.targets[SpecPage.UnlockTabButton] =
             {can_activate = true, lock_highlight = true}
-        initial = (is_view_toggle and SpecPage.ViewTreeButton
-                   or SpecPage.UnlockTabButton)
+        if is_tab_cycle and (prev_target == SpecPage.BackToFullTreeButton or
+                             prev_target == SpecPage.ViewPreviewButton) then
+            new_target = SpecPage.ViewTreeButton
+        else
+            new_target = (is_view_toggle and SpecPage.ViewTreeButton
+                          or SpecPage.UnlockTabButton)
+        end
+
     elseif SpecPage.BackToPreviewButton:IsVisible() then
         self.targets[SpecPage.BackToPreviewButton] =
             {on_click = function(frame) self:ClickViewToggleButton(frame) end,
              lock_highlight = true}
         self.targets[SpecPage.UnlockTabButton] =
             {can_activate = true, lock_highlight = true}
-        self:AddSpecTreeTargets(false)
-        initial = (is_view_toggle and SpecPage.BackToPreviewButton
-                   or SpecPage.UnlockTabButton)
+        local root = self:AddSpecTreeTargets(false)
+        self.targets[root].up = SpecPage.UnlockTabButton
+        self.targets[SpecPage.UnlockTabButton].down = root
+        self.targets[SpecPage.BackToPreviewButton].down = root
+        new_target = (is_view_toggle and SpecPage.BackToPreviewButton
+                      or SpecPage.UnlockTabButton)
+
     else
         error("Unknown spec page state")
     end
 
-    return initial
-end
-
-function SpecPageHandler:ClickViewToggleButton(button)
-    self.refresh_is_view_toggle = true
-    local script = button:GetScript("OnClick")
-    assert(script)
-    script(button, "LeftButton", true)
+    return new_target
 end
 
 function SpecPageHandler:AddSpecTreeTargets(clickable)
@@ -3420,12 +3448,33 @@ function SpecPageHandler:AddSpecTreeTargets(clickable)
     return root
 end
 
+function SpecPageHandler:ClickViewToggleButton(button)
+    self.refresh_is_view_toggle = true
+    local script = button:GetScript("OnClick")
+    assert(script)
+    script(button, "LeftButton", true)
+end
+
 function SpecPageHandler:RefreshTargets()
-    local target = global_cursor:GetTargetForFrame(self)
-    global_cursor:SetTargetForFrame(self, nil)
-    local initial = self:SetTargets()
-    if not self.targets[target] then target = nil end
-    global_cursor:SetTargetForFrame(self, target or initial)
+    -- We can get multiple refresh calls in a single frame, such as when
+    -- switching from a locked to an unlocked tab, and refreshing on every
+    -- call can lead to seeing inconsistent UI states in SetTargets(), so
+    -- we delay the actual refresh until the next frame.
+    if not self.refresh_pending then
+        self.refresh_pending = true
+        RunNextFrame(function()
+            self.refresh_pending = false
+            local is_tab_cycle = self.refresh_is_tab_cycle
+            self.refresh_is_tab_cycle = false
+            local is_view_toggle = self.refresh_is_view_toggle
+            self.refresh_is_view_toggle = false
+            local target = global_cursor:GetTargetForFrame(self)
+            global_cursor:SetTargetForFrame(self, nil)
+            local new_target =
+                self:SetTargets(target, is_tab_cycle, is_view_toggle)
+            global_cursor:SetTargetForFrame(self, new_target)
+        end)
+    end
 end
 
 function SpecPageHandler:RefreshTargetsForUndoOff()
