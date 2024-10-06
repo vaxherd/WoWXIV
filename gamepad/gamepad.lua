@@ -258,7 +258,7 @@ function Gamepad.Init()
     Gamepad.listener = GamePadListener()
     Gamepad.qib = Gamepad.QuestItemButton()
     Gamepad.lvb = Gamepad.LeaveVehicleButton()
-    Gamepad.cursor = Gamepad.MenuCursor()
+    Gamepad.cursor = Gamepad.MenuCursor.Cursor()
     Gamepad.UpdateCameraSettings()
 end
 

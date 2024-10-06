@@ -24,8 +24,29 @@ util.lua
 
 gamepad/gamepad.lua
 gamepad/leavevehicle.lua
-gamepad/menucursor.lua
 gamepad/questitem.lua
+
+gamepad/menucursor/menucursor.lua
+gamepad/menucursor/ClassTrainerFrame.lua
+gamepad/menucursor/CovenantSanctumFrame.lua
+gamepad/menucursor/DelvesCompanionConfigurationFrame.lua
+gamepad/menucursor/DelvesDifficultyPickerFrame.lua
+gamepad/menucursor/GarrisonCapacitiveDisplayFrame.lua
+gamepad/menucursor/GossipFrame.lua
+gamepad/menucursor/InboxFrame.lua
+gamepad/menucursor/MerchantFrame.lua
+gamepad/menucursor/OpenMailFrame.lua
+gamepad/menucursor/PetBattleFrame.lua
+gamepad/menucursor/PlayerChoiceFrame.lua
+gamepad/menucursor/ProfessionsBookFrame.lua
+gamepad/menucursor/ProfessionsFrame.lua
+gamepad/menucursor/QuestFrame.lua
+gamepad/menucursor/SpellBookFrame.lua
+gamepad/menucursor/SplashFrame.lua
+gamepad/menucursor/StaticPopup.lua
+gamepad/menucursor/UIWidgetCenterDisplayFrame.lua
+gamepad/menucursor/VoidStoragePurchaseFrame.lua
+gamepad/menucursor/WeeklyRewardsFrame.lua
 
 ui/aurabar.lua
 ui/castbar.lua
