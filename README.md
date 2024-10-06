@@ -31,7 +31,7 @@ that of Final Fantasy XIV.  Specific features include:
   external addons to register their own help text)
 
 - Various improvements to gamepad support, including right-stick zoom
-  and a rudimentary menu cursor
+  and a menu cursor
 
 
 Installation
