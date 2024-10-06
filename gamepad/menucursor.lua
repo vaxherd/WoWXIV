@@ -605,12 +605,19 @@ end
 
 local MenuFrame = class()
 
+-- Convenience constant for passing true to the modal argument of the
+-- MenuFrame constructor in a way that indicates what the argument is.
+MenuFrame.MODAL = true
+
 
 -------- Instance constructor
 
 -- Instance constructor.  Pass the WoW Frame instance to be managed.
-function MenuFrame:__constructor(frame)
+-- If modal is true, the frame will be modal (preventing switching
+-- input focus to any non-modal frame while active).
+function MenuFrame:__constructor(frame, modal)
     self.frame = frame
+    self.modal = modal
 
     -- Table of valid targets for cursor movement.  Each key is a frame
     -- (except as noted for scroll_box below), and each value is a subtable
@@ -1006,19 +1013,32 @@ function MenuFrame:HookShow(frame, show_method, hide_method)
     end)
 end
 
+-- Add this frame to the cursor's frame list if not already present, and
+-- set it as the input focus.  If initial_target is not nil, the cursor
+-- target will be set to that target.
+function MenuFrame:Enable(initial_target)
+    global_cursor:AddFrame(self, initial_target, self.modal)
+end
+
+-- Remove this frame from the cursor's frame list.  Does nothing if the
+-- frame is not on the cursor's frame list.
+function MenuFrame:Disable()
+    global_cursor:RemoveFrame(self)
+end
+
 
 -------- Utility functions (these are all MenuFrame class methods)
 
 -- Generic cancel_func to close a frame.
 function MenuFrame.CancelFrame(frame)
-    global_cursor:RemoveFrame(frame)
+    frame:Disable()
     frame:GetFrame():Hide()
 end
 
 -- Generic cancel_func to close a UI frame.  Equivalent to CancelFrame()
 -- but with calling HideUIPanel(focus) instead of focus:Hide().
 function MenuFrame.CancelUIFrame(frame)
-    global_cursor:RemoveFrame(frame)
+    frame:Disable()
     HideUIPanel(frame:GetFrame())
 end
 
@@ -1153,7 +1173,7 @@ function MenuFrame.SetupDropdownMenu(dropdown, cache, getIndex, onClick)
         menu_menu = MenuFrame(menu)
         menu_menu.cancel_func = function() dropdown:CloseMenu() end
         cache[menu] = menu_menu
-        hooksecurefunc(menu, "Hide", function() global_cursor:RemoveFrame(menu_menu) end)
+        hooksecurefunc(menu, "Hide", function() menu_menu:Disable() end)
     end
     menu_menu.targets = {}
     menu_menu.item_order = {}
@@ -1190,12 +1210,12 @@ end
 --[[
     MenuFrame subclass for handling a core frame (one which is initialized
     by core game code before any addons are loaded).  Includes OnShow/OnHide
-    handlers which respectively call AddFocus and RemoveFocus for the frame,
-    and a default cancel_func of MenuFrame.CancelUIFrame.
+    handlers which respectively call Enable() and Disable(), and a default
+    cancel_func of MenuFrame.CancelUIFrame.
 
     If the subclass defines a SetTargets() method, it will be called by
     OnShow() and its return value will be used as the initial target to
-    pass to AddFrame().  If the method returns false (as opposed to nil),
+    pass to Enable().  If the method returns false (as opposed to nil),
     the OnShow event will instead be ignored.
 
     A singleton instance for the (presumed also singleton) managed frame
@@ -1222,12 +1242,12 @@ function CoreMenuFrame:OnShow()
     assert(self.frame:IsVisible())
     local initial_target = self.SetTargets and self:SetTargets()
     if initial_target ~= false then
-        global_cursor:AddFrame(self, initial_target)
+        self:Enable(initial_target)
     end
 end
 
 function CoreMenuFrame:OnHide()
-    global_cursor:RemoveFrame(self)
+    self:Disable()
 end
 
 
@@ -1280,7 +1300,7 @@ function GossipFrameHandler:GOSSIP_SHOW()
     end
     global_cursor:SetTargetForFrame(self, nil) -- In case it's already open.
     local initial_target = self:SetTargets()
-    global_cursor:AddFrame(self, initial_target)
+    self:Enable(initial_target)
 end
 
 function GossipFrameHandler:GOSSIP_CONFIRM_CANCEL()
@@ -1291,7 +1311,7 @@ function GossipFrameHandler:GOSSIP_CONFIRM_CANCEL()
 end
 
 function GossipFrameHandler:GOSSIP_CLOSED()
-    global_cursor:RemoveFrame(self)
+    self:Disable()
 end
 
 function GossipFrameHandler:SetTargets()
@@ -1365,7 +1385,7 @@ end
 function QuestFrameHandler:__constructor()
     self:__super(QuestFrame)
     self.cancel_func = function()
-        global_cursor:RemoveFrame(frame)
+        self:Disable()
         CloseQuest()
     end
 end
@@ -1373,7 +1393,7 @@ end
 function QuestFrameHandler:QUEST_GREETING()
     assert(QuestFrame:IsVisible())  -- FIXME: might be false if previous quest turn-in started a cutscene (e.g. The Underking Comes in the Legion Highmountain scenario)
     self:OnShow("QUEST_GREETING")
-    global_cursor:AddFrame(self)
+    self:Enable()
 end
 
 function QuestFrameHandler:QUEST_DETAIL()
@@ -1381,24 +1401,24 @@ function QuestFrameHandler:QUEST_DETAIL()
     -- start a quest directly from the map; we should support those too
     if not QuestFrame:IsVisible() then return end
     self:OnShow("QUEST_DETAIL")
-    global_cursor:AddFrame(self)
+    self:Enable()
 end
 
 function QuestFrameHandler:QUEST_PROGRESS()
     assert(QuestFrame:IsVisible())
     self:OnShow("QUEST_PROGRESS")
-    global_cursor:AddFrame(self)
+    self:Enable()
 end
 
 function QuestFrameHandler:QUEST_COMPLETE()
     -- Quest frame can fail to open under some conditions?
     if not QuestFrame:IsVisible() then return end
     self:OnShow("QUEST_COMPLETE")
-    global_cursor:AddFrame(self)
+    self:Enable()
 end
 
 function QuestFrameHandler:QUEST_FINISHED()
-    global_cursor:RemoveFrame(self)
+    self:Disable()
 end
 
 function QuestFrameHandler:OnShow(event)
@@ -1613,12 +1633,12 @@ end
 function CovenantSanctumFrameHandler:OnChooseTalent(upgrade_button)
     upgrade_button:OnMouseDown()
     local talent_menu = CovenantSanctumFrameHandler.talent_instance
-    global_cursor:AddFrame(talent_menu, talent_menu:SetTargets())
+    talent_menu:Enable(talent_menu:SetTargets())
 end
 
 function CovenantSanctumTalentFrameHandler:__constructor()
     self:__super(CovenantSanctumFrame)
-    self.cancel_func = function(self) global_cursor:RemoveFrame(self) end
+    self.cancel_func = function(self) self:Disable() end
 end
 
 function CovenantSanctumTalentFrameHandler:SetTargets()
@@ -1727,13 +1747,12 @@ local StaticPopupHandler = class(MenuFrame)
 MenuCursor.RegisterFrameHandler(StaticPopupHandler)
 
 function StaticPopupHandler.Initialize(class, cursor)
-    local instance = class()
     class.instances = {}
     for i = 1, STATICPOPUP_NUMDIALOGS do
         local frame_name = "StaticPopup" .. i
         local frame = _G[frame_name]
         assert(frame)
-        local instance = StaticPopupHandler(frame)
+        local instance = StaticPopupHandler(frame, MenuFrame.MODAL)
         class.instances[i] = instance
         instance:HookShow(frame)
     end
@@ -1742,11 +1761,11 @@ end
 function StaticPopupHandler:OnShow()
     if global_cursor:GetFocus() == self then return end  -- Sanity check.
     self:SetTargets()
-    global_cursor:AddFrame(self, nil, true)  -- Modal frame.
+    self:Enable(nil, true)  -- Modal frame.
 end
 
 function StaticPopupHandler:OnHide()
-    global_cursor:RemoveFrame(self)
+    self:Disable()
 end
 
 function StaticPopupHandler:SetTargets()
@@ -1855,7 +1874,7 @@ function InboxFrameHandler:SetTargets()
     -- We specifically hook the inbox frame, so we need a custom handler
     -- to hide the proper frame on cancel.
     self.cancel_func = function(self)
-        global_cursor:RemoveFrame(self)
+        self:Disable()
         HideUIPanel(MailFrame)
     end
     self.prev_page_button = "InboxPrevPageButton"
@@ -2404,13 +2423,13 @@ function SpellBookFrameHandler:OnShow()
 end
 
 function SpellBookFrameHandler:OnHide()
-    global_cursor:RemoveFrame(self)
+    self:Disable()
 end
 
 function SpellBookFrameHandler:OnShowSpellBookTab()
     if not PlayerSpellsFrame:IsShown() then return end
     local target = self:RefreshTargets()
-    global_cursor:AddFrame(self, target)
+    self:Enable(target)
 end
 
 -- Effectively the same as SpellBookItemMixin:OnIconEnter() and ...Leave()
@@ -2789,15 +2808,15 @@ function CraftingPageHandler:OnShow()
     assert(ProfessionsFrame:IsShown())
     self.need_refresh = true
     self.targets = {}
-    global_cursor:AddFrame(self)
+    self:Enable()
     RunNextFrame(function()
         global_cursor:SetTargetForFrame(self, self:RefreshTargets())
     end)
 end
 
 function CraftingPageHandler:OnHide()
-    global_cursor:RemoveFrame(self)
-    global_cursor:RemoveFrame(ProfessionsFrameHandler.instance_SchematicForm)
+    self:Disable()
+    ProfessionsFrameHandler.instance_SchematicForm:Disable()
 end
 
 function CraftingPageHandler:FocusRecipe(tries)
@@ -2817,7 +2836,7 @@ function CraftingPageHandler:FocusRecipe(tries)
     end
     local form = ProfessionsFrameHandler.instance_SchematicForm
     local initial_target = form:SetTargets()
-    global_cursor:AddFrame(form, initial_target)
+    form:Enable(initial_target)
 end
 
 local PROFESSION_GEAR_SLOTS = {
@@ -2905,7 +2924,7 @@ function SchematicFormHandler:__constructor()
     self:HookShow(ProfessionsFrame.CraftingPage.CreateAllButton,
                   self.OnShowCreateAllButton, self.OnHideCreateAllButton)
     self.cancel_func = function(self)
-        global_cursor:RemoveFrame(self)
+        self:Disable()
         self.targets = {}  -- suppress update calls from CreateAllButton:Show() hook
     end
     self.tab_system = ProfessionsFrame.TabSystem
@@ -3150,7 +3169,7 @@ end
 
 function ItemFlyoutHandler:OnShow()
     self.targets = {}
-    global_cursor:AddFrame(self)
+    self:Enable()
     RunNextFrame(function() self:RefreshTargets() end)
 end
 
@@ -3244,8 +3263,8 @@ function SpecPageHandler:__constructor()
 end
 
 function SpecPageHandler:OnHide()
-    global_cursor:RemoveFrame(self)
-    global_cursor:RemoveFrame(ProfessionsFrameHandler.instance_DetailedView)
+    self:Disable()
+    ProfessionsFrameHandler.instance_DetailedView:Disable()
 end
 
 function SpecPageHandler:SetTargets(is_view_toggle)
@@ -3331,7 +3350,7 @@ end
 
 function SpecPageHandler:OnClickTalent(button)
     button:OnClick("LeftButton", true)
-    global_cursor:AddFrame(ProfessionsFrameHandler.instance_DetailedView)
+    ProfessionsFrameHandler.instance_DetailedView:Enable()
 end
 
 
@@ -3344,7 +3363,7 @@ function DetailedViewHandler:__constructor()
                   self.RefreshTargets, self.RefreshTargets)
     self:HookShow(DetailedView.SpendPointsButton,
                   self.RefreshTargets, self.RefreshTargets)
-    self.cancel_func = function() global_cursor:RemoveFrame(self) end
+    self.cancel_func = function() self:Disable() end
     self.targets = {}
 end
 
@@ -3827,7 +3846,7 @@ end
 function DelvesCompanionAbilityListFrameHandler:OnShow()
     assert(DelvesCompanionAbilityListFrame:IsShown())
     self.targets = {}
-    global_cursor:AddFrame(self)
+    self:Enable()
     self:RefreshTargets()
 end
 
@@ -3874,7 +3893,7 @@ function DelvesCompanionAbilityListFrameHandler:ToggleRoleDropdown()
                 end
             end,
             function() self:RefreshTargets() end)
-        global_cursor:AddFrame(menu, initial_target)
+        menu:Enable(initial_target)
     end
 end
 
@@ -3935,7 +3954,7 @@ end
 function DelvesDifficultyPickerFrameHandler:OnShow()
     assert(DelvesDifficultyPickerFrame:IsShown())
     self.targets = {}
-    global_cursor:AddFrame(self)
+    self:Enable()
     self:RefreshTargets()
 end
 
@@ -3952,7 +3971,7 @@ function DelvesDifficultyPickerFrameHandler:ToggleDropdown()
                 return selection.data and selection.data.orderIndex + 1
             end,
             function () self:RefreshTargets() end)
-        global_cursor:AddFrame(menu, initial_target)
+        menu:Enable(initial_target)
     end
 end
 
@@ -4068,7 +4087,7 @@ function PetBattleFrameHandler:OnShow()
              bf.abilityButtons[3]:IsVisible()))
     then
         local initial_target = self:SetTargets(nil)
-        global_cursor:AddFrame(self, initial_target)
+        self:Enable(initial_target)
     else
         RunNextFrame(function() self:OnShow() end)
     end
@@ -4141,13 +4160,13 @@ end
 
 function PetBattlePetSelectionFrameHandler:__constructor()
     local psf = PetBattleFrame.BottomFrame.PetSelectionFrame
-    self:__super(psf)
+    self:__super(psf, MenuFrame.MODAL)
     self.cancel_func = nil
 end
 
 function PetBattlePetSelectionFrameHandler:OnShow()
     local initial_target = self:SetTargets()
-    global_cursor:AddFrame(self, initial_target, true)  -- modal
+    self:Enable(initial_target, true)  -- modal
 end
 
 function PetBattlePetSelectionFrameHandler:SetTargets()
