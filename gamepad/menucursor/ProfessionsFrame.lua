@@ -651,6 +651,12 @@ function SpecPageHandler:__constructor()
     self.refresh_is_view_toggle = false
     -- Used to prevent repeated calls in a single frame (see RefreshTargets()).
     self.refresh_pending = false
+    -- Tree edge information for all nodes in the current skill tree.
+    -- Each table key is a skill tree node (cursor target) whose value is
+    -- a table mapping adjacent nodes to edge types: -1 = parent, 1 = child.
+    -- The edge table also includes a special key -1 pointing to the parent
+    -- node (the root node will not have this key).
+    self.skill_tree = {}
 end
 
 function SpecPageHandler:OnHide()
@@ -699,6 +705,7 @@ function SpecPageHandler:SetTargets(prev_target, is_tab_cycle, is_view_toggle)
     local new_target = nil
     self:ClearTarget()
     self.targets = {}
+    self.skill_tree = {}
 
     if SpecPage.ApplyButton:IsVisible() then
         self.targets[SpecPage.ApplyButton] =
@@ -714,7 +721,8 @@ function SpecPageHandler:SetTargets(prev_target, is_tab_cycle, is_view_toggle)
             {on_click = function(frame) self:ClickViewToggleButton(frame) end,
              lock_highlight = true,
              left = false, right = SpecPage.ApplyButton}
-        local root = self:AddSpecTreeTargets(true)
+        local root, tree = self:AddSpecTreeTargets(true)
+        self.skill_tree = tree
         self.targets[root].up = SpecPage.ApplyButton
         self.targets[SpecPage.ApplyButton].down = root
         self.targets[SpecPage.ViewPreviewButton].down = root
@@ -757,7 +765,8 @@ function SpecPageHandler:SetTargets(prev_target, is_tab_cycle, is_view_toggle)
              lock_highlight = true}
         self.targets[SpecPage.UnlockTabButton] =
             {can_activate = true, lock_highlight = true}
-        local root = self:AddSpecTreeTargets(false)
+        local root, tree = self:AddSpecTreeTargets(true)
+        self.skill_tree = tree
         self.targets[root].up = SpecPage.UnlockTabButton
         self.targets[SpecPage.UnlockTabButton].down = root
         self.targets[SpecPage.BackToPreviewButton].down = root
@@ -773,9 +782,11 @@ end
 
 function SpecPageHandler:AddSpecTreeTargets(clickable)
     local SpecPage = ProfessionsFrame.SpecPage
-    local parent = {}  -- FIXME: Any way to get the root node directly?
+    local tree = {}
+    local parent = {}
     local buttons = {}
     for button in SpecPage:EnumerateAllTalentButtons() do
+        tree[button] = {}
         local info = button:GetNodeInfo()
         buttons[info.ID] = button
         for _, edge in ipairs(info.visibleEdges) do
@@ -801,13 +812,19 @@ function SpecPageHandler:AddSpecTreeTargets(clickable)
     end
     local root
     for id, button in pairs(buttons) do
-        if not parent[id] then
+        local edges = tree[button]
+        if parent[id] then
+            local pnode = buttons[parent[id]]
+            edges[pnode] = -1
+            edges[-1] = pnode
+            tree[pnode][button] = 1
+        else
             assert(not root, "Multiple root tree nodes found")
             root = button
         end
     end
     assert(root, "Root tree node not found")
-    return root
+    return root, tree
 end
 
 function SpecPageHandler:ClickViewToggleButton(button)
@@ -851,6 +868,55 @@ function SpecPageHandler:OnClickTalent(button)
         button:OnClick("LeftButton", true)
         ProfessionsFrameHandler.instance_DetailedView:Enable()
     end
+end
+
+-- Override NextTarget() to limit cursor movement within the skill tree
+-- to adjacent or sibling nodes.
+function SpecPageHandler:NextTarget(target, dir)
+    local next = CoreMenuFrame.NextTarget(self, target, dir)
+    local tree = self.skill_tree
+    if not tree then return next end  -- Sanity check, should never happen.
+    local edges = tree[target]
+    if not edges or not tree[next] then
+        return next  -- Movement is not within the skill tree, allow.
+    end
+    if edges[next] then
+        return next  -- Movement is along a tree edge, allow.
+    end
+    if edges[-1] and tree[edges[-1]][next] == 1 then
+        return next  -- Movement is to a sibling, allow.
+    end
+
+    -- Movement is neither along an edge nor to a sibling.  Rerun the
+    -- cursor movement using a target subset of just the relevant nodes.
+    local saved_targets = self.targets
+    local new_targets = {[target] = saved_targets[target]}
+    for node in pairs(edges) do
+        if node ~= -1 then
+            new_targets[node] = saved_targets[node]
+        end
+    end
+    if edges[-1] then
+        local parent_edges = tree[edges[-1]]
+        for node, value in pairs(parent_edges) do
+            -- Note that this check will include the current node as well.
+            -- We don't worry about the miniscule overhead of writing that
+            -- table entry twice.
+            if node ~= -1 and value == 1 then
+                new_targets[node] = saved_targets[node]
+            end
+        end
+    end
+    self.targets = new_targets
+    local success, result = pcall(  -- Ensure self.targets is restored.
+        function() return CoreMenuFrame.NextTarget(self, target, dir) end)
+    self.targets = saved_targets
+    if not success then
+        error("Error in NextTarget: "..tostring(result))
+    end
+    assert(not result or self.targets[result],
+           "NextTarget returned invalid target")
+    return result
 end
 
 
