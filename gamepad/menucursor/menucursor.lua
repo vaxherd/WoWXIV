@@ -8,7 +8,6 @@ local class = WoWXIV.class
 local GameTooltip = GameTooltip
 local abs = math.abs
 local floor = math.floor
-local function round(x) return floor(x+0.5) end
 local tinsert = tinsert
 local tremove = tremove
 
@@ -439,7 +438,7 @@ function Cursor:OnUpdate()
     self:SetCursorPoint(target_frame)
 
     local t = GetTime()
-    t = t - math.floor(t)
+    t = t - floor(t)
     local xofs = -4 * math.sin(t * math.pi)
     self.texture:ClearPointsOffset()
     self.texture:AdjustPointsOffset(xofs, 0)
@@ -834,8 +833,8 @@ function MenuFrame:NextTarget(target, dir)
              or (dy > 0 and frame_dy > 0)
              or (dy < 0 and frame_dy < 0))
             then
-                frame_dx = math.abs(frame_dx)
-                frame_dy = math.abs(frame_dy)
+                frame_dx = abs(frame_dx)
+                frame_dy = abs(frame_dy)
                 local frame_dpar = dx~=0 and frame_dx or frame_dy  -- parallel
                 local frame_dperp = dx~=0 and frame_dy or frame_dx -- perpendicular
                 local best_dpar = dx~=0 and best_dx or best_dy
@@ -1126,6 +1125,37 @@ end
 -- data index of the element.
 function MenuFrame.PseudoFrameForScrollElement(box, index)
     return {box = box, index = index}
+end
+
+-- Take a list of targets known to be organized in rows, and return a list
+-- of target rows sorted from top to bottom, each containing a list of
+-- targets in the same row sorted from left to right.  The targets must
+-- all be visible Frame instances.
+function MenuFrame.SortTargetGrid(targets)
+    local rows = {}
+    local row_y = {}
+    for _, target in ipairs(targets) do
+        local x, y = target:GetLeft(), target:GetTop()
+        local row = rows[y]
+        if not row then
+            tinsert(row_y, y)
+            row = {}
+            rows[y] = row
+        end
+        tinsert(row, {target, x})
+    end
+    table.sort(row_y, function(a, b) return a > b end)
+    local result = {}
+    for _, y in ipairs(row_y) do
+        local row_in = rows[y]
+        table.sort(row_in, function(a, b) return a[2] < b[2] end)
+        local row_out = {}
+        for _, v in ipairs(row_in) do
+            tinsert(row_out, v[1])
+        end
+        tinsert(result, row_out)
+    end
+    return result
 end
 
 -- Add widgets in the given WidgetContainer whose type is one of the

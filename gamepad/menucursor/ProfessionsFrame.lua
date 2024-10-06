@@ -285,7 +285,7 @@ function SchematicFormHandler:SetTargets()
 
     self.targets = {}
 
-    local top_icon
+    local top_icon, top_icon2
     local rs = SchematicForm.recraftSlot
     if rs:IsShown() then
         self.targets[rs.InputSlot] = {
@@ -295,6 +295,7 @@ function SchematicFormHandler:SetTargets()
             self.targets[rs.InputSlot].right = rs.OutputSlot
             self.targets[rs.OutputSlot] = {
                 send_enter_leave = true, left = rs.InputSlot, right = false}
+            top_icon2 = rs.OutputSlot
         end
         top_icon = rs.InputSlot
     else
@@ -348,8 +349,9 @@ function SchematicFormHandler:SetTargets()
         end
     end
 
-    local r_top, r_bottom = false, false
+    local r_top, r_top2, r_bottom, r_bottom2 = false, false, false, false
     if SchematicForm.Reagents:IsShown() then
+        local reagents = {}
         for _, frame in ipairs({SchematicForm.Reagents:GetChildren()}) do
             local button = frame:GetChildren()
             if button:IsVisible() then
@@ -361,19 +363,35 @@ function SchematicFormHandler:SetTargets()
                 elseif button:GetScript("OnClick") then
                     self.targets[button].can_activate = true
                 end
-                if not r_top or button:GetTop() > r_top:GetTop() then
-                    r_top = button
-                end
-                if not r_bottom or button:GetTop() < r_bottom:GetTop() then
-                    r_bottom = button
-                end
+                tinsert(reagents, button)
             end
         end
-        if r_top then
-            self.targets[r_top].up = top_icon
+        reagents = MenuFrame.SortTargetGrid(reagents)
+        for _, row in ipairs(reagents) do
+            assert(#row <= 2, "Too many reagents in row")
+            local left, right = unpack(row)
+            self.targets[left].up = r_bottom or top_icon
+            self.targets[left].left = false
+            self.targets[left].right = r_left
+            if r_bottom then
+                self.targets[r_bottom].down = left
+            end
+            if right then
+                self.targets[left].right = right
+                self.targets[right].up = r_bottom2 or top_icon2 or top_icon
+                self.targets[right].left = left
+                self.targets[right].right = r_left
+                if r_bottom2 then
+                    self.targets[r_bottom2].down = right
+                end
+            end
+            r_top = r_top or left
+            r_top2 = r_top2 or right or false
+            r_bottom = left
+            r_bottom2 = right or false
         end
         if r_bottom and r_left then
-            self.targets[r_left].left = r_bottom
+            self.targets[r_left].left = r_bottom2 or r_bottom
         end
     elseif rs:IsShown() then
         r_top = rs.InputSlot
@@ -416,6 +434,7 @@ function SchematicFormHandler:SetTargets()
     self.targets[CraftingPage.CreateMultipleInputBox.IncrementButton].up = create_left_up
     self.targets[CraftingPage.CreateButton].up = create_right_up
     self.r_bottom = r_bottom
+    self.r_bottom2 = r_bottom2
 
     self:UpdateMovement()
     return r_top
@@ -446,9 +465,12 @@ function SchematicFormHandler:UpdateMovement()
         self.targets[SchematicForm.recraftSlot.OutputSlot].up = create_left
     end
 
-    local r_bottom = self.r_bottom
+    local r_bottom, r_bottom2 = self.r_bottom, self.r_bottom2
     if r_bottom then
         self.targets[r_bottom].down = create_left
+    end
+    if r_bottom2 then
+        self.targets[r_bottom2].down = create_left
     end
     local SchematicForm = CraftingPage.SchematicForm
     local frsc = SchematicForm.Details.CraftingChoicesContainer.FinishingReagentSlotContainer

@@ -37,14 +37,15 @@ function WeeklyRewardsFrameHandler:SetTargets()
         return  -- Prevent any menu input if the blocking overlay is up.
     end
     local can_claim = C_WeeklyRewards.CanClaimRewards()
+    -- We can't use the generic SortTargetGrid() because of the special
+    -- logic below for targeting items inside boxes.
     local row_y = {}
     local rows = {}
     for _, info in ipairs(C_WeeklyRewards.GetActivities()) do
         local frame = WeeklyRewardsFrame:GetActivityFrame(info.type, info.index)
         if frame and frame ~= WeeklyRewardsFrame.ConcessionFrame then
             local unlocked = can_claim and #info.rewards > 0
-            local x = frame:GetLeft()
-            local y = frame:GetTop()
+            local x, y = frame:GetLeft(), frame:GetTop()
             -- If a reward is available, we want to target the item itself
             -- rather than the activity box, but the activity box is still
             -- the frame that needs to get the click on activation.
