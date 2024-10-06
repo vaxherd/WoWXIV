@@ -344,7 +344,7 @@ function Cursor:UpdateCursor(in_combat)
             f:Show()
             focus:EnterTarget(target)
         else
-            self:SetCancelBinding(focus)
+            self:SetFrameSpecificBindings(focus)
         end
     else
         if f:IsShown() then
@@ -372,35 +372,9 @@ function Cursor:OnShow()
                        "CLICK WoWXIV_MenuCursor:DPadRight")
     SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_confirm"],
                        "CLICK WoWXIV_MenuCursor:LeftButton")
-    self:SetCancelBinding(focus)
-    local prev, next = focus:GetPageHandlers()
-    if prev and next then
-        local prev_button, next_button
-        if type(prev) == "string" then
-            prev_button = "CLICK "..prev..":LeftButton"
-        else
-            prev_button = "CLICK WoWXIV_MenuCursor:PrevPage"
-        end
-        if type(next) == "string" then
-            next_button = "CLICK "..next..":LeftButton"
-        else
-            next_button = "CLICK WoWXIV_MenuCursor:NextPage"
-        end
-        SetOverrideBinding(f, true,
-                           WoWXIV_config["gamepad_menu_prev_page"],
-                           prev_button)
-        SetOverrideBinding(f, true,
-                           WoWXIV_config["gamepad_menu_next_page"],
-                           next_button)
-    end
-    if focus:GetTabSystem() then
-        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_prev_tab"],
-                           "CLICK WoWXIV_MenuCursor:PrevTab")
-        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_tab"],
-                           "CLICK WoWXIV_MenuCursor:NextTab")
-    end
     SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_window"],
                        "CLICK WoWXIV_MenuCursor:CycleFrame")
+    self:SetFrameSpecificBindings(focus)
     f:SetScript("OnUpdate", function() self:OnUpdate() end)
     self:OnUpdate()
 end
@@ -461,11 +435,9 @@ function Cursor:SetCursorPoint(target)
     f:SetPoint("TOPRIGHT", UIParent, "TOPLEFT", x, y-UIParent:GetHeight())
 end
 
--- Helper for UpdateCursor() and OnShow() to set the cancel button binding
--- for the current cursor target depending on whether it needs to be
--- securely passed through to the target.  The current focus is passed
--- down for convenience.
-function Cursor:SetCancelBinding(focus)
+-- Helper for UpdateCursor() and OnShow() to set button bindings specific
+-- to the current input focus.
+function Cursor:SetFrameSpecificBindings(focus)
     local f = self.cursor
     if focus:GetCancelButton() then
         SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
@@ -473,6 +445,32 @@ function Cursor:SetCancelBinding(focus)
     else
         SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
                            "CLICK WoWXIV_MenuCursor:Cancel")
+    end
+    local prev, next = focus:GetPageHandlers()
+    if prev and next then
+        local prev_button, next_button
+        if type(prev) == "string" then
+            prev_button = "CLICK "..prev..":LeftButton"
+        else
+            prev_button = "CLICK WoWXIV_MenuCursor:PrevPage"
+        end
+        if type(next) == "string" then
+            next_button = "CLICK "..next..":LeftButton"
+        else
+            next_button = "CLICK WoWXIV_MenuCursor:NextPage"
+        end
+        SetOverrideBinding(f, true,
+                           WoWXIV_config["gamepad_menu_prev_page"],
+                           prev_button)
+        SetOverrideBinding(f, true,
+                           WoWXIV_config["gamepad_menu_next_page"],
+                           next_button)
+    end
+    if focus:GetTabSystem() then
+        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_prev_tab"],
+                           "CLICK WoWXIV_MenuCursor:PrevTab")
+        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_tab"],
+                           "CLICK WoWXIV_MenuCursor:NextTab")
     end
 end
 
