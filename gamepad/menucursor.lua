@@ -372,7 +372,7 @@ function MenuCursor:OnShow()
     SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_confirm"],
                        "CLICK WoWXIV_MenuCursor:LeftButton")
     self:SetCancelBinding(focus)
-    local prev, next = focus:GetPageButtons()
+    local prev, next = focus:GetPageHandlers()
     if prev and next then
         local prev_button, next_button
         if type(prev) == "string" then
@@ -510,11 +510,23 @@ function MenuCursor:OnClick(button, down)
         -- case.
         focus:OnCancel()
     elseif button == "PrevPage" then
-        local page_button = focus:GetPageButtons()
-        page_button:GetScript("OnClick")(page_button, "LeftButton", down)
+        local prev_button = focus:GetPageHandlers()
+        if type(prev_button) == "table" then
+            prev_button:GetScript("OnClick")(prev_button, "LeftButton", down)
+        elseif type(prev_button) == "function" then
+            prev_button(-1)
+        else
+            error("Invalid type for prev_button")
+        end
     elseif button == "NextPage" then
-        local _, page_button = focus:GetPageButtons()
-        page_button:GetScript("OnClick")(page_button, "LeftButton", down)
+        local _, next_button = focus:GetPageHandlers()
+        if type(next_button) == "table" then
+            next_button:GetScript("OnClick")(next_button, "LeftButton", down)
+        elseif type(next_button) == "function" then
+            next_button(1)
+        else
+            error("Invalid type for next_button")
+        end
     elseif button == "PrevTab" or button == "NextTab" then
         local tabs = focus:GetTabSystem()
         local direction = button=="PrevTab" and -1 or 1
@@ -658,13 +670,20 @@ function MenuFrame:__constructor(frame, modal)
     -- Subframe (button) to be clicked on a gamepad cancel button press,
     -- or nil for none.  If set, cancel_func is ignored.
     self.cancel_button = nil
-    -- Global name or Button instance of button to be clicked on a gamepad
-    -- previous-page button press, or nil if none.  (Gamepad page flipping
-    -- is only enabled if both this and next_page_button are non-nil.)
-    self.prev_page_button = nil
-    -- Global name or Button instance of button to be clicked on a gamepad
-    -- next-page button press, or nil if none.
-    self.next_page_button = nil
+    -- Object to handle gamepad previous-page button presses.  May be any of:
+    --    - A string, giving the global name of a button to which a click
+    --      action will be securely forwarded.
+    --    - A Button instance, to which a click action will be (insecurely)
+    --      sent.
+    --    - A function, which will be called with no arguments.
+    --    - nil, indicating that page flipping is not supported by this frame.
+    -- Must not be changed while the frame is enabled for input.  (Gamepad
+    -- page flipping is only enabled if both this and on_next_page
+    -- non-nil.)
+    self.on_prev_page = nil
+    -- Object to handle gamepad next-page button presses.  See on_prev_page
+    -- for details.
+    self.on_next_page = nil
     -- TabSystem instance of tab list to be controlled with gamepad
     -- previous-tab and next-tab button presses, or nil if none.
     self.tab_system = nil
@@ -685,10 +704,10 @@ function MenuFrame:GetFrame()
     return self.frame
 end
 
--- Return the global names or Button instances of the previous and next
--- page buttons for this frame, or (nil,nil) if none.
-function MenuFrame:GetPageButtons()
-    return self.prev_page_button, self.next_page_button
+-- Return the handlers for previous-page and next-page actions for this frame,
+-- or (nil,nil) if none.
+function MenuFrame:GetPageHandlers()
+    return self.on_prev_page, self.on_next_page
 end
 
 -- Return the TabSystem instance of the tab set for this frame, or nil if none.
@@ -1877,8 +1896,8 @@ function InboxFrameHandler:SetTargets()
         self:Disable()
         HideUIPanel(MailFrame)
     end
-    self.prev_page_button = "InboxPrevPageButton"
-    self.next_page_button = "InboxNextPageButton"
+    self.on_prev_page = "InboxPrevPageButton"
+    self.on_next_page = "InboxNextPageButton"
     self.targets = {
         [OpenAllMail] = {can_activate = true, lock_highlight = true,
                          is_default = true},
@@ -2119,8 +2138,8 @@ MenuCursor.RegisterFrameHandler(MerchantFrameHandler)
 
 function MerchantFrameHandler:__constructor()
     self:__super(MerchantFrame)
-    self.prev_page_button = "MerchantPrevPageButton"
-    self.next_page_button = "MerchantNextPageButton"
+    self.on_prev_page = "MerchantPrevPageButton"
+    self.on_next_page = "MerchantNextPageButton"
     -- We use the "sell all junk" button (which is always displayed on the
     -- "buy" tab and never displayed on the "sell" tab) as a proxy for tab
     -- change detection.
@@ -2412,8 +2431,8 @@ function SpellBookFrameHandler:__constructor()
     self.cancel_func = function()
         HideUIPanel(PlayerSpellsFrame)
     end
-    self.prev_page_button = PlayerSpellsFrame.SpellBookFrame.PagedSpellsFrame.PagingControls.PrevPageButton
-    self.next_page_button = PlayerSpellsFrame.SpellBookFrame.PagedSpellsFrame.PagingControls.NextPageButton
+    self.on_prev_page = PlayerSpellsFrame.SpellBookFrame.PagedSpellsFrame.PagingControls.PrevPageButton
+    self.on_next_page = PlayerSpellsFrame.SpellBookFrame.PagedSpellsFrame.PagingControls.NextPageButton
 end
 
 function SpellBookFrameHandler:OnShow()
@@ -3253,6 +3272,8 @@ function SpecPageHandler:__constructor()
     self:__super(SpecPage)
     self.cancel_func = ProfessionsFrameHandler.CancelMenu
     self.tab_system = ProfessionsFrame.TabSystem
+    self.on_prev_page = function() self:CycleTabs(-1) end
+    self.on_next_page = function() self:CycleTabs(1) end
     self:HookShow(SpecPage.TreePreview, self.RefreshTargets,
                                         self.RefreshTargets)
     self:HookShow(SpecPage.UndoButton, self.RefreshTargets,
@@ -3266,6 +3287,37 @@ function SpecPageHandler:OnHide()
     ProfessionsFrameHandler.instance_DetailedView:Disable()
 end
 
+function SpecPageHandler:CycleTabs(dir)
+    local SpecPage = ProfessionsFrame.SpecPage
+    local tabs = {}
+    for tab in SpecPage.tabsPool:EnumerateActive() do
+        tinsert(tabs, {tab, tab:GetLeft()})
+    end
+    table.sort(tabs, function(a, b) return a[2] < b[2] end)
+    local first, prev, found_cur, target
+    for _, v in ipairs(tabs) do
+        local tab = v[1]
+        if tab.isSelected then
+            if dir < 0 and prev then
+                target = prev
+                break
+            end
+            found_cur = true
+        else
+            if dir > 0 and found_cur then
+                target = tab
+                break
+            end
+        end
+        first = first or tab
+        prev = tab
+    end
+    if not target then
+        target = dir > 0 and first or prev
+    end
+    target:GetScript("OnClick")(target, "LeftButton", true)
+end
+
 function SpecPageHandler:SetTargets()
     local SpecPage = ProfessionsFrame.SpecPage
     if not SpecPage:IsVisible() then
@@ -3277,11 +3329,6 @@ function SpecPageHandler:SetTargets()
     self.refresh_is_view_toggle = false
 
     self.targets = {}
-    for tab in SpecPage.tabsPool:EnumerateActive() do
-        self.targets[tab] = {can_activate = true, lock_highlight = true,
-                             send_enter_leave = true}
-    end
-
     if SpecPage.ApplyButton:IsVisible() then
         self.targets[SpecPage.ApplyButton] =
             {can_activate = true, lock_highlight = true,
@@ -3437,8 +3484,39 @@ function OrderListHandler:__constructor()
     self:__super(ProfessionsFrame.OrdersPage.BrowseFrame)
     self.cancel_func = ProfessionsFrameHandler.CancelMenu
     self.tab_system = ProfessionsFrame.TabSystem
+    self.on_prev_page = function() self:CycleTabs(-1) end
+    self.on_next_page = function() self:CycleTabs(1) end
     self:HookShow(ProfessionsFrame.OrdersPage.BrowseFrame.OrderList.ScrollBox,
                   self.OnOrderListUpdate, self.OnOrderListUpdate)
+end
+
+function OrderListHandler:CycleTabs(dir)
+    local bf = ProfessionsFrame.OrdersPage.BrowseFrame
+    local tabs = {bf.PublicOrdersButton,
+                  bf.NpcOrdersButton,
+                  bf.PersonalOrdersButton}
+    local first, prev, found_cur, target
+    for _, tab in ipairs(tabs) do
+        if tab.isSelected then
+            if dir < 0 and prev then
+                target = prev
+                break
+            end
+            found_cur = true
+        else
+            if dir > 0 and found_cur then
+                target = tab
+                break
+            end
+        end
+        first = first or tab
+        prev = tab
+    end
+    if not target then
+        target = dir > 0 and first or prev
+    end
+    global_cursor:SetTargetForFrame(self, target)
+    target:GetScript("OnClick")(target, "LeftButton", true)
 end
 
 function OrderListHandler:OnOrderListUpdate()
