@@ -866,7 +866,14 @@ function DetailedViewHandler:__constructor()
     self:HookShow(DetailedView.SpendPointsButton,
                   self.RefreshTargets, self.RefreshTargets)
     self.cancel_func = function() self:Disable() end
+    self.on_prev_page = function() self:CycleTabs(-1) end
+    self.on_next_page = function() self:CycleTabs(1) end
     self.targets = {}
+end
+
+function DetailedViewHandler:CycleTabs(dir)
+    self:Disable()
+    ProfessionsFrameHandler.instance_SpecPage:CycleTabs(dir)
 end
 
 function DetailedViewHandler:SetTargets()
