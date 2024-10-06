@@ -3253,13 +3253,12 @@ function SpecPageHandler:__constructor()
     self:__super(SpecPage)
     self.cancel_func = ProfessionsFrameHandler.CancelMenu
     self.tab_system = ProfessionsFrame.TabSystem
-    self:HookShow(SpecPage.TreePreview, self.RefreshTargetsForViewToggle,
-                                        self.RefreshTargetsForViewToggle)
-    self:HookShow(SpecPage.UndoButton, self.SetTargets,
+    self:HookShow(SpecPage.TreePreview, self.RefreshTargets,
+                                        self.RefreshTargets)
+    self:HookShow(SpecPage.UndoButton, self.RefreshTargets,
                                        self.RefreshTargetsForUndoOff)
-    EventRegistry:RegisterCallback(
-        "ProfessionsSpecializations.TabSelected",
-        function() global_cursor:SetTargetForFrame(self, self:SetTargets()) end)
+    EventRegistry:RegisterCallback("ProfessionsSpecializations.TabSelected",
+                                   function() self:RefreshTargets() end)
 end
 
 function SpecPageHandler:OnHide()
@@ -3267,12 +3266,17 @@ function SpecPageHandler:OnHide()
     ProfessionsFrameHandler.instance_DetailedView:Disable()
 end
 
-function SpecPageHandler:SetTargets(is_view_toggle)
+function SpecPageHandler:SetTargets()
     local SpecPage = ProfessionsFrame.SpecPage
+    if not SpecPage:IsVisible() then
+        return nil
+    end
+
+    local initial = nil
+    local is_view_toggle = self.refresh_is_view_toggle
+    self.refresh_is_view_toggle = false
 
     self.targets = {}
-    local initial = nil
-
     for tab in SpecPage.tabsPool:EnumerateActive() do
         self.targets[tab] = {can_activate = true, lock_highlight = true,
                              send_enter_leave = true}
@@ -3289,55 +3293,92 @@ function SpecPageHandler:SetTargets(is_view_toggle)
                  left = SpecPage.ApplyButton, right = false}
         end
         self.targets[SpecPage.ViewPreviewButton] =
-            {can_activate = true, lock_highlight = true,
+            {on_click = function(frame) self:ClickViewToggleButton(frame) end,
+             lock_highlight = true,
              left = false, right = SpecPage.ApplyButton}
-        if is_view_toggle then
-            initial = SpecPage.ViewPreviewButton
-        end
-        local parent = {}  -- FIXME: Any way to get the root node directly?
-        local buttons = {}
-        for button in SpecPage:EnumerateAllTalentButtons() do
-            local info = button:GetNodeInfo()
-            buttons[info.ID] = button
-            for _, edge in ipairs(info.visibleEdges) do
-                assert(not parent[edge.targetNode])
-                parent[edge.targetNode] = info.ID
-            end
-            self.targets[button] = {
-                lock_highlight = true,
-                -- ProfessionsSpecPathMixin:OnEnter() has an explicit
-                -- IsMouseMotionFocus() check, so we have to override that.
-                on_enter = function(frame)
-                    local saved_IsMouseMotionFocus = button.IsMouseMotionFocus
-                    button.IsMouseMotionFocus = function() return true end
-                    frame:OnEnter()
-                    button.IsMouseMotionFocus = saved_IsMouseMotionFocus
-                end,
-                on_leave = function(frame) frame:OnLeave() end,
-                on_click = function(frame) self:OnClickTalent(frame) end,
-            }
-        end
-        if not initial then
-            for id, button in pairs(buttons) do
-                if not parent[id] then
-                    assert(not initial)
-                    initial = button
-                end
-            end
-        end
+        local root = self:AddSpecTreeTargets(true)
+        initial = is_view_toggle and SpecPage.ViewPreviewButton or root
     elseif SpecPage.BackToFullTreeButton:IsVisible() then
         self.targets[SpecPage.BackToFullTreeButton] =
-            {can_activate = true, lock_highlight = true}
+            {on_click = function(frame) self:ClickViewToggleButton(frame) end,
+             lock_highlight = true}
         initial = SpecPage.BackToFullTreeButton
+    elseif SpecPage.ViewTreeButton:IsVisible() then
+        self.targets[SpecPage.ViewTreeButton] =
+            {on_click = function(frame) self:ClickViewToggleButton(frame) end,
+             lock_highlight = true}
+        self.targets[SpecPage.UnlockTabButton] =
+            {can_activate = true, lock_highlight = true}
+        initial = (is_view_toggle and SpecPage.ViewTreeButton
+                   or SpecPage.UnlockTabButton)
+    elseif SpecPage.BackToPreviewButton:IsVisible() then
+        self.targets[SpecPage.BackToPreviewButton] =
+            {on_click = function(frame) self:ClickViewToggleButton(frame) end,
+             lock_highlight = true}
+        self.targets[SpecPage.UnlockTabButton] =
+            {can_activate = true, lock_highlight = true}
+        self:AddSpecTreeTargets(false)
+        initial = (is_view_toggle and SpecPage.BackToPreviewButton
+                   or SpecPage.UnlockTabButton)
+    else
+        error("Unknown spec page state")
     end
 
     return initial
 end
 
-function SpecPageHandler:RefreshTargetsForViewToggle()
+function SpecPageHandler:ClickViewToggleButton(button)
+    self.refresh_is_view_toggle = true
+    local script = button:GetScript("OnClick")
+    assert(script)
+    script(button, "LeftButton", true)
+end
+
+function SpecPageHandler:AddSpecTreeTargets(clickable)
+    local SpecPage = ProfessionsFrame.SpecPage
+    local parent = {}  -- FIXME: Any way to get the root node directly?
+    local buttons = {}
+    for button in SpecPage:EnumerateAllTalentButtons() do
+        local info = button:GetNodeInfo()
+        buttons[info.ID] = button
+        for _, edge in ipairs(info.visibleEdges) do
+            assert(not parent[edge.targetNode])
+            parent[edge.targetNode] = info.ID
+        end
+        self.targets[button] = {
+            lock_highlight = true,
+            -- ProfessionsSpecPathMixin:OnEnter() has an explicit
+            -- IsMouseMotionFocus() check, so we have to override that.
+            on_enter = function(frame)
+                local saved_IsMouseMotionFocus = button.IsMouseMotionFocus
+                button.IsMouseMotionFocus = function() return true end
+                frame:OnEnter()
+                button.IsMouseMotionFocus = saved_IsMouseMotionFocus
+            end,
+            on_leave = function(frame) frame:OnLeave() end,
+        }
+        if clickable then
+            self.targets[button].on_click =
+                function(frame) self:OnClickTalent(frame) end
+        end
+    end
+    local root
+    for id, button in pairs(buttons) do
+        if not parent[id] then
+            assert(not root, "Multiple root tree nodes found")
+            root = button
+        end
+    end
+    assert(root, "Root tree node not found")
+    return root
+end
+
+function SpecPageHandler:RefreshTargets()
+    local target = global_cursor:GetTargetForFrame(self)
     global_cursor:SetTargetForFrame(self, nil)
-    local new_target = self:SetTargets(true)
-    global_cursor:SetTargetForFrame(self, new_target)
+    local initial = self:SetTargets()
+    if not self.targets[target] then target = nil end
+    global_cursor:SetTargetForFrame(self, target or initial)
 end
 
 function SpecPageHandler:RefreshTargetsForUndoOff()
@@ -3345,12 +3386,14 @@ function SpecPageHandler:RefreshTargetsForUndoOff()
     if global_cursor:GetTargetForFrame(self) == SpecPage.UndoButton then
         global_cursor:SetTargetForFrame(self, SpecPage.ApplyButton)
     end
-    self:SetTargets()
+    self:RefreshTargets()
 end
 
 function SpecPageHandler:OnClickTalent(button)
-    button:OnClick("LeftButton", true)
-    ProfessionsFrameHandler.instance_DetailedView:Enable()
+    if button:IsEnabled() then
+        button:OnClick("LeftButton", true)
+        ProfessionsFrameHandler.instance_DetailedView:Enable()
+    end
 end
 
 
