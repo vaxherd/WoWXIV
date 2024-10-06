@@ -637,15 +637,17 @@ function SpecPageHandler:__constructor()
     self.on_next_page = function() self:CycleTabs(1) end
     self:HookShow(SpecPage.TreePreview, self.RefreshTargets,
                                         self.RefreshTargets)
-    self:HookShow(SpecPage.UndoButton, self.RefreshTargets,
-                                       self.RefreshTargetsForUndoOff)
+    self:HookShow(SpecPage.UndoButton, false, self.RefreshTargetsForUndoOff)
     EventRegistry:RegisterCallback("ProfessionsSpecializations.TabSelected",
                                    function() self:RefreshTargets() end)
 
-    -- Set to true on on tab cycling.  Causes SetTargets() to try and
+    -- Set to true on skill point allocation.  Prevents refreshing for that
+    -- frame, to avoid losing the skill tree cursor position.
+    self.refresh_is_skill_allocation = false
+    -- Set to true on tab cycling.  Causes SetTargets() to try and
     -- preserve the previous cursor position if possible.
     self.refresh_is_tab_cycle = false
-    -- Set to true o switching between tree and summary views.  Causes
+    -- Set to true on switching between tree and summary views.  Causes
     -- SetTargets() to set the cursor position to the view-switch button
     -- instead of the usual default.
     self.refresh_is_view_toggle = false
@@ -843,14 +845,18 @@ function SpecPageHandler:RefreshTargets()
         self.refresh_pending = true
         RunNextFrame(function()
             self.refresh_pending = false
+            local is_skill_allocation = self.refresh_is_skill_allocation
+            self.refresh_is_skill_allocation = false
             local is_tab_cycle = self.refresh_is_tab_cycle
             self.refresh_is_tab_cycle = false
             local is_view_toggle = self.refresh_is_view_toggle
             self.refresh_is_view_toggle = false
-            local target = self:GetTarget()
-            local new_target =
-                self:SetTargets(target, is_tab_cycle, is_view_toggle)
-            self:SetTarget(new_target)
+            if not is_skill_allocation then
+                local target = self:GetTarget()
+                local new_target =
+                    self:SetTargets(target, is_tab_cycle, is_view_toggle)
+                self:SetTarget(new_target)
+            end
         end)
     end
 end
@@ -953,8 +959,9 @@ function DetailedViewHandler:SetTargets()
         target = DetailedView.SpendPointsButton
     end
     if target then
-        self.targets[target] = {can_activate = true, lock_highlight = true,
-                                is_default = true}
+        self.targets[target] = {
+            on_click = function(frame) self:Click(frame) end,
+            lock_highlight = true, is_default = true}
     end
     return target
 end
@@ -962,6 +969,13 @@ end
 function DetailedViewHandler:RefreshTargets()
     local new_target = self:SetTargets()
     self:SetTarget(new_target)
+end
+
+-- We use this separate function instead of simply passing the click down
+-- in order to suppress the skill tree refresh.
+function DetailedViewHandler:Click(frame)
+    ProfessionsFrameHandler.instance_SpecPage.refresh_is_skill_allocation = true
+    frame:GetScript("OnClick")(frame, "LeftButton", true)
 end
 
 
