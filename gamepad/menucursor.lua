@@ -484,13 +484,13 @@ function MenuCursor:OnClick(button, down)
     -- last frame.
     if not focus then return end
     if button == "DPadUp" then
-        self:Move(0, 1, "up")
+        self:Move("up")
     elseif button == "DPadDown" then
-        self:Move(0, -1, "down")
+        self:Move("down")
     elseif button == "DPadLeft" then
-        self:Move(-1, 0, "left")
+        self:Move("left")
     elseif button == "DPadRight" then
-        self:Move(1, 0, "right")
+        self:Move("right")
     elseif button == "LeftButton" then  -- i.e., confirm
         -- Click event is passed to target by SecureActionButtonTemplate.
         -- This code is called afterward, so it's possible that the click
@@ -592,17 +592,11 @@ function MenuCursor:OnClick(button, down)
 end
 
 -- OnClick() helper which moves the cursor in the given direction.
--- dx and dy give the movement direction with respect to screen
--- coordinates (with WoW's usual "+Y = up" mapping); dir gives the
--- direction keyword for checking target-specific movement overrides.
-function MenuCursor:Move(dx, dy, dir)
+-- dir gives the direction, one of the strings "up", "down", "left", or
+-- "right".
+function MenuCursor:Move(dir)
     local focus, target = self:GetFocusAndTarget()
-    local new_target
-    if target then
-        new_target = focus:NextTarget(target, dx, dy, dir)
-    else
-        new_target = focus:GetDefaultTarget()
-    end
+    local new_target = focus:NextTarget(target, dir)
     if new_target then
         self:SetTarget(new_target)
         if focus.OnMove then
@@ -750,11 +744,14 @@ function MenuFrame:GetTargetClickable(target)
 end
 
 -- Return the next target in the given direction from the given target,
--- or nil to indicate no next target.
--- dx and dy give the movement direction with respect to screen
--- coordinates (with WoW's usual "+Y = up" mapping); dir gives the
--- direction keyword for checking target-specific movement overrides.
-function MenuFrame:NextTarget(target, dx, dy, dir)
+-- or nil to indicate no next target.  If target is nil, instead return
+-- the target for an initial cursor input of the given direction. dir gives
+-- the direction, one of the strings "up", "down", "left", or "right".
+function MenuFrame:NextTarget(target, dir)
+    if not target then
+        return self:GetDefaultTarget()
+    end
+
     local params = self.targets[target]
     local explicit_next = params[dir]
     if explicit_next ~= nil then
@@ -776,6 +773,8 @@ function MenuFrame:NextTarget(target, dx, dy, dir)
     local cur_y1 = cur_y0 + cur_h
     local cur_cx = (cur_x0 + cur_x1) / 2
     local cur_cy = (cur_y0 + cur_y1) / 2
+    local dx = dir=="left" and -1 or dir=="right" and 1 or 0
+    local dy = dir=="down" and -1 or dir=="up" and 1 or 0
     --[[
          We attempt to choose the "best" movement target by selecting the
          target that (1) has the minimum angle from the movement direction
@@ -1043,6 +1042,44 @@ end
 -- frame is not on the cursor's frame list.
 function MenuFrame:Disable()
     global_cursor:RemoveFrame(self)
+end
+
+-- Return whether this frame currently has input focus.
+function MenuFrame:HasFocus()
+    return global_cursor:GetFocus() == self
+end
+
+-- Return the current cursor target for this frame, or nil if the frame is
+-- not in the cursor's frame list.
+function MenuFrame:GetTarget()
+    return global_cursor:GetTargetForFrame(self)
+end
+
+-- Set the cursor target for this frame to the given target.  Does nothing
+-- if the frame is not in the cursor's frame list.
+function MenuFrame:SetTarget(target)
+    assert(not target or self.targets[target],
+           "Target ("..tostring(target)..") is not in frame's target list")
+    global_cursor:SetTargetForFrame(self, target)
+end
+
+-- Move the cursor target for this frame to the next target in the given
+-- direction, which must be one of the strings "up", "down", "left", or
+-- "right".  If the frame does not currently have a cursor target, the
+-- frame's default target is selected regardless of direction.
+function MenuFrame:MoveCursor(dir)
+    local target = self:GetTarget()
+    target = self:NextTarget(self:GetTarget(), dir)
+    if target then
+        self:SetTarget(target)
+    end
+end
+
+-- Clear the cursor target for this frame.  Equivalent to SetTarget(nil).
+-- Be sure to call this before removing a target from the frame's target list,
+-- or the cursor will throw errors due to the missing target!
+function MenuFrame:ClearTarget()
+    self:SetTarget(nil)
 end
 
 
@@ -1317,7 +1354,6 @@ function GossipFrameHandler:GOSSIP_SHOW()
     if not GossipFrame:IsVisible() then
         return  -- Flight map, etc.
     end
-    global_cursor:SetTargetForFrame(self, nil) -- In case it's already open.
     local initial_target = self:SetTargets()
     self:Enable(initial_target)
 end
@@ -1325,7 +1361,7 @@ end
 function GossipFrameHandler:GOSSIP_CONFIRM_CANCEL()
     -- Clear all targets to prevent further inputs until the next event
     -- (typically GOSSIP_SHOW or GOSSIP_CLOSED).
-    global_cursor:SetTargetForFrame(self, nil)
+    self:ClearTarget()
     self.targets = {}
 end
 
@@ -1334,6 +1370,8 @@ function GossipFrameHandler:GOSSIP_CLOSED()
 end
 
 function GossipFrameHandler:SetTargets()
+    self:ClearTarget() -- In case the frame is already open.
+
     local goodbye = GossipFrame.GreetingPanel.GoodbyeButton
     self.targets = {[goodbye] = {can_activate = true,
                                  lock_highlight = true}}
@@ -1778,9 +1816,9 @@ function StaticPopupHandler.Initialize(class, cursor)
 end
 
 function StaticPopupHandler:OnShow()
-    if global_cursor:GetFocus() == self then return end  -- Sanity check.
+    if self:HasFocus() then return end  -- Sanity check.
     self:SetTargets()
-    self:Enable(nil, true)  -- Modal frame.
+    self:Enable(nil)
 end
 
 function StaticPopupHandler:OnHide()
@@ -1870,9 +1908,8 @@ function InboxFrameHandler:OnShowMailItemButton(frame)
 end
 
 function InboxFrameHandler:OnHideMailItemButton(frame)
-    local focus, target = global_cursor:GetFocusAndTarget()
-    if focus == self and target == frame then
-        global_cursor:Move(0, -1, "down")
+    if self:GetTarget() == frame then
+        self:MoveCursor("down")
     end
     self.targets[frame] = nil
     self:UpdateMovement()
@@ -1981,8 +2018,7 @@ function OpenMailFrameHandler:OnShowAttachmentButton(frame)
 end
 
 function OpenMailFrameHandler:OnHideAttachmentButton(frame)
-    local focus, target = global_cursor:GetFocusAndTarget()
-    if focus == self and target == frame then
+    if self:GetTarget() == frame then
         local new_target = nil
         local id = frame:GetID() - 1
         while id >= 1 and not new_target do
@@ -2002,7 +2038,7 @@ function OpenMailFrameHandler:OnHideAttachmentButton(frame)
             if button:IsShown() then new_target = button end
             id = id + 1
         end
-        global_cursor:SetTarget(new_target or OpenMailDeleteButton)
+        self:SetTarget(new_target or OpenMailDeleteButton)
     end
     self.targets[frame] = nil
 end
@@ -2022,8 +2058,7 @@ function OpenMailFrameHandler:OnShowMoneyButton(frame)
 end
 
 function OpenMailFrameHandler:OnHideMoneyButton(frame)
-    local focus, target = global_cursor:GetFocusAndTarget()
-    if focus == self and target == frame then
+    if self:GetTarget() == frame then
         local new_target = nil
         if OpenMailLetterButton:IsShown() then
             new_target = OpenMailLetterButton
@@ -2034,7 +2069,7 @@ function OpenMailFrameHandler:OnHideMoneyButton(frame)
             if button:IsShown() then new_target = button end
             id = id + 1
         end
-        global_cursor:SetTarget(new_target or OpenMailDeleteButton)
+        self:SetTarget(new_target or OpenMailDeleteButton)
     end
     self.targets[frame] = nil
 end
@@ -2052,8 +2087,7 @@ function OpenMailFrameHandler:OnShowLetterButton(frame)
 end
 
 function OpenMailFrameHandler:OnHideLetterButton(frame)
-    local focus, target = global_cursor:GetFocusAndTarget()
-    if focus == self and target == frame then
+    if self:GetTarget() == frame then
         local new_target = nil
         if OpenMailMoneyButton:IsShown() then
             new_target = OpenMailMoneyButton
@@ -2064,7 +2098,7 @@ function OpenMailFrameHandler:OnHideLetterButton(frame)
             if button:IsShown() then new_target = button end
             id = id + 1
         end
-        global_cursor:SetTarget(new_target or OpenMailDeleteButton)
+        self:SetTarget(new_target or OpenMailDeleteButton)
     end
     self.targets[frame] = nil
 end
@@ -2189,14 +2223,13 @@ function MerchantFrameHandler:OnShowItemButton(frame, skip_update)
 end
 
 function MerchantFrameHandler:OnHideItemButton(frame)
-    local focus, target = global_cursor:GetFocusAndTarget()
-    if focus == self and target == frame then
+    if self:GetTarget() == frame then
         local prev_id = frame:GetID() - 1
         local prev_frame = _G["MerchantItem" .. prev_id .. "ItemButton"]
         if prev_frame and prev_frame:IsShown() then
-            global_cursor:SetTarget(prev_frame)
+            self:SetTarget(prev_frame)
         else
-            global_cursor:Move(0, -1, "down")
+            self:MoveCursor("down")
         end
     end
     self.targets[frame] = nil
@@ -2262,7 +2295,7 @@ end
 
 function MerchantFrameHandler:UpdateMovement()
     -- FIXME: is this check still needed?
-    if global_cursor:GetFocus() ~= self then
+    if not self:HasFocus() then
         return  -- Deal with calls during frame setup on UI reload.
     end
     -- Ensure correct up/down behavior, as for mail inbox.  Also allow
@@ -2411,8 +2444,7 @@ function SpellBookFrameHandler.OnAddOnLoaded(class)
         "PlayerSpellsFrame.SpellBookFrame.DisplayedSpellsChanged",
         function()
             if PlayerSpellsFrame.SpellBookFrame:IsVisible() then
-                global_cursor:SetTargetForFrame(instance,
-                                                instance:RefreshTargets())
+                instance:SetTarget(instance:RefreshTargets())
             end
         end)
     local pc = sbf.PagedSpellsFrame.PagingControls
@@ -2422,7 +2454,9 @@ function SpellBookFrameHandler.OnAddOnLoaded(class)
         tinsert(buttons, tab)
     end
     for _, button in ipairs(buttons) do
-        hooksecurefunc(button, "Click", function() global_cursor:SetTargetForFrame(instance, instance:RefreshTargets()) end)
+        hooksecurefunc(button, "Click", function()
+            instance:SetTarget(instance:RefreshTargets())
+        end)
     end
 end
 
@@ -2643,7 +2677,7 @@ function SpellBookFrameHandler:RefreshTargets()
 
     -- If the cursor was previously on a spell button, the button might
     -- have disappeared, so reset to the top of the page.
-    local cur_target = global_cursor:GetTargetForFrame(self)
+    local cur_target = self:GetTarget()
     if not self.targets[cur_target] then
         cur_target = nil
     end
@@ -2818,7 +2852,7 @@ function CraftingPageHandler:TRADE_SKILL_LIST_UPDATE()
     if self.need_refresh then
         -- The list itself apparently isn't ready until the next frame.
         RunNextFrame(function()
-            global_cursor:SetTargetForFrame(self, self:RefreshTargets())
+            self:SetTarget(self:RefreshTargets())
         end)
     end
 end
@@ -2829,7 +2863,7 @@ function CraftingPageHandler:OnShow()
     self.targets = {}
     self:Enable()
     RunNextFrame(function()
-        global_cursor:SetTargetForFrame(self, self:RefreshTargets())
+        self:SetTarget(self:RefreshTargets())
     end)
 end
 
@@ -2872,7 +2906,7 @@ local PROFESSION_GEAR_SLOTS = {
 function CraftingPageHandler:RefreshTargets(initial_element)
     local CraftingPage = ProfessionsFrame.CraftingPage
 
-    global_cursor:SetTargetForFrame(self, nil)
+    self:ClearTarget()
     self.targets = {}
     local top, bottom, initial = nil, nil, nil
 
@@ -2907,7 +2941,7 @@ function CraftingPageHandler:RefreshTargets(initial_element)
             else  -- is a category header
                 self.targets[pseudo_frame].on_click = function()
                     local target = self:RefreshTargets(element)
-                    global_cursor:SetTargetForFrame(self, target)
+                    self:SetTarget(target)
                 end
             end
             if bottom then
@@ -2959,12 +2993,12 @@ end
 function SchematicFormHandler:OnHideCreateAllButton()
     if self.targets[ProfessionsFrame.CraftingPage.CreateButton] then
         local CraftingPage = ProfessionsFrame.CraftingPage
-        local cur_target = global_cursor:GetTargetForFrame(self)
+        local cur_target = self:GetTarget()
         if (cur_target == CraftingPage.CreateAllButton
          or cur_target == CraftingPage.CreateMultipleInputBox.DecrementButton
          or cur_target == CraftingPage.CreateMultipleInputBox.IncrementButton)
         then
-            global_cursor:SetTargetForFrame(self, CraftingPage.CreateButton)
+            self:SetTarget(CraftingPage.CreateButton)
         end
         self:UpdateMovement()
     end
@@ -3262,8 +3296,8 @@ function ItemFlyoutHandler:RefreshTargets()
         self.targets[checkbox].up = last_row[1]
         self.targets[checkbox].down = first_row[1]
     end
-    local cur_target = global_cursor:GetTargetForFrame(self)
-    global_cursor:SetTargetForFrame(self, cur_target or default or checkbox)
+    local cur_target = self:GetTarget()
+    self:SetTarget(cur_target or default or checkbox)
 end
 
 
@@ -3336,6 +3370,7 @@ function SpecPageHandler:SetTargets(prev_target, is_tab_cycle, is_view_toggle)
     end
 
     local new_target = nil
+    self:ClearTarget()
     self.targets = {}
 
     if SpecPage.ApplyButton:IsVisible() then
@@ -3468,19 +3503,18 @@ function SpecPageHandler:RefreshTargets()
             self.refresh_is_tab_cycle = false
             local is_view_toggle = self.refresh_is_view_toggle
             self.refresh_is_view_toggle = false
-            local target = global_cursor:GetTargetForFrame(self)
-            global_cursor:SetTargetForFrame(self, nil)
+            local target = self:GetTarget()
             local new_target =
                 self:SetTargets(target, is_tab_cycle, is_view_toggle)
-            global_cursor:SetTargetForFrame(self, new_target)
+            self:SetTarget(new_target)
         end)
     end
 end
 
 function SpecPageHandler:RefreshTargetsForUndoOff()
     local SpecPage = ProfessionsFrame.SpecPage
-    if global_cursor:GetTargetForFrame(self) == SpecPage.UndoButton then
-        global_cursor:SetTargetForFrame(self, SpecPage.ApplyButton)
+    if self:GetTarget() == SpecPage.UndoButton then
+        self:SetTarget(SpecPage.ApplyButton)
     end
     self:RefreshTargets()
 end
@@ -3508,6 +3542,7 @@ end
 
 function DetailedViewHandler:SetTargets()
     local DetailedView = ProfessionsFrame.SpecPage.DetailedView
+    self:ClearTarget()
     self.targets = {}
     local target
     if DetailedView.UnlockPathButton:IsShown() then
@@ -3523,9 +3558,8 @@ function DetailedViewHandler:SetTargets()
 end
 
 function DetailedViewHandler:RefreshTargets()
-    global_cursor:SetTargetForFrame(self, nil)
     local new_target = self:SetTargets()
-    global_cursor:SetTargetForFrame(self, new_target)
+    self:SetTarget(new_target)
 end
 
 
@@ -3564,15 +3598,14 @@ function OrderListHandler:CycleTabs(dir)
     if not target then
         target = dir > 0 and first or prev
     end
-    global_cursor:SetTargetForFrame(self, target)
+    self:SetTarget(target)
     target:GetScript("OnClick")(target, "LeftButton", true)
 end
 
 function OrderListHandler:OnOrderListUpdate()
     RunNextFrame(function()  -- Frame is shown before it's ready...
-        local target = global_cursor:GetTargetForFrame(self)
-        global_cursor:SetTargetForFrame(self, nil)  -- FIXME: this sequence is very awkward
-        global_cursor:SetTargetForFrame(self, self:SetTargets(target))
+        local prev_target = self:GetTarget()
+        self:SetTarget(self:SetTargets(prev_target))
     end)
 end
 
@@ -3610,6 +3643,7 @@ function OrderListHandler:SetTargets(initial_target)
     function ClickTab(button) self:OnClickOrderTab(button) end
     function ClickOrder(button) self:OnClickOrder(button) end
 
+    self:ClearTarget()
     -- We deliberately ignore the recipe list since the public order system
     -- is so grossly misdesigned as to be useless.  We still include the
     -- public order tab to avoid user confusion, so orders for recipes
@@ -3710,6 +3744,8 @@ function OrderViewHandler:SetTargets()
     local oi = ov.OrderInfo
 
     local reward_u, reward_d, reward_l, reward_r = false, false, false, false
+
+    self:ClearTarget()
 
     if oi.StartOrderButton:IsShown() then
         -- Order not yet started
@@ -3820,9 +3856,8 @@ function OrderViewHandler:SetTargets()
 end
 
 function OrderViewHandler:RefreshTargets()
-    global_cursor:SetTargetForFrame(self, nil)
     self:SetTargets()
-    global_cursor:SetTargetForFrame(self, self:GetDefaultTarget())
+    self:SetTarget(self:GetDefaultTarget())
 end
 
 
@@ -3844,7 +3879,7 @@ function WeeklyRewardsFrameHandler:WEEKLY_REWARDS_UPDATE()
     -- player will not have moved the cursor in that time, and just refresh
     -- the target list from scratch.
     self:SetTargets()
-    global_cursor:SetTargetForFrame(self, self:GetDefaultTarget())
+    self:SetTarget(self:GetDefaultTarget())
 end
 
 function WeeklyRewardsFrameHandler:SetTargets()
@@ -4105,7 +4140,7 @@ function DelvesCompanionAbilityListFrameHandler:RefreshTargets()
     end
     self.targets[first].left = last2 or last1
     self.targets[last2 or last1].right = first
-    global_cursor:SetTargetForFrame(self, first)
+    self:SetTarget(first)
 end
 
 
@@ -4199,7 +4234,7 @@ function DelvesDifficultyPickerFrameHandler:RefreshTargets()
         initial_target = (EnterDelveButton:IsEnabled() and EnterDelveButton
                           or Dropdown)
     end
-    global_cursor:SetTargetForFrame(self, initial_target)
+    self:SetTarget(initial_target)
 end
 
 
@@ -4241,8 +4276,7 @@ end
 function PetBattleFrameHandler:__constructor()
     self:__super(PetBattleFrame)
     self.cancel_func = function()
-        global_cursor:SetTargetForFrame(
-            self, PetBattleFrame.BottomFrame.ForfeitButton)
+        self:SetTarget(PetBattleFrame.BottomFrame.ForfeitButton)
     end
 end
 
@@ -4336,7 +4370,7 @@ end
 
 function PetBattlePetSelectionFrameHandler:OnShow()
     local initial_target = self:SetTargets()
-    self:Enable(initial_target, true)  -- modal
+    self:Enable(initial_target)
 end
 
 function PetBattlePetSelectionFrameHandler:SetTargets()
