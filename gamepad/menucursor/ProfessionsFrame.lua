@@ -204,6 +204,17 @@ function CraftingPageHandler:RefreshTargets(initial_category)
     return initial
 end
 
+function CraftingPageHandler:OnMove(old_target, new_target)
+    if (new_target == ProfessionsFrame.CraftingPage.LinkButton
+        and old_target
+        and self.targets[old_target].is_scroll_box)
+    then
+        -- Moved from recipe list to frame buttons, so preserve the list
+        -- position when moving back.
+        self.targets[new_target].left = old_target
+    end
+end
+
 
 -------- Recipe details frame
 
