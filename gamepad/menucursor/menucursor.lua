@@ -15,6 +15,10 @@ local tremove = tremove
 -- Static reference to the singleton MenuCursor instance.
 local global_cursor = nil
 
+-- Cursor auto-repeat delay and period, in seconds.
+local CURSOR_REPEAT_DELAY = 300/1000
+local CURSOR_REPEAT_PERIOD = 50/1000
+
 
 ------------------------------------------------------------------------
 -- Core implementation
@@ -41,6 +45,10 @@ function Cursor:__constructor()
     -- modal frame is active, the top frame on this stack is the current
     -- focus and input frame cycling is disabled.
     self.modal_stack = {}
+    -- Button currently being auto-repeated ("DPadUp" etc.), nil if none.
+    self.repeat_button = nil
+    -- GetTime() timestamp of next auto-repeat.
+    self.repeat_next = nil
 
     -- This is a SecureActionButtonTemplate only so that we can
     -- indirectly click the button pointed to by the cursor.
@@ -61,7 +69,7 @@ function Cursor:__constructor()
     f:SetAttribute("clickbutton1", nil)
     f:SetAttribute("clickbutton2", nil)
     f:HookScript("OnClick", function(_,...) self:OnClick(...) end)
-    f:RegisterForClicks("AnyDown")
+    f:RegisterForClicks("AnyDown", "AnyUp")
 
     for _, handler_class in pairs(Cursor.handlers) do
         handler_class:Initialize(self)
@@ -394,11 +402,16 @@ function Cursor:OnUpdate()
     local focus, target = self:GetFocusAndTarget()
     self.last_focus, self.last_target = focus, target
     local target_frame = target and focus:GetTargetFrame(target)
-    if not target_frame then return end
-    if not target_frame.GetLeft then
+    if target_frame and not target_frame.GetLeft then
         self:InternalForceClearTarget()
         error("Invalid target frame ("..tostring(target_frame)..") for target "..tostring(target))
     end
+    if not target_frame then
+        self:StopRepeat()
+        return
+     end
+
+    self:CheckRepeat()
 
     --[[
          Calling out to fetch the target's position and resetting the
@@ -477,6 +490,14 @@ end
 -- Click event handler; handles all events other than secure click
 -- passthrough.
 function Cursor:OnClick(button, down)
+    if not down then
+        self:StopRepeat()
+        return
+    end
+    if button ~= self.repeat_button then
+        self:StopRepeat()
+    end
+
     local focus, target = self:GetFocusAndTarget()
     -- Click bindings should be cleared if we have no focus, but we could
     -- still get here right after a secure passthrough click closes the
@@ -484,12 +505,16 @@ function Cursor:OnClick(button, down)
     if not focus then return end
     if button == "DPadUp" then
         self:Move("up")
+        self:StartRepeat(button)
     elseif button == "DPadDown" then
         self:Move("down")
+        self:StartRepeat(button)
     elseif button == "DPadLeft" then
         self:Move("left")
+        self:StartRepeat(button)
     elseif button == "DPadRight" then
         self:Move("right")
+        self:StartRepeat(button)
     elseif button == "LeftButton" then  -- i.e., confirm
         -- Click event is passed to target by SecureActionButtonTemplate.
         -- This code is called afterward, so it's possible that the click
@@ -600,6 +625,36 @@ function Cursor:Move(dir)
         self:SetTarget(new_target)
         if focus.OnMove then
             focus:OnMove(target, new_target)
+        end
+    end
+end
+
+-- Set auto-repeat state for a newly pressed directional button.  Does
+-- nothing if the button is already being repeated, so that the caller does
+-- not need to distinguish between an initial press and a repeated press.
+function Cursor:StartRepeat(button)
+    if self.repeat_button ~= button then
+        self.repeat_button = button
+        self.repeat_next = GetTime() + CURSOR_REPEAT_DELAY
+    end
+end
+
+-- Clear auto-repeat state.
+function Cursor:StopRepeat()
+    self.repeat_button = nil
+end
+
+-- Check for button auto-repeat and generate a click event if appropriate.
+function Cursor:CheckRepeat()
+    if self.repeat_button then
+        local now = GetTime()
+        if now >= self.repeat_next then
+            -- Note that we add the period to the nominal timestamp of
+            -- the repeat event, not the actual current timestamp, to
+            -- ensure a consistent average interval regardless of frame
+            -- rate fluctuations.
+            self.repeat_next = self.repeat_next + CURSOR_REPEAT_PERIOD
+            self:OnClick(self.repeat_button, true)
         end
     end
 end
