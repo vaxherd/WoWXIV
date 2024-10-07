@@ -10,28 +10,25 @@ local class = WoWXIV.class
 
 ---------------------------------------------------------------------------
 
-local GossipFrameHandler = class(MenuFrame)
+local GossipFrameHandler = class(CoreMenuFrame)
 Cursor.RegisterFrameHandler(GossipFrameHandler)
-
-function GossipFrameHandler.Initialize(class, cursor)
-    local instance = class()
-    class.instance = instance
-    instance:RegisterEvent("GOSSIP_CLOSED")
-    instance:RegisterEvent("GOSSIP_CONFIRM_CANCEL")
-    instance:RegisterEvent("GOSSIP_SHOW")
-end
 
 function GossipFrameHandler:__constructor()
     self:__super(GossipFrame)
-    self.cancel_func = MenuFrame.CancelUIFrame
+    self:RegisterEvent("GOSSIP_SHOW")
+    self:RegisterEvent("GOSSIP_CONFIRM_CANCEL")
 end
 
+-- Rather than responding to Show calls, we use this event to ensure that
+-- we appropriately update targets each time the content changes.
+function GossipFrameHandler.OnShow()
+    -- No-op.
+end
 function GossipFrameHandler:GOSSIP_SHOW()
     if not GossipFrame:IsVisible() then
         return  -- Flight map, etc.
     end
-    local initial_target = self:SetTargets()
-    self:Enable(initial_target)
+    CoreMenuFrame.OnShow(self)
 end
 
 function GossipFrameHandler:GOSSIP_CONFIRM_CANCEL()
@@ -39,10 +36,6 @@ function GossipFrameHandler:GOSSIP_CONFIRM_CANCEL()
     -- (typically GOSSIP_SHOW or GOSSIP_CLOSED).
     self:ClearTarget()
     self.targets = {}
-end
-
-function GossipFrameHandler:GOSSIP_CLOSED()
-    self:Disable()
 end
 
 function GossipFrameHandler:SetTargets()
@@ -60,30 +53,20 @@ function GossipFrameHandler:SetTargets()
     end
 
     local GossipScroll = GossipFrame.GreetingPanel.ScrollBox
-    local first = nil
-    local last = up_target
-    -- Avoid errors in Blizzard code if the list is empty.
-    if GossipScroll:GetDataProvider() then
-        local index = 0
-        GossipScroll:ForEachElementData(function(data)
-            index = index + 1
-            if (data.availableQuestButton or
-                data.activeQuestButton or
-                data.titleOptionButton)
-            then
-                local pseudo_frame =
-                    MenuFrame.PseudoFrameForScrollElement(GossipScroll, index)
-                self.targets[pseudo_frame] = {
-                    is_scroll_box = true, can_activate = true,
-                    lock_highlight = true, up = last, down = down_target}
-                self.targets[last].down = pseudo_frame
-                if not first then first = pseudo_frame end
-                last = pseudo_frame
-            end
-        end)
+    local top, bottom = self:AddScrollBoxTargets(GossipScroll, function(data)
+        if data.availableQuestButton or data.activeQuestButton
+                                     or data.titleOptionButton then
+            return {can_activate = true, lock_highlight = true}
+        end
+    end)
+    if top then
+        self.targets[top].up = up_target
+        self.targets[up_target].down = top
+    else
+        bottom = up_target
     end
-    self.targets[last].down = goodbye
-    self.targets[goodbye].up = last
+    self.targets[bottom].down = goodbye
+    self.targets[goodbye].up = bottom
 
     -- If the frame is scrollable and also has selectable options, default
     -- to the "goodbye" button to ensure that we start at the top of the
@@ -91,10 +74,10 @@ function GossipFrameHandler:SetTargets()
     -- where the options are).  But we treat an extremely tiny scroll range
     -- as zero, as for the right stick scrolling logic.
     if GossipScroll:GetDerivedScrollRange() > 0.01 then
-        first = nil
+        top = nil
     end
 
-    local default_target = first or goodbye
+    local default_target = top or goodbye
     self.targets[default_target].is_default = true
     return default_target
 end

@@ -90,26 +90,18 @@ function DelvesCompanionConfigurationSlotHandler:SetTargets(frame)
     local frame = self.frame
     local slot = frame:GetParent()
     self.targets = {}
-    -- FIXME: rewrite with new algorithm in GossipFrame
-    local subframes = {frame.ScrollBox.ScrollTarget:GetChildren()}
-    local top, default
-    local active_id = slot:HasActiveEntry() and slot.selectionNodeInfo.activeEntry.entryID
-    for index, f in ipairs(subframes) do
-        if f.GetElementData then
-            local data = f:GetElementData()
-            self.targets[f] = {can_activate = true, lock_highlight = true,
-                               send_enter_leave = true}
-            if not top or f:GetTop() > top:GetTop()then
-                top = f
-            end
-            if active_id and data.entryID == active_id then
-                default = f
-            end
+    local have_default = false
+    local top, bottom = self:AddScrollBoxTargets(frame.ScrollBox, function(data)
+        local attributes = {can_activate = true, lock_highlight = true,
+                            send_enter_leave = true}
+        if active_id and data.entryID == active_id then
+            attributes.is_default = true
+            have_default = true
         end
-    end
-    local target = default or top
-    if target then
-        self.targets[target].is_default = true
+        return attributes
+    end)
+    if top and not have_default then
+        self.targets[top].is_default = true
     end
 end
 

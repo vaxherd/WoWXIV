@@ -152,12 +152,11 @@ local PROFESSION_GEAR_SLOTS = {
     "CookingGear0Slot",
     "FishingToolSlot",
 }
-function CraftingPageHandler:RefreshTargets(initial_element)
+function CraftingPageHandler:RefreshTargets(initial_category)
     local CraftingPage = ProfessionsFrame.CraftingPage
 
     self:ClearTarget()
     self.targets = {}
-    local top, bottom, initial = nil, nil, nil
 
     self.targets[CraftingPage.LinkButton] = {
         can_activate = true, lock_highlight = true,
@@ -170,54 +169,39 @@ function CraftingPageHandler:RefreshTargets(initial_element)
                 up = false, down = false}
         end
     end
-    local RecipeScroll = CraftingPage.RecipeList.ScrollBox
-    local index = 0
-    RecipeScroll:ForEachElementData(function(element)
-        self.need_refresh = false
-        index = index + 1
-        local data = element:GetData()
-        if data.categoryInfo or data.recipeInfo then
-            local pseudo_frame =
-                MenuFrame.PseudoFrameForScrollElement(RecipeScroll, index)
-            self.targets[pseudo_frame] = {
-                is_scroll_box = true, can_activate = true,
-                up = bottom or false, down = false,
-                left = false, right = CraftingPage.LinkButton}
-            if data.recipeInfo then
-                self.targets[pseudo_frame].on_click = function()
-                    self:FocusRecipe()
-                end
-            else  -- is a category header
-                self.targets[pseudo_frame].on_click = function()
-                    local target = self:RefreshTargets(element)
-                    self:SetTarget(target)
-                end
-            end
-            if bottom then
-                self.targets[bottom].down = pseudo_frame
-            end
-            if not top then
-                top = pseudo_frame
-                self.targets[CraftingPage.LinkButton].left = pseudo_frame
-            end
-            bottom = pseudo_frame
-            if initial_element then
-                if initial_element == element then
-                    initial = pseudo_frame
-                end
-            else
-                if not initial and self:GetTargetFrame(pseudo_frame) then
-                    initial = pseudo_frame
-                end
-            end
-        end
-    end)
-    if top then
-        self.targets[top].up = bottom
-        self.targets[bottom].down = top
-    end
 
-    return initial or top
+    local RecipeScroll = CraftingPage.RecipeList.ScrollBox
+    -- Rather than always scrolling to the top of the list on entry,
+    -- pick the first element which is actually currently displayed.
+    local found_first_displayed = false
+    local top, bottom, initial =
+        self:AddScrollBoxTargets(RecipeScroll, function(elementdata)
+            self.need_refresh = false
+            local is_default = false
+            local data = elementdata.data
+            if data.categoryInfo or data.recipeInfo then
+                local attributes = {can_activate = true, left = false,
+                                    right = CraftingPage.LinkButton}
+                if data.recipeInfo then
+                    attributes.on_click = function() self:FocusRecipe() end
+                else  -- category header
+                    local category_id = data.categoryInfo.categoryID
+                    attributes.on_click = function()
+                        local target = self:RefreshTargets(category_id)
+                        self:SetTarget(target)
+                    end
+                    is_default = (category_id == initial_category)
+                end
+                if not initial_category and not found_first_displayed then
+                    if RecipeScroll:FindFrame(elementdata) then
+                        is_default = true
+                        found_first_displayed = true
+                    end
+                end
+                return attributes, is_default
+            end
+        end)
+    return initial
 end
 
 

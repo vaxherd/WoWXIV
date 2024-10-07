@@ -12,30 +12,26 @@ local tinsert = tinsert
 
 ---------------------------------------------------------------------------
 
-local QuestFrameHandler = class(MenuFrame)
+local QuestFrameHandler = class(CoreMenuFrame)
 Cursor.RegisterFrameHandler(QuestFrameHandler)
-
-function QuestFrameHandler.Initialize(class, cursor)
-    local instance = class()
-    class.instance = instance
-    instance:RegisterEvent("QUEST_COMPLETE")
-    instance:RegisterEvent("QUEST_DETAIL")
-    instance:RegisterEvent("QUEST_FINISHED")
-    instance:RegisterEvent("QUEST_GREETING")
-    instance:RegisterEvent("QUEST_PROGRESS")
-end
 
 function QuestFrameHandler:__constructor()
     self:__super(QuestFrame)
-    self.cancel_func = function()
-        self:Disable()
-        CloseQuest()
-    end
+    self.cancel_func = CloseQuest
+    self:RegisterEvent("QUEST_GREETING")
+    self:RegisterEvent("QUEST_DETAIL")
+    self:RegisterEvent("QUEST_PROGRESS")
+    self:RegisterEvent("QUEST_COMPLETE")
+end
+
+-- Suppress the normal show callback in favor of event-specific versions.
+function QuestFrameHandler:OnShow()
+    -- No-op.
 end
 
 function QuestFrameHandler:QUEST_GREETING()
     assert(QuestFrame:IsVisible())  -- FIXME: might be false if previous quest turn-in started a cutscene (e.g. The Underking Comes in the Legion Highmountain scenario)
-    self:OnShow("QUEST_GREETING")
+    self:SetTargets("QUEST_GREETING")
     self:Enable()
 end
 
@@ -43,28 +39,24 @@ function QuestFrameHandler:QUEST_DETAIL()
     -- FIXME: some map-based quests (e.g. Blue Dragonflight campaign)
     -- start a quest directly from the map; we should support those too
     if not QuestFrame:IsVisible() then return end
-    self:OnShow("QUEST_DETAIL")
+    self:SetTargets("QUEST_DETAIL")
     self:Enable()
 end
 
 function QuestFrameHandler:QUEST_PROGRESS()
     assert(QuestFrame:IsVisible())
-    self:OnShow("QUEST_PROGRESS")
+    self:SetTargets("QUEST_PROGRESS")
     self:Enable()
 end
 
 function QuestFrameHandler:QUEST_COMPLETE()
     -- Quest frame can fail to open under some conditions?
     if not QuestFrame:IsVisible() then return end
-    self:OnShow("QUEST_COMPLETE")
+    self:SetTargets("QUEST_COMPLETE")
     self:Enable()
 end
 
-function QuestFrameHandler:QUEST_FINISHED()
-    self:Disable()
-end
-
-function QuestFrameHandler:OnShow(event)
+function QuestFrameHandler:SetTargets(event)
     if event == "QUEST_GREETING" then
         local goodbye = QuestFrameGreetingGoodbyeButton
         self.targets = {[goodbye] = {can_activate = true,

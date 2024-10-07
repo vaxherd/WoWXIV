@@ -55,8 +55,8 @@ function PlayerChoiceFrameHandler:SetTargets()
                 leftmost = button
             end
             if option.WidgetContainer:IsShown() then
-                MenuFrame.AddWidgetTargets(option.WidgetContainer, {"Spell","Bar"},
-                                           self.targets, button, button, false, false)
+                self:AddWidgetTargets(option.WidgetContainer, {"Spell","Bar"},
+                                      button, button, false, false)
             end
         end
     end

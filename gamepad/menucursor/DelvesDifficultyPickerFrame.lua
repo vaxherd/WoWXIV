@@ -90,8 +90,8 @@ function DelvesDifficultyPickerFrameHandler:RefreshTargets()
 
     local dmwc = ddpf.DelveModifiersWidgetContainer
     if dmwc:IsShown() then
-        MenuFrame.AddWidgetTargets(dmwc, {"Spell"}, self.targets,
-                                   Dropdown, EnterDelveButton, false, nil)
+        self:AddWidgetTargets(dmwc, {"Spell"},
+                              Dropdown, EnterDelveButton, false, nil)
     end
 
     if not initial_target then

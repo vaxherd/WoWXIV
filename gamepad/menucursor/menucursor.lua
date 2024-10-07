@@ -1083,7 +1083,136 @@ function MenuFrame:ClearTarget()
 end
 
 
--------- Utility functions (these are all MenuFrame class methods)
+-------- Target list management methods
+
+-- Add elements from a ScrollBox as frame targets, returning the topmost
+-- and bottommost of the added targets (both nil if no targets were added).
+--
+-- |filter| is a function which receives an element's data value and
+-- returns a target attribute table for elements to include or nil for
+-- elements to omit.  For added elements, the attribute is_scroll_box=true
+-- will automatically be added to the tharget attribute table, along with
+-- appropriate up and down attributes to enable proper cursor movement.
+-- By default, the top element's "up" attribute will point to the bottom
+-- element and vice versa, so cursor movement wraps around; the caller is
+-- responsible for changing these attributes if different movement behavior
+-- is desired.
+--
+-- The filter function may optionally return a second value, which if true
+-- indicates that the associated target should be returned as a third
+-- return value from this function.  For example, this can be used to
+-- select a particular element as the cursor target without setting it as
+-- the default or storing a custom attribute which is only used to later
+-- find the associated target.  Only one additional target can be returned
+-- this way; if multiple targets are selected, only the last one is
+-- returned.
+function MenuFrame:AddScrollBoxTargets(scrollbox, filter)
+    -- Avoid errors in Blizzard code if the list is empty.
+    if not scrollbox:GetDataProvider() then return end
+    local top, bottom, other
+    local index = 0
+    scrollbox:ForEachElementData(function(data)
+        index = index + 1
+        local attributes, is_other = filter(data)
+        if attributes then
+            local pseudo_frame =
+                MenuFrame.PseudoFrameForScrollElement(scrollbox, index)
+            attributes.is_scroll_box = true
+            if bottom then
+                self.targets[bottom].down = pseudo_frame
+                attributes.up = bottom
+            end
+            self.targets[pseudo_frame] = attributes
+            top = top or pseudo_frame
+            bottom = pseudo_frame
+            if is_other then other = pseudo_frame end
+        end
+    end)
+    if top then
+        self.targets[top].up = bottom
+        self.targets[bottom].down = top
+    end
+    return top, bottom, other
+end
+
+-- Add widgets in the given WidgetContainer whose type is one of the
+-- given types (supported: "Spell", "Bar") to the given target list.
+-- |{up,down,left,right}_target| give the targets immediately in each
+-- direction relative to the widget container, and can be nil for default
+-- movement rules.
+function MenuFrame:AddWidgetTargets(container, widget_types,
+                                    up_target, down_target,
+                                    left_target, right_target)
+    if not container.widgetFrames then return end
+
+    local rows = {}
+    local row_y = {}
+    -- FIXME: is there any better way to get the child list than
+    -- breaking encapsulation?
+    for _, f in pairs(container.widgetFrames) do
+        local y = f:GetTop()
+        if not rows[y] then
+            tinsert(row_y, y)
+            rows[y] = {}
+        end
+        tinsert(rows[y], f)
+    end
+    table.sort(row_y, function(a,b) return a > b end)
+    for _, row in pairs(rows) do
+        table.sort(row, function(a,b) return a:GetLeft() < b:GetLeft() end)
+    end
+
+    local top_first, bottom_first
+    local last_y = nil
+    for _, y in ipairs(row_y) do
+        local row = rows[y]
+        local first, last
+        for i, f in ipairs(row) do
+            local subframe
+            for _, widget_type in ipairs(widget_types) do
+                if f[widget_type] then
+                    subframe = f[widget_type]
+                    break
+                end
+            end
+            if subframe then
+                self.targets[f] = {
+                    -- We have to call the subframe's methods.
+                    on_enter = function(frame)
+                        subframe:OnEnter()
+                    end,
+                    on_leave = function(frame)
+                        subframe:OnLeave()
+                    end,
+                    up = bottom_first or up_target,
+                    down = down_target,  -- Possibly rewritten below.
+                }
+                first = first or f
+                last = f
+            end
+        end
+        if first then
+            if last_y then
+                for i, f in ipairs(rows[last_y]) do
+                    local params = self.targets[f]
+                    if params then
+                        params.down = first
+                    end
+                end
+            end
+            last_y = y
+            top_first = top_first or first
+            bottom_first = first
+            self.targets[first].left = left_target
+            self.targets[last].right = right_target
+        end
+    end
+    self.targets[up_target].down = top_first
+    self.targets[down_target].up = bottom_first
+end
+
+
+-------- Other utility functions (these are all MenuFrame class methods)
 
 -- Generic cancel_func to close a frame.
 function MenuFrame.CancelFrame(frame)
@@ -1156,102 +1285,13 @@ function MenuFrame.SortTargetGrid(targets)
     return result
 end
 
--- Add widgets in the given WidgetContainer whose type is one of the
--- given types (supported: "Spell", "Bar") to the given target list.
--- |{up,down,left,right}_target| give the targets immediately in each
--- direction relative to the widget container, and can be nil for default
--- movement rules.
-function MenuFrame.AddWidgetTargets(container, widget_types,
-                                    targets, up_target, down_target,
-                                    left_target, right_target)
-    if not container.widgetFrames then return end
-
-    local rows = {}
-    local row_y = {}
-    -- FIXME: is there any better way to get the child list than
-    -- breaking encapsulation?
-    for _, f in pairs(container.widgetFrames) do
-        local y = f:GetTop()
-        if not rows[y] then
-            tinsert(row_y, y)
-            rows[y] = {}
-        end
-        tinsert(rows[y], f)
-    end
-    table.sort(row_y, function(a,b) return a > b end)
-    for _, row in pairs(rows) do
-        table.sort(row, function(a,b) return a:GetLeft() < b:GetLeft() end)
-    end
-
-    local top_first, bottom_first
-    local last_y = nil
-    for _, y in ipairs(row_y) do
-        local row = rows[y]
-        local first, last
-        for i, f in ipairs(row) do
-            local subframe
-            for _, widget_type in ipairs(widget_types) do
-                if f[widget_type] then
-                    subframe = f[widget_type]
-                    break
-                end
-            end
-            if subframe then
-                targets[f] = {
-                    -- We have to call the subframe's methods.
-                    on_enter = function(frame)
-                        subframe:OnEnter()
-                    end,
-                    on_leave = function(frame)
-                        subframe:OnLeave()
-                    end,
-                    up = bottom_first or up_target,
-                    down = down_target,  -- Possibly rewritten below.
-                }
-                first = first or f
-                last = f
-            end
-        end
-        if first then
-            if last_y then
-                for i, f in ipairs(rows[last_y]) do
-                    local params = targets[f]
-                    if params then
-                        params.down = first
-                    end
-                end
-            end
-            last_y = y
-            top_first = top_first or first
-            bottom_first = first
-            targets[first].left = left_target
-            targets[last].right = right_target
-        end
-    end
-    targets[up_target].down = top_first
-    targets[down_target].up = bottom_first
-end
-
--- Return the currently selected element(s) for the given dropdown menu
--- (must be a button using Blizzard's DropdownButtonMixin).  The returned
--- values are description tables, which should be examined as appropriate
--- for the particular menu.
-function MenuFrame.GetDropdownSelection(dropdown)
-    -- Note that DropdownButtonMixin provides a GetSelectionData(), but
-    -- it returns the wrong data!  It's not called from any other
-    -- Blizzard code, so presumably it never got updated during a
-    -- refactor or similar.
-    local selection = select(3, dropdown:CollectSelectionData())
-    if not selection then return nil end
-    return unpack(selection)
-end
-
 -- Return a MenuFrame and initial cursor target for a dropdown menu using
 -- the builtin DropdownButtonMixin.  Pass three arguments:
 --     dropdown: Dropdown button (a Button frame).
 --     cache: Table in which already-created MenuFrames will be cached.
 --     getIndex: Function to return the 1-based option index of a
---         selection (as returned by GetDropdownSelection()).
+--         selection (as returned by the menu's CollectSelectionData()
+--         method).
 --     onClick: Function to be called when an option is clicked.
 function MenuFrame.SetupDropdownMenu(dropdown, cache, getIndex, onClick)
     local menu = dropdown.menu
@@ -1283,8 +1323,11 @@ function MenuFrame.SetupDropdownMenu(dropdown, cache, getIndex, onClick)
     menu_menu.targets[first].up = last
     menu_menu.targets[last].down = first
     local initial_target
-    local selection = MenuFrame.GetDropdownSelection(dropdown)
-    local index = selection and getIndex(selection)
+    -- Note that DropdownButtonMixin provides a GetSelectionData(), but it
+    -- returns the wrong data!  It's not called from any other Blizzard code,
+    -- so presumably it never got updated during a refactor or similar.
+    local selection = select(3, dropdown:CollectSelectionData())
+    local index = selection and getIndex(selection[1])
     local initial_target = index and menu_menu.item_order[index]
     return menu_menu, initial_target
 end
@@ -1320,8 +1363,8 @@ function CoreMenuFrame.Initialize(class, cursor)
     class.instance = class()
 end
 
-function CoreMenuFrame:__constructor(frame)
-    self:__super(frame)
+function CoreMenuFrame:__constructor(frame, modal)
+    self:__super(frame, modal)
     self:HookShow(frame)
     self.cancel_func = MenuFrame.CancelUIFrame
 end
