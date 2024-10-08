@@ -1,6 +1,6 @@
 -- NOTE: This code is left for reference but unused because it triggers
 -- an "Interface action failed because of an AddOn" error during combat,
--- and I can't be bothered to figure out why becuase the Eye mechanic
+-- and I can't be bothered to figure out why because the Eye mechanic
 -- goes away anyway after advancing the scenario a bit more.
 
 local WoWXIV = WoWXIV
