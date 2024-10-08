@@ -3,6 +3,7 @@ assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
 local Cursor = MenuCursor.Cursor
 local MenuFrame = MenuCursor.MenuFrame
+local StandardMenuFrame = MenuCursor.StandardMenuFrame
 local CoreMenuFrame = MenuCursor.CoreMenuFrame
 local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
@@ -13,8 +14,16 @@ local GameTooltip = GameTooltip
 ---------------------------------------------------------------------------
 
 local PlayerChoiceFrameHandler = class(AddOnMenuFrame)
+local GenericPlayerChoiceToggleButtonHandler = class(StandardMenuFrame)
+
 PlayerChoiceFrameHandler.ADDON_NAME = "Blizzard_PlayerChoice"
 Cursor.RegisterFrameHandler(PlayerChoiceFrameHandler)
+
+function PlayerChoiceFrameHandler.OnAddOnLoaded(class)
+    AddOnMenuFrame.OnAddOnLoaded(class)
+    class.instance_ToggleButton = GenericPlayerChoiceToggleButtonHandler()
+end
+
 
 function PlayerChoiceFrameHandler:__constructor()
     self:__super(PlayerChoiceFrame)
@@ -61,4 +70,24 @@ function PlayerChoiceFrameHandler:SetTargets()
         end
     end
     return leftmost or false  -- Ignore frame if no buttons found.
+end
+
+
+function GenericPlayerChoiceToggleButtonHandler:__constructor()
+    self:__super(GenericPlayerChoiceToggleButton)
+    self.cancel_func = function()
+        -- Leave the button active so we can select it again later.
+        self:Unfocus()
+    end
+    self.targets = {
+        [self.frame] = {can_activate = true, is_default = true,
+                        send_enter_leave = true}
+    }
+end
+
+function GenericPlayerChoiceToggleButtonHandler:OnShow()
+    StandardMenuFrame.OnShow(self)
+    if PlayerChoiceFrame:IsShown() then
+        PlayerChoiceFrameHandler.instance:Focus()
+    end
 end

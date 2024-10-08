@@ -40,13 +40,11 @@ function Cursor:__constructor()
     -- Is the player currently using gamepad input?  (Mirrors the
     -- GAME_PAD_ACTIVE_CHANGED event.)
     self.gamepad_active = false
-    -- Map of open frames which have menu cursor support.  Each key is a
-    -- frame (table ref), and the value is a MenuFrame instance (see below).
-    self.frames = {}
     -- Stack of active MenuFrames and their current targets (each element
-    -- is a {frame,target} pair).  The current focus is on top of the
-    -- stack (focus_stack[#focus_stack]).
-    self.focus_stack = {}
+    -- is a {frame,target} pair, or the value false which indicates that no
+    -- frame currently has input focus).  The current focus is on top of
+    -- the stack (focus_stack[#focus_stack]).
+    self.focus_stack = {false}
     -- Stack of active modal MenuFrames and their current targets.  If a
     -- modal frame is active, the top frame on this stack is the current
     -- focus and input frame cycling is disabled.
@@ -76,6 +74,8 @@ function Cursor:__constructor()
     f:SetAttribute("clickbutton2", nil)
     f:HookScript("OnClick", function(_,...) self:OnClick(...) end)
     f:RegisterForClicks("AnyDown", "AnyUp")
+    SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_window"],
+                       "CLICK WoWXIV_MenuCursor:CycleFocus")
 
     for _, handler_class in pairs(Cursor.handlers) do
         handler_class:Initialize(self)
@@ -138,13 +138,19 @@ function Cursor:GAME_PAD_ACTIVE_CHANGED(active)
     self:UpdateCursor()
 end
 
--- Handlers for entering and leaving combat, to hide or show the cursor
--- respectively.
+-- Handlers for entering and leaving combat.
 function Cursor:PLAYER_REGEN_DISABLED()
     self:UpdateCursor(true)
 end
 function Cursor:PLAYER_REGEN_ENABLED()
     self:UpdateCursor(false)
+end
+
+-- Return whether the cursor can currently be shown.  The cursor can be
+-- shown if (1) the game is in gamepad input mode and (2) the player is
+-- not in combat.
+function Cursor:CanShow()
+    return 
 end
 
 -- Add the given frame (a MenuFrame instance) to the focus stack, make it
@@ -158,7 +164,7 @@ end
 function Cursor:AddFrame(frame, target, modal)
     local other_stack = modal and self.focus_stack or self.modal_stack
     for _, v in ipairs(other_stack) do
-        if v == frame then
+        if v and v[1] == frame then
             error("Invalid attempt to change modal state of frame "..tostring(frame))
             modal = not modal  -- In case we decide to make this non-fatal.
             break
@@ -167,7 +173,7 @@ function Cursor:AddFrame(frame, target, modal)
     local found = false
     local stack = modal and self.modal_stack or self.focus_stack
     for i, v in ipairs(stack) do
-        if v[1] == frame then
+        if v and v[1] == frame then
             if i == #stack then
                 -- Frame was already on top, so just change the target.
                 if target then 
@@ -181,18 +187,10 @@ function Cursor:AddFrame(frame, target, modal)
             break
         end
     end
-    local cursor_active = self.cursor:IsShown()
-    if cursor_active and #stack > 0 then
-        local last_focus, last_target = unpack(stack[#stack])
-        if last_target then
-            last_focus:LeaveTarget(last_target)
-        end
-    end
+    self:LeaveTarget()
     target = target or frame:GetDefaultTarget()
     tinsert(stack, {frame, target})
-    if cursor_active and target then
-        frame:EnterTarget(target)
-    end
+    self:EnterTarget()
     self:UpdateCursor()
 end
 
@@ -212,17 +210,11 @@ end
 -- Internal helper for RemoveFrame().
 function Cursor:InternalRemoveFrameFromStack(frame, stack, is_top_stack)
     for i, v in ipairs(stack) do
-        if v[1] == frame then
-            local is_top = is_top_stack and i == #stack
-            if is_top then
-                self:SetTarget(nil)
-            end
+        if v and v[1] == frame then
+            local is_focus = is_top_stack and i == #stack
+            if is_focus then self:LeaveTarget() end
             tremove(stack, i)
-            local cursor_active = self.cursor:IsShown()
-            if cursor_active and is_top and #stack > 0 then
-                local new_focus, new_target = unpack(stack[#stack])
-                new_focus:EnterTarget(new_target)
-            end
+            if is_focus then self:EnterTarget() end
             self:UpdateCursor()
             return
         end
@@ -239,7 +231,7 @@ end
 function Cursor:GetFocus()
     local stack = self:InternalGetFocusStack()
     local top = #stack
-    return top > 0 and stack[top][1] or nil
+    return (top > 0 and stack[top] and stack[top][1]) or nil
 end
 
 -- Return the input element in the current focus which is currently
@@ -247,38 +239,76 @@ end
 function Cursor:GetTarget()
     local stack = self:InternalGetFocusStack()
     local top = #stack
-    return top > 0 and stack[top][2] or nil
+    return (top > 0 and stack[top] and stack[top][2]) or nil
 end
 
 -- Return the current focus and target in a single function call.
 function Cursor:GetFocusAndTarget()
     local stack = self:InternalGetFocusStack()
     local top = #stack
-    if top > 0 then
+    if top > 0 and stack[top] then
         return unpack(stack[top])
     else
         return nil, nil
     end
 end
 
--- Set the menu cursor target.  If nil, clears the current target.
--- Handles all enter/leave interactions with the new and previous targets.
+-- Set the cursor's input focus, bringing the specified frame to the top
+-- of the focus stack.  If frame is nil, the input focus is cleared while
+-- leaving the focus stack otherwise unaffected (a cycle-focus input will
+-- reactivate the previously focused frame).  It is an error to attempt to
+-- focus a non-modal frame or clear input focus while a modal frame is
+-- active.
+function Cursor:SetFocus(frame)
+    local stack = self:InternalGetFocusStack()
+    local top = #stack
+    for i, v in ipairs(stack) do
+        if (frame and v and v[1] == frame) or (not frame and not v) then
+            if i < top then
+                self:LeaveTarget()
+                tinsert(stack, tremove(stack, i))
+                self:EnterTarget()
+                self:UpdateCursor()
+            end
+            return
+        end
+    end
+    error("SetFocus for frame ("..tostring(frame)..") not in focus stack")
+end
+
+-- Set the menu cursor target for the currently focused frame.  If nil,
+-- clears the current target.
 function Cursor:SetTarget(target)
     local stack = self:InternalGetFocusStack()
     local top = #stack
     assert(not target or top > 0)
     if top == 0 or target == stack[top][2] then return end
-
-    local cursor_active = self.cursor:IsShown()
-    local focus, old_target = unpack(stack[top])
-    if cursor_active and old_target then
-        focus:LeaveTarget(old_target)
-    end
+    self:LeaveTarget()
     stack[top][2] = target
-    if cursor_active and target then
-        focus:EnterTarget(target)
-    end
+    self:EnterTarget()
     self:UpdateCursor()
+end
+
+-- Call the enter-target callback for the currently active target, if any.
+-- Does nothing if the cursor is not currently shown.
+function Cursor:EnterTarget()
+    if self.cursor:IsShown() then
+        local focus, target = self:GetFocusAndTarget()
+        if target then
+            focus:EnterTarget(target)
+        end
+    end
+end
+
+-- Call the leave-target callback for the currently active target, if any.
+-- Does nothing if the cursor is not currently shown.
+function Cursor:LeaveTarget()
+    if self.cursor:IsShown() then
+        local focus, target = self:GetFocusAndTarget()
+        if target then
+            focus:LeaveTarget(target)
+        end
+    end
 end
 
 -- Internal helper to clear the menu cursor target without calling the
@@ -287,7 +317,7 @@ end
 function Cursor:InternalForceClearTarget()
     local stack = self:InternalGetFocusStack()
     local top = #stack
-    if top > 0 then
+    if top > 0 and stack[top] then
         stack[top][2] = nil
     end
 end
@@ -297,13 +327,13 @@ end
 function Cursor:InternalFindFrame(frame)
     local focus_stack = self.focus_stack
     for i, v in ipairs(focus_stack) do
-        if v[1] == frame then
+        if v and v[1] == frame then
             return focus_stack, i
         end
     end
     local modal_stack = self.modal_stack
     for i, v in ipairs(modal_stack) do
-        if v[1] == frame then
+        if v and v[1] == frame then
             return modal_stack, i
         end
     end
@@ -386,17 +416,19 @@ function Cursor:OnShow()
                        "CLICK WoWXIV_MenuCursor:DPadRight")
     SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_confirm"],
                        "CLICK WoWXIV_MenuCursor:LeftButton")
-    SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_window"],
-                       "CLICK WoWXIV_MenuCursor:CycleFrame")
     self:SetFrameSpecificBindings(focus)
     f:SetScript("OnUpdate", function() self:OnUpdate() end)
     self:OnUpdate()
 end
 
--- Hide() handler; clears menu cursor input bindings and periodic updated.
+-- Hide() handler; clears menu cursor input bindings and periodic update.
+-- The cycle-focus binding is left active to allow re-focusing any open
+-- frames.
 function Cursor:OnHide()
     local f = self.cursor
     ClearOverrideBindings(f)
+    SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_window"],
+                       "CLICK WoWXIV_MenuCursor:CycleFocus")
     f:SetScript("OnUpdate", nil)
 end
 
@@ -504,6 +536,21 @@ function Cursor:OnClick(button, down)
         self:StopRepeat()
     end
 
+    if button == "CycleFocus" then
+        if #self.modal_stack == 0 then
+            local stack = self.focus_stack
+            local top = #stack
+            if top > 1 then
+                self:LeaveTarget()
+                tinsert(stack, 1, tremove(stack, top))
+                assert(#stack == top)
+                self:EnterTarget()
+                self:UpdateCursor()
+            end
+        end
+        return
+    end
+
     local focus, target = self:GetFocusAndTarget()
     -- Click bindings should be cleared if we have no focus, but we could
     -- still get here right after a secure passthrough click closes the
@@ -599,25 +646,6 @@ function Cursor:OnClick(button, down)
         if new_tab then
             tabs:SetTab(new_tab:GetTabID())
         end
-    elseif button == "CycleFrame" then
-        if #self.modal_stack == 0 then
-            local stack = self.focus_stack
-            local top = #stack
-            if top > 1 then
-                local cursor_active = self.cursor:IsShown()
-                local cur_entry = tremove(stack, top)
-                local cur_focus, cur_target = unpack(cur_entry)
-                if cursor_active and cur_target then
-                    cur_focus:LeaveTarget(cur_target)
-                end
-                tinsert(stack, 1, cur_entry)
-                assert(#stack == top)
-                local new_focus, new_target = unpack(stack[top])
-                if cursor_active and new_target then
-                    new_focus:EnterTarget(new_target)
-                end
-            end
-        end
     end
 end
 
@@ -678,10 +706,11 @@ end
     to create and initialize instances of this class directly (see the
     SetupDropdownMenu() method for an example).
 
-    Note that this file also provides CoreMenuFrame and AddOnMenuFrame
-    subclasses of MenuFrame which include standard behaviors such as
-    instance creation on registration and show/hide hooks; in many cases,
-    these will be more convenient than subclassing MenuFrame itself.
+    Note that this file also provides StandardMenuFrame, CoreMenuFrame,
+    and AddOnMenuFrame subclasses of MenuFrame which include standard
+    behaviors such as show/hide hooks and automatic instance creation on
+    registration; in many cases, these will be more convenient than
+    subclassing MenuFrame itself.
 ]]--
 MenuCursor.MenuFrame = class()
 local MenuFrame = MenuCursor.MenuFrame
@@ -1123,6 +1152,23 @@ function MenuFrame:Disable()
     global_cursor:RemoveFrame(self)
 end
 
+-- Move this frame to the top of the input focus stack.  If the frame is
+-- not in the focus stack, it is newly added.  Equivalent to Enable(nil);
+-- provided for semantic clarity.
+function MenuFrame:Focus()
+    self:Enable(nil)
+end
+
+-- Remove input focus from this frame, but leave it enabled for input.
+-- If the frame currently has input focus, it remains at the top of the
+-- input stack so a subsequent cycle-focus action will immediately focus it.
+-- Does nothing if the frame does not currently have input focus.
+function MenuFrame:Unfocus()
+    if global_cursor:GetFocus() == self then
+        global_cursor:SetFocus(nil)
+    end
+end
+
 -- Return whether this frame currently has input focus.
 function MenuFrame:HasFocus()
     return global_cursor:GetFocus() == self
@@ -1417,39 +1463,26 @@ end
 ---------------------------------------------------------------------------
 
 --[[
-    MenuFrame subclass for handling a core frame (one which is initialized
-    by core game code before any addons are loaded).  Includes OnShow/OnHide
-    handlers which respectively call Enable() and Disable(), and a default
-    cancel_func of MenuFrame.CancelUIFrame.  The frame itself is hooked with
-    HookShow() by the constructor.
+    MenuFrame subclass for handling a standard menu-style frame.  Includes
+    OnShow/OnHide handlers which respectively call Enable() and Disable(),
+    and a default cancel_func of MenuFrame.CancelUIFrame.  The frame itself
+    is hooked with HookShow() by the constructor.
 
     If the subclass defines a SetTargets() method, it will be called by
     OnShow() and its return value will be used as the initial target to
     pass to Enable().  If the method returns false (as opposed to nil),
     the OnShow event will instead be ignored.
-
-    A singleton instance for the (presumed also singleton) managed frame
-    will be created and stored in class.instance by the default Initialize()
-    implementation; the global cursor instance will be stored in class.cursor.
-    No other default methods reference these values; they are provided for
-    subclasses' convenience, and overriding methods do not need to initialize
-    them if they are not needed.
 ]]--
-MenuCursor.CoreMenuFrame = class(MenuFrame)
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
+MenuCursor.StandardMenuFrame = class(MenuFrame)
+local StandardMenuFrame = MenuCursor.StandardMenuFrame
 
-function CoreMenuFrame.Initialize(class, cursor)
-    class.cursor = cursor
-    class.instance = class()
-end
-
-function CoreMenuFrame:__constructor(frame, modal)
+function StandardMenuFrame:__constructor(frame, modal)
     self:__super(frame, modal)
     self:HookShow(frame)
     self.cancel_func = MenuFrame.CancelUIFrame
 end
 
-function CoreMenuFrame:OnShow()
+function StandardMenuFrame:OnShow()
     assert(self.frame:IsVisible())
     local initial_target = self.SetTargets and self:SetTargets()
     if initial_target ~= false then
@@ -1457,21 +1490,46 @@ function CoreMenuFrame:OnShow()
     end
 end
 
-function CoreMenuFrame:OnHide()
+function StandardMenuFrame:OnHide()
     self:Disable()
 end
 
 
 --[[
-    MenuFrame subclass for handling an addon frame (one which is not
-    available until a specific addon has been loaded).  Functions
-    identically to (and in fact subclasses) CoreMenuFrame except in that
-    the default Initialize() implementation sets up an addon watch for
-    the addon named by class.ADDON_NAME (which must be declared by the
-    subclass if it uses this implementation) and creates the singleton
-    instance in the default OnAddOnLoaded() implementation.
+    StandardMenuFrame subclass for handling a core frame (one which is
+    initialized by core game code before any addons are loaded).
+    A singleton instance for the (presumed also singleton) managed frame
+    will be created and stored in class.instance by the default Initialize()
+    implementation, and the global cursor instance will be stored in
+    class.cursor.  No other default methods reference these values; they
+    are provided for subclasses' convenience, and overriding methods do not
+    need to initialize them if they are not needed.
 ]]--
-MenuCursor.AddOnMenuFrame = class(CoreMenuFrame)
+MenuCursor.CoreMenuFrame = class(StandardMenuFrame)
+local CoreMenuFrame = MenuCursor.CoreMenuFrame
+
+function CoreMenuFrame.Initialize(class, cursor)
+    class.cursor = cursor
+    class.instance = class()
+end
+
+
+--[[
+    StandardMenuFrame subclass for handling an addon frame (one which is
+    not available until a specific addon has been loaded).  Similar to
+    CoreMenuFrame, but instead of creating the frame manager instance in
+    Initialize(), the Initialize() method sets up an addon watch for the
+    addon named by class.ADDON_NAME (which must be declared by the subclass
+    at the time Cursor.RegisterFrameHandler() is called) and creates the
+    singleton instance in the method OnAddOnLoaded() (which may be
+    overridden by the subclass if needed).
+
+    Note that only one class may establish a load handler for any given
+    addon.  To handle multiple frames managed by the same addon, inherit
+    this class for one handler and have it create instances for the other
+    frames.  See the PlayerChoiceFrame handler for an example.
+]]--
+MenuCursor.AddOnMenuFrame = class(StandardMenuFrame)
 local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
 function AddOnMenuFrame.Initialize(class, cursor)
