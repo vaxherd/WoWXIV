@@ -20,10 +20,16 @@ local CURSOR_REPEAT_DELAY = 300/1000
 local CURSOR_REPEAT_PERIOD = 50/1000
 
 
-------------------------------------------------------------------------
+---------------------------------------------------------------------------
 -- Core implementation
-------------------------------------------------------------------------
+---------------------------------------------------------------------------
 
+--[[
+    Implementation of the menu cursor itself.  Typically, frame handlers
+    do not need to interact directly with this class other than by calling
+    RegisterFrameHandler() at startup time; the MenuFrame class provides
+    more convenient interfaces for all other cursor-related functionality.
+]]--
 MenuCursor.Cursor = class()
 local Cursor = MenuCursor.Cursor
 
@@ -659,15 +665,30 @@ function Cursor:CheckRepeat()
     end
 end
 
-------------------------------------------------------------------------
--- Frame manager class
-------------------------------------------------------------------------
+---------------------------------------------------------------------------
+-- Frame manager base class
+---------------------------------------------------------------------------
 
+--[[
+    Base class for managing menu frames using the menu cursor.  Each
+    managed frame should have an associated instance of this class or a
+    subclass; typically, one would create a frame-specific subclass of
+    this class and allow it to initialize automatically using the
+    Cursor.RegisterFrameHandler() interface, though it is also possible
+    to create and initialize instances of this class directly (see the
+    SetupDropdownMenu() method for an example).
+
+    Note that this file also provides CoreMenuFrame and AddOnMenuFrame
+    subclasses of MenuFrame which include standard behaviors such as
+    instance creation on registration and show/hide hooks; in many cases,
+    these will be more convenient than subclassing MenuFrame itself.
+]]--
 MenuCursor.MenuFrame = class()
 local MenuFrame = MenuCursor.MenuFrame
 
 -- Convenience constant for passing true to the modal argument of the
--- MenuFrame constructor in a way that indicates what the argument is.
+-- MenuFrame constructor in a way that indicates the argument's meaning.
+-- Python-style keyword-only arguments would be nice here.
 MenuFrame.MODAL = true
 
 
@@ -680,44 +701,48 @@ function MenuFrame:__constructor(frame, modal)
     self.frame = frame
     self.modal = modal
 
-    -- Table of valid targets for cursor movement.  Each key is a frame
-    -- (except as noted for scroll_box below), and each value is a subtable
-    -- with the following possible elements:
-    --    - can_activate: If true, a confirm input on this frame causes a
-    --         left-click action to be sent to the frame.
-    --    - is_default: If true, a call to UpdateCursor() when no frame is
-    --         targeted will cause this frame to be targeted.
+    -- Table of valid targets for cursor movement.  Each key is a WoW Frame
+    -- instance (except as noted for is_scroll_box below) for a menu
+    -- element, and each value is a subtable with the following possible
+    -- keys:
+    --    - can_activate: If true, a confirm input on this element causes a
+    --         left-click action to be sent to the element (which must be a
+    --         Button instance).
+    --    - is_default: If true, this element will be targeted if the frame
+    --         receives input focus and no element was previously targeted.
+    --         Behavior is undefined if more than one element has this key
+    --         with a true value.
     --    - is_scroll_box: If non-nil, the key is a pseudo-frame for the
     --         corresponding scroll list element returned by
     --         PseudoFrameForScrollElement().
-    --    - lock_highlight: If true, the frame's LockHighlight() and
-    --         UnlockHighlight() methods will be called when the frame is
+    --    - lock_highlight: If true, the element's LockHighlight() and
+    --         UnlockHighlight() methods will be called when the element is
     --         targeted and untargeted, respectively.
     --    - on_click: If non-nil, a function to be called when the element
     --         is activated.  The element is passed as an argument.  When
     --         set along with can_activate, this is called after the click
-    --         event is passed down to the frame.
+    --         event is passed down to the element.
     --    - on_enter: If non-nil, a function to be called when the cursor
-    --         is moved onto the element.  The frame is passed as an argument.
-    --         Ignored if send_enter_leave is set.
+    --         is moved onto the element.  The element is passed as an
+    --         argument.  Ignored if send_enter_leave is set.
     --    - on_leave: If non-nil, a function to be called when the cursor
-    --         is moved off the element.  The frame is passed as an argument.
-    --         Ignored if send_enter_leave is set.
+    --         is moved off the element.  The element is passed as an
+    --         argument.  Ignored if send_enter_leave is set.
     --    - scroll_frame: If non-nil, a ScrollFrame which should be scrolled
     --         to make the element visible when targeted.
-    --    - send_enter_leave: If true, the frame's OnEnter and OnLeave
-    --         scripts (if any) will be called when the frame is targeted
+    --    - send_enter_leave: If true, the element's OnEnter and OnLeave
+    --         scripts (if any) will be called when the element is targeted
     --         and untargeted, respectively.
-    --    - up, down, left, right: If non-nil, specifies the frame to be
-    --         targeted on the corresponding movement input from this frame.
-    --         A value of false prevents movement in the corresponding
-    --         direction.
+    --    - up, down, left, right: If non-nil, specifies the element to be
+    --         targeted on the corresponding movement input from this
+    --         element.  A value of false prevents movement in the
+    --         corresponding direction.
     self.targets = {}
     -- Function to call when the cancel button is pressed (receives self
     -- as an argument).  If nil, no action is taken.
     self.cancel_func = nil
-    -- Subframe (button) to be clicked on a gamepad cancel button press,
-    -- or nil for none.  If set, cancel_func is ignored.
+    -- Button (WoW Button instance) to be clicked on a gamepad cancel
+    -- button press, or nil for none.  If set, cancel_func is ignored.
     self.cancel_button = nil
     -- Object to handle gamepad previous-page button presses.  May be any of:
     --    - A string, giving the global name of a button to which a click
@@ -727,7 +752,7 @@ function MenuFrame:__constructor(frame, modal)
     --    - A function, which will be called with no arguments.
     --    - nil, indicating that page flipping is not supported by this frame.
     -- Must not be changed while the frame is enabled for input.  (Gamepad
-    -- page flipping is only enabled if both this and on_next_page
+    -- page flipping is only enabled if both this and on_next_page are
     -- non-nil.)
     self.on_prev_page = nil
     -- Object to handle gamepad next-page button presses.  See on_prev_page
@@ -764,13 +789,13 @@ function MenuFrame:GetTabSystem()
     return self.tab_system
 end
 
--- Return the frame (WoW Button instance) of the cancel button for this
--- frame, or nil if none.
+-- Return the WoW Button instance of the cancel button for this frame, or
+-- nil if none.
 function MenuFrame:GetCancelButton()
     return self.cancel_button
 end
 
--- Return the frame's default cursor target.
+-- Return the frame's default cursor target, or nil if none.
 function MenuFrame:GetDefaultTarget()
     for frame, params in pairs(self.targets) do
         if params.is_default then
@@ -780,7 +805,8 @@ function MenuFrame:GetDefaultTarget()
     return nil
 end
 
--- Return the frame associated with the given targets[] key.
+-- Return the WoW Frame instance associated with the given menu element
+-- (targets[] key).
 function MenuFrame:GetTargetFrame(target)
     local params = self.targets[target]
     if params and params.is_scroll_box then
@@ -800,8 +826,9 @@ end
 
 -- Return the next target in the given direction from the given target,
 -- or nil to indicate no next target.  If target is nil, instead return
--- the target for an initial cursor input of the given direction. dir gives
--- the direction, one of the strings "up", "down", "left", or "right".
+-- the target for a cursor input of the given direction when nothing is
+-- targeted.  dir gives the direction, one of the strings "up", "down",
+-- "left", or "right".
 function MenuFrame:NextTarget(target, dir)
     if not target then
         return self:GetDefaultTarget()
@@ -810,10 +837,9 @@ function MenuFrame:NextTarget(target, dir)
     local params = self.targets[target]
     local explicit_next = params[dir]
     if explicit_next ~= nil then
-        -- A value of false indicates "suppress movement in this
-        -- direction".  We have to use false and not nil because
-        -- Lua can't distinguish between "key in table with nil value"
-        -- and "key not in table".
+        -- A value of false indicates "suppress movement in this direction".
+        -- We have to use false and not nil because Lua can't distinguish
+        -- between "key in table with nil value" and "key not in table".
         return explicit_next or nil
     end
 
@@ -1086,15 +1112,13 @@ function MenuFrame:HookShow(frame, show_method, hide_method)
     end)
 end
 
--- Add this frame to the cursor's frame list if not already present, and
--- set it as the input focus.  If initial_target is not nil, the cursor
--- target will be set to that target.
+-- Enable cursor input for this frame, and set it as the input focus.  If
+-- initial_target is not nil, the cursor target will be set to that target.
 function MenuFrame:Enable(initial_target)
     global_cursor:AddFrame(self, initial_target, self.modal)
 end
 
--- Remove this frame from the cursor's frame list.  Does nothing if the
--- frame is not on the cursor's frame list.
+-- Disable cursor input for this frame.
 function MenuFrame:Disable()
     global_cursor:RemoveFrame(self)
 end
@@ -1104,14 +1128,14 @@ function MenuFrame:HasFocus()
     return global_cursor:GetFocus() == self
 end
 
--- Return the current cursor target for this frame, or nil if the frame is
--- not in the cursor's frame list.
+-- Return the current cursor target for this frame, or nil if the frame has
+-- not been enabled for cursor input.
 function MenuFrame:GetTarget()
     return global_cursor:GetTargetForFrame(self)
 end
 
 -- Set the cursor target for this frame to the given target.  Does nothing
--- if the frame is not in the cursor's frame list.
+-- if the frame has not been enabled for cursor input.
 function MenuFrame:SetTarget(target)
     assert(not target or self.targets[target],
            "Target ("..tostring(target)..") is not in frame's target list")
@@ -1144,23 +1168,24 @@ end
 -- and bottommost of the added targets (both nil if no targets were added).
 --
 -- |filter| is a function which receives an element's data value and
--- returns a target attribute table for elements to include or nil for
--- elements to omit.  For added elements, the attribute is_scroll_box=true
--- will automatically be added to the tharget attribute table, along with
+-- returns either a target attribute table, which causes the element to be
+-- included as a cursor target, or nil, which causes the element to be
+-- omitted.  For included elements, the attribute is_scroll_box=true will
+-- automatically be added to the target attribute table, along with
 -- appropriate up and down attributes to enable proper cursor movement.
--- By default, the top element's "up" attribute will point to the bottom
+-- By default, the top element's "up" attribute will point to the bottom 
 -- element and vice versa, so cursor movement wraps around; the caller is
 -- responsible for changing these attributes if different movement behavior
 -- is desired.
 --
 -- The filter function may optionally return a second value, which if true
 -- indicates that the associated target should be returned as a third
--- return value from this function.  For example, this can be used to
--- select a particular element as the cursor target without setting it as
--- the default or storing a custom attribute which is only used to later
--- find the associated target.  Only one additional target can be returned
--- this way; if multiple targets are selected, only the last one is
--- returned.
+-- return value from this method.  For example, this can be used to select
+-- a particular element as the cursor target without setting it as the
+-- default or storing a custom attribute which is only used to later find
+-- the associated target.  Only one additional target can be returned in
+-- this way; if multiple targets are indicated by the filter function, the
+-- last of them is returned.
 function MenuFrame:AddScrollBoxTargets(scrollbox, filter)
     -- Avoid errors in Blizzard code if the list is empty.
     if not scrollbox:GetDataProvider() then return end
@@ -1341,7 +1366,7 @@ function MenuFrame.SortTargetGrid(targets)
 end
 
 -- Return a MenuFrame and initial cursor target for a dropdown menu using
--- the builtin DropdownButtonMixin.  Pass three arguments:
+-- the builtin DropdownButtonMixin.  Pass four arguments:
 --     dropdown: Dropdown button (a Button frame).
 --     cache: Table in which already-created MenuFrames will be cached.
 --     getIndex: Function to return the 1-based option index of a
@@ -1350,18 +1375,18 @@ end
 --     onClick: Function to be called when an option is clicked.
 function MenuFrame.SetupDropdownMenu(dropdown, cache, getIndex, onClick)
     local menu = dropdown.menu
-    local menu_menu = cache[menu]
-    if not menu_menu then
-        menu_menu = MenuFrame(menu)
-        menu_menu.cancel_func = function() dropdown:CloseMenu() end
-        cache[menu] = menu_menu
-        hooksecurefunc(menu, "Hide", function() menu_menu:Disable() end)
+    local menu_manager = cache[menu]
+    if not menu_manager then
+        menu_manager = MenuFrame(menu)
+        menu_manager.cancel_func = function() dropdown:CloseMenu() end
+        cache[menu] = menu_manager
+        hooksecurefunc(menu, "Hide", function() menu_manager:Disable() end)
     end
-    menu_menu.targets = {}
-    menu_menu.item_order = {}
+    menu_manager.targets = {}
+    menu_manager.item_order = {}
     local is_first = true
     for _, button in ipairs(menu:GetLayoutChildren()) do
-        menu_menu.targets[button] = {
+        menu_manager.targets[button] = {
             send_enter_leave = true,
             on_click = function(button)
                 button:GetScript("OnClick")(button, "LeftButton", true)
@@ -1371,32 +1396,32 @@ function MenuFrame.SetupDropdownMenu(dropdown, cache, getIndex, onClick)
         }
         is_first = false
         -- FIXME: are buttons guaranteed to be in order?
-        tinsert(menu_menu.item_order, button)
+        tinsert(menu_manager.item_order, button)
     end
-    local first = menu_menu.item_order[1]
-    local last = menu_menu.item_order[#menu_menu.item_order]
-    menu_menu.targets[first].up = last
-    menu_menu.targets[last].down = first
-    local initial_target
+    local first = menu_manager.item_order[1]
+    local last = menu_manager.item_order[#menu_manager.item_order]
+    menu_manager.targets[first].up = last
+    menu_manager.targets[last].down = first
     -- Note that DropdownButtonMixin provides a GetSelectionData(), but it
     -- returns the wrong data!  It's not called from any other Blizzard code,
     -- so presumably it never got updated during a refactor or similar.
     local selection = select(3, dropdown:CollectSelectionData())
     local index = selection and getIndex(selection[1])
-    local initial_target = index and menu_menu.item_order[index]
-    return menu_menu, initial_target
+    local initial_target = index and menu_manager.item_order[index]
+    return menu_manager, initial_target
 end
 
 
-------------------------------------------------------------------------
+---------------------------------------------------------------------------
 -- MenuFrame subclasses for common patterns
-------------------------------------------------------------------------
+---------------------------------------------------------------------------
 
 --[[
     MenuFrame subclass for handling a core frame (one which is initialized
     by core game code before any addons are loaded).  Includes OnShow/OnHide
     handlers which respectively call Enable() and Disable(), and a default
-    cancel_func of MenuFrame.CancelUIFrame.
+    cancel_func of MenuFrame.CancelUIFrame.  The frame itself is hooked with
+    HookShow() by the constructor.
 
     If the subclass defines a SetTargets() method, it will be called by
     OnShow() and its return value will be used as the initial target to
