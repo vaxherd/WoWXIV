@@ -18,19 +18,19 @@ local tinsert = tinsert
 local PVEFrameHandler = class(MenuCursor.CoreMenuFrame)
 local PVETab = class(StandardMenuFrame)
 local GroupFinderFrameHandler = class(PVETab)
-local PVPQueueFrameHandler = class(PVETab)
+local PVPUIFrameHandler = class(PVETab)
 local ChallengesFrameHandler = class(PVETab)
 local DelvesDashboardFrameHandler = class(PVETab)
 MenuCursor.Cursor.RegisterFrameHandler(PVEFrameHandler)
 MenuCursor.Cursor.RegisterFrameHandler(GroupFinderFrameHandler)
-MenuCursor.Cursor.RegisterFrameHandler(PVPQueueFrameHandler)
+MenuCursor.Cursor.RegisterFrameHandler(PVPUIFrameHandler)
 MenuCursor.Cursor.RegisterFrameHandler(ChallengesFrameHandler)
 MenuCursor.Cursor.RegisterFrameHandler(DelvesDashboardFrameHandler)
 
 function PVEFrameHandler:__constructor()
     self:__super(PVEFrame)
     self.tabs = {{PVEFrameTab1, GroupFinderFrameHandler},
-                 {PVEFrameTab2, PVPQueueFrameHandler},
+                 {PVEFrameTab2, PVPUIFrameHandler},
                  {PVEFrameTab3, ChallengesFrameHandler},
                  {PVEFrameTab4, DelvesDashboardFrameHandler}}
 end
@@ -104,9 +104,9 @@ end
 
 -------- PVP tab
 
-PVPQueueFrameHandler.ADDON_NAME = "Blizzard_PVPUI"
-function PVPQueueFrameHandler:__constructor()
-    self:__super(PVPQueueFrame)
+PVPUIFrameHandler.ADDON_NAME = "Blizzard_PVPUI"
+function PVPUIFrameHandler:__constructor()
+    self:__super(PVPUIFrame)
 end
 
 
