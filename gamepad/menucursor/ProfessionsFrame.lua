@@ -1,10 +1,8 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local Cursor = MenuCursor.Cursor
 local MenuFrame = MenuCursor.MenuFrame
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
-local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
+local StandardMenuFrame = MenuCursor.StandardMenuFrame
 
 local class = WoWXIV.class
 
@@ -13,18 +11,15 @@ local tinsert = tinsert
 ---------------------------------------------------------------------------
 
 local ProfessionsFrameHandler = class(MenuFrame)
-Cursor.RegisterFrameHandler(ProfessionsFrameHandler)
--- These are technically addon frames, but we add the addon watch in
--- ProfessionsFrameHandler and don't create these instances until it's
--- loaded.  We inherit CoreMenuFrame for its other conveniences.
-local CraftingPageHandler = class(CoreMenuFrame)
+MenuCursor.Cursor.RegisterFrameHandler(ProfessionsFrameHandler)
+local CraftingPageHandler = class(StandardMenuFrame)
 local SchematicFormHandler = class(MenuFrame)
-local QualityDialogHandler = class(CoreMenuFrame)
-local ItemFlyoutHandler = class(CoreMenuFrame)
-local SpecPageHandler = class(CoreMenuFrame)
+local QualityDialogHandler = class(StandardMenuFrame)
+local ItemFlyoutHandler = class(StandardMenuFrame)
+local SpecPageHandler = class(StandardMenuFrame)
 local DetailedViewHandler = class(MenuFrame)
-local OrderListHandler = class(CoreMenuFrame)
-local OrderViewHandler = class(CoreMenuFrame)
+local OrderListHandler = class(StandardMenuFrame)
+local OrderViewHandler = class(StandardMenuFrame)
 
 
 -------- Top-level frame
@@ -890,7 +885,7 @@ end
 -- Override NextTarget() to limit cursor movement within the skill tree
 -- to adjacent or sibling nodes.
 function SpecPageHandler:NextTarget(target, dir)
-    local next = CoreMenuFrame.NextTarget(self, target, dir)
+    local next = StandardMenuFrame.NextTarget(self, target, dir)
     local tree = self.skill_tree
     if not tree then return next end  -- Sanity check, should never happen.
     local edges = tree[target]
@@ -926,7 +921,7 @@ function SpecPageHandler:NextTarget(target, dir)
     end
     self.targets = new_targets
     local success, result = pcall(  -- Ensure self.targets is restored.
-        function() return CoreMenuFrame.NextTarget(self, target, dir) end)
+        function() return StandardMenuFrame.NextTarget(self, target, dir) end)
     self.targets = saved_targets
     if not success then
         error("Error in NextTarget: "..tostring(result))

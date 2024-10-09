@@ -1,10 +1,6 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local Cursor = MenuCursor.Cursor
-local MenuFrame = MenuCursor.MenuFrame
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
-local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
 local class = WoWXIV.class
 
@@ -12,8 +8,8 @@ local tinsert = tinsert
 
 ---------------------------------------------------------------------------
 
-local StaticPopupHandler = class(MenuFrame)
-Cursor.RegisterFrameHandler(StaticPopupHandler)
+local StaticPopupHandler = class(MenuCursor.MenuFrame)
+MenuCursor.Cursor.RegisterFrameHandler(StaticPopupHandler)
 
 function StaticPopupHandler.Initialize(class, cursor)
     class.instances = {}
@@ -21,7 +17,7 @@ function StaticPopupHandler.Initialize(class, cursor)
         local frame_name = "StaticPopup" .. i
         local frame = _G[frame_name]
         assert(frame)
-        local instance = StaticPopupHandler(frame, MenuFrame.MODAL)
+        local instance = StaticPopupHandler(frame, MenuCursor.MenuFrame.MODAL)
         class.instances[i] = instance
         instance:HookShow(frame)
     end

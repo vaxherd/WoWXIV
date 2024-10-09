@@ -1,10 +1,6 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local Cursor = MenuCursor.Cursor
-local MenuFrame = MenuCursor.MenuFrame
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
-local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
 local class = WoWXIV.class
 
@@ -12,9 +8,9 @@ local tinsert = tinsert
 
 ---------------------------------------------------------------------------
 
-local WeeklyRewardsFrameHandler = class(AddOnMenuFrame)
+local WeeklyRewardsFrameHandler = class(MenuCursor.AddOnMenuFrame)
 WeeklyRewardsFrameHandler.ADDON_NAME = "Blizzard_WeeklyRewards"
-Cursor.RegisterFrameHandler(WeeklyRewardsFrameHandler)
+MenuCursor.Cursor.RegisterFrameHandler(WeeklyRewardsFrameHandler)
 
 function WeeklyRewardsFrameHandler:__constructor()
     self:__super(WeeklyRewardsFrame)

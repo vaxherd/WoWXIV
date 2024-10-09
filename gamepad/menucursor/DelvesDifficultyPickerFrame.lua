@@ -1,10 +1,6 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local Cursor = MenuCursor.Cursor
-local MenuFrame = MenuCursor.MenuFrame
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
-local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
 local class = WoWXIV.class
 
@@ -12,9 +8,9 @@ local class = WoWXIV.class
 
 local cache_DelvesDifficultyDropdown = {}
 
-local DelvesDifficultyPickerFrameHandler = class(AddOnMenuFrame)
+local DelvesDifficultyPickerFrameHandler = class(MenuCursor.AddOnMenuFrame)
 DelvesDifficultyPickerFrameHandler.ADDON_NAME = "Blizzard_DelvesDifficultyPicker"
-Cursor.RegisterFrameHandler(DelvesDifficultyPickerFrameHandler)
+MenuCursor.Cursor.RegisterFrameHandler(DelvesDifficultyPickerFrameHandler)
 
 function DelvesDifficultyPickerFrameHandler:__constructor()
     self:__super(DelvesDifficultyPickerFrame)
@@ -34,7 +30,7 @@ function DelvesDifficultyPickerFrameHandler:ToggleDropdown()
 
     dropdown:SetMenuOpen(not dropdown:IsMenuOpen())
     if dropdown:IsMenuOpen() then
-        local menu, initial_target = MenuFrame.SetupDropdownMenu(
+        local menu, initial_target = MenuCursor.MenuFrame.SetupDropdownMenu(
             dropdown, cache_DelvesDifficultyDropdown,
             function(selection)
                 return selection.data and selection.data.orderIndex + 1

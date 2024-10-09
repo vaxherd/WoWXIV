@@ -2,10 +2,6 @@ local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
 local Cursor = MenuCursor.Cursor
-local MenuFrame = MenuCursor.MenuFrame
-local StandardMenuFrame = MenuCursor.StandardMenuFrame
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
-local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
 local class = WoWXIV.class
 
@@ -13,14 +9,14 @@ local GameTooltip = GameTooltip
 
 ---------------------------------------------------------------------------
 
-local PlayerChoiceFrameHandler = class(AddOnMenuFrame)
-local GenericPlayerChoiceToggleButtonHandler = class(StandardMenuFrame)
+local PlayerChoiceFrameHandler = class(MenuCursor.AddOnMenuFrame)
+local GenericPlayerChoiceToggleButtonHandler = class(MenuCursor.StandardMenuFrame)
 
 PlayerChoiceFrameHandler.ADDON_NAME = "Blizzard_PlayerChoice"
-Cursor.RegisterFrameHandler(PlayerChoiceFrameHandler)
+MenuCursor.Cursor.RegisterFrameHandler(PlayerChoiceFrameHandler)
 
 function PlayerChoiceFrameHandler.OnAddOnLoaded(class)
-    AddOnMenuFrame.OnAddOnLoaded(class)
+    MenuCursor.AddOnMenuFrame.OnAddOnLoaded(class)
     class.instance_ToggleButton = GenericPlayerChoiceToggleButtonHandler()
 end
 
@@ -56,7 +52,7 @@ function PlayerChoiceFrameHandler:SetTargets()
                         end
                     end
                 end
-                self.targets[button].on_leave = MenuFrame.HideTooltip
+                self.targets[button].on_leave = MenuCursor.MenuFrame.HideTooltip
             else
                 self.targets[button].send_enter_leave = true
             end
@@ -86,7 +82,7 @@ function GenericPlayerChoiceToggleButtonHandler:__constructor()
 end
 
 function GenericPlayerChoiceToggleButtonHandler:OnShow()
-    StandardMenuFrame.OnShow(self)
+    MenuCursor.StandardMenuFrame.OnShow(self)
     if PlayerChoiceFrame:IsShown() then
         PlayerChoiceFrameHandler.instance:Focus()
     end

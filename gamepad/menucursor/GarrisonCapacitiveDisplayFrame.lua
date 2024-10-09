@@ -1,18 +1,14 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local Cursor = MenuCursor.Cursor
-local MenuFrame = MenuCursor.MenuFrame
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
-local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
 local class = WoWXIV.class
 
 ---------------------------------------------------------------------------
 
-local GarrisonCapacitiveDisplayFrameHandler = class(AddOnMenuFrame)
+local GarrisonCapacitiveDisplayFrameHandler = class(MenuCursor.AddOnMenuFrame)
 GarrisonCapacitiveDisplayFrameHandler.ADDON_NAME = "Blizzard_GarrisonUI"
-Cursor.RegisterFrameHandler(GarrisonCapacitiveDisplayFrameHandler)
+MenuCursor.Cursor.RegisterFrameHandler(GarrisonCapacitiveDisplayFrameHandler)
 
 function GarrisonCapacitiveDisplayFrameHandler:__constructor()
     self:__super(GarrisonCapacitiveDisplayFrame)

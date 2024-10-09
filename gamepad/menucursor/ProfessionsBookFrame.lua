@@ -1,18 +1,14 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local Cursor = MenuCursor.Cursor
-local MenuFrame = MenuCursor.MenuFrame
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
-local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
 local class = WoWXIV.class
 
 ---------------------------------------------------------------------------
 
-local ProfessionsBookFrameHandler = class(AddOnMenuFrame)
+local ProfessionsBookFrameHandler = class(MenuCursor.AddOnMenuFrame)
 ProfessionsBookFrameHandler.ADDON_NAME = "Blizzard_ProfessionsBook"
-Cursor.RegisterFrameHandler(ProfessionsBookFrameHandler)
+MenuCursor.Cursor.RegisterFrameHandler(ProfessionsBookFrameHandler)
 
 function ProfessionsBookFrameHandler:__constructor()
     self:__super(ProfessionsBookFrame)

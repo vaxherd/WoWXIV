@@ -1,10 +1,6 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local Cursor = MenuCursor.Cursor
-local MenuFrame = MenuCursor.MenuFrame
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
-local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
 local class = WoWXIV.class
 
@@ -18,8 +14,8 @@ local tinsert = tinsert
 -- which also covers specializations and talents, but we only handle the
 -- actual spell list for now.
 
-local SpellBookFrameHandler = class(MenuFrame)
-Cursor.RegisterFrameHandler(SpellBookFrameHandler)
+local SpellBookFrameHandler = class(MenuCursor.MenuFrame)
+MenuCursor.Cursor.RegisterFrameHandler(SpellBookFrameHandler)
 
 function SpellBookFrameHandler.Initialize(class, cursor)
     class:RegisterAddOnWatch("Blizzard_PlayerSpells")

@@ -1,17 +1,13 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local Cursor = MenuCursor.Cursor
-local MenuFrame = MenuCursor.MenuFrame
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
-local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
 local class = WoWXIV.class
 
 ---------------------------------------------------------------------------
 
-local GossipFrameHandler = class(CoreMenuFrame)
-Cursor.RegisterFrameHandler(GossipFrameHandler)
+local GossipFrameHandler = class(MenuCursor.CoreMenuFrame)
+MenuCursor.Cursor.RegisterFrameHandler(GossipFrameHandler)
 
 function GossipFrameHandler:__constructor()
     self:__super(GossipFrame)
@@ -28,7 +24,7 @@ function GossipFrameHandler:GOSSIP_SHOW()
     if not GossipFrame:IsVisible() then
         return  -- Flight map, etc.
     end
-    CoreMenuFrame.OnShow(self)
+    MenuCursor.CoreMenuFrame.OnShow(self)
 end
 
 function GossipFrameHandler:GOSSIP_CONFIRM_CANCEL()

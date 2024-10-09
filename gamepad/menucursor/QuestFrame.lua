@@ -1,10 +1,6 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local Cursor = MenuCursor.Cursor
-local MenuFrame = MenuCursor.MenuFrame
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
-local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
 local class = WoWXIV.class
 
@@ -12,8 +8,8 @@ local tinsert = tinsert
 
 ---------------------------------------------------------------------------
 
-local QuestFrameHandler = class(CoreMenuFrame)
-Cursor.RegisterFrameHandler(QuestFrameHandler)
+local QuestFrameHandler = class(MenuCursor.CoreMenuFrame)
+MenuCursor.Cursor.RegisterFrameHandler(QuestFrameHandler)
 
 function QuestFrameHandler:__constructor()
     self:__super(QuestFrame)

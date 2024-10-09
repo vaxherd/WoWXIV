@@ -1,17 +1,13 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local Cursor = MenuCursor.Cursor
-local MenuFrame = MenuCursor.MenuFrame
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
-local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
 local class = WoWXIV.class
 
 ---------------------------------------------------------------------------
 
-local InboxFrameHandler = class(CoreMenuFrame)
-Cursor.RegisterFrameHandler(InboxFrameHandler)
+local InboxFrameHandler = class(MenuCursor.CoreMenuFrame)
+MenuCursor.Cursor.RegisterFrameHandler(InboxFrameHandler)
 
 function InboxFrameHandler:__constructor()
     -- We could react to PLAYER_INTERACTION_MANAGER_FRAME_{SHOW,HIDE}

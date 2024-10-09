@@ -1,19 +1,15 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local Cursor = MenuCursor.Cursor
-local MenuFrame = MenuCursor.MenuFrame
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
-local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
 local class = WoWXIV.class
 
 ---------------------------------------------------------------------------
 
-local CovenantSanctumFrameHandler = class(AddOnMenuFrame)
+local CovenantSanctumFrameHandler = class(MenuCursor.AddOnMenuFrame)
 CovenantSanctumFrameHandler.ADDON_NAME = "Blizzard_CovenantSanctum"
-local CovenantSanctumTalentFrameHandler = class(MenuFrame)
-Cursor.RegisterFrameHandler(CovenantSanctumFrameHandler)
+local CovenantSanctumTalentFrameHandler = class(MenuCursor.MenuFrame)
+MenuCursor.Cursor.RegisterFrameHandler(CovenantSanctumFrameHandler)
 
 function CovenantSanctumFrameHandler.OnAddOnLoaded(class)
     AddOnMenuHandler.OnAddOnLoaded(class)

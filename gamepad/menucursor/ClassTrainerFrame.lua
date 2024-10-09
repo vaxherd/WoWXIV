@@ -1,18 +1,14 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local Cursor = MenuCursor.Cursor
-local MenuFrame = MenuCursor.MenuFrame
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
-local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
 local class = WoWXIV.class
 
 ---------------------------------------------------------------------------
 
-local ClassTrainerFrameHandler = class(AddOnMenuFrame)
+local ClassTrainerFrameHandler = class(MenuCursor.AddOnMenuFrame)
 ClassTrainerFrameHandler.ADDON_NAME = "Blizzard_TrainerUI"
-Cursor.RegisterFrameHandler(ClassTrainerFrameHandler)
+MenuCursor.Cursor.RegisterFrameHandler(ClassTrainerFrameHandler)
 
 function ClassTrainerFrameHandler:__constructor()
     self:__super(ClassTrainerFrame)

@@ -1,10 +1,6 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local Cursor = MenuCursor.Cursor
-local MenuFrame = MenuCursor.MenuFrame
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
-local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
 local class = WoWXIV.class
 
@@ -12,8 +8,8 @@ local GameTooltip = GameTooltip
 
 ---------------------------------------------------------------------------
 
-local OpenMailFrameHandler = class(CoreMenuFrame)
-Cursor.RegisterFrameHandler(OpenMailFrameHandler)
+local OpenMailFrameHandler = class(MenuCursor.CoreMenuFrame)
+MenuCursor.Cursor.RegisterFrameHandler(OpenMailFrameHandler)
 
 function OpenMailFrameHandler:__constructor()
     self:__super(OpenMailFrame)
@@ -77,7 +73,7 @@ function OpenMailFrameHandler:OnShowMoneyButton(frame)
                 GameTooltip:Show()
             end
         end,
-        on_leave = MenuFrame.HideTooltip,
+        on_leave = MenuCursor.MenuFrame.HideTooltip,
     }
 end
 
@@ -106,7 +102,7 @@ function OpenMailFrameHandler:OnShowLetterButton(frame)
             GameTooltip:SetText(MAIL_LETTER_TOOLTIP)
             GameTooltip:Show()
         end,
-        on_leave = MenuFrame.HideTooltip,
+        on_leave = MenuCursor.MenuFrame.HideTooltip,
     }
 end
 

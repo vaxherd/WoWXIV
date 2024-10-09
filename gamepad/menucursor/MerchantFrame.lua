@@ -1,17 +1,13 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local Cursor = MenuCursor.Cursor
-local MenuFrame = MenuCursor.MenuFrame
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
-local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
 local class = WoWXIV.class
 
 ---------------------------------------------------------------------------
 
-local MerchantFrameHandler = class(CoreMenuFrame)
-Cursor.RegisterFrameHandler(MerchantFrameHandler)
+local MerchantFrameHandler = class(MenuCursor.CoreMenuFrame)
+MenuCursor.Cursor.RegisterFrameHandler(MerchantFrameHandler)
 
 function MerchantFrameHandler:__constructor()
     self:__super(MerchantFrame)

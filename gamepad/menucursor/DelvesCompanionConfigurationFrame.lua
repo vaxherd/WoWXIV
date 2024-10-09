@@ -1,22 +1,19 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local Cursor = MenuCursor.Cursor
-local MenuFrame = MenuCursor.MenuFrame
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
-local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
 local class = WoWXIV.class
 
 ---------------------------------------------------------------------------
 
-local DelvesCompanionConfigurationFrameHandler = class(CoreMenuFrame)
-local DelvesCompanionConfigurationSlotHandler = class(CoreMenuFrame)
-local DelvesCompanionAbilityListFrameHandler = class(CoreMenuFrame)
-Cursor.RegisterFrameHandler(DelvesCompanionConfigurationFrameHandler)
+local DelvesCompanionConfigurationFrameHandler = class(MenuCursor.CoreMenuFrame)
+MenuCursor.Cursor.RegisterFrameHandler(DelvesCompanionConfigurationFrameHandler)
+local DelvesCompanionConfigurationSlotHandler = class(MenuCursor.StandardMenuFrame)
+local DelvesCompanionAbilityListFrameHandler = class(MenuCursor.StandardMenuFrame)
+
 
 function DelvesCompanionConfigurationFrameHandler.Initialize(class, cursor)
-    CoreMenuFrame.Initialize(class, cursor)
+    MenuCursor.CoreMenuFrame.Initialize(class, cursor)
     class.instance_slot = {}
     local dccf = DelvesCompanionConfigurationFrame
     local lists = {dccf.CompanionCombatRoleSlot.OptionsList,
@@ -69,21 +66,10 @@ function DelvesCompanionConfigurationFrameHandler:__constructor()
     }
 end
 
+
 function DelvesCompanionConfigurationSlotHandler:__constructor(frame)
     self:__super(frame)
     self.cancel_func = function() frame:Hide() end
-end
-
-function DelvesCompanionAbilityListFrameHandler:__constructor()
-    self:__super(DelvesCompanionAbilityListFrame)
-    self.cancel_func = MenuFrame.HideUIFrame
-end
-
-function DelvesCompanionAbilityListFrameHandler:OnShow()
-    assert(DelvesCompanionAbilityListFrame:IsShown())
-    self.targets = {}
-    self:Enable()
-    self:RefreshTargets()
 end
 
 function DelvesCompanionConfigurationSlotHandler:SetTargets(frame)
@@ -105,13 +91,26 @@ function DelvesCompanionConfigurationSlotHandler:SetTargets(frame)
     end
 end
 
+
+function DelvesCompanionAbilityListFrameHandler:__constructor()
+    self:__super(DelvesCompanionAbilityListFrame)
+    self.cancel_func = MenuCursor.MenuFrame.HideUIFrame
+end
+
+function DelvesCompanionAbilityListFrameHandler:OnShow()
+    assert(DelvesCompanionAbilityListFrame:IsShown())
+    self.targets = {}
+    self:Enable()
+    self:RefreshTargets()
+end
+
 local cache_DelvesCompanionRoleDropdown = {}
 function DelvesCompanionAbilityListFrameHandler:ToggleRoleDropdown()
     local dcalf = DelvesCompanionAbilityListFrame
     local role_dropdown = dcalf.DelvesCompanionRoleDropdown
     role_dropdown:SetMenuOpen(not role_dropdown:IsMenuOpen())
     if role_dropdown:IsMenuOpen() then
-        local menu, initial_target = MenuFrame.SetupDropdownMenu(
+        local menu, initial_target = MenuCursor.MenuFrame.SetupDropdownMenu(
             role_dropdown, cache_DelvesCompanionRoleDropdown,
             function(selection)
                 if selection.data and selection.data.entryID == 123306 then

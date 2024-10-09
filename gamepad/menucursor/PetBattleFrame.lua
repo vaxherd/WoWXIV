@@ -1,21 +1,17 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local Cursor = MenuCursor.Cursor
-local MenuFrame = MenuCursor.MenuFrame
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
-local AddOnMenuFrame = MenuCursor.AddOnMenuFrame
 
 local class = WoWXIV.class
 
 ---------------------------------------------------------------------------
 
-local PetBattleFrameHandler = class(CoreMenuFrame)
-local PetBattlePetSelectionFrameHandler = class(CoreMenuFrame)
-Cursor.RegisterFrameHandler(PetBattleFrameHandler)
+local PetBattleFrameHandler = class(MenuCursor.CoreMenuFrame)
+MenuCursor.Cursor.RegisterFrameHandler(PetBattleFrameHandler)
+local PetBattlePetSelectionFrameHandler = class(MenuCursor.StandardMenuFrame)
 
 function PetBattleFrameHandler.Initialize(class, cursor)
-    CoreMenuFrame.Initialize(class, cursor)
+    MenuCursor.CoreMenuFrame.Initialize(class, cursor)
     class.instance_PetSelection = PetBattlePetSelectionFrameHandler()
     -- If we're in the middle of a pet battle, these might already be active!
     if PetBattleFrame:IsVisible() then
@@ -117,7 +113,7 @@ end
 
 function PetBattlePetSelectionFrameHandler:__constructor()
     local psf = PetBattleFrame.BottomFrame.PetSelectionFrame
-    self:__super(psf, MenuFrame.MODAL)
+    self:__super(psf, MenuCursor.MenuFrame.MODAL)
     self.cancel_func = nil
 end
 
