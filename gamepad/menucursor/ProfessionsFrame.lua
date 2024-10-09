@@ -581,6 +581,7 @@ function ItemFlyoutHandler:RefreshTargets(initial_item)
                 MenuFrame.PseudoFrameForScrollElement(ItemScroll, index)
             self.targets[pseudo_frame] = {
                 is_scroll_box = true, can_activate = true,
+                send_enter_leave = true,
                 up = false, down = false, left = false, right = false}
             if index % 3 == 1 then
                 tinsert(rows, {})
