@@ -262,6 +262,7 @@ function SchematicFormHandler:OnShowRecraftOutputSlot()
 end
 
 local function SchematicForm_ClickItemButton(button)
+    ProfessionsFrameHandler.instance_ItemFlyout:SetInitialItem(button.item)
     local onMouseDown = button:GetScript("OnMouseDown")
     assert(onMouseDown)
     -- We pass down=true for completeness, but all current implementations
@@ -534,14 +535,22 @@ function ItemFlyoutHandler:__constructor()
     self.cancel_func = CloseProfessionsItemFlyout  -- Blizzard function.
 end
 
+-- Item buttons should call this method to set the initial item ID for the
+-- next Show() operation.
+function ItemFlyoutHandler:SetInitialItem(id)
+    self.initial_item = id
+end
+
 function ItemFlyoutHandler:OnShow()
     self.targets = {}
     self:Enable()
+    local initial_item = self.initial_item
+    self.initial_item = nil
     -- FIXME: this still isn't good enough to get the list after a /reload
-    RunNextFrame(function() self:RefreshTargets() end)
+    RunNextFrame(function() self:RefreshTargets(initial_item) end)
 end
 
-function ItemFlyoutHandler:RefreshTargets()
+function ItemFlyoutHandler:RefreshTargets(initial_item)
     local frame = self.frame
     local ItemScroll = frame.ScrollBox
     local checkbox = frame.HideUnownedCheckbox
@@ -561,7 +570,7 @@ function ItemFlyoutHandler:RefreshTargets()
     -- (such as for embellishment reagents), so we rely on the current
     -- implementation details that (1) three items are displayed per row
     -- and (2) the items are displayed in ScrollBox element index order.
-    local first
+    local first, default
     local rows = {}
     if ItemScroll:GetDataProvider() then
         local index = 0
@@ -577,6 +586,9 @@ function ItemFlyoutHandler:RefreshTargets()
                 tinsert(rows, {})
             end
             tinsert(rows[#rows], pseudo_frame)
+            if initial_item and data.item:GetItemID() == initial_item then
+                default = pseudo_frame
+            end
         end)
         assert(#rows > 0)  -- Must be true if ItemScroll:GetDataProvider()~=nil
         local first_row = rows[1]
@@ -608,8 +620,7 @@ function ItemFlyoutHandler:RefreshTargets()
         self.targets[checkbox].up = last_row[1]
         self.targets[checkbox].down = first_row[1]
     end
-    local cur_target = self:GetTarget()
-    self:SetTarget(cur_target or first or checkbox)
+    self:SetTarget(default or first or checkbox)
 end
 
 
