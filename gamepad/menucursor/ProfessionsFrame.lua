@@ -91,7 +91,7 @@ function CraftingPageHandler:__constructor()
     self:__super(ProfessionsFrame.CraftingPage)
     self:RegisterEvent("TRADE_SKILL_LIST_UPDATE")
     self.cancel_func = ProfessionsFrameHandler.CancelMenu
-    self.tab_system = ProfessionsFrame.TabSystem
+    self:SetTabSystem(ProfessionsFrame.TabSystem)
 end
 
 function CraftingPageHandler:TRADE_SKILL_LIST_UPDATE()
@@ -224,7 +224,7 @@ function SchematicFormHandler:__constructor()
         self:Disable()
         self.targets = {}  -- suppress update calls from CreateAllButton:Show() hook
     end
-    self.tab_system = ProfessionsFrame.TabSystem
+    self:SetTabSystem(ProfessionsFrame.TabSystem)
 end
 
 function SchematicFormHandler:OnShowCreateAllButton()
@@ -625,9 +625,9 @@ function SpecPageHandler:__constructor()
     local SpecPage = ProfessionsFrame.SpecPage
     self:__super(SpecPage)
     self.cancel_func = ProfessionsFrameHandler.CancelMenu
-    self.tab_system = ProfessionsFrame.TabSystem
     self.on_prev_page = function() self:CycleTabs(-1) end
     self.on_next_page = function() self:CycleTabs(1) end
+    self:SetTabSystem(ProfessionsFrame.TabSystem)
     self:HookShow(SpecPage.TreePreview, self.RefreshTargets,
                                         self.RefreshTargets)
     self:HookShow(SpecPage.UndoButton, self.RefreshTargetsForUndoOn,
@@ -996,9 +996,9 @@ end
 function OrderListHandler:__constructor()
     self:__super(ProfessionsFrame.OrdersPage.BrowseFrame)
     self.cancel_func = ProfessionsFrameHandler.CancelMenu
-    self.tab_system = ProfessionsFrame.TabSystem
     self.on_prev_page = function() self:CycleTabs(-1) end
     self.on_next_page = function() self:CycleTabs(1) end
+    self:SetTabSystem(ProfessionsFrame.TabSystem)
     self:HookShow(ProfessionsFrame.OrdersPage.BrowseFrame.OrderList.ScrollBox,
                   self.OnOrderListUpdate, self.OnOrderListUpdate)
 end
@@ -1151,7 +1151,7 @@ end
 function OrderViewHandler:__constructor()
     self:__super(ProfessionsFrame.OrdersPage.OrderView)
     self.cancel_func = nil
-    self.tab_system = ProfessionsFrame.TabSystem
+    self:SetTabSystem(ProfessionsFrame.TabSystem)
     -- Use button show events to handle order progression.
     local ov = ProfessionsFrame.OrdersPage.OrderView
     self:HookShow(ov.OrderInfo.StartOrderButton, self.RefreshTargets, false)

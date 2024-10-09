@@ -442,7 +442,7 @@ function Cursor:UpdateCursor(in_combat)
                                WoWXIV_config["gamepad_menu_next_page"],
                                next_button)
         end
-        if focus:GetTabSystem() then
+        if focus:GetTabHandler() then
             SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_prev_tab"],
                                "CLICK WoWXIV_MenuCursor:PrevTab")
             SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_tab"],
@@ -596,47 +596,9 @@ function Cursor:OnClick(button, down)
             error("Invalid type for next_button")
         end
     elseif button == "PrevTab" or button == "NextTab" then
-        local tabs = focus:GetTabSystem()
+        local handler = focus:GetTabHandler()
         local direction = button=="PrevTab" and -1 or 1
-        local new_tab, first_tab, stop_next
-        local i = 1
-        while true do
-            local tab = tabs:GetTabButton(i)
-            i = i + 1
-            if not tab then break end
-            -- HACK: breaking encapsulation to access tab selected state
-            if tab.isSelected then
-                if direction < 0 then
-                    -- If we already have a new_tab, it's the previous
-                    -- (enabled) tab, so we're done.  Otherwise, let the
-                    -- loop finish, so new_tab will point to the last
-                    -- (again enabled) tab.
-                    if new_tab then break end
-                else  -- direction > 0
-                    stop_next = true
-                end
-            end
-            if tab:IsEnabled() then
-                if stop_next then
-                    new_tab = tab
-                    break
-                end
-                if not first_tab then
-                    first_tab = tab
-                end
-                if direction < 0 then
-                    new_tab = tab
-                end
-            end
-        end
-        if stop_next and not new_tab then
-            -- The current tab must be the last enabled one, so cycle back
-            -- to the first tab.
-            new_tab = first_tab
-        end
-        if new_tab then
-            tabs:SetTab(new_tab:GetTabID())
-        end
+        handler(direction)
     end
 end
 
@@ -776,7 +738,8 @@ function MenuFrame:__constructor(frame, modal)
     --      action will be securely forwarded.
     --    - A Button instance, to which a click action will be (insecurely)
     --      sent.
-    --    - A function, which will be called with no arguments.
+    --    - A function, which will be called a single argument indicating
+    --      the switch direction, -1 (previous) or 1 (next).
     --    - nil, indicating that page flipping is not supported by this frame.
     -- Must not be changed while the frame is enabled for input.  (Gamepad
     -- page flipping is only enabled if both this and on_next_page are
@@ -785,9 +748,12 @@ function MenuFrame:__constructor(frame, modal)
     -- Object to handle gamepad next-page button presses.  See on_prev_page
     -- for details.
     self.on_next_page = nil
-    -- TabSystem instance of tab list to be controlled with gamepad
-    -- previous-tab and next-tab button presses, or nil if none.
-    self.tab_system = nil
+    -- Function to handle gamepad previous-tab and next-tab button presses,
+    -- or nil to indicate that tab switching is not supported by this frame.
+    -- The function will receive a single argument indicating the switch
+    -- direction, -1 (previous) or 1 (next).  Must not be changed while the
+    -- frame is enabled for input.
+    self.tab_handler = nil
     -- Should the current button be highlighted if enabled?
     -- (This is a cache of the current button's lock_highlight parameter.)
     self.want_highlight = true
@@ -811,9 +777,10 @@ function MenuFrame:GetPageHandlers()
     return self.on_prev_page, self.on_next_page
 end
 
--- Return the TabSystem instance of the tab set for this frame, or nil if none.
-function MenuFrame:GetTabSystem()
-    return self.tab_system
+-- Return the handler for previous-tab and next-tab actions for this frame,
+-- or nil if none.
+function MenuFrame:GetTabHandler()
+    return self.tab_handler
 end
 
 -- Return the WoW Button instance of the cancel button for this frame, or
@@ -1137,6 +1104,52 @@ function MenuFrame:HookShow(frame, show_method, hide_method)
         local func = shown and show_method or hide_method
         if func then func(self, frame) end
     end)
+end
+
+-- Install a tab-switch handler for the frame which uses the given
+-- TabSystem instance to control tab switching.
+function MenuFrame:SetTabSystem(tab_system)
+    self.tab_handler = function(direction)
+        local new_tab, first_tab, stop_next
+        local i = 1
+        while true do
+            local tab = tab_system:GetTabButton(i)
+            i = i + 1
+            if not tab then break end
+            -- HACK: breaking encapsulation to access tab selected state
+            if tab.isSelected then
+                if direction < 0 then
+                    -- If we already have a new_tab, it's the previous
+                    -- (enabled) tab, so we're done.  Otherwise, let the
+                    -- loop finish, so new_tab will point to the last
+                    -- (again enabled) tab.
+                    if new_tab then break end
+                else  -- direction > 0
+                    stop_next = true
+                end
+            end
+            if tab:IsEnabled() then
+                if stop_next then
+                    new_tab = tab
+                    break
+                end
+                if not first_tab then
+                    first_tab = tab
+                end
+                if direction < 0 then
+                    new_tab = tab
+                end
+            end
+        end
+        if stop_next and not new_tab then
+            -- The current tab must be the last enabled one, so cycle back
+            -- to the first tab.
+            new_tab = first_tab
+        end
+        if new_tab then
+            tab_system:SetTab(new_tab:GetTabID())
+        end
+    end
 end
 
 -- Enable cursor input for this frame, and set it as the input focus.  If

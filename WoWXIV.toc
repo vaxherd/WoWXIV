@@ -36,6 +36,7 @@ gamepad/menucursor/GossipFrame.lua
 gamepad/menucursor/InboxFrame.lua
 gamepad/menucursor/MerchantFrame.lua
 gamepad/menucursor/OpenMailFrame.lua
+gamepad/menucursor/PVEFrame.lua
 gamepad/menucursor/PetBattleFrame.lua
 gamepad/menucursor/PlayerChoiceFrame.lua
 gamepad/menucursor/ProfessionsBookFrame.lua
