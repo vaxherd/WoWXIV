@@ -1210,6 +1210,7 @@ end
 
 -- Add elements from a ScrollBox as frame targets, returning the topmost
 -- and bottommost of the added targets (both nil if no targets were added).
+-- The elements are assumed to be in a single column.
 --
 -- |filter| is a function which receives an element's data value and
 -- returns either a target attribute table, which causes the element to be

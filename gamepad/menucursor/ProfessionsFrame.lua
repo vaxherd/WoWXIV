@@ -527,7 +527,7 @@ end
 
 function ItemFlyoutHandler:__constructor()
     -- The item selector popup doesn't have a global reference, so we need
-    -- this hack to get the frame.
+    -- this hack to get the frame (which is a singleton).
     local ItemFlyout = OpenProfessionsItemFlyout(UIParent, UIParent)
     CloseProfessionsItemFlyout()
     self:__super(ItemFlyout)
@@ -555,35 +555,32 @@ function ItemFlyoutHandler:RefreshTargets()
                           RunNextFrame(function() self:RefreshTargets() end)
                       end},
     }
-    local default = nil
-    local last_y = nil
+    -- We can't use AddScrollBoxTargets() here because we have multiple
+    -- elements per row.  We also can't use SortTargetGrid() because not
+    -- all elements will have frames if the list overflows the frame
+    -- (such as for embellishment reagents), so we rely on the current
+    -- implementation details that (1) three items are displayed per row
+    -- and (2) the items are displayed in ScrollBox element index order.
+    local first
     local rows = {}
-    -- Avoid errors in Blizzard code if the list is empty.
     if ItemScroll:GetDataProvider() then
         local index = 0
         ItemScroll:ForEachElementData(function(element)
             index = index + 1
-            local button = ItemScroll:FindFrame(ItemScroll:FindElementData(index))
-            if button then  -- FIXME: need to deal with overflowing lists (e.g. embellishments)
-                local pseudo_frame =
-                    MenuFrame.PseudoFrameForScrollElement(ItemScroll, index)
-                self.targets[pseudo_frame] = {
-                    is_scroll_box = true, can_activate = true,
-                    up = false, down = false, left = false, right = false}
-                default = default or pseudo_frame
-                assert(self:GetTargetFrame(pseudo_frame) == button)
-                assert(button:IsShown())
-                assert(button:GetTop() ~= nil)
-                local y = button:GetTop()
-                if y == last_y then
-                    tinsert(rows[#rows], pseudo_frame)
-                else
-                    last_y = y
-                    tinsert(rows, {pseudo_frame})
-                end
+            local data = ItemScroll:FindElementData(index)
+            local pseudo_frame =
+                MenuFrame.PseudoFrameForScrollElement(ItemScroll, index)
+            self.targets[pseudo_frame] = {
+                is_scroll_box = true, can_activate = true,
+                up = false, down = false, left = false, right = false}
+            if index % 3 == 1 then
+                tinsert(rows, {})
             end
+            tinsert(rows[#rows], pseudo_frame)
         end)
+        assert(#rows > 0)  -- Must be true if ItemScroll:GetDataProvider()~=nil
         local first_row = rows[1]
+        first = first_row[1]
         local last_row = rows[#rows]
         for i, row in ipairs(rows) do
             local prev_row = i > 1 and rows[i-1]
@@ -612,7 +609,7 @@ function ItemFlyoutHandler:RefreshTargets()
         self.targets[checkbox].down = first_row[1]
     end
     local cur_target = self:GetTarget()
-    self:SetTarget(cur_target or default or checkbox)
+    self:SetTarget(cur_target or first or checkbox)
 end
 
 
