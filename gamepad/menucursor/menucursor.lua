@@ -399,9 +399,6 @@ function Cursor:UpdateCursor(in_combat)
     ClearOverrideBindings(f)
     SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_window"],
                        "CLICK WoWXIV_MenuCursor:CycleFocus")
-    -- Movement inputs are bound even when the cursor is hidden due to
-    -- mouse input, so an up/down input doesn't also activate the party
-    -- list cursor.
     if focus and not entering_combat then
         SetOverrideBinding(f, true, "PADDUP",
                            "CLICK WoWXIV_MenuCursor:DPadUp")
@@ -411,10 +408,6 @@ function Cursor:UpdateCursor(in_combat)
                            "CLICK WoWXIV_MenuCursor:DPadLeft")
         SetOverrideBinding(f, true, "PADDRIGHT",
                            "CLICK WoWXIV_MenuCursor:DPadRight")
-    end
-    if f:IsShown() then
-        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_confirm"],
-                           "CLICK WoWXIV_MenuCursor:LeftButton")
         if focus:GetCancelButton() then
             SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
                                "CLICK WoWXIV_MenuCursor:RightButton")
@@ -447,6 +440,11 @@ function Cursor:UpdateCursor(in_combat)
                                "CLICK WoWXIV_MenuCursor:PrevTab")
             SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_tab"],
                                "CLICK WoWXIV_MenuCursor:NextTab")
+        end
+        -- Make sure the cursor is visible before we allow a confirm action.
+        if f:IsShown() then
+            SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_confirm"],
+                               "CLICK WoWXIV_MenuCursor:LeftButton")
         end
     end
 end
