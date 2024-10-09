@@ -1089,34 +1089,22 @@ function OrderListHandler:SetTargets(initial_target)
             on_click = ClickTab, lock_highlight = true,
             left = bf.NpcOrdersButton, right = false},
     }
-    local first, last
     local OrderScroll = bf.OrderList.ScrollBox
-    if OrderScroll:IsVisible() and OrderScroll:GetDataProvider() then
-        local index = 0
-        OrderScroll:ForEachElementData(function(element)
-            index = index + 1
-            local button = OrderScroll:FindFrame(OrderScroll:FindElementData(index))
-            if button then  -- FIXME: scroll handling not yet implemented
-                local pseudo_frame =
-                    self.PseudoFrameForScrollElement(OrderScroll, index)
-                self.targets[pseudo_frame] = {
-                    is_scroll_box = true, on_click = ClickOrder,
-                    up = false, down = false, left = false, right = false}
-                -- FIXME: can we safely assume elements are in display order?
-                if last then
-                    self.targets[pseudo_frame].up = last
-                    self.targets[last].down = pseudo_frame
-                end
-                first = first or pseudo_frame
-                last = pseudo_frame
+    local first, last
+    if OrderScroll:IsVisible() then
+        first, last, initial_target =
+            self:AddScrollBoxTargets(OrderScroll, function(data, index)
+                local attributes = {
+                    on_click = ClickOrder, left = false, right = false}
+                local is_initial
                 if self.saved_index == index then
-                    initial_target = pseudo_frame
                     self.saved_index = nil
-                elseif initial_target == index then
-                    initial_target = pseudo_frame
+                    is_initial = true
+                else
+                    is_initial = (initial_target == index)
                 end
-            end
-        end)
+                return attributes, is_initial
+            end)
     end
     if not self.saved_index and type(initial_target) == "number" then
         -- The cursor was previously on an order which disappeared from

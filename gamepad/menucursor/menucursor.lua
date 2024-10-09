@@ -1213,15 +1213,15 @@ end
 -- The elements are assumed to be in a single column.
 --
 -- |filter| is a function which receives an element's data value and
--- returns either a target attribute table, which causes the element to be
--- included as a cursor target, or nil, which causes the element to be
--- omitted.  For included elements, the attribute is_scroll_box=true will
--- automatically be added to the target attribute table, along with
--- appropriate up and down attributes to enable proper cursor movement.
--- By default, the top element's "up" attribute will point to the bottom 
--- element and vice versa, so cursor movement wraps around; the caller is
--- responsible for changing these attributes if different movement behavior
--- is desired.
+-- element index, and returns either a target attribute table, which causes
+-- the element to be included as a cursor target, or nil, which causes the
+-- element to be omitted.  For included elements, the attribute
+-- is_scroll_box=true will automatically be added to the target attribute
+-- table, along with appropriate up and down attributes to enable proper
+-- cursor movement.  By default, the top element's "up" attribute will
+-- point to the bottom  element and vice versa, so cursor movement wraps
+-- around; the caller is responsible for changing these attributes if
+-- different movement behavior is desired.
 --
 -- The filter function may optionally return a second value, which if true
 -- indicates that the associated target should be returned as a third
@@ -1238,7 +1238,7 @@ function MenuFrame:AddScrollBoxTargets(scrollbox, filter)
     local index = 0
     scrollbox:ForEachElementData(function(data)
         index = index + 1
-        local attributes, is_other = filter(data)
+        local attributes, is_other = filter(data, index)
         if attributes then
             local pseudo_frame =
                 MenuFrame.PseudoFrameForScrollElement(scrollbox, index)
