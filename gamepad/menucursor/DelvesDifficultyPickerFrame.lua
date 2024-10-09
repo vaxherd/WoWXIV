@@ -30,7 +30,7 @@ function DelvesDifficultyPickerFrameHandler:ToggleDropdown()
 
     dropdown:SetMenuOpen(not dropdown:IsMenuOpen())
     if dropdown:IsMenuOpen() then
-        local menu, initial_target = MenuCursor.MenuFrame.SetupDropdownMenu(
+        local menu, initial_target = self.SetupDropdownMenu(
             dropdown, cache_DelvesDifficultyDropdown,
             function(selection)
                 return selection.data and selection.data.orderIndex + 1

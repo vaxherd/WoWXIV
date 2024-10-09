@@ -73,7 +73,7 @@ function OpenMailFrameHandler:OnShowMoneyButton(frame)
                 GameTooltip:Show()
             end
         end,
-        on_leave = MenuCursor.MenuFrame.HideTooltip,
+        on_leave = self.HideTooltip,
     }
 end
 
@@ -102,7 +102,7 @@ function OpenMailFrameHandler:OnShowLetterButton(frame)
             GameTooltip:SetText(MAIL_LETTER_TOOLTIP)
             GameTooltip:Show()
         end,
-        on_leave = MenuCursor.MenuFrame.HideTooltip,
+        on_leave = self.HideTooltip,
     }
 end
 

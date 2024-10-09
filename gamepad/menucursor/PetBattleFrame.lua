@@ -113,7 +113,7 @@ end
 
 function PetBattlePetSelectionFrameHandler:__constructor()
     local psf = PetBattleFrame.BottomFrame.PetSelectionFrame
-    self:__super(psf, MenuCursor.MenuFrame.MODAL)
+    self:__super(psf, self.MODAL)
     self.cancel_func = nil
 end
 

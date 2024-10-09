@@ -300,10 +300,10 @@ function SchematicFormHandler:SetTargets()
         can_activate = true, lock_highlight = true,
         down = top_icon, left = false}
     self.targets[CraftingPage.CreateMultipleInputBox.DecrementButton] = {
-        on_click = MenuFrame.ClickNumericSpinnerButton, lock_highlight = true,
+        on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
         down = top_icon}
     self.targets[CraftingPage.CreateMultipleInputBox.IncrementButton] = {
-        on_click = MenuFrame.ClickNumericSpinnerButton, lock_highlight = true,
+        on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
         down = top_icon}
     self.targets[CraftingPage.CreateButton] = {
         can_activate = true, lock_highlight = true, send_enter_leave = true,
@@ -357,7 +357,7 @@ function SchematicFormHandler:SetTargets()
                 tinsert(reagents, button)
             end
         end
-        reagents = MenuFrame.SortTargetGrid(reagents)
+        reagents = self.SortTargetGrid(reagents)
         for _, row in ipairs(reagents) do
             assert(#row <= 2, "Too many reagents in row")
             local left, right = unpack(row)
@@ -493,28 +493,22 @@ function QualityDialogHandler:__constructor()
     self.cancel_button = QualityDialog.CancelButton
     self.targets = {
         [QualityDialog.Container1.EditBox.DecrementButton] = {
-            on_click = MenuFrame.ClickNumericSpinnerButton,
-            lock_highlight = true,
+            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.Container1.EditBox.IncrementButton] = {
-            on_click = MenuFrame.ClickNumericSpinnerButton,
-            lock_highlight = true,
+            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.Container2.EditBox.DecrementButton] = {
-            on_click = MenuFrame.ClickNumericSpinnerButton,
-            lock_highlight = true,
+            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.Container2.EditBox.IncrementButton] = {
-            on_click = MenuFrame.ClickNumericSpinnerButton,
-            lock_highlight = true,
+            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.Container3.EditBox.DecrementButton] = {
-            on_click = MenuFrame.ClickNumericSpinnerButton,
-            lock_highlight = true,
+            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.Container3.EditBox.IncrementButton] = {
-            on_click = MenuFrame.ClickNumericSpinnerButton,
-            lock_highlight = true,
+            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.AcceptButton] = {
             can_activate = true, lock_highlight = true, is_default = true},
@@ -578,7 +572,7 @@ function ItemFlyoutHandler:RefreshTargets(initial_item)
             index = index + 1
             local data = ItemScroll:FindElementData(index)
             local pseudo_frame =
-                MenuFrame.PseudoFrameForScrollElement(ItemScroll, index)
+                self.PseudoFrameForScrollElement(ItemScroll, index)
             self.targets[pseudo_frame] = {
                 is_scroll_box = true, can_activate = true,
                 send_enter_leave = true,
@@ -1104,7 +1098,7 @@ function OrderListHandler:SetTargets(initial_target)
             local button = OrderScroll:FindFrame(OrderScroll:FindElementData(index))
             if button then  -- FIXME: scroll handling not yet implemented
                 local pseudo_frame =
-                    MenuFrame.PseudoFrameForScrollElement(OrderScroll, index)
+                    self.PseudoFrameForScrollElement(OrderScroll, index)
                 self.targets[pseudo_frame] = {
                     is_scroll_box = true, on_click = ClickOrder,
                     up = false, down = false, left = false, right = false}

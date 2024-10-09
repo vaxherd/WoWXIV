@@ -52,7 +52,7 @@ function PlayerChoiceFrameHandler:SetTargets()
                         end
                     end
                 end
-                self.targets[button].on_leave = MenuCursor.MenuFrame.HideTooltip
+                self.targets[button].on_leave = self.HideTooltip
             else
                 self.targets[button].send_enter_leave = true
             end

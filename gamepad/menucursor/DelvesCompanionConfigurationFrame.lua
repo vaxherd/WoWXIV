@@ -94,7 +94,7 @@ end
 
 function DelvesCompanionAbilityListFrameHandler:__constructor()
     self:__super(DelvesCompanionAbilityListFrame)
-    self.cancel_func = MenuCursor.MenuFrame.HideUIFrame
+    self.cancel_func = self.HideUIFrame
 end
 
 function DelvesCompanionAbilityListFrameHandler:OnShow()
@@ -110,7 +110,7 @@ function DelvesCompanionAbilityListFrameHandler:ToggleRoleDropdown()
     local role_dropdown = dcalf.DelvesCompanionRoleDropdown
     role_dropdown:SetMenuOpen(not role_dropdown:IsMenuOpen())
     if role_dropdown:IsMenuOpen() then
-        local menu, initial_target = MenuCursor.MenuFrame.SetupDropdownMenu(
+        local menu, initial_target = self.SetupDropdownMenu(
             role_dropdown, cache_DelvesCompanionRoleDropdown,
             function(selection)
                 if selection.data and selection.data.entryID == 123306 then
