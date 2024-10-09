@@ -74,8 +74,6 @@ function Cursor:__constructor()
     f:SetAttribute("clickbutton2", nil)
     f:HookScript("OnClick", function(_,...) self:OnClick(...) end)
     f:RegisterForClicks("AnyDown", "AnyUp")
-    SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_window"],
-                       "CLICK WoWXIV_MenuCursor:CycleFocus")
 
     for _, handler_class in pairs(Cursor.handlers) do
         handler_class:Initialize(self)
@@ -362,8 +360,9 @@ function Cursor:SetTargetForFrame(frame, target)
     end
 end
 
--- Update the display state of the cursor.
+-- Update the cursor's display state and input bindings.
 function Cursor:UpdateCursor(in_combat)
+    local entering_combat = in_combat  -- Passed as true only in this case.
     if in_combat == nil then
         in_combat = InCombatLockdown()
     end
@@ -387,8 +386,6 @@ function Cursor:UpdateCursor(in_combat)
         if not f:IsShown() then
             f:Show()
             focus:EnterTarget(target)
-        else
-            self:SetFrameSpecificBindings(focus)
         end
     else
         if f:IsShown() then
@@ -398,38 +395,71 @@ function Cursor:UpdateCursor(in_combat)
             f:Hide()
         end
     end
-end
 
--- Show() handler; activates menu cursor input bindings and periodic update.
-function Cursor:OnShow()
-    local focus = self:GetFocus()
-    assert(focus)  -- Cursor should never be shown without an active focus.
-
-    local f = self.cursor
-    SetOverrideBinding(f, true, "PADDUP",
-                       "CLICK WoWXIV_MenuCursor:DPadUp")
-    SetOverrideBinding(f, true, "PADDDOWN",
-                       "CLICK WoWXIV_MenuCursor:DPadDown")
-    SetOverrideBinding(f, true, "PADDLEFT",
-                       "CLICK WoWXIV_MenuCursor:DPadLeft")
-    SetOverrideBinding(f, true, "PADDRIGHT",
-                       "CLICK WoWXIV_MenuCursor:DPadRight")
-    SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_confirm"],
-                       "CLICK WoWXIV_MenuCursor:LeftButton")
-    self:SetFrameSpecificBindings(focus)
-    f:SetScript("OnUpdate", function() self:OnUpdate() end)
-    self:OnUpdate()
-end
-
--- Hide() handler; clears menu cursor input bindings and periodic update.
--- The cycle-focus binding is left active to allow re-focusing any open
--- frames.
-function Cursor:OnHide()
-    local f = self.cursor
     ClearOverrideBindings(f)
     SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_window"],
                        "CLICK WoWXIV_MenuCursor:CycleFocus")
-    f:SetScript("OnUpdate", nil)
+    -- Movement inputs are bound even when the cursor is hidden due to
+    -- mouse input, so an up/down input doesn't also activate the party
+    -- list cursor.
+    if focus and not entering_combat then
+        SetOverrideBinding(f, true, "PADDUP",
+                           "CLICK WoWXIV_MenuCursor:DPadUp")
+        SetOverrideBinding(f, true, "PADDDOWN",
+                           "CLICK WoWXIV_MenuCursor:DPadDown")
+        SetOverrideBinding(f, true, "PADDLEFT",
+                           "CLICK WoWXIV_MenuCursor:DPadLeft")
+        SetOverrideBinding(f, true, "PADDRIGHT",
+                           "CLICK WoWXIV_MenuCursor:DPadRight")
+    end
+    if f:IsShown() then
+        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_confirm"],
+                           "CLICK WoWXIV_MenuCursor:LeftButton")
+        if focus:GetCancelButton() then
+            SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
+                               "CLICK WoWXIV_MenuCursor:RightButton")
+        else
+            SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
+                               "CLICK WoWXIV_MenuCursor:Cancel")
+        end
+        local prev, next = focus:GetPageHandlers()
+        if prev and next then
+            local prev_button, next_button
+            if type(prev) == "string" then
+                prev_button = "CLICK "..prev..":LeftButton"
+            else
+                prev_button = "CLICK WoWXIV_MenuCursor:PrevPage"
+            end
+            if type(next) == "string" then
+                next_button = "CLICK "..next..":LeftButton"
+            else
+                next_button = "CLICK WoWXIV_MenuCursor:NextPage"
+            end
+            SetOverrideBinding(f, true,
+                               WoWXIV_config["gamepad_menu_prev_page"],
+                               prev_button)
+            SetOverrideBinding(f, true,
+                               WoWXIV_config["gamepad_menu_next_page"],
+                               next_button)
+        end
+        if focus:GetTabSystem() then
+            SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_prev_tab"],
+                               "CLICK WoWXIV_MenuCursor:PrevTab")
+            SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_tab"],
+                               "CLICK WoWXIV_MenuCursor:NextTab")
+        end
+    end
+end
+
+-- Show() handler; activates menu cursor periodic update.
+function Cursor:OnShow()
+    self.cursor:SetScript("OnUpdate", function() self:OnUpdate() end)
+    self:OnUpdate()
+end
+
+-- Hide() handler; clears menu cursor periodic update.
+function Cursor:OnHide()
+    self.cursor:SetScript("OnUpdate", nil)
 end
 
 -- Per-frame update routine.  This serves two purposes: to implement
@@ -475,7 +505,7 @@ end
 function Cursor:SetCursorPoint(target)
     local f = self.cursor
     f:ClearAllPoints()
-    -- Work around frame reference limitations on secure buttons
+    -- Work around frame reference limitations on secure buttons.
     --f:SetPoint("TOPRIGHT", target, "LEFT")
     local x = target:GetLeft()
     local _, y = target:GetCenter()
@@ -484,45 +514,6 @@ function Cursor:SetCursorPoint(target)
     x = x * scale
     y = y * scale
     f:SetPoint("TOPRIGHT", UIParent, "TOPLEFT", x, y-UIParent:GetHeight())
-end
-
--- Helper for UpdateCursor() and OnShow() to set button bindings specific
--- to the current input focus.
-function Cursor:SetFrameSpecificBindings(focus)
-    local f = self.cursor
-    if focus:GetCancelButton() then
-        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
-                           "CLICK WoWXIV_MenuCursor:RightButton")
-    else
-        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
-                           "CLICK WoWXIV_MenuCursor:Cancel")
-    end
-    local prev, next = focus:GetPageHandlers()
-    if prev and next then
-        local prev_button, next_button
-        if type(prev) == "string" then
-            prev_button = "CLICK "..prev..":LeftButton"
-        else
-            prev_button = "CLICK WoWXIV_MenuCursor:PrevPage"
-        end
-        if type(next) == "string" then
-            next_button = "CLICK "..next..":LeftButton"
-        else
-            next_button = "CLICK WoWXIV_MenuCursor:NextPage"
-        end
-        SetOverrideBinding(f, true,
-                           WoWXIV_config["gamepad_menu_prev_page"],
-                           prev_button)
-        SetOverrideBinding(f, true,
-                           WoWXIV_config["gamepad_menu_next_page"],
-                           next_button)
-    end
-    if focus:GetTabSystem() then
-        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_prev_tab"],
-                           "CLICK WoWXIV_MenuCursor:PrevTab")
-        SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_tab"],
-                           "CLICK WoWXIV_MenuCursor:NextTab")
-    end
 end
 
 -- Click event handler; handles all events other than secure click
@@ -653,6 +644,13 @@ end
 -- dir gives the direction, one of the strings "up", "down", "left", or
 -- "right".
 function Cursor:Move(dir)
+    if not self.cursor:IsShown() then
+        -- We got a directional input event while in mouse input mode.
+        -- Rather than immediately moving the cursor, just show it at its
+        -- current position and let the next input do the actual movement.
+        self:UpdateCursor()
+        return
+    end
     local focus, target = self:GetFocusAndTarget()
     local new_target = focus:NextTarget(target, dir)
     if new_target then
