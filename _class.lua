@@ -138,14 +138,14 @@ function module.class(parent)
             return parent and parent[k]
         end
     end
-    local constructor = parent and parent.__constructor
-    if not constructor then
-        -- Define a default constructor so the "new" operation doesn't
-        -- need to check for its presence.
-        constructor = function() end
-    end
-    class_metatable.constructor = constructor
     setmetatable(classdef, class_metatable)
+    -- Define a default constructor so the "new" operation doesn't need to
+    -- check for its presence.
+    if parent then
+        classdef.__constructor = function(self,...) self:__super(...) end
+    else
+        classdef.__constructor = function() end
+    end
     return classdef
 end
 
@@ -513,6 +513,47 @@ local tests = {
         assert(instance3.x == 240)
         assert(instance3.y == nil)
         assert(instance3.z == nil)
+    end,
+
+    DeclareSuperMemberAfterSubclass = function()
+        local Class = class()
+        local SubClass = class(Class)
+        Class.x = 250
+        local instance = SubClass()
+        assert(instance.x == 250)
+    end,
+
+    DeclareSuperMemberAfterSubclassInstantiation = function()
+        local Class = class()
+        local SubClass = class(Class)
+        local instance = SubClass()
+        Class.x = 260
+        assert(instance.x == 260)
+    end,
+
+    DeclareSuperConstructorAfterSubclass = function()
+        local Class = class()
+        local SubClass = class(Class)
+        function Class:__constructor()
+            self.x = 270
+        end
+        local instance = SubClass()
+        assert(instance.x == 270)
+    end,
+
+    DeclareSuperConstructorAfterSubclassConstructor = function()
+        local Class = class()
+        local SubClass = class(Class)
+        function SubClass:__constructor()
+            self:__super()
+            self.y = 281
+        end
+        function Class:__constructor()
+            self.x = 280
+        end
+        local instance = SubClass()
+        assert(instance.x == 280)
+        assert(instance.y == 281)
     end,
 }
 
