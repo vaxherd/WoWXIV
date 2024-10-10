@@ -29,8 +29,13 @@ local CURSOR_REPEAT_PERIOD = 50/1000
     do not need to interact directly with this class other than by calling
     RegisterFrameHandler() at startup time; the MenuFrame class provides
     more convenient interfaces for all other cursor-related functionality.
+
+    This is a SecureActionButtonTemplate only so that we can indirectly
+    click the button pointed to by the cursor; the cursor is hidden during
+    combat.
 ]]--
-MenuCursor.Cursor = class()
+MenuCursor.Cursor = class("Button", "WoWXIV_MenuCursor", UIParent,
+                          "SecureActionButtonTemplate")
 local Cursor = MenuCursor.Cursor
 
 function Cursor:__constructor()
@@ -54,32 +59,27 @@ function Cursor:__constructor()
     -- GetTime() timestamp of next auto-repeat.
     self.repeat_next = nil
 
-    -- This is a SecureActionButtonTemplate only so that we can
-    -- indirectly click the button pointed to by the cursor.
-    local f = CreateFrame("Button", "WoWXIV_MenuCursor", UIParent,
-                          "SecureActionButtonTemplate")
-    self.cursor = f
-    f:Hide()
-    f:SetFrameStrata("TOOLTIP")  -- Make sure it stays on top.
-    f:SetSize(32, 32)
-    f:SetScript("OnShow", function() self:OnShow() end)
-    f:SetScript("OnHide", function() self:OnHide() end)
-    f:SetScript("OnEvent", function(_,...) self:OnEvent(...) end)
-    f:RegisterEvent("GAME_PAD_ACTIVE_CHANGED")
-    f:RegisterEvent("PLAYER_REGEN_DISABLED")
-    f:RegisterEvent("PLAYER_REGEN_ENABLED")
-    f:SetAttribute("type1", "click")
-    f:SetAttribute("type2", "click")
-    f:SetAttribute("clickbutton1", nil)
-    f:SetAttribute("clickbutton2", nil)
-    f:HookScript("OnClick", function(_,...) self:OnClick(...) end)
-    f:RegisterForClicks("AnyDown", "AnyUp")
+    self:Hide()
+    self:SetFrameStrata("TOOLTIP")  -- Make sure it stays on top.
+    self:SetSize(32, 32)
+    self:SetScript("OnShow", self.OnShow)
+    self:SetScript("OnHide", self.OnHide)
+    self:SetScript("OnEvent", self.OnEvent)
+    self:RegisterEvent("GAME_PAD_ACTIVE_CHANGED")
+    self:RegisterEvent("PLAYER_REGEN_DISABLED")
+    self:RegisterEvent("PLAYER_REGEN_ENABLED")
+    self:SetAttribute("type1", "click")
+    self:SetAttribute("type2", "click")
+    self:SetAttribute("clickbutton1", nil)
+    self:SetAttribute("clickbutton2", nil)
+    self:HookScript("OnClick", function(_,...) self:OnClick(...) end)
+    self:RegisterForClicks("AnyDown", "AnyUp")
 
     for _, handler_class in pairs(Cursor.handlers) do
         handler_class:Initialize(self)
     end
 
-    local texture = f:CreateTexture(nil, "ARTWORK")
+    local texture = self:CreateTexture(nil, "ARTWORK")
     self.texture = texture
     texture:SetAllPoints()
     texture:SetTexture("Interface/CURSOR/Point")  -- Default mouse cursor image
@@ -102,7 +102,7 @@ end
 -- equal to that value.  The event (and event argument, if given) will be
 -- omitted from the arguments passed to the handler.  The {event, event_arg}
 -- pair must be unique among all registered events.
-function Cursor:RegisterEvent(handler, event, event_arg)
+function Cursor:RegisterFrameEvent(handler, event, event_arg)
     local handler_name, wrapper
     if event_arg then
         handler_name = event.."__"..tostring(event_arg)
@@ -113,7 +113,7 @@ function Cursor:RegisterEvent(handler, event, event_arg)
     end
     assert(not self[handler_name], "Duplicate event handler: "..handler_name)
     self[handler_name] = wrapper
-    self.cursor:RegisterEvent(event)
+    self:RegisterEvent(event)
 end
 
 -- Generic event handler.  Forwards events to same-named methods, optionally
@@ -290,7 +290,7 @@ end
 -- Call the enter-target callback for the currently active target, if any.
 -- Does nothing if the cursor is not currently shown.
 function Cursor:EnterTarget()
-    if self.cursor:IsShown() then
+    if self:IsShown() then
         local focus, target = self:GetFocusAndTarget()
         if target then
             focus:EnterTarget(target)
@@ -301,7 +301,7 @@ end
 -- Call the leave-target callback for the currently active target, if any.
 -- Does nothing if the cursor is not currently shown.
 function Cursor:LeaveTarget()
-    if self.cursor:IsShown() then
+    if self:IsShown() then
         local focus, target = self:GetFocusAndTarget()
         if target then
             focus:LeaveTarget(target)
@@ -366,7 +366,6 @@ function Cursor:UpdateCursor(in_combat)
     if in_combat == nil then
         in_combat = InCombatLockdown()
     end
-    local f = self.cursor
 
     local focus, target = self:GetFocusAndTarget()
     while focus and not focus:GetFrame():IsVisible() do
@@ -378,43 +377,39 @@ function Cursor:UpdateCursor(in_combat)
         local target_frame = focus:GetTargetFrame(target)
         self:SetCursorPoint(target_frame)
         if focus:GetTargetClickable(target) then
-            f:SetAttribute("clickbutton1", target_frame)
+            self:SetAttribute("clickbutton1", target_frame)
         else
-            f:SetAttribute("clickbutton1", nil)
+            self:SetAttribute("clickbutton1", nil)
         end
-        f:SetAttribute("clickbutton2", focus:GetCancelButton())
-        if not f:IsShown() then
-            f:Show()
+        self:SetAttribute("clickbutton2", focus:GetCancelButton())
+        if not self:IsShown() then
+            self:Show()
             focus:EnterTarget(target)
         end
     else
-        if f:IsShown() then
+        if self:IsShown() then
             if target then
                 focus:LeaveTarget(target)
             end
-            f:Hide()
+            self:Hide()
         end
     end
 
-    ClearOverrideBindings(f)
-    SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_window"],
+    ClearOverrideBindings(self)
+    SetOverrideBinding(self, true, WoWXIV_config["gamepad_menu_next_window"],
                        "CLICK WoWXIV_MenuCursor:CycleFocus")
     if focus and not entering_combat then
-        SetOverrideBinding(f, true, "PADDUP",
+        SetOverrideBinding(self, true, "PADDUP",
                            "CLICK WoWXIV_MenuCursor:DPadUp")
-        SetOverrideBinding(f, true, "PADDDOWN",
+        SetOverrideBinding(self, true, "PADDDOWN",
                            "CLICK WoWXIV_MenuCursor:DPadDown")
-        SetOverrideBinding(f, true, "PADDLEFT",
+        SetOverrideBinding(self, true, "PADDLEFT",
                            "CLICK WoWXIV_MenuCursor:DPadLeft")
-        SetOverrideBinding(f, true, "PADDRIGHT",
+        SetOverrideBinding(self, true, "PADDRIGHT",
                            "CLICK WoWXIV_MenuCursor:DPadRight")
-        if focus:GetCancelButton() then
-            SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
-                               "CLICK WoWXIV_MenuCursor:RightButton")
-        else
-            SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_cancel"],
-                               "CLICK WoWXIV_MenuCursor:Cancel")
-        end
+        local cancel = focus:GetCancelButton() and "RightButton" or "Cancel"
+        SetOverrideBinding(self, true, WoWXIV_config["gamepad_menu_cancel"],
+                           "CLICK WoWXIV_MenuCursor:"..cancel)
         local prev, next = focus:GetPageHandlers()
         if prev and next then
             local prev_button, next_button
@@ -428,22 +423,25 @@ function Cursor:UpdateCursor(in_combat)
             else
                 next_button = "CLICK WoWXIV_MenuCursor:NextPage"
             end
-            SetOverrideBinding(f, true,
+            SetOverrideBinding(self, true,
                                WoWXIV_config["gamepad_menu_prev_page"],
                                prev_button)
-            SetOverrideBinding(f, true,
+            SetOverrideBinding(self, true,
                                WoWXIV_config["gamepad_menu_next_page"],
                                next_button)
         end
         if focus:GetTabHandler() then
-            SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_prev_tab"],
+            SetOverrideBinding(self, true,
+                               WoWXIV_config["gamepad_menu_prev_tab"],
                                "CLICK WoWXIV_MenuCursor:PrevTab")
-            SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_next_tab"],
+            SetOverrideBinding(self, true,
+                               WoWXIV_config["gamepad_menu_next_tab"],
                                "CLICK WoWXIV_MenuCursor:NextTab")
         end
         -- Make sure the cursor is visible before we allow a confirm action.
-        if f:IsShown() then
-            SetOverrideBinding(f, true, WoWXIV_config["gamepad_menu_confirm"],
+        if self:IsShown() then
+            SetOverrideBinding(self, true,
+                                WoWXIV_config["gamepad_menu_confirm"],
                                "CLICK WoWXIV_MenuCursor:LeftButton")
         end
     end
@@ -451,13 +449,13 @@ end
 
 -- Show() handler; activates menu cursor periodic update.
 function Cursor:OnShow()
-    self.cursor:SetScript("OnUpdate", function() self:OnUpdate() end)
+    self:SetScript("OnUpdate", self.OnUpdate)
     self:OnUpdate()
 end
 
 -- Hide() handler; clears menu cursor periodic update.
 function Cursor:OnHide()
-    self.cursor:SetScript("OnUpdate", nil)
+    self:SetScript("OnUpdate", nil)
 end
 
 -- Per-frame update routine.  This serves two purposes: to implement
@@ -501,17 +499,16 @@ end
 
 -- Helper for UpdateCursor() and OnUpdate() to set the cursor frame anchor.
 function Cursor:SetCursorPoint(target)
-    local f = self.cursor
-    f:ClearAllPoints()
+    self:ClearAllPoints()
     -- Work around frame reference limitations on secure buttons.
-    --f:SetPoint("TOPRIGHT", target, "LEFT")
+    --self:SetPoint("TOPRIGHT", target, "LEFT")
     local x = target:GetLeft()
     local _, y = target:GetCenter()
     if not x or not y then return end
     local scale = target:GetEffectiveScale() / UIParent:GetEffectiveScale()
     x = x * scale
     y = y * scale
-    f:SetPoint("TOPRIGHT", UIParent, "TOPLEFT", x, y-UIParent:GetHeight())
+    self:SetPoint("TOPRIGHT", UIParent, "TOPLEFT", x, y-UIParent:GetHeight())
 end
 
 -- Click event handler; handles all events other than secure click
@@ -604,7 +601,7 @@ end
 -- dir gives the direction, one of the strings "up", "down", "left", or
 -- "right".
 function Cursor:Move(dir)
-    if not self.cursor:IsShown() then
+    if not self:IsShown() then
         -- We got a directional input event while in mouse input mode.
         -- Rather than immediately moving the cursor, just show it at its
         -- current position and let the next input do the actual movement.
@@ -1061,15 +1058,15 @@ function MenuFrame.RegisterAddOnWatch(class, addon)
     if C_AddOns.IsAddOnLoaded(addon) then
         class:OnAddOnLoaded(addon)
     else
-        global_cursor:RegisterEvent(function() class:OnAddOnLoaded(addon) end,
-                                    "ADDON_LOADED", addon)
+        global_cursor:RegisterFrameEvent(
+            function() class:OnAddOnLoaded(addon) end, "ADDON_LOADED", addon)
     end
 end
 
 -- Register an instance method as an event handler with the global cursor
 -- instance.  If handler_method is omitted, the method named the same as
 -- the event and optional argument (in the same style as Cursor:OnEvent())
--- is taken as the handler method,  Wraps Cursor:RegisterEvent().
+-- is taken as the handler method,  Wraps Cursor:RegisterFrameEvent().
 function MenuFrame:RegisterEvent(handler, event, event_arg)
     if type(handler) ~= "function" then
         assert(type(handler) == "string",
@@ -1078,8 +1075,8 @@ function MenuFrame:RegisterEvent(handler, event, event_arg)
         handler = self[event]
         assert(handler, "Handler method is not defined")
     end
-    global_cursor:RegisterEvent(function(...) handler(self, ...) end,
-                                event, event_arg)
+    global_cursor:RegisterFrameEvent(function(...) handler(self, ...) end,
+                                     event, event_arg)
 end
 
 -- Hook a frame's Show/Hide/SetShown methods, calling the given instance

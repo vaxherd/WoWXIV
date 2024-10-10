@@ -88,8 +88,10 @@ must explicitly name the parent class when calling overridden methods.
 local _, module = ...
 module = module or {} -- so the file can also be loaded with a simple require()
 
--- Error message is defined as a constant for testing convenience.
+-- Error messages are defined as constants for testing convenience.
+local parent_type_error_msg = "Parent class must be a table"
 local super_error_msg = "__super() called from class with no superclass"
+local constr_type_error_msg = "__constructor must be a function"
 
 local function call_super(...)
     local super = getmetatable(getfenv(2)).parent
@@ -101,6 +103,9 @@ local function call_super(...)
 end
 
 function module.class(parent)
+    if parent and type(parent) ~= "table" then
+        error(parent_type_error_msg)
+    end
     local classdef = {__super = call_super}
     local instance_metatable = {__index = classdef}
     local class_metatable = {}
@@ -113,10 +118,10 @@ function module.class(parent)
     -- definition when (if) it is later declared.
     class_metatable.__newindex = function(t, k, v)
         if k == "__constructor" then
-            assert(t == classdef,
-                   "Cannot redefine __constructor in an instance")
-            assert(type(v) == "function",
-                   "__constructor must be a function")
+            assert(t == classdef)
+            if type(v) ~= "function" then
+                error(constr_type_error_msg)
+            end
             -- We need to attach the parent class to the function
             -- definition itself, since each constructor in an inheritance
             -- chain needs to know its own parent and we can only store a
@@ -227,6 +232,16 @@ local tests = {
         assert(instance.x == 70)
     end,
 
+    InvalidConstructorType = function()
+        local Class = class()
+        local function f()
+            Class.__constructor = "foo"
+        end
+        local result, errmsg = pcall(f)
+        assert(result == false)
+        assert(errmsg:find(constr_type_error_msg, 1, true))
+    end,
+
     ConstructorArgs = function()
         local Class = class()
         function Class:__constructor(a, b, c)
@@ -234,6 +249,13 @@ local tests = {
         end
         local instance = Class(1, 2, 3)
         assert(instance.x == 123)
+    end,
+
+    InvalidParentType = function()
+        local function f() return class("foo") end
+        local result, errmsg = pcall(f)
+        assert(result == false)
+        assert(errmsg:find(parent_type_error_msg, 1, true))
     end,
 
     InheritConstant = function()

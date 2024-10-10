@@ -7,6 +7,7 @@
 
 WoWXIV.lua
 _class.lua
+_frame.lua
 buffbar.lua
 buffbar.xml
 combat.lua
