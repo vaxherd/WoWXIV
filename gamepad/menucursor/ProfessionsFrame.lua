@@ -540,7 +540,8 @@ function ItemFlyoutHandler:OnShow()
     self:Enable()
     local initial_item = self.initial_item
     self.initial_item = nil
-    -- FIXME: this still isn't good enough to get the list after a /reload
+    -- FIXME: this delay isn't enough to get the list immediately after login;
+    -- unclear if there's any way to detect whether the frame is fully loaded
     RunNextFrame(function() self:RefreshTargets(initial_item) end)
 end
 
@@ -615,7 +616,11 @@ function ItemFlyoutHandler:RefreshTargets(initial_item)
         self.targets[checkbox].up = last_row[1]
         self.targets[checkbox].down = first_row[1]
     end
-    self:SetTarget(default or first or checkbox)
+    local item = default or first
+    if item and not self:GetTargetFrame(item) then
+        ItemScroll:ScrollToElementDataIndex(item.index, ScrollBoxConstants.AlignEnd)
+    end
+    self:SetTarget(item or checkbox)
 end
 
 
