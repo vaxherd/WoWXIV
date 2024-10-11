@@ -31,6 +31,9 @@ function InboxFrameHandler:OnShowMailItemButton(frame)
 end
 
 function InboxFrameHandler:OnHideMailItemButton(frame)
+    -- Avoid errors if called before the inbox frame has been properly set up.
+    if not self.targets[frame] then return end
+
     if self:GetTarget() == frame then
         self:MoveCursor("down")
     end
