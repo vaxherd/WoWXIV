@@ -314,15 +314,17 @@ function SchematicFormHandler:SetTargets()
     if frsc and frsc:IsVisible() then
         for _, frame in ipairs({frsc:GetChildren()}) do
             local button = frame:GetChildren()
-            self.targets[button] = {
-                on_click = SchematicForm_ClickItemButton,
-                lock_highlight = true, send_enter_leave = true,
-                up = false, down = CraftingPage.CreateButton}
-            if not r_left or button:GetLeft() < r_left:GetLeft() then
-                r_left = button
-            end
-            if not r_right or button:GetLeft() > r_right:GetLeft() then
-                r_right = button
+            if button:IsVisible() then
+                self.targets[button] = {
+                    on_click = SchematicForm_ClickItemButton,
+                    lock_highlight = true, send_enter_leave = true,
+                    up = false, down = CraftingPage.CreateButton}
+                if not r_left or button:GetLeft() < r_left:GetLeft() then
+                    r_left = button
+                end
+                if not r_right or button:GetLeft() > r_right:GetLeft() then
+                    r_right = button
+                end
             end
         end
     end
