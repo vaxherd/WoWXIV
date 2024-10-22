@@ -751,7 +751,7 @@ function MenuFrame:__constructor(frame, modal)
     self.tab_handler = nil
     -- Should the current button be highlighted if enabled?
     -- (This is a cache of the current button's lock_highlight parameter.)
-    self.want_highlight = true
+    self.want_highlight = false
     -- Is the current button highlighted via lock_highlight?
     -- (This is a cache to avoid unnecessary repeated calls to the
     -- button's LockHighlight() method in OnUpdate().)
