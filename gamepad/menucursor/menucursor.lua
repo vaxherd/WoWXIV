@@ -373,8 +373,16 @@ function Cursor:UpdateCursor(in_combat)
         focus, target = self:GetFocusAndTarget()
     end
 
+    local target_frame
+    if target then
+        target_frame = focus:GetTargetFrame(target)
+        if not target_frame then
+            self:SetTarget(nil)
+            target = nil
+        end
+    end
+
     if target and self.gamepad_active and not in_combat then
-        local target_frame = focus:GetTargetFrame(target)
         self:SetCursorPoint(target_frame)
         if focus:GetTargetClickable(target) then
             self:SetAttribute("clickbutton1", target_frame)
