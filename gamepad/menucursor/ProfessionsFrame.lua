@@ -1097,7 +1097,7 @@ function OrderListHandler:SetTargets(initial_target)
             left = bf.NpcOrdersButton, right = false},
     }
     local OrderScroll = bf.OrderList.ScrollBox
-    local first, last
+    local first, last = false, false
     if OrderScroll:IsVisible() then
         first, last, initial_target =
             self:AddScrollBoxTargets(OrderScroll, function(data, index)
