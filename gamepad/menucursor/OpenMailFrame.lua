@@ -66,9 +66,9 @@ end
 function OpenMailFrameHandler:OnShowMoneyButton(frame)
     self.targets[frame] = {
         can_activate = true, lock_highlight = true,
-        on_enter = function(frame)  -- hardcoded in XML
+        on_enter = function(f)  -- hardcoded in XML
             if OpenMailFrame.money then
-                GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
+                GameTooltip:SetOwner(f, "ANCHOR_RIGHT")
                 SetTooltipMoney(GameTooltip, OpenMailFrame.money)
                 GameTooltip:Show()
             end
@@ -97,8 +97,8 @@ end
 function OpenMailFrameHandler:OnShowLetterButton(frame)
     self.targets[frame] = {
         can_activate = true, lock_highlight = true,
-        on_enter = function(frame)  -- hardcoded in XML
-            GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
+        on_enter = function(f)  -- hardcoded in XML
+            GameTooltip:SetOwner(f, "ANCHOR_RIGHT")
             GameTooltip:SetText(MAIL_LETTER_TOOLTIP)
             GameTooltip:Show()
         end,

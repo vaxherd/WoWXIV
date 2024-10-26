@@ -808,7 +808,10 @@ function MenuFrame:GetTargetFrame(target)
     local params = self.targets[target]
     if params and params.is_scroll_box then
         local box = target.box
-        return box:FindFrame(box:FindElementData(target.index))
+        local success, result = pcall(function()
+            return box:FindFrame(box:FindElementData(target.index))
+        end)
+        return success and result or nil
     else
         return target
     end
@@ -986,7 +989,7 @@ function MenuFrame:EnterTarget(target)
         local script = frame:GetScript("OnEnter")
         if script then script(frame) end
     elseif params.on_enter then
-        params.on_enter(frame)
+        params.on_enter(target)
     end
 end
 
@@ -995,6 +998,7 @@ function MenuFrame:LeaveTarget(target)
     local params = self.targets[target]
     assert(params, "Target is not defined: "..tostring(target))
     local frame = self:GetTargetFrame(target)
+    if not frame then return end  -- Ignore deleted scroll items.
     if params.lock_highlight then
         -- We could theoretically check highlight_locked here, but
         -- it should be safe to unconditionally unlock (we take the
@@ -1006,7 +1010,7 @@ function MenuFrame:LeaveTarget(target)
         local script = frame:GetScript("OnLeave")
         if script then script(frame) end
     elseif params.on_leave then
-        params.on_leave(frame)
+        params.on_leave(target)
     end
     self.want_highlight = false
     self.highlight_locked = false
@@ -1445,19 +1449,62 @@ function MenuFrame.SetupDropdownMenu(dropdown, cache, getIndex, onClick)
     end
     menu_manager.targets = {}
     menu_manager.item_order = {}
-    local is_first = true
-    for _, button in ipairs(menu:GetLayoutChildren()) do
-        menu_manager.targets[button] = {
-            send_enter_leave = true,
-            on_click = function(button)
-                button:GetScript("OnClick")(button, "LeftButton", true)
-                onClick()
-            end,
-            is_default = is_first,
-        }
-        is_first = false
-        -- FIXME: are buttons guaranteed to be in order?
-        tinsert(menu_manager.item_order, button)
+    -- FIXME: we may need to dig deeper into this; GetLayoutChildren()
+    -- works for the delve NPC role dropdown and the 11.0.2 delve
+    -- difficulty dropdown, but stopped working for the latter in 11.0.5
+    -- (for which we iterate over the scroll box children instead)
+    local items = menu:GetLayoutChildren()
+    if #items > 0 then
+        local function OnClickDropdownItem(button)
+            button:GetScript("OnClick")(button, "LeftButton", true)
+            onClick()
+        end
+        local is_first = true
+        for _, button in ipairs(items) do
+            menu_manager.targets[button] = {
+                send_enter_leave = true, on_click = OnClickDropdownItem,
+                is_default = is_first,
+            }
+            is_first = false
+            -- FIXME: are buttons guaranteed to be in order?
+            tinsert(menu_manager.item_order, button)
+        end
+    elseif menu.ScrollBox then
+        local function OnEnterDropdownItem(pseudo_frame)
+            local button = pseudo_frame.button
+            button:GetScript("OnEnter")(button)
+        end
+        local function OnLeaveDropdownItem(pseudo_frame)
+            local button = pseudo_frame.button
+            button:GetScript("OnLeave")(button)
+        end
+        local function OnClickDropdownItem(pseudo_frame)
+            local button = pseudo_frame.button
+            button:GetScript("OnClick")(button, "LeftButton", true)
+            onClick()
+        end
+        -- Despite the "ForEachElementData" name, in this case the method
+        -- iterates over actual Button elements, so it's a bit too awkward
+        -- to call AddScrollBoxTargets() and we reimplement the logic here.
+        local index = 0
+        local last
+        menu.ScrollBox:ForEachElementData(function(element)
+            index = index + 1
+            local pseudo_frame =
+                MenuFrame.PseudoFrameForScrollElement(menu.ScrollBox, index)
+            pseudo_frame.button = element
+            local attributes = {
+                is_scroll_box = true, is_default = (index == 1),
+                on_enter = OnEnterDropdownItem, on_leave = OnLeaveDropdownItem,
+                on_click = OnClickDropdownItem}
+            if last then
+                menu_manager.targets[last].down = pseudo_frame
+                attributes.up = last
+            end
+            menu_manager.targets[pseudo_frame] = attributes
+            last = pseudo_frame
+            tinsert(menu_manager.item_order, pseudo_frame)
+        end)
     end
     local first = menu_manager.item_order[1]
     local last = menu_manager.item_order[#menu_manager.item_order]
