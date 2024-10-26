@@ -29,6 +29,7 @@ gamepad/questitem.lua
 
 gamepad/menucursor/menucursor.lua
 gamepad/menucursor/ClassTrainerFrame.lua
+gamepad/menucursor/ContributionCollectionFrame.lua
 gamepad/menucursor/CovenantSanctumFrame.lua
 gamepad/menucursor/DelvesCompanionConfigurationFrame.lua
 gamepad/menucursor/DelvesDifficultyPickerFrame.lua
