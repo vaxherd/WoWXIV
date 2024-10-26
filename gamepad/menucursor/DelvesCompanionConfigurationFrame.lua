@@ -78,8 +78,11 @@ function DelvesCompanionConfigurationSlotHandler:SetTargets(frame)
     self.targets = {}
     local have_default = false
     local top, bottom = self:AddScrollBoxTargets(frame.ScrollBox, function(data)
+        -- The list boxes are about 1 pixel too small for the lists, so
+        -- moving to the bottom item would normally scroll the list by
+        -- that amount.  That looks bad, so we suppress it.
         local attributes = {can_activate = true, lock_highlight = true,
-                            send_enter_leave = true}
+                            send_enter_leave = true, suppress_scroll = true}
         if active_id and data.entryID == active_id then
             attributes.is_default = true
             have_default = true

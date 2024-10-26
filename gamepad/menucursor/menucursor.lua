@@ -725,6 +725,11 @@ function MenuFrame:__constructor(frame, modal)
     --    - send_enter_leave: If true, the element's OnEnter and OnLeave
     --         scripts (if any) will be called when the element is targeted
     --         and untargeted, respectively.
+    --    - suppress_scroll: If true, no scrolling will be performed when
+    --         this element is selected even if the is_scroll_box or
+    --         scroll_frame key is set.  This can be used to work around
+    --         scroll box containers which are slightly too small for
+    --         their contents (such as the delve companion curio lists).
     --    - up, down, left, right: If non-nil, specifies the element to be
     --         targeted on the corresponding movement input from this
     --         element.  A value of false prevents movement in the
@@ -940,40 +945,42 @@ function MenuFrame:EnterTarget(target)
     local params = self.targets[target]
     assert(params)
 
-    local MARGIN = 20
-    if params.scroll_frame then
-        local scroll_frame = params.scroll_frame
-        local scroll_top = -(scroll_frame:GetTop())
-        local scroll_bottom = -(scroll_frame:GetBottom())
-        local scroll_height = scroll_bottom - scroll_top
-        local top = -(target:GetTop()) - scroll_top
-        local bottom = -(target:GetBottom()) - scroll_top
-        local scroll_amount
-        if top < MARGIN then
-            scroll_amount = top - MARGIN
-        elseif bottom > scroll_height - MARGIN then
-            scroll_amount = bottom - (scroll_height - MARGIN)
-        end
-        if scroll_amount then
-            local scroll_target = scroll_frame:GetVerticalScroll() + scroll_amount
-            -- SetVerticalScroll() automatically clamps to valid range.
-            scroll_frame:SetVerticalScroll(scroll_target)
-        end
-    elseif params.is_scroll_box then
-        local scroll_frame = target.box
-        local scroll_height = scroll_frame:GetVisibleExtent()
-        local scroll_current = scroll_frame:GetScrollPercentage() * scroll_frame:GetDerivedScrollRange()
-        local top = scroll_frame:GetExtentUntil(target.index)
-        local bottom = top + scroll_frame:GetElementExtent(target.index)
-        local scroll_target
-        if top - MARGIN < scroll_current then
-            scroll_target = top - MARGIN
-        elseif bottom + MARGIN > scroll_current + scroll_height then
-            scroll_target = bottom + MARGIN - scroll_height
-        end
-        if scroll_target then
-            -- ScrollToOffset() automatically clamps to valid range.
-            scroll_frame:ScrollToOffset(scroll_target)
+    if not params.suppress_scroll then
+        local MARGIN = 20
+        if params.scroll_frame then
+            local scroll_frame = params.scroll_frame
+            local scroll_top = -(scroll_frame:GetTop())
+            local scroll_bottom = -(scroll_frame:GetBottom())
+            local scroll_height = scroll_bottom - scroll_top
+            local top = -(target:GetTop()) - scroll_top
+            local bottom = -(target:GetBottom()) - scroll_top
+            local scroll_amount
+            if top < MARGIN then
+                scroll_amount = top - MARGIN
+            elseif bottom > scroll_height - MARGIN then
+                scroll_amount = bottom - (scroll_height - MARGIN)
+            end
+            if scroll_amount then
+                local scroll_target = scroll_frame:GetVerticalScroll() + scroll_amount
+                -- SetVerticalScroll() automatically clamps to valid range.
+                scroll_frame:SetVerticalScroll(scroll_target)
+            end
+        elseif params.is_scroll_box then
+            local scroll_frame = target.box
+            local scroll_height = scroll_frame:GetVisibleExtent()
+            local scroll_current = scroll_frame:GetScrollPercentage() * scroll_frame:GetDerivedScrollRange()
+            local top = scroll_frame:GetExtentUntil(target.index)
+            local bottom = top + scroll_frame:GetElementExtent(target.index)
+            local scroll_target
+            if top - MARGIN < scroll_current then
+                scroll_target = top - MARGIN
+            elseif bottom + MARGIN > scroll_current + scroll_height then
+                scroll_target = bottom + MARGIN - scroll_height
+            end
+            if scroll_target then
+                -- ScrollToOffset() automatically clamps to valid range.
+                scroll_frame:ScrollToOffset(scroll_target)
+            end
         end
     end
 
