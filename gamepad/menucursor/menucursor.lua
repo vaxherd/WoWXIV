@@ -4,6 +4,7 @@ WoWXIV.Gamepad.MenuCursor = WoWXIV.Gamepad.MenuCursor or {}
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
 
 local class = WoWXIV.class
+local Button = WoWXIV.Button
 
 local GameTooltip = GameTooltip
 local abs = math.abs
@@ -29,14 +30,17 @@ local CURSOR_REPEAT_PERIOD = 50/1000
     do not need to interact directly with this class other than by calling
     RegisterFrameHandler() at startup time; the MenuFrame class provides
     more convenient interfaces for all other cursor-related functionality.
-
-    This is a SecureActionButtonTemplate only so that we can indirectly
-    click the button pointed to by the cursor; the cursor is hidden during
-    combat.
 ]]--
-MenuCursor.Cursor = class("Button", "WoWXIV_MenuCursor", UIParent,
-                          "SecureActionButtonTemplate")
+MenuCursor.Cursor = class(Button)
 local Cursor = MenuCursor.Cursor
+
+function Cursor.__allocator(class)
+    -- This is a SecureActionButtonTemplate only so that we can indirectly
+    -- click the button pointed to by the cursor; the cursor is hidden
+    -- during combat.
+    return Button.__allocator("Button", "WoWXIV_MenuCursor", UIParent,
+                              "SecureActionButtonTemplate")
+end
 
 function Cursor:__constructor()
     assert(not global_cursor)

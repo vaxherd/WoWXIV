@@ -2,16 +2,19 @@
 
 Extends class() from _class.lua to work with WoW Frame instances.
 
-This file replaces class() with a version allowing custom classes to
-inherit from Frame and other WoW native frame classes in the same way they
-would for any class defined with class().  Instances of Frame-derived
-classes can be passed to WoW API functions just like ordinary frames.
+This file implements class()-style classes for the WoW "Frame" type and
+certain derived types, allowing custom classes to inherit from them in
+the same way they would for any class defined with  class().  Instances
+of Frame-derived classes can be passed to WoW API functions just like
+ordinary frames.
 
 
 Create a native-frame-derived class by passing the appropriate type name
-as a string to class(), for example:
+to class(), for example:
 
-    MyFrame = class("Frame")
+    local class = module.class
+    local Frame = module.Frame
+    MyFrame = class(Frame)
 
 Instances of the derived class can then be created as usual:
 
@@ -20,20 +23,29 @@ Instances of the derived class can then be created as usual:
 Note, however, that because the Lua table representing the instance must
 be created with the CreateFrame() API function, additional arguments to
 CreateFrame() cannot be passed through the usual __super() interface.
-If any such arguments are required, they must be constant for all
-instances, and must be provided as additional arguments to the class()
-call which creates the class.  For example:
+If any such arguments are required, the class must define an
+__allocator() method and pass those arguments to the base class's
+__allocator() method, using the returned value as the created instance.
+When doing this, the base __allocator() should be called as a _static_
+method rather than as a class method:
 
-    MyButton = class("Button", nil, UIParent, "UIPanelButtonTemplate")
+    MyButton = class(Button)
+    function MyButton.__allocator(thisclass)
+        return Button.__allocator("Button", nil, UIParent,
+                                  "UIPanelButtonTemplate")
+    end
 
-Naturally, global names cannot be set for such frames unless the class is
-intended to be a singleton.
+Passing a different frame type as the first CreateFrame() argument
+results in undefined behavior.  (While a bit awkward structurally, this
+allows classes which do not need additional CreateFrame() arguments to
+skip the __allocator() definition even when the constructor accepts
+arguments.  Without this workaround, constructor arguments would be
+passed to CreateFrame(), probably resulting in incorrect behavior.)
 
 
-The following native frame classes are supported:
+The following native frame types are supported:
    - Button
    - Frame
-Other Frame-derived classes will be rejected with an error.
 
 --]]
 
@@ -41,47 +53,38 @@ local _, module = ...
 assert(module.class, "_class.lua must be loaded first")
 
 
-local SUPPORTED_CLASSES = {
-    Button = true,
-    Frame = true,
-}
+local SUPPORTED_CLASSES = {"Button", "Frame"}
 
-local real_class = module.class
+local function empty_constructor() end
 
-function module.class(...)
-    local parent = ...
-    if not SUPPORTED_CLASSES[parent] then return real_class(...) end
+for _, frame_type in ipairs(SUPPORTED_CLASSES) do
+    local frame_class = module.class()
+    local class_metatable = getmetatable(frame_class)  -- Always non-nil.
 
-    -- This table serves as a class object stub in which we can record the
-    -- native frame type's __index table once we know it.  (We don't want
-    -- to create a dummy native frame to look it up, because WoW never
-    -- frees frames even after they are no longer referenced.)
-    local parent_metatable = {}
-    local parent_class = setmetatable({}, parent_metatable)
+    -- This is required because we override the class index.
+    class_metatable.__newindex = nil
 
-    local classdef = real_class(parent_class)
+    -- It's not ideal to create a dummy frame just to get the index,
+    -- since WoW frames stick around in memory forever, but this seems
+    -- to be the simplest option without any way to look up the index
+    -- table directly from the type name.
+    local frame_index = getmetatable(CreateFrame(frame_type)).__index
+    class_metatable.__index = frame_index
 
-    -- Pretend the native frame class has an empty constructor (since
-    -- our stub class objects don't have any class infrastructure set up).
-    classdef.__super = function() end
-
-    -- Replace the instance generator with a CreateFrame() call.
-    local class_metatable = getmetatable(classdef)
-    local instance_metatable = getmetatable(classdef())
-    -- Note that we have to preserve our own varargs here because the
-    -- varargs to __call() will overwrite them!
-    local CreateFrame_args = {...}
-    class_metatable.__call = function(thisclass, ...)
-        local instance = CreateFrame(unpack(CreateFrame_args))
-        local native_index = getmetatable(instance).__index
-        assert(native_index)
-        assert(not parent_metatable.__index
-               or parent_metatable.__index == native_index)
-        parent_metatable.__index = native_index
-        setmetatable(instance, instance_metatable)
-        instance:__constructor(...)
-        return instance
+    frame_class.__allocator = function(arg1, ...)
+        local instance
+        if arg1 == frame_class then
+            instance = CreateFrame(frame_type)
+        else
+            assert(arg1 == frame_type)
+            instance = CreateFrame(frame_type, ...)
+        end
+        local instance_metatable = getmetatable(instance)
+        assert(instance_metatable.__index == frame_index)
+        -- Suppress the frame's default metatable so we can use normal
+        -- inheritance-based lookup.
+        return setmetatable(instance, nil)
     end
 
-    return classdef
+    module[frame_type] = frame_class
 end
