@@ -618,7 +618,7 @@ function Cursor:Move(dir)
     end
     local focus, target = self:GetFocusAndTarget()
     local new_target = focus:NextTarget(target, dir)
-    if new_target then
+    if new_target and new_target ~= target then
         self:SetTarget(new_target)
         if focus.OnMove then
             focus:OnMove(target, new_target)
