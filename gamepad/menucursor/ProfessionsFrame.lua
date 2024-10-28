@@ -990,6 +990,7 @@ end
 -- We use this separate function instead of simply passing the click down
 -- in order to suppress the skill tree refresh.
 function DetailedViewHandler:Click(frame)
+    if not frame:IsEnabled() then return end
     ProfessionsFrameHandler.instance_SpecPage.refresh_is_skill_allocation = true
     -- It looks like sometimes we don't get a refresh event, so force one
     -- to ensure refresh_is_skill_allocation is cleared next frame.
