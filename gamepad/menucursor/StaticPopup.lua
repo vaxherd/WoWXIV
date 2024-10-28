@@ -42,8 +42,7 @@ function StaticPopupHandler:SetTargets()
         local button = frame[name]
         assert(button)
         if button:IsShown() then
-            self.targets[button] = {can_activate = true,
-                                    lock_highlight = true}
+            self.targets[button] = {can_activate = true, lock_highlight = true}
             if not leftmost or button:GetLeft() < leftmost:GetLeft() then
                 leftmost = button
             end
