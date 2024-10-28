@@ -103,9 +103,10 @@ The method should raise an error under any condition which would prevent
 it from creating a new instance.
 
 If the allocator sets a metatable on the returned instance with an
-"__index" field, the value must be either a function or a table; the
-value will effectively be inserted between the instance table itself and
-the class definition when performing a member lookup.
+"__index" field, the value will replace the normal __index which
+redirects to the class definition.  This will prevent ordinary use of
+the table as a class instance unless special care is taken, and should
+normally not be done.
 
 __super() is not supported in allocators; an overriding allocator wishing
 to call its base class's implementation must explicitly name the base
@@ -354,51 +355,19 @@ local tests = {
         end
         local instance = Class()
         assert(getmetatable(instance).foo == 72)
+        assert(instance.__allocator == Class.__allocator)
     end,
 
-    AllocatorMetatableIndexTable = function()
+    AllocatorMetatableIndex = function()
         local Class = class()
         function Class.__allocator(thisclass)
             assert(thisclass == Class)
-            return setmetatable({}, {__index = {foo = 73}})
+            return setmetatable({}, {
+                __index = {foo = 73, __constructor = function() end}})
         end
         local instance = Class()
         assert(instance.foo == 73)
-    end,
-
-    AllocatorMetatableIndexFunction = function()
-        local Class = class()
-        function Class.__allocator(thisclass)
-            assert(thisclass == Class)
-            return setmetatable({}, {__index = function(t, k)
-                                         return k=="foo" and 74 or nil
-                                     end})
-        end
-        local instance = Class()
-        assert(instance.foo == 74)
-    end,
-
-    AllocatorMetatableIndexTableFalseValue = function()
-        local Class = class()
-        function Class.__allocator(thisclass)
-            assert(thisclass == Class)
-            return setmetatable({}, {__index = {foo = false}})
-        end
-        local instance = Class()
-        assert(instance.foo == false)
-    end,
-
-    AllocatorMetatableIndexFunctionFalseValue = function()
-        local Class = class()
-        function Class.__allocator(thisclass)
-            assert(thisclass == Class)
-            return setmetatable({}, {__index = function(t, k)
-                                         if k=="foo" then return false end
-                                         return nil
-                                     end})
-        end
-        local instance = Class()
-        assert(instance.foo == false)
+        assert(instance.__allocator == nil)
     end,
 
     AllocatorInvalidResult = function()
