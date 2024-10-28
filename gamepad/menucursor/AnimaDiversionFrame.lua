@@ -23,7 +23,7 @@ function AnimaDiversionFrameHandler:SetTargets()
     for pin in pool:EnumerateActive() do
         local is_origin = (pin.nodeData == nil)
         self.targets[pin] = {on_click = not is_origin and OnClickPin,
-                             is_default = is_origin}
+                             send_enter_leave = true, is_default = is_origin}
     end
 end
 
