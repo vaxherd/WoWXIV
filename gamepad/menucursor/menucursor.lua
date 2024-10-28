@@ -104,18 +104,32 @@ end
 -- Register an event handler.  If an optional event argument is provided,
 -- the function will only be called when the event's first argument is
 -- equal to that value.  The event (and event argument, if given) will be
--- omitted from the arguments passed to the handler.  The {event, event_arg}
--- pair must be unique among all registered events.
+-- omitted from the arguments passed to the handler.
 function Cursor:RegisterFrameEvent(handler, event, event_arg)
     local handler_name, wrapper
     if event_arg then
         handler_name = event.."__"..tostring(event_arg)
-        wrapper = function(cursor, event, arg1, ...) handler(...) end
+        local old_handler = self[handler_name]
+        if old_handler then
+            wrapper = function(cursor, event, arg1, ...)
+                old_handler(cursor, event, arg1, ...)
+                handler(...)
+            end
+        else
+            wrapper = function(cursor, event, arg1, ...) handler(...) end
+        end
     else
         handler_name = event
-        wrapper = function(cursor, event, ...) handler(...) end
+        local old_handler = self[handler_name]
+        if old_handler then
+            wrapper = function(cursor, event, ...)
+                old_handler(cursor, event, ...)
+                handler(...)
+            end
+        else
+            wrapper = function(cursor, event, ...) handler(...) end
+        end
     end
-    assert(not self[handler_name], "Duplicate event handler: "..handler_name)
     self[handler_name] = wrapper
     self:RegisterEvent(event)
 end
@@ -485,7 +499,7 @@ function Cursor:OnUpdate()
     if not target_frame then
         self:StopRepeat()
         return
-     end
+    end
 
     self:CheckRepeat()
 
@@ -1031,7 +1045,9 @@ end
 -------- Cursor callbacks (can be overridden by specializations if needed)
 
 -- Per-frame update handler.  Handles locking highlight on a newly
--- enabled button.
+-- enabled button.  Receives the frame associated with the current target
+-- (which may be different from the targets[] key itself).  This function
+-- is only called when the cursor is visible.
 function MenuFrame:OnUpdate(target_frame)
     if self.want_highlight and not self.highlight_locked then
         -- The button was previously disabled.  See if it is now enabled,

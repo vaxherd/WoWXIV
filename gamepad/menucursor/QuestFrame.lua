@@ -32,8 +32,9 @@ function QuestFrameHandler:QUEST_GREETING()
 end
 
 function QuestFrameHandler:QUEST_DETAIL()
-    -- FIXME: some map-based quests (e.g. Blue Dragonflight campaign)
-    -- start a quest directly from the map; we should support those too
+    -- Some map-based quests (e.g. Blue Dragonflight campaign) start a
+    -- quest directly from the map without opening QuestFrame, so don't
+    -- blindly assume the frame is open.
     if not QuestFrame:IsVisible() then return end
     self:SetTargets("QUEST_DETAIL")
     self:Enable()
