@@ -30,3 +30,10 @@ end
 function AnimaDiversionFrameHandler:OnClickPin(pin)
     pin:OnClick("LeftButton", true)
 end
+
+function AnimaDiversionFrameHandler:GetTargetRect(target)
+    -- Unselected targets have a bizarrely wide frame rectangle (at least
+    -- for Night Fae), so force the same size on all.
+    local x, y, w, h = target:GetRect()
+    return x, y, 36, 42
+end

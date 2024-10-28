@@ -847,6 +847,23 @@ function MenuFrame:GetTargetClickable(target)
     return params and params.can_activate
 end
 
+-- Return the bounding box for a target.  Normally equivalent to
+-- GetTargetFrame(target):GetRect(), but can be overridden to deal with
+-- targets whose frame sizes don't match their visuals.
+function MenuFrame:GetTargetRect(target)
+    local frame = self:GetTargetFrame(target)
+    if not frame then return nil end
+    return frame:GetRect()
+end
+
+-- Return the effective render scale for a target.  Normally equivalent to
+-- GetTargetFrame(target):GetEffectiveScale().
+function MenuFrame:GetTargetEffectiveScale(target)
+    local frame = self:GetTargetFrame(target)
+    if not frame then return nil end
+    return frame:GetEffectiveScale()
+end
+
 -- Return the next target in the given direction from the given target,
 -- or nil to indicate no next target.  If target is nil, instead return
 -- the target for a cursor input of the given direction when nothing is
@@ -867,8 +884,8 @@ function MenuFrame:NextTarget(target, dir)
     end
 
     local global_scale = UIParent:GetEffectiveScale()
-    local cur_x0, cur_y0, cur_w, cur_h = target:GetRect()
-    local cur_scale = target:GetEffectiveScale() / global_scale
+    local cur_x0, cur_y0, cur_w, cur_h = self:GetTargetRect(target)
+    local cur_scale = self:GetTargetEffectiveScale(target) / global_scale
     cur_x0 = cur_x0 * cur_scale
     cur_y0 = cur_y0 * cur_scale
     cur_w = cur_w * cur_scale
@@ -900,8 +917,8 @@ function MenuFrame:NextTarget(target, dir)
         if (frame ~= target
             and frame.GetRect)  -- skip scroll list elements
         then
-            local f_x0, f_y0, f_w, f_h = frame:GetRect()
-            local scale = frame:GetEffectiveScale() / global_scale
+            local f_x0, f_y0, f_w, f_h = self:GetTargetRect(frame)
+            local scale = self:GetTargetEffectiveScale(frame) / global_scale
             f_x0 = f_x0 * scale
             f_y0 = f_y0 * scale
             f_0 = f_w * scale
@@ -912,7 +929,7 @@ function MenuFrame:NextTarget(target, dir)
             local f_cy = (f_y0 + f_y1) / 2
             local frame_dx, frame_dy
             if dx ~= 0 then
-                frame_dx = f_cx - cur_cx
+                frame_dx = f_x0 - cur_x0
                 if f_y1 < cur_y0 then
                     frame_dy = f_y1 - cur_y0
                 elseif f_y0 > cur_y1 then
