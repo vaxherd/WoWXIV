@@ -1280,9 +1280,11 @@ function OrderViewHandler:SetTargets()
         if reward_l then self.targets[reward_l].right = reward1 end
         if reward_r then self.targets[reward_r].left = reward2 end
     end
+
+    return self:GetDefaultTarget()
 end
 
 function OrderViewHandler:RefreshTargets()
-    self:SetTargets()
-    self:SetTarget(self:GetDefaultTarget())
+    local target = self:SetTargets()
+    self:SetTarget(target)
 end
