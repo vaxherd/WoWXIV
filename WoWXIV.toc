@@ -28,6 +28,7 @@ gamepad/leavevehicle.lua
 gamepad/questitem.lua
 
 gamepad/menucursor/menucursor.lua
+gamepad/menucursor/AnimaDiversionFrame.lua
 gamepad/menucursor/ClassTrainerFrame.lua
 gamepad/menucursor/ContributionCollectionFrame.lua
 gamepad/menucursor/CovenantSanctumFrame.lua
