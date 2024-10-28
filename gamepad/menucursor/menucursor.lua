@@ -780,13 +780,6 @@ function MenuFrame:__constructor(frame, modal)
     -- direction, -1 (previous) or 1 (next).  Must not be changed while the
     -- frame is enabled for input.
     self.tab_handler = nil
-    -- Should the current button be highlighted if enabled?
-    -- (This is a cache of the current button's lock_highlight parameter.)
-    self.want_highlight = false
-    -- Is the current button highlighted via lock_highlight?
-    -- (This is a cache to avoid unnecessary repeated calls to the
-    -- button's LockHighlight() method in OnUpdate().)
-    self.highlight_locked = false
 end
 
 
@@ -1021,11 +1014,7 @@ function MenuFrame:EnterTarget(target)
 
     local frame = self:GetTargetFrame(target)
     if params.lock_highlight then
-        self.want_highlight = true
-        if frame:IsEnabled() then
-            self.highlight_locked = true
-            frame:LockHighlight()
-        end
+        frame:LockHighlight()
     end
     if params.send_enter_leave then
         local script = frame:GetScript("OnEnter")
@@ -1042,10 +1031,6 @@ function MenuFrame:LeaveTarget(target)
     local frame = self:GetTargetFrame(target)
     if not frame then return end  -- Ignore deleted scroll items.
     if params.lock_highlight then
-        -- We could theoretically check highlight_locked here, but
-        -- it should be safe to unconditionally unlock (we take the
-        -- lock_highlight parameter as an indication that we have
-        -- exclusive control over the highlight lock).
         frame:UnlockHighlight()
     end
     if params.send_enter_leave then
@@ -1054,29 +1039,15 @@ function MenuFrame:LeaveTarget(target)
     elseif params.on_leave then
         params.on_leave(target)
     end
-    self.want_highlight = false
-    self.highlight_locked = false
 end
 
 
 -------- Cursor callbacks (can be overridden by specializations if needed)
 
--- Per-frame update handler.  Handles locking highlight on a newly
--- enabled button.  Receives the frame associated with the current target
--- (which may be different from the targets[] key itself).  This function
--- is only called when the cursor is visible.
+-- Per-frame update handler.  Receives the frame associated with the
+-- current target (which may be different from the targets[] key itself).
+-- This method is only called when the cursor is visible.
 function MenuFrame:OnUpdate(target_frame)
-    if self.want_highlight and not self.highlight_locked then
-        -- The button was previously disabled.  See if it is now enabled,
-        -- such as in the Revival Catalyst confirmation dialog after the
-        -- 5-second delay ends.  (The reverse case of an enabled button
-        -- being disabled is also theoretically possible, but we ignore
-        -- that case pending evidence that it can occur in practice.)
-        if not target_frame.IsEnabled or target_frame:IsEnabled() then
-            self.highlight_locked = true
-            target_frame:LockHighlight()
-        end
-    end
 end
 
 -- Confirm input event handler, called from Cursor:OnClick() for confirm
