@@ -695,7 +695,7 @@ function WoWXIV.Config.Create()
     local f = config_panel.frame
 
     local container = CreateFrame("ScrollFrame", "WoWXIV_ConfigScroller", nil,
-                                  "UIPanelScrollFrameTemplate")
+                                  "ScrollFrameTemplate")
     container:SetScrollChild(f)
 
     local root = CreateFrame("Frame", "WoWXIV_ConfigRoot")
