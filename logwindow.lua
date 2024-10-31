@@ -1003,7 +1003,11 @@ end
 function LogWindow:CHAT_MSG_CHANNEL_NOTICE(event, type, _, _, link_text, _, _, id, index, name)
     local link = "|Hchannel:CHANNEL:" .. index .. "|h[" .. link_text .. "]|h"
     local text
-    if type == "YOU_CHANGED" then
+    if type == "YOU_JOINED" then
+        self.channelList[index] = name
+        self.zoneChannelList[index] = id
+        text = "Joined Channel: " .. link
+    elseif type == "YOU_CHANGED" then
         self.channelList[index] = name
         self.zoneChannelList[index] = id
         text = "Changed Channel: " .. link
@@ -1015,7 +1019,7 @@ function LogWindow:CHAT_MSG_CHANNEL_NOTICE(event, type, _, _, link_text, _, _, i
         error("unknown type " .. type)
     end
     local chat_type = "CHANNEL" .. index
-    local info = ChatTypeInfo[chat_type]
+    local info = ChatTypeInfo[chat_type] or {r=1, g=1, b=1}
     self:AddMessage(event, text, info.r, info.g, info.b)
 end
 
