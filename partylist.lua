@@ -527,7 +527,9 @@ function Member:Refresh()
     self.bg:SetVertexColor((bg_color or DEFAULT_BG_COLOR):GetRGBA())
     self.name:SetTextColor((name_color or NORMAL_FONT_COLOR):GetRGB())
     self.power:SetShowValue(true, self.alt_power_type ~= nil)
-    self.alt_power:SetShown(self.alt_power_type ~= nil)
+    if not self.narrow then
+        self.alt_power:SetShown(self.alt_power_type ~= nil)
+    end
     self:Update(true)
 end
 
