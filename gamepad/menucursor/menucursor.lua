@@ -1013,6 +1013,7 @@ function MenuFrame:EnterTarget(target)
     end
 
     local frame = self:GetTargetFrame(target)
+    assert(frame)  -- May not hold until after we've scrolled above.
     if params.lock_highlight then
         frame:LockHighlight()
     end
