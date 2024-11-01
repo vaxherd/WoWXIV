@@ -36,6 +36,7 @@ gamepad/menucursor/CovenantMissionFrame.lua
 gamepad/menucursor/CovenantSanctumFrame.lua
 gamepad/menucursor/DelvesCompanionConfigurationFrame.lua
 gamepad/menucursor/DelvesDifficultyPickerFrame.lua
+gamepad/menucursor/FlightMapFrame.lua
 gamepad/menucursor/GarrisonCapacitiveDisplayFrame.lua
 gamepad/menucursor/GossipFrame.lua
 gamepad/menucursor/InboxFrame.lua
