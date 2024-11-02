@@ -85,6 +85,18 @@ local ITEM_TARGET = {
     [142491] = "none",    -- Experimental Telemancy Orb (45064: Felborne No More)
     [142509] = "none",    -- Withered Targeting Orb (44816: Continued Exposure)
     [143597] = "target",  -- Fruit of the Arcan'dor (45260: One Day at a Time / 45261: Continuing the Cure / 45262: A Message From Ly'leth / 45263: Eating Before the Meeting / 45265: Feeding the Rebellion / 45266: A United Front / 45267: Before the Siege / 45268: The Advisor and the Arcanist / 45269: A Taste of Freedom)
+    [143718] = "target",  -- Corpse Collector (45346: Shambling Specimens)
+    [143773] = "target",  -- Contagion Counteragent (45342: Administering Aid)
+    [143863] = "target",  -- Fel Exfoliator (45726: The Tainted Marsh)
+    [151563] = "target",  -- Hallowed Prayer Effigy (47180: The Pulsing Madness)
+    [151570] = "target",  -- Lightbound Crystal (47844: Recurring Madness)
+    [151624] = "target",  -- Y'mera's Arcanocrystal (47882: Conservation of Magic)
+    [152110] = "none",    -- Talisman of the Prophet (47987: Preventive Measures)
+    [152408] = "none",    -- Stolen Pylon Core (46818: Defenseless and Afraid)
+    [152472] = "target",  -- Chieftain's Salve (48483: A Stranger's Plea)
+    [152593] = "none",    -- Essence of Light (48559: An Offering of Light)
+    [152657] = "target",  -- Target Designator (48640: The Immortal Squadron)
+    [152971] = "target",  -- Talisman of the Prophet (48691: Soul Chain)
     [157540] = "none",    -- Battered S.E.L.F.I.E. Camera (51092: Picturesque Boralus)
     [167231] = "none",    -- Delormi's Synchronous Thread (53807: A Stitch in Time)
     [168482] = "none",    -- Benthic Sealant (56160: Plug the Geysers)
@@ -97,7 +109,7 @@ local ITEM_TARGET = {
     [174043] = "none",    -- Phylactery of Arin'gore (61708: Drawing Out the Poison)
     [174197] = "target",  -- Loremaster's Notebook (58471: Aggressive Notation)
     [175055] = "none",    -- H'partho's Whistle (58830: Aqir Instincts)
-    [175827] = "player",  -- Ani-Matter Orb (57245: Ani-Matter Animator
+    [175827] = "player",  -- Ani-Matter Orb (57245: Ani-Matter Animator)
     [177836] = "target",  -- Wingpierce Javelin (59771: History of Corruption)
     [177880] = "player",  -- Primordial Muck (59808: Muck It Up)
     [178464] = "player",  -- Discarded Harp (60188: Go Beyond! [Lonely Matriarch])
@@ -116,20 +128,23 @@ local ITEM_TARGET = {
     [182611] = "player",  -- Fae Flute (62068: Gormling Piper: Crumbled Ridge)
     [183725] = "none",    -- Moth Net (62459: Go Beyond! [Selenia Moth])
     [184513] = "none",    -- Containment Orb (63040: Guaranteed Delivery)
-    [184876] = "none",    -- Cohesion Crystal [63455: Dead On Their Feet]
-    [185949] = "target",  -- Korayn's Spear (The Skyhunt)
+    [184876] = "none",    -- Cohesion Crystal (63455: Dead On Their Feet)
+    [185949] = "target",  -- Korayn's Spear (63841: The Skyhunt)
     [186089] = "target",  -- Niya's Staff (63840: They Grow Up So Quickly)
     [186097] = "none",    -- Heirmir's Runeblade (63945: The Soul Blade)
     [186199] = "target",  -- Lady Moonberry's Wand (63971: Snail Stomping)
     [186474] = "target",  -- Korayn's Javelin (64080: Down to Earth)
     [186695] = "target",  -- Lovely Pet Bandage (64196: Pet Up)
     [187128] = "none",    -- Find-A-Spy (64167: Pets Detective)
+    [187941] = "none",    -- Depleted Automa Core (64761: Core Competency)
     [187999] = "none",    -- Fishing Portal (65102: Fish Eyes)
     [188134] = "player",  -- Bronze Timepiece (65118: How to Glide with Your Dragon)
     [188139] = "player",  -- Bronze Timepiece (65120: How to Dive with Your Dragon)
     [188169] = "player",  -- Bronze Timepiece (65133: How to Use Momentum with Your Dragon)
+    [188788] = "none",    -- Zephyreal Generator (65268: Bzzzzt!)
     [189384] = "target",  -- Ornithological Medical Kit (66071: Flying Rocs)
     [189454] = "target",  -- Feather-Plucker 3300 (65374: It's Plucking Time)
+    [189554] = "none",    -- Proto Wrangler Rope (65264: Operation: Relocation)
     [190188] = "player",  -- The Chirpsnide Auto-Excre-Collector (65490: Explosive Excrement)
     [191160] = "none",    -- Sweetsuckle Bloom (66020: Omens and Incense)
     [191681] = "player",  -- Im-PECK-able Screechflight Disguise (65778: Screechflight Potluck)
@@ -240,8 +255,11 @@ local ITEM_TARGET = {
     [224292] = "none",    -- Radiant Fuel Shard (81691: Special Assignment: Shadows Below)
     [224799] = "target",  -- Nizrek's potion (83177: Socialized Medicine)
     [225555] = "none",    -- Periapt of Pure Flame (82585: With Great Pyre)
+    [227551] = "none",    -- Note from Rexxar (84278: Tracking Quest)
+    [227664] = "none",    -- Spirit's Whistle (84296: The Trail's Gone Cold)
     [227669] = "skip",    -- Teleportation Scroll (81930: The War Within)
     [228582] = "none",    -- Streamlined Relic (84520: Ancient Curiosity: Utility)
+    [228617] = "none",    -- Benatauk's Clue Book (84521: Thoughtful Pursuits)
     [228984] = "none",    -- Unbreakable Iron Idol (84519: Ancient Curiosity: Combat)
 
     -- The following are scenario action spells:
@@ -453,7 +471,10 @@ function QuestItemButton:UpdateQuestItem(force, is_retry)
         end
         local known_target = ITEM_TARGET[item]
         if known_target then
-            if #known_target then
+            if known_target == "target" and not UnitExists("target") then
+                known_target = "none"  -- Fall back to right-stick targeting.
+            end
+            if #known_target > 0 then
                self.frame:SetAttribute("unit", known_target)
             else
                self.frame:SetAttribute("unit", nil)
