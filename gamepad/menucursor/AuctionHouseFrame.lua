@@ -91,6 +91,7 @@ end
 function BuyTabHandler:__constructor()
     self:__super(AuctionHouseFrame.BrowseResultsFrame)
     self.cancel_func = AuctionHouseFrameHandler.CancelMenu
+    self.has_Button4 = true  -- Used to toggle favorites on and off.
     self.tab_handler = AuctionHouseFrameHandler.instance.tab_handler
     self:RegisterEvent("AUCTION_HOUSE_BROWSE_RESULTS_UPDATED")
     self:RegisterEvent("AUCTION_HOUSE_BROWSE_RESULTS_ADDED")
@@ -188,6 +189,19 @@ function BuyTabHandler:RefreshTargets()
     return initial or top or SearchBar.FavoritesSearchButton
 end
 
+function BuyTabHandler:OnAction(button)
+    assert(button == "Button4")
+    local target = self:GetTarget()
+    if target and self.targets[target].is_scroll_box then
+        local button = self:GetTargetFrame(target)
+        assert(button.cells)
+        assert(button.cells[4])
+        local favorite = button.cells[4].FavoriteButton
+        assert(favorite)
+        favorite:GetScript("OnClick")(favorite, "LeftButton", true)
+    end
+end
+
 function BuyTabHandler:OnMove(old_target, new_target)
     if new_target and self.targets[new_target].is_scroll_box then
         self.current_index = new_target.index
@@ -201,6 +215,7 @@ function ItemBuyFrameHandler:__constructor()
     self:__super(AuctionHouseFrame.ItemBuyFrame)
     self.cancel_func = nil
     self.cancel_button = self.frame.BackButton
+    self.has_Button3 = true  -- Used to trigger an item list refresh.
     self.tab_handler = AuctionHouseFrameHandler.instance.tab_handler
     self:RegisterEvent("ITEM_SEARCH_RESULTS_UPDATED")
     self:RegisterEvent("ITEM_SEARCH_RESULTS_ADDED")
@@ -279,6 +294,12 @@ function ItemBuyFrameHandler:RefreshTargets(last_target)
             or BackButton)
 end
 
+function ItemBuyFrameHandler:OnAction(button)
+    assert(button == "Button3")
+    local button = self.frame.ItemList.RefreshFrame.RefreshButton
+    button:GetScript("OnClick")(button, "LeftButton", true)
+end
+
 
 -------- Purchase window (commodities)
 
@@ -286,6 +307,7 @@ function CommoditiesBuyFrameHandler:__constructor()
     self:__super(AuctionHouseFrame.CommoditiesBuyFrame)
     self.cancel_func = nil
     self.cancel_button = self.frame.BackButton
+    self.has_Button3 = true  -- Used to trigger an item list refresh.
     self.tab_handler = AuctionHouseFrameHandler.instance.tab_handler
 end
 
@@ -412,6 +434,12 @@ function CommoditiesBuyFrameHandler:OnDPad(dir)
     assert(callback)  -- Should be set by Blizzard code.
     callback()
     InputBox:SetText(text)  -- Override any changes by the Blizzard callback.
+end
+
+function CommoditiesBuyFrameHandler:OnAction(button)
+    assert(button == "Button3")
+    local button = self.frame.ItemList.RefreshFrame.RefreshButton
+    button:GetScript("OnClick")(button, "LeftButton", true)
 end
 
 

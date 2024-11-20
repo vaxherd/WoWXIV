@@ -465,11 +465,21 @@ function Cursor:UpdateCursor(in_combat)
                                WoWXIV_config["gamepad_menu_next_tab"],
                                "CLICK WoWXIV_MenuCursor:NextTab")
         end
-        -- Make sure the cursor is visible before we allow a confirm action.
+        -- Make sure the cursor is visible before we allow menu actions.
         if self:IsShown() then
             SetOverrideBinding(self, true,
-                                WoWXIV_config["gamepad_menu_confirm"],
+                               WoWXIV_config["gamepad_menu_confirm"],
                                "CLICK WoWXIV_MenuCursor:LeftButton")
+            if focus:HasActionButton("Button3") then
+                SetOverrideBinding(self, true,
+                                   WoWXIV_config["gamepad_menu_button3"],
+                                   "CLICK WoWXIV_MenuCursor:Button3")
+            end
+            if focus:HasActionButton("Button4") then
+                SetOverrideBinding(self, true,
+                                   WoWXIV_config["gamepad_menu_button4"],
+                                   "CLICK WoWXIV_MenuCursor:Button4")
+            end
         end
     end
 end
@@ -595,6 +605,8 @@ function Cursor:OnClick(button, down)
         -- as a separate event, so we only get here in the no-passthrough
         -- case.
         focus:OnCancel()
+    elseif button == "Button3" or button == "Button4" then
+        focus:OnAction(button)
     elseif button == "PrevPage" then
         local prev_button = focus:GetPageHandlers()
         if type(prev_button) == "table" then
@@ -761,6 +773,11 @@ function MenuFrame:__constructor(frame, modal)
     -- Button (WoW Button instance) to be clicked on a gamepad cancel
     -- button press, or nil for none.  If set, cancel_func is ignored.
     self.cancel_button = nil
+    -- Flags indicating whether each action button is used by this frame.
+    -- If true, the corresponding gamepad input will be captured while this
+    -- frame has menu cursor focus.
+    self.has_Button3 = false
+    self.has_Button4 = false
     -- Object to handle gamepad previous-page button presses.  May be any of:
     --    - A string, giving the global name of a button to which a click
     --      action will be securely forwarded.
@@ -808,6 +825,14 @@ end
 -- nil if none.
 function MenuFrame:GetCancelButton()
     return self.cancel_button
+end
+
+-- Return whether this frame makes use of the given action button, either
+-- "Button3" or "Button4".  If this method returns true, the given button
+-- will be captured by the menu cursor.
+function MenuFrame:HasActionButton(button)
+    assert(button == "Button3" or button == "Button4")
+    return self["has_"..button]
 end
 
 -- Return the frame's default cursor target, or nil if none.
@@ -1075,6 +1100,12 @@ function MenuFrame:OnCancel()
     if self.cancel_func then
         self:cancel_func()
     end
+end
+
+-- Callback for additional menu action button presses.  button gives the
+-- button name ("Button3" or "Button4").
+function MenuFrame:OnAction(button)
+    -- No-op by default.
 end
 
 -- Callback for cursor movement events.  Called immediately after the

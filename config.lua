@@ -19,6 +19,10 @@ local CONFIG_DEFAULT = {
     gamepad_menu_confirm = "PAD2",
     -- Gamepad binding: menu cursor cancel
     gamepad_menu_cancel = "PAD1",
+    -- Gamepad binding: menu cursor button 3 (north)
+    gamepad_menu_button3 = "PAD4",
+    -- Gamepad binding: menu cursor button 4 (west)
+    gamepad_menu_button4 = "PAD3",
     -- Gamepad binding: previous page in menus
     gamepad_menu_prev_page = "PADLSHOULDER",
     -- Gamepad binding: next page in menus
@@ -440,6 +444,8 @@ function ConfigPanel:__constructor()
     self:AddBindingCvar("RMB emulation (unused)", "GamePadCursorRightClick")
     self:AddBindingLocal("Confirm menu selection", "gamepad_menu_confirm")
     self:AddBindingLocal("Cancel menu selection", "gamepad_menu_cancel")
+    self:AddBindingLocal("Menu action button 1", "gamepad_menu_button3")
+    self:AddBindingLocal("Menu action button 2", "gamepad_menu_button4")
     self:AddBindingLocal("Previous menu page", "gamepad_menu_prev_page")
     self:AddBindingLocal("Next menu page", "gamepad_menu_next_page")
     self:AddBindingLocal("Previous menu tab", "gamepad_menu_prev_tab")
