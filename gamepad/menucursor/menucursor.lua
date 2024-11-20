@@ -9,6 +9,7 @@ local Button = WoWXIV.Button
 local GameTooltip = GameTooltip
 local abs = math.abs
 local floor = math.floor
+local strsub = string.sub
 local tinsert = tinsert
 local tremove = tremove
 
@@ -402,7 +403,7 @@ function Cursor:UpdateCursor(in_combat)
 
     if target and self.gamepad_active and not in_combat then
         self:SetCursorPoint(target_frame)
-        if focus:GetTargetClickable(target) then
+        if focus:IsTargetClickable(target) then
             self:SetAttribute("clickbutton1", target_frame)
         else
             self:SetAttribute("clickbutton1", nil)
@@ -568,17 +569,13 @@ function Cursor:OnClick(button, down)
     -- still get here right after a secure passthrough click closes the
     -- last frame.
     if not focus then return end
-    if button == "DPadUp" then
-        self:Move("up")
-        self:StartRepeat(button)
-    elseif button == "DPadDown" then
-        self:Move("down")
-        self:StartRepeat(button)
-    elseif button == "DPadLeft" then
-        self:Move("left")
-        self:StartRepeat(button)
-    elseif button == "DPadRight" then
-        self:Move("right")
+    if button == "DPadUp" or button == "DPadDown" or button == "DPadLeft" or button == "DPadRight" then
+        local dir = strsub(button, 5):lower()
+        if target and focus:IsTargetDPadOverride(target) then
+            focus:OnDPad(dir)
+        else
+            self:Move(dir)
+        end
         self:StartRepeat(button)
     elseif button == "LeftButton" then  -- i.e., confirm
         -- Click event is passed to target by SecureActionButtonTemplate.
@@ -718,6 +715,11 @@ function MenuFrame:__constructor(frame, modal)
     --    - can_activate: If true, a confirm input on this element causes a
     --         left-click action to be sent to the element (which must be a
     --         Button instance).
+    --    - dpad_override: If true, while the cursor is on this element,
+    --         all directional pad inputs will be passed to the OnDPad()
+    --         method rather than performing their normal cursor movement
+    --         behavior.  This should normally be left unset except while
+    --         editing a numeric input.
     --    - is_default: If true, this element will be targeted if the frame
     --         receives input focus and no element was previously targeted.
     --         Behavior is undefined if more than one element has this key
@@ -835,9 +837,16 @@ end
 
 -- Return whether click events should be securely passed down to the
 -- given target's frame.
-function MenuFrame:GetTargetClickable(target)
+function MenuFrame:IsTargetClickable(target)
     local params = self.targets[target]
     return params and params.can_activate
+end
+
+-- Return whether directional pad inputs should be passed directly to this
+-- frame when the given target is selected.
+function MenuFrame:IsTargetDPadOverride(target)
+    local params = self.targets[target]
+    return params and params.dpad_override
 end
 
 -- Return the bounding box for a target.  Normally equivalent to
@@ -1074,6 +1083,13 @@ function MenuFrame:OnMove(old_target, new_target)
     -- No-op by default.
 end
 
+-- Callback for D-pad input when a target is overriding it.
+-- dir gives the direction, one of the strings "up", "down", "left", or
+-- "right".
+function MenuFrame:OnDPad(dir)
+    -- No-op by default.
+end
+
 
 -------- Subclass interface (methods intended be called by specializations)
 
@@ -1267,12 +1283,17 @@ end
 -- the associated target.  Only one additional target can be returned in
 -- this way; if multiple targets are indicated by the filter function, the
 -- last of them is returned.
-function MenuFrame:AddScrollBoxTargets(scrollbox, filter)
+--
+-- foreach_override should normally be nil; it can be used to provide a
+-- replacement for scrollbox:ForEachElementData() if the scroll box's
+-- data provider does not implement a ForEach() method (such as for the
+-- auction house browse result list).
+function MenuFrame:AddScrollBoxTargets(scrollbox, filter, foreach_override)
     -- Avoid errors in Blizzard code if the list is empty.
     if not scrollbox:GetDataProvider() then return end
     local top, bottom, other
     local index = 0
-    scrollbox:ForEachElementData(function(data)
+    local function ProcessElement(data)
         index = index + 1
         local attributes, is_other = filter(data, index)
         if attributes then
@@ -1288,7 +1309,12 @@ function MenuFrame:AddScrollBoxTargets(scrollbox, filter)
             bottom = pseudo_frame
             if is_other then other = pseudo_frame end
         end
-    end)
+    end
+    if foreach_override then
+        foreach_override(ProcessElement)
+    else
+        scrollbox:ForEachElementData(ProcessElement)
+    end
     if top then
         self.targets[top].up = bottom
         self.targets[bottom].down = top
