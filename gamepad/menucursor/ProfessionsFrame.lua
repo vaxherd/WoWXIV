@@ -91,7 +91,10 @@ function CraftingPageHandler:__constructor()
     self:__super(ProfessionsFrame.CraftingPage)
     self:RegisterEvent("TRADE_SKILL_LIST_UPDATE")
     self.cancel_func = ProfessionsFrameHandler.CancelMenu
+    self.has_Button4 = true  -- Used to toggle the filter dropdown.
     self:SetTabSystem(ProfessionsFrame.TabSystem)
+
+    self.filter_dropdown_cache = {}
 end
 
 function CraftingPageHandler:TRADE_SKILL_LIST_UPDATE()
@@ -210,6 +213,23 @@ function CraftingPageHandler:OnMove(old_target, new_target)
     end
 end
 
+function CraftingPageHandler:OnAction(button)
+    assert(button == "Button4")
+    local filter_button =
+        ProfessionsFrame.CraftingPage.RecipeList.FilterDropdown
+    filter_button:SetMenuOpen(true)
+    if filter_button:IsMenuOpen() then
+        local dropdown = self.SetupDropdownMenu(
+            filter_button, self.filter_dropdown_cache)
+        dropdown.has_Button4 = true
+        function dropdown.OnAction(button)
+            assert(button == "Button4")
+            dropdown:SetMenuOpen(false)
+        end
+        dropdown:Enable()
+    end
+end
+
 
 -------- Recipe details frame
 
@@ -224,6 +244,7 @@ function SchematicFormHandler:__constructor()
         self:Disable()
         self.targets = {}  -- suppress update calls from CreateAllButton:Show() hook
     end
+    self.has_Button3 = true  -- Used to craft the recipe.
     self:SetTabSystem(ProfessionsFrame.TabSystem)
 end
 
@@ -482,6 +503,15 @@ function SchematicFormHandler:UpdateMovement()
                 self.targets[button].down = create_left
             end
         end
+    end
+end
+
+function SchematicFormHandler:OnAction(button)
+    assert(button == "Button3")
+    local CraftingPage = ProfessionsFrame.CraftingPage
+    local CreateButton = CraftingPage.CreateButton
+    if CreateButton:IsShown() and CreateButton:IsEnabled() then
+         CreateButton:GetScript("OnClick")(CreateButton, "LeftButton", true)
     end
 end
 

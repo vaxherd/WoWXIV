@@ -1509,8 +1509,10 @@ end
 --     cache: Table in which already-created MenuFrames will be cached.
 --     getIndex: Function to return the 1-based option index of a
 --         selection (as returned by the menu's CollectSelectionData()
---         method).
---     onClick: Function to be called when an option is clicked.
+--         method).  If omitted, the cursor will always default to the
+--         first item in the dropdown list.
+--     onClick: Function to be called when an option is clicked.  May be
+--         omitted.
 function MenuFrame.SetupDropdownMenu(dropdown, cache, getIndex, onClick)
     local menu = dropdown.menu
     local menu_manager = cache[menu]
@@ -1530,17 +1532,19 @@ function MenuFrame.SetupDropdownMenu(dropdown, cache, getIndex, onClick)
     if #items > 0 then
         local function OnClickDropdownItem(button)
             button:GetScript("OnClick")(button, "LeftButton", true)
-            onClick()
+            if onClick then onClick() end
         end
         local is_first = true
         for _, button in ipairs(items) do
-            menu_manager.targets[button] = {
-                send_enter_leave = true, on_click = OnClickDropdownItem,
-                is_default = is_first,
-            }
-            is_first = false
-            -- FIXME: are buttons guaranteed to be in order?
-            tinsert(menu_manager.item_order, button)
+            if button:GetObjectType() == "Button" then
+                menu_manager.targets[button] = {
+                    send_enter_leave = true, on_click = OnClickDropdownItem,
+                    is_default = is_first,
+                }
+                is_first = false
+                -- FIXME: are buttons guaranteed to be in order?
+                tinsert(menu_manager.item_order, button)
+            end
         end
     elseif menu.ScrollBox then
         local function OnEnterDropdownItem(pseudo_frame)
@@ -1554,7 +1558,7 @@ function MenuFrame.SetupDropdownMenu(dropdown, cache, getIndex, onClick)
         local function OnClickDropdownItem(pseudo_frame)
             local button = pseudo_frame.button
             button:GetScript("OnClick")(button, "LeftButton", true)
-            onClick()
+            if onClick then onClick() end
         end
         -- Despite the "ForEachElementData" name, in this case the method
         -- iterates over actual Button elements, so it's a bit too awkward
@@ -1587,7 +1591,7 @@ function MenuFrame.SetupDropdownMenu(dropdown, cache, getIndex, onClick)
     -- returns the wrong data!  It's not called from any other Blizzard code,
     -- so presumably it never got updated during a refactor or similar.
     local selection = select(3, dropdown:CollectSelectionData())
-    local index = selection and getIndex(selection[1])
+    local index = selection and getIndex and getIndex(selection[1])
     local initial_target = index and menu_manager.item_order[index]
     return menu_manager, initial_target
 end
