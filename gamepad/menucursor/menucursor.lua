@@ -5,7 +5,9 @@ local MenuCursor = WoWXIV.Gamepad.MenuCursor
 
 local class = WoWXIV.class
 local Button = WoWXIV.Button
+local Frame = WoWXIV.Frame
 
+local FormatColoredText = WoWXIV.FormatColoredText
 local GameTooltip = GameTooltip
 local abs = math.abs
 local floor = math.floor
@@ -581,7 +583,7 @@ function Cursor:OnClick(button, down)
     if not focus then return end
     if button == "DPadUp" or button == "DPadDown" or button == "DPadLeft" or button == "DPadRight" then
         local dir = strsub(button, 5):lower()
-        if target and focus:IsTargetDPadOverride(target) then
+        if focus:IsTargetDPadOverride(target) then
             focus:OnDPad(dir)
         else
             self:Move(dir)
@@ -682,6 +684,7 @@ function Cursor:CheckRepeat()
         end
     end
 end
+
 
 ---------------------------------------------------------------------------
 -- Frame manager base class
@@ -868,9 +871,9 @@ function MenuFrame:IsTargetClickable(target)
 end
 
 -- Return whether directional pad inputs should be passed directly to this
--- frame when the given target is selected.
+-- frame when the given target (which may be nil) is selected.
 function MenuFrame:IsTargetDPadOverride(target)
-    local params = self.targets[target]
+    local params = target and self.targets[target]
     return params and params.dpad_override
 end
 
@@ -1678,4 +1681,170 @@ end
 
 function AddOnMenuFrame.OnAddOnLoaded(class)
     class.instance = class()
+end
+
+
+---------------------------------------------------------------------------
+-- Utility class for numeric input
+---------------------------------------------------------------------------
+
+--[[
+    Class implementing a gamepad-controlled numeric input field.
+    Pass the associated input frame, which must be an EditBox, to the
+    constructor.
+]]--
+MenuCursor.NumberInput = class(StandardMenuFrame)
+local NumberInput = MenuCursor.NumberInput
+
+function NumberInput:__constructor(editbox)
+    assert(type(editbox) == "table")
+    assert(editbox:GetObjectType() == "EditBox")
+    self.editbox = editbox
+
+    -- Value (text string) of the EditBox when editing was started.
+    self.old_value = nil
+    -- Saved alpha value of edit box text color.
+    self.edittext_alpha = nil
+    -- Current input value (numeric).
+    self.value = nil
+    -- Current digit position being editing (0 = units place, 1 = tens, etc).
+    self.pos = nil
+
+    local function Cancel()
+        self:CancelEdit()
+    end
+    hooksecurefunc(editbox, "Hide", Cancel)
+
+    local f = CreateFrame("Frame")
+    self:__super(f, MenuFrame.MODAL)
+    self.cancel_func = Cancel
+    f:Hide()
+    f:SetFrameStrata("TOOLTIP") -- Make sure it's visible above other elements.
+    f:SetScale(editbox:GetEffectiveScale())
+    f:SetAllPoints(editbox)
+
+    local label = f:CreateFontString(nil, "ARTWORK")
+    self.label = label
+    label:SetAllPoints(f)
+    label:SetTextColor(0.6, 1, 0.45)
+    label:SetJustifyH("CENTER")
+    label:SetJustifyV("MIDDLE")
+
+    self.targets = {[f] = {is_default = true, dpad_override = true,
+                           on_click = function() self:ConfirmEdit() end}}
+end
+
+-- Start editing.  This grabs the menu cursor focus; focus will be returned
+-- when editing is complete, and the edit box's value will be set to the
+-- value entered.  Focus will also be returned if the underlying EditBox is
+-- hidden or CancelEdit() is called, in which case the previous value of
+-- the EditBox will be restored.  Pass the minimum (must be 0 or 1) and
+-- maximum limits for the value to be entered.
+function NumberInput:Edit(value_min, value_max)
+    assert(not self:HasFocus())
+    assert(value_min == 0 or value_min == 1)
+    assert(value_max and value_max >= value_min)
+
+    local editbox = self.editbox
+    assert(editbox:IsShown())
+    local old_value = editbox:GetText()
+    assert(old_value)
+
+    local r, g, b, a = editbox:GetTextColor()
+    self.edittext_alpha = a
+    editbox:SetTextColor(r, g, b, 0)
+    self.label:SetFont(editbox:GetFont())
+    self.old_value = old_value
+    self.value = tonumber(old_value) or value_min
+    self.value_min = value_min
+    self.value_max = value_max
+    self.pos = 0
+    self:UpdateLabel()
+    self.frame:Show()
+end
+
+-- Confirm the in-progress edit and relinquish cursor focus.  Normally
+-- called on a confirm button press.
+function NumberInput:ConfirmEdit()
+    if self.frame:IsShown() then
+        self.frame:Hide()  -- Implicitly releases focus via OnHide().
+        local editbox = self.editbox
+        local r, g, b = editbox:GetTextColor()
+        editbox:SetTextColor(r, g, b, self.edittext_alpha)
+        self:SetEditBoxText(tostring(self.value))
+    end
+end
+
+-- Cancel any edit in progress, and restore the previous value of the
+-- associated EditBox.
+function NumberInput:CancelEdit()
+    if self.frame:IsShown() then
+        self.frame:Hide()
+        local editbox = self.editbox
+        local r, g, b = editbox:GetTextColor()
+        editbox:SetTextColor(r, g, b, self.edittext_alpha)
+        self:SetEditBoxText(self.old_value)
+    end
+end
+
+function NumberInput:OnDPad(dir)
+    local value = self.value
+    local pos = self.pos
+    local value_min = self.value_min
+    local value_max = self.value_max
+    local unit = 10^pos
+
+    if dir == "up" then
+        if value >= value_max then
+            value = value_min
+        else
+            value = value + unit
+            if value > value_max then value = value_max end
+        end
+    elseif dir == "down" then
+        if value <= value_min then
+            value = value_max
+        else
+            value = value - unit
+            if value < value_min then value = value_min end
+        end
+    elseif dir == "left" then
+        if unit*10 <= value_max then
+            pos = pos + 1
+        else
+            value = value_max
+        end
+    else assert(dir == "right")
+        if pos > 0 then
+            pos = pos - 1
+        else
+            value = value_min
+        end
+    end
+
+    self.value = value
+    self.pos = pos
+    self:UpdateLabel()
+    self:SetEditBoxText(tostring(value))
+end
+
+function NumberInput:UpdateLabel()
+    local text = tostring(self.value)
+    local pos = self.pos
+    while pos >= #text do
+        text = "0"..text
+    end
+    local digit = #text - pos
+    text = (strsub(text, 1, digit-1)
+            .. FormatColoredText(strsub(text, digit, digit), 1, 0.75, 0.3)
+            .. strsub(text, digit+1))
+    self.label:SetText(text)
+end
+
+-- Takes care of also calling the edit box's update callback, if any.
+function NumberInput:SetEditBoxText(text)
+    local editbox = self.editbox
+    editbox:SetText(text)
+    local callback = editbox:GetInputChangedCallback()
+    if callback then callback() end
 end

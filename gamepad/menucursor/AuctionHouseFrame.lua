@@ -309,10 +309,12 @@ function CommoditiesBuyFrameHandler:__constructor()
     self.cancel_button = self.frame.BackButton
     self.has_Button3 = true  -- Used to trigger an item list refresh.
     self.tab_handler = AuctionHouseFrameHandler.instance.tab_handler
+    self.quantity_input =
+        MenuCursor.NumberInput(self.frame.BuyDisplay.QuantityInput.InputBox)
 end
 
 function CommoditiesBuyFrameHandler:OnHide()
-    self:ToggleEditQuantity(true)
+    self.quantity_input:CancelEdit()
     StandardMenuFrame.OnHide(self)
 end
 
@@ -333,7 +335,7 @@ function CommoditiesBuyFrameHandler:SetTargets()
         [ItemButton] = {send_enter_leave = true,
                         up = BackButton, down = InputBox,
                         left = false, right = false},
-        [InputBox] = {on_click = function() self:ToggleEditQuantity() end,
+        [InputBox] = {on_click = function() self:EditQuantity() end,
                       up = ItemButton, down = BuyButton,
                       left = false, right = false},
         [BuyButton] = {can_activate = true, lock_highlight = true,
@@ -342,98 +344,15 @@ function CommoditiesBuyFrameHandler:SetTargets()
     }
 end
 
-function CommoditiesBuyFrameHandler:ToggleEditQuantity(force_off)
-    local BuyDisplay = self.frame.BuyDisplay
-    local InputBox = BuyDisplay.QuantityInput.InputBox
-    if not force_off and not self.targets[InputBox].dpad_override then
-        local value = InputBox:GetNumber()
-        if not value or value < 1 then
-            value = 1
-        end
-        local item = BuyDisplay:GetItemID()
-        if item then
-            local limit = AuctionHouseUtil.AggregateSearchResultsByQuantity(
-                item, math.huge)
-            if limit and limit > 0 then
-                self.targets[InputBox].dpad_override = true
-                self.cancel_func = function() self:ToggleEditQuantity(true) end
-                self.cancel_button = nil
-                local text = tostring(value)
-                self.edit_number_pos = 0
-                self.edit_number_max = limit
-                InputBox:SetText(text)
-            end
-        end
-    elseif self.targets[InputBox] then
-        if self.targets[InputBox].dpad_override then
-            local callback = InputBox:GetInputChangedCallback()
-            assert(callback)  -- Should be set by Blizzard code.
-            callback()
-        end
-        self.targets[InputBox].dpad_override = false
-        self.cancel_func = nil
-        self.cancel_button = self.frame.BackButton
-    end
-end
-
-function CommoditiesBuyFrameHandler:OnDPad(dir)
-    local BuyDisplay = self.frame.BuyDisplay
-    local InputBox = BuyDisplay.QuantityInput.InputBox
-    assert(self.targets[InputBox].dpad_override)
-    local text = InputBox:GetText()
-    local value = tonumber(text)
-    local pos = self.edit_number_pos
-    local limit = self.edit_number_max
-    if not pos or pos < 0 then pos = 0 end
-    if pos >= #text then pos = #text-1 end
-    local unit = 10^pos
-
-    if dir == "up" then
-        if value >= limit then
-            value = 1
-        else
-            value = value + unit
-            if value > limit then value = limit end
-        end
-        text = tostring(value)
-    elseif dir == "down" then
-        if value <= 1 then
-            value = limit
-        else
-            value = value - unit
-            if value < 1 then value = 1 end
-        end
-        text = tostring(value)
-        while pos >= #text do
-            text = "0"..text
-        end
-    elseif dir == "left" then
-        if pos < #text-1 then
-            pos = pos + 1
-        elseif unit*10 <= limit then
-            text = "0"..text
-            pos = pos + 1
-        else
-            text = tostring(limit)
-        end
-    else assert(dir == "right")
-        if pos == 0 then
-            text = "1"
-            pos = 1
-        else
-            if pos == #text-1 and strsub(text, 1, 1) == "0" then
-                text = strsub(text, 2)
-            end
-            pos = pos - 1
+function CommoditiesBuyFrameHandler:EditQuantity()
+    local item = self.frame.BuyDisplay:GetItemID()
+    if item then
+        local limit = AuctionHouseUtil.AggregateSearchResultsByQuantity(
+            item, math.huge)
+        if limit and limit > 0 then
+            self.quantity_input:Edit(1, limit)
         end
     end
-
-    self.edit_number_pos = pos
-    InputBox:SetText(text)
-    local callback = InputBox:GetInputChangedCallback()
-    assert(callback)  -- Should be set by Blizzard code.
-    callback()
-    InputBox:SetText(text)  -- Override any changes by the Blizzard callback.
 end
 
 function CommoditiesBuyFrameHandler:OnAction(button)
