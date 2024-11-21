@@ -392,10 +392,72 @@ function SellTabHandler:__constructor()
 end
 
 
--------- Auctions list tab (FIXME: not yet implemented)
+-------- Auctions list tab
 
 function AuctionsTabHandler:__constructor()
     self:__super(AuctionHouseFrameAuctionsFrame)
     self.cancel_func = AuctionHouseFrameHandler.CancelMenu
+    self.has_Button3 = true  -- Used to trigger an auction list refresh.
     self.tab_handler = AuctionHouseFrameHandler.instance.tab_handler
+    self:RegisterEvent("OWNED_AUCTIONS_UPDATED")
+end
+
+function AuctionsTabHandler:OWNED_AUCTIONS_UPDATED()
+    local target = self:GetTarget()
+    if target and self.targets[target].is_scroll_box then
+        local index = target.index
+        local info = index and C_AuctionHouse.GetOwnedAuctionInfo(index)
+        target = info and info.auctionID
+    end
+    self:ClearTarget()
+    self:SetTarget(self:RefreshTargets(target))
+end
+
+function AuctionsTabHandler:SetTargets()
+    return self:RefreshTargets()
+end
+
+function AuctionsTabHandler:RefreshTargets(last_target)
+    local frame = self.frame
+    local CancelAuctionButton = frame.CancelAuctionButton
+    self.targets = {
+        [CancelAuctionButton] = {can_activate = true, lock_highlight = true,
+                                 up = false, down = false,
+                                 left = false, right = false},
+    }
+    local function OnClickItem(target)
+        local button = self:GetTargetFrame(target)
+        button:GetScript("OnClick")(button, "LeftButton", true)
+        self:SetTarget(CancelAuctionButton)
+    end
+    local ItemScroll = frame.AllAuctionsList.ScrollBox
+    local function ForEachItem(callback)
+        for _, index in ItemScroll:GetDataProvider():EnumerateEntireRange() do
+            local element = C_AuctionHouse.GetOwnedAuctionInfo(index)
+            callback(element)
+        end
+    end
+    local function AddTarget(elementdata, index)
+        local attributes = {on_click = OnClickItem, send_enter_leave = true,
+                            left = false, right = false}
+        return attributes, elementdata.auctionID == last_target
+    end
+    local top, bottom, initial =
+        self:AddScrollBoxTargets(ItemScroll, AddTarget, ForEachItem)
+    if top then
+        self.targets[top].up = CancelAuctionButton
+        self.targets[bottom].down = CancelAuctionButton
+    end
+    self.targets[CancelAuctionButton].down = top or false
+    self.targets[CancelAuctionButton].up = bottom or false
+    return (initial
+            or top
+            or (last_target and self.targets[last_target] and last_target)
+            or CancelAuctionButton)
+end
+
+function AuctionsTabHandler:OnAction(button)
+    assert(button == "Button3")
+    local button = self.frame.AllAuctionsList.RefreshFrame.RefreshButton
+    button:GetScript("OnClick")(button, "LeftButton", true)
 end
