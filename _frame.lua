@@ -27,7 +27,9 @@ If any such arguments are required, the class must define an
 __allocator() method and pass those arguments to the base class's
 __allocator() method, using the returned value as the created instance.
 When doing this, the base __allocator() should be called as a _static_
-method rather than as a class method:
+method rather than as a class method, passing as the first argument
+(ordinarily the class object itself) the name of the relevant native
+frame type:
 
     MyButton = class(Button)
     function MyButton.__allocator(thisclass)
@@ -35,12 +37,11 @@ method rather than as a class method:
                                   "UIPanelButtonTemplate")
     end
 
-Passing a different frame type as the first CreateFrame() argument
-results in undefined behavior.  (While a bit awkward structurally, this
-allows classes which do not need additional CreateFrame() arguments to
-skip the __allocator() definition even when the constructor accepts
-arguments.  Without this workaround, constructor arguments would be
-passed to CreateFrame(), probably resulting in incorrect behavior.)
+While a bit awkward structurally, this allows classes which do not need
+additional CreateFrame() arguments to skip the __allocator() definition
+even when the constructor accepts arguments.  Without this workaround,
+constructor arguments would be passed to CreateFrame(), probably
+resulting in incorrect behavior.
 
 
 The following native frame types are supported:
