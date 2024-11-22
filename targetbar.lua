@@ -2,32 +2,34 @@ local _, WoWXIV = ...
 WoWXIV.TargetBar = {}
 
 local class = WoWXIV.class
+local Frame = WoWXIV.Frame
 
 ------------------------------------------------------------------------
 
 local ARROW_X, ARROW1_Y, ARROW2_Y = 391, -29, -34
 
-local TargetBar = class()
+local TargetBar = class(Frame)
+
+function TargetBar:__allocator(is_focus)
+    local name = is_focus and "WoWXIV_FocusBar" or "WoWXIV_TargetBar"
+    return Frame.__allocator("Frame", name, UIParent)
+end
 
 function TargetBar:__constructor(is_focus)
     self.unit = is_focus and "focus" or "target"
     self.hostile = 0  -- enemies: +1 if aggro, 0 if no aggro. -1 if not an enemy
 
-    local f = CreateFrame("Frame",
-                          is_focus and "WoWXIV_FocusBar" or "WoWXIV_TargetBar",
-                          UIParent)
-    self.frame = f
     local name_size, icon_size, cast_text_scale, hp_yofs
     if is_focus then
-        f:SetSize(144, 80)
-        f:SetPoint("TOP", -400, -14)
+        self:SetSize(144, 80)
+        self:SetPoint("TOP", -400, -14)
         name_size = 1.0
         icon_size = 17
         cast_text_scale = 1
         hp_yofs = 27
     else
-        f:SetSize(384, 80)
-        f:SetPoint("TOP", 0, -8)
+        self:SetSize(384, 80)
+        self:SetPoint("TOP", 0, -8)
         name_size = 1.1
         icon_size = 20
         cast_text_scale = 1.4
@@ -35,24 +37,24 @@ function TargetBar:__constructor(is_focus)
     end
     self.hp_yofs = hp_yofs
 
-    local class_icon = f:CreateTexture(nil, "ARTWORK")
+    local class_icon = self:CreateTexture(nil, "ARTWORK")
     self.class_icon = class_icon
-    class_icon:SetPoint("TOPRIGHT", f, "TOPLEFT", -3, -26)
+    class_icon:SetPoint("TOPRIGHT", self, "TOPLEFT", -3, -26)
     class_icon:SetSize(icon_size, icon_size)
     class_icon:Hide()
 
-    local name = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    local name = self:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     self.name = name
     name:SetTextScale(name_size)
-    name:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 0, -(hp_yofs+5))
+    name:SetPoint("BOTTOMLEFT", self, "TOPLEFT", 0, -(hp_yofs+5))
     name:SetWordWrap(false)
     name:SetJustifyH("LEFT")
 
-    local hp = WoWXIV.UI.Gauge(f, f:GetWidth())
+    local hp = WoWXIV.UI.Gauge(self, self:GetWidth())
     self.hp = hp
     hp:SetSinglePoint("TOP", 0, -hp_yofs)
     if is_focus then
-        name:SetWidth(f:GetWidth())
+        name:SetWidth(self:GetWidth())
     else
         hp:SetShowValue(true, true)
         local SPACING = 10
@@ -64,7 +66,7 @@ function TargetBar:__constructor(is_focus)
                        hp:GetValueObject(), "BOTTOMLEFT", -SPACING, 0)
     end
 
-    local power = WoWXIV.UI.Gauge(f, f:GetWidth())
+    local power = WoWXIV.UI.Gauge(self, self:GetWidth())
     self.power = power
     power:SetBoxColor(0.9, 0.9, 0.9)
     power:SetBarBackgroundColor(0, 0, 0)
@@ -73,10 +75,10 @@ function TargetBar:__constructor(is_focus)
 
     local auras = WoWXIV.UI.AuraBar(
         "ALL", "TOPLEFT", is_focus and 6 or 16, is_focus and 1 or 5,
-        f, 0, -(hp_yofs+14))
+        self, 0, -(hp_yofs+14))
     self.auras = auras
 
-    local cast_bar = WoWXIV.UI.CastBar(f, f:GetWidth(), not is_focus)
+    local cast_bar = WoWXIV.UI.CastBar(self, self:GetWidth(), not is_focus)
     self.cast_bar = cast_bar
     cast_bar:SetSinglePoint("TOP")
     cast_bar:SetBoxColor(0.88, 0.62, 0.17)
@@ -87,34 +89,36 @@ function TargetBar:__constructor(is_focus)
         self.target_id = nil
         self.target_arrow_start = 0
 
-        local target_arrow1 = f:CreateTexture(nil, "ARTWORK")
+        local target_arrow1 = self:CreateTexture(nil, "ARTWORK")
         self.target_arrow1 = target_arrow1
         target_arrow1:SetPoint("TOPLEFT", ARROW_X, ARROW1_Y)
         target_arrow1:SetSize(28, 28)
         WoWXIV.SetUITexture(target_arrow1, 224, 252, 16, 44)
         target_arrow1:Hide()
 
-        local target_arrow2 = f:CreateTexture(nil, "ARTWORK")
+        local target_arrow2 = self:CreateTexture(nil, "ARTWORK")
         self.target_arrow2 = target_arrow2
         target_arrow2:SetPoint("TOPLEFT", ARROW_X, ARROW2_Y)
         target_arrow2:SetSize(22, 18)
         WoWXIV.SetUITexture(target_arrow2, 224, 246, 45, 63)
         target_arrow2:Hide()
 
-        local target_name = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        local target_name = self:CreateFontString(nil, "ARTWORK",
+                                                  "GameFontHighlight")
         self.target_name = target_name
         target_name:SetTextScale(1.1)
-        target_name:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 436, -(hp_yofs+5))
+        target_name:SetPoint("BOTTOMLEFT", self, "TOPLEFT", 436, -(hp_yofs+5))
         target_name:Hide()
 
-        local target_hp = WoWXIV.UI.Gauge(f, 128)
+        local target_hp = WoWXIV.UI.Gauge(self, 128)
         self.target_hp = target_hp
         target_hp:SetSinglePoint("TOPLEFT", 432, -hp_yofs)
         target_hp:Hide()
     end
 
-    f:RegisterEvent("PLAYER_LEAVING_WORLD")
-    f:RegisterEvent(is_focus and "PLAYER_FOCUS_CHANGED" or "PLAYER_TARGET_CHANGED")
+    self:RegisterEvent("PLAYER_LEAVING_WORLD")
+    self:RegisterEvent(is_focus and "PLAYER_FOCUS_CHANGED"
+                                or "PLAYER_TARGET_CHANGED")
     local unit_events = {"UNIT_ABSORB_AMOUNT_CHANGED",
                          "UNIT_CLASSIFICATION_CHANGED", "UNIT_HEALTH",
                          "UNIT_HEAL_ABSORB_AMOUNT_CHANGED",
@@ -122,12 +126,12 @@ function TargetBar:__constructor(is_focus)
                          "UNIT_THREAT_LIST_UPDATE"}
     local units = is_focus and {"focus"} or {"target", "targettarget"}
     for _, event in ipairs(unit_events) do
-        self.frame:RegisterUnitEvent(event, unpack(units))
+        self:RegisterUnitEvent(event, unpack(units))
     end
     if not is_focus then
-        self.frame:RegisterUnitEvent("UNIT_TARGET", "target")
+        self:RegisterUnitEvent("UNIT_TARGET", "target")
     end
-    f:SetScript("OnEvent", function(frame, event, ...)
+    self:SetScript("OnEvent", function(self, event, ...)
         if event == "PLAYER_ENTERING_WORLD" then  -- on every zone change
             self:RefreshUnit()  -- clear anything from previous zone
         elseif (event == "PLAYER_FOCUS_CHANGED" or
@@ -140,7 +144,7 @@ function TargetBar:__constructor(is_focus)
         end
     end)
 
-    f:Hide()
+    self:Hide()
 end
 
 -- Helper function to set colors and return hostile and inactive state.
@@ -186,14 +190,14 @@ end
 -- Internal helper.
 function TargetBar:SetNoUnit()
     self.auras:SetUnit(nil)
-    self.frame:Hide()
+    self:Hide()
     if self.unit == "target" then
         self.target_id = nil
         self.target_arrow1:Hide()
         self.target_arrow2:Hide()
         self.target_name:Hide()
         self.target_hp:Hide()
-        self.frame:SetScript("OnUpdate", nil)
+        self:SetScript("OnUpdate", nil)
     end
 end
 
@@ -204,7 +208,6 @@ function TargetBar:RefreshUnit()
         return
     end
 
-    local f = self.frame
     local opt_prefix = "targetbar_"..unit
 
     local auras = self.auras
@@ -225,11 +228,11 @@ function TargetBar:RefreshUnit()
         cast_bar:Show(hide)
     end
 
-    f:Show()
+    self:Show()
 
     local inactive
     self.hostile, inactive = SetColorsForUnit(unit, self.hp, self.name)
-    f:SetAlpha(inactive and 0.5 or 1)
+    self:SetAlpha(inactive and 0.5 or 1)
 
     local class_atlas = WoWXIV.UnitClassificationIcon(unit)
     if class_atlas then
@@ -315,7 +318,7 @@ function TargetBar:Update()
                 self.target_arrow2:Hide()
                 self.target_name:Hide()
                 self.target_hp:Hide()
-                self.frame:SetScript("OnUpdate", nil)
+                self:SetScript("OnUpdate", nil)
             else
                 self.target_arrow_start = GetTime()
 
@@ -344,7 +347,7 @@ function TargetBar:Update()
                 target_name:SetAlpha(inactive and 0.5 or 1)
                 target_hp:SetAlpha(inactive and 0.5 or 1)
 
-                self.frame:SetScript("OnUpdate", function() self:OnUpdate() end)
+                self:SetScript("OnUpdate", self.OnUpdate)
             end
         end
 
