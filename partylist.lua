@@ -2,6 +2,8 @@ local _, WoWXIV = ...
 WoWXIV.PartyList = {}
 
 local class = WoWXIV.class
+local Button = WoWXIV.Button
+local Frame = WoWXIV.Frame
 
 local GameTooltip = GameTooltip
 local strfind = string.find
@@ -51,25 +53,27 @@ local enable_raid
 
 --------------------------------------------------------------------------
 
-local ClassIcon = class()
+local ClassIcon = class(Frame)
+
+function ClassIcon:__allocator(parent)
+    return Frame.__allocator("Frame", nil, parent)
+end
 
 function ClassIcon:__constructor(parent)
     self.parent = parent
     self.tooltip_anchor = "BOTTOMRIGHT"
 
-    local f = CreateFrame("Frame", nil, parent)
-    self.frame = f
-    f:SetSize(31, 31)
-    f:HookScript("OnEnter", function() self:OnEnter() end)
-    f:HookScript("OnLeave", function() self:OnLeave() end)
+    self:SetSize(31, 31)
+    self:HookScript("OnEnter", self.OnEnter)
+    self:HookScript("OnLeave", self.OnLeave)
 
-    self.ring = f:CreateTexture(nil, "OVERLAY")
+    self.ring = self:CreateTexture(nil, "OVERLAY")
     self.ring:SetPoint("TOPLEFT", -4, 4)
     self.ring:SetSize(40, 40)
     self.ring:SetTexture("Interface/MINIMAP/minimap-trackingborder")
     self.ring:SetTexCoord(0, 40/64.0, 0, 38/64.0)
 
-    self.icon = f:CreateTexture(nil, "ARTWORK")
+    self.icon = self:CreateTexture(nil, "ARTWORK")
     self.icon:SetPoint("TOPLEFT", 1.5, -2)
     self.icon:SetSize(29, 29)
     -- The name makes it look like this is a temporary or placeholder file,
@@ -80,8 +84,8 @@ end
 
 function ClassIcon:OnEnter()
     if GameTooltip:IsForbidden() then return end
-    if not self.frame:IsVisible() then return end
-    GameTooltip:SetOwner(self.frame, "ANCHOR_"..self.tooltip_anchor)
+    if not self:IsVisible() then return end
+    GameTooltip:SetOwner(self, "ANCHOR_"..self.tooltip_anchor)
     self:UpdateTooltip()
 end
 
@@ -91,7 +95,7 @@ function ClassIcon:OnLeave()
 end
 
 function ClassIcon:UpdateTooltip()
-    if GameTooltip:IsForbidden() or GameTooltip:GetOwner() ~= self.frame then
+    if GameTooltip:IsForbidden() or GameTooltip:GetOwner() ~= self then
         return
     end
     if self.tooltip then
@@ -102,24 +106,8 @@ function ClassIcon:UpdateTooltip()
     end
 end
 
-function ClassIcon:Show()
-    self.frame:Show()
-end
-
-function ClassIcon:Hide()
-    self.frame:Hide()
-end
-
-function ClassIcon:GetWidth()
-    return self.frame:GetWidth()
-end
-
-function ClassIcon:GetFrameLevel()
-    return self.frame:GetFrameLevel()
-end
-
 function ClassIcon:SetAnchor(anchor, x, y, tooltip_anchor)
-    self.frame:SetPoint(anchor, self.parent, anchor, x, y)
+    self:SetPoint(anchor, self.parent, anchor, x, y)
     self.tooltip_anchor = tooltip_anchor
 end
 
@@ -256,6 +244,8 @@ end
 
 --------------------------------------------------------------------------
 
+-- We can't make this derive from Button because the wrapped script used
+-- by PartyCursor will refuse to access the frame.
 local Member = class()
 
 local function NameForUnit(unit, with_level)
@@ -717,7 +707,7 @@ end
 
 ---------------------------------------------------------------------------
 
-local PartyList = class()
+local PartyList = class(Frame)
 
 local PARTY_UNIT_TOKENS = {"player", "vehicle"}
 for i = 1, 4 do tinsert(PARTY_UNIT_TOKENS, "party"..i) end
@@ -727,39 +717,40 @@ for i, token in ipairs(PARTY_UNIT_TOKENS) do
     PARTY_UNIT_ORDER[token] = i
 end
 
+function PartyList:__allocator()
+    return Frame.__allocator("Frame", "WoWXIV_PartyList", UIParent)
+end
+
 function PartyList:__constructor()
     self.enabled = false  -- currently enabled?
     self.party = {}  -- mapping from unit token to Member instance
     self.pending_SetParty = false  -- see SetParty()
 
-    local f = CreateFrame("Frame", "WoWXIV_PartyList", UIParent)
-    self.frame = f
-    f.owner = self
-    f:Hide()
-    f:SetPoint("TOPLEFT", 30, -24)
-    f:SetSize(256, 44)
+    self:Hide()
+    self:SetPoint("TOPLEFT", 30, -24)
+    self:SetSize(256, 44)
 
-    local bg_t = f:CreateTexture(nil, "BACKGROUND")
+    local bg_t = self:CreateTexture(nil, "BACKGROUND")
     self.bg_t = bg_t
     bg_t:SetPoint("TOPLEFT")
     bg_t:SetSize(256, 4)
     WoWXIV.SetUITexture(bg_t, 0, 256, 0, 4)
     bg_t:SetVertexColor(0, 0, 0, 1)
-    local bg_b = f:CreateTexture(nil, "BACKGROUND")
+    local bg_b = self:CreateTexture(nil, "BACKGROUND")
     self.bg_b = bg_b
     bg_b:SetPoint("BOTTOMLEFT")
     bg_b:SetSize(256, 4)
     WoWXIV.SetUITexture(bg_b, 0, 256, 7, 11)
     bg_b:SetVertexColor(0, 0, 0, 1)
 
-    local bg2_t = f:CreateTexture(nil, "BACKGROUND")
+    local bg2_t = self:CreateTexture(nil, "BACKGROUND")
     self.bg2_t = bg2_t
     bg2_t:SetPoint("TOPRIGHT")
     bg2_t:SetSize(256, 4)
     WoWXIV.SetUITexture(bg2_t, 0, 256, 0, 4)
     bg2_t:SetVertexColor(0, 0, 0, 1)
     bg2_t:Hide()
-    local bg2_b = f:CreateTexture(nil, "BACKGROUND")
+    local bg2_b = self:CreateTexture(nil, "BACKGROUND")
     self.bg2_b = bg2_b
     bg2_b:SetPoint("BOTTOMRIGHT")
     bg2_b:SetSize(256, 4)
@@ -768,78 +759,78 @@ function PartyList:__constructor()
     bg2_b:Hide()
 
     for _, unit in ipairs(PARTY_UNIT_TOKENS) do
-        self.party[unit] = Member(f, unit)
+        self.party[unit] = Member(self, unit)
     end
 
-    function f:OnPartyChange()
-        self.owner:SetParty()
-    end
-
-    function f:OnTargetChange()
-        for _, member in pairs(self.owner.party) do
-            member:Update(false)
-        end
-        self.owner:UpdateHate()
-    end
-
-    function f:OnTargetHateUpdate()
-        self.owner:UpdateHate()
-    end
-
-    function f:OnMemberUpdate(unit)
-        self.owner:UpdateParty(unit, false)
-    end
-
-    function f:OnMemberUpdateName(unit)
-        self.owner:UpdateParty(unit, true)
-    end
-
-    f.events = {}
-    f.events["ACTIVE_PLAYER_SPECIALIZATION_CHANGED"] = f.OnPartyChange
-    f.events["GROUP_ROSTER_UPDATE"] = f.OnPartyChange
-    f.events["PARTY_LEADER_CHANGED"] = f.OnPartyChange
-    f.events["PLAYER_ENTERING_WORLD"] = f.OnPartyChange
-    f.events["PLAYER_ROLES_ASSIGNED"] = f.OnPartyChange
-    f.events["PLAYER_TARGET_CHANGED"] = f.OnTargetChange
-    f.events["UNIT_ABSORB_AMOUNT_CHANGED"] = f.OnMemberUpdate
-    f.events["UNIT_AURA"] = f.OnMemberUpdate
-    f.events["UNIT_ENTERED_VEHICLE"] = f.OnPartyChange
-    f.events["UNIT_EXITED_VEHICLE"] = f.OnPartyChange
-    f.events["UNIT_HEALTH"] = f.OnMemberUpdate
-    f.events["UNIT_HEAL_ABSORB_AMOUNT_CHANGED"] = f.OnMemberUpdate
-    f.events["UNIT_LEVEL"] = f.OnMemberUpdateName
-    f.events["UNIT_MAXHEALTH"] = f.OnMemberUpdate
-    f.events["UNIT_MAXPOWER"] = f.OnMemberUpdate
-    f.events["UNIT_MAX_HEALTH_MODIFIERS_CHANGED"] = f.OnMemberUpdate
-    f.events["UNIT_NAME_UPDATE"] = f.OnMemberUpdateName
-    f.events["UNIT_POWER_FREQUENT"] = f.OnMemberUpdate
-    f.events["UNIT_POWER_UPDATE"] = f.OnMemberUpdate
+    self.events = {}
+    self.events["ACTIVE_PLAYER_SPECIALIZATION_CHANGED"] = self.OnPartyChange
+    self.events["GROUP_ROSTER_UPDATE"] = self.OnPartyChange
+    self.events["PARTY_LEADER_CHANGED"] = self.OnPartyChange
+    self.events["PLAYER_ENTERING_WORLD"] = self.OnPartyChange
+    self.events["PLAYER_ROLES_ASSIGNED"] = self.OnPartyChange
+    self.events["PLAYER_TARGET_CHANGED"] = self.OnTargetChange
+    self.events["UNIT_ABSORB_AMOUNT_CHANGED"] = self.OnMemberUpdate
+    self.events["UNIT_AURA"] = self.OnMemberUpdate
+    self.events["UNIT_ENTERED_VEHICLE"] = self.OnPartyChange
+    self.events["UNIT_EXITED_VEHICLE"] = self.OnPartyChange
+    self.events["UNIT_HEALTH"] = self.OnMemberUpdate
+    self.events["UNIT_HEAL_ABSORB_AMOUNT_CHANGED"] = self.OnMemberUpdate
+    self.events["UNIT_LEVEL"] = self.OnMemberUpdateName
+    self.events["UNIT_MAXHEALTH"] = self.OnMemberUpdate
+    self.events["UNIT_MAXPOWER"] = self.OnMemberUpdate
+    self.events["UNIT_MAX_HEALTH_MODIFIERS_CHANGED"] = self.OnMemberUpdate
+    self.events["UNIT_NAME_UPDATE"] = self.OnMemberUpdateName
+    self.events["UNIT_POWER_FREQUENT"] = self.OnMemberUpdate
+    self.events["UNIT_POWER_UPDATE"] = self.OnMemberUpdate
 
     -- We could theoretically register the unit-specific events for just
     -- the units we're interested in, but that would require refreshing the
     -- registration on every party/ally change, and we'll generally be
     -- interested in most events anyway so it's probably not worth the effort.
-    for event, _ in pairs(f.events) do
-        f:RegisterEvent(event)
+    for event, _ in pairs(self.events) do
+        self:RegisterEvent(event)
     end
 
     -- However, we only ever want to see threat updates for the current
     -- target, and if there are a lot of enemies around, a blanket Register
     -- will result in a lot of spam.
-    f.events["UNIT_THREAT_LIST_UPDATE"] = f.OnTargetHateUpdate
-    f:RegisterUnitEvent("UNIT_THREAT_LIST_UPDATE", "target")
+    self.events["UNIT_THREAT_LIST_UPDATE"] = self.OnTargetHateUpdate
+    self:RegisterUnitEvent("UNIT_THREAT_LIST_UPDATE", "target")
 
-    f:SetScript("OnEvent", function(self, event, ...)
+    self:SetScript("OnEvent", function(self, event, ...)
         if self.events[event] then
             self.events[event](self, ...)
         end
     end)
 
     -- Ensure cursor is over everything (Member instance, class icon, auras)
-    self.cursor = PartyCursor(f:GetFrameLevel() + 4)
+    self.cursor = PartyCursor(self:GetFrameLevel() + 4)
 
     self:SetParty()
-    f:Show()
+    self:Show()
+end
+
+function PartyList:OnPartyChange()
+    self:SetParty()
+end
+
+function PartyList:OnTargetChange()
+    for _, member in pairs(self.party) do
+        member:Update(false)
+    end
+    self:UpdateHate()
+end
+
+function PartyList:OnTargetHateUpdate()
+    self:UpdateHate()
+end
+
+function PartyList:OnMemberUpdate(unit)
+    self:UpdateParty(unit, false)
+end
+
+function PartyList:OnMemberUpdateName(unit)
+    self:UpdateParty(unit, true)
 end
 
 function PartyList:SetParty(is_retry)
@@ -868,9 +859,9 @@ function PartyList:SetParty(is_retry)
     end
     self.enabled = enable
     if enable then
-        self.frame:Show()
+        self:Show()
     else
-        self.frame:Hide()
+        self:Hide()
         return
     end
 
@@ -890,7 +881,6 @@ function PartyList:SetParty(is_retry)
         narrow = false
     end
 
-    local f = self.frame
     local party_order = {}
     for _, unit in ipairs(PARTY_UNIT_TOKENS) do
         local member = self.party[unit]
@@ -943,7 +933,7 @@ function PartyList:SetParty(is_retry)
         member:SetBinding(do_bindkeys, index)
         local x = x0 + col*(col_spacing)
         local y = y0 + row*(-row_height)
-        member:SetRelPosition(f, x, y)
+        member:SetRelPosition(self, x, y)
         member:SetNarrow(narrow)
         member:Refresh()
         member:Show()
@@ -965,7 +955,7 @@ function PartyList:SetParty(is_retry)
 
     self.cursor:SetPartyList(cursor_list)
 
-    f:SetSize(width, height+4)
+    self:SetSize(width, height+4)
     self.bg_t:SetWidth(col_width)
     self.bg_b:SetWidth(col_width)
     if ncols > 1 then  -- assumed to be 2
@@ -980,8 +970,8 @@ function PartyList:SetParty(is_retry)
         self.bg2_t:Hide()
         self.bg2_b:Hide()
     end
-    local abs_y = select(5, f:GetPoint(1))
-    WoWXIV.HateList.NotifyPartyListBottom(abs_y - f:GetHeight())
+    local abs_y = select(5, self:GetPoint(1))
+    WoWXIV.HateList.NotifyPartyListBottom(abs_y - self:GetHeight())
 end
 
 function PartyList:UpdateParty(unit, updateLabel)
