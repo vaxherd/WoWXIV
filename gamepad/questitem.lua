@@ -326,7 +326,18 @@ end
 Gamepad.QuestItemButton = class(Gamepad.GamepadBoundButton)
 local QuestItemButton = Gamepad.QuestItemButton
 
+function QuestItemButton:__allocator()
+    return Gamepad.GamepadBoundButton:__allocator(
+        "WoWXIV_QuestItemButton",
+        "SecureActionButtonTemplate, FadeableFrameTemplate")
+end
+
 function QuestItemButton:__constructor()
+    self:__super("gamepad_use_quest_item",
+                 "CLICK WoWXIV_QuestItemButton:LeftButton",
+                 "gamepad_select_quest_item",
+                 "CLICK WoWXIV_QuestItemButton:RightButton")
+
     self.item = nil
     self.selected_index = 1  -- Index of item to show if more than 1 available.
     self.selected_item = nil  -- ID of selected item, in case index changes.
@@ -337,19 +348,16 @@ function QuestItemButton:__constructor()
     self.scenario_action_hack_time = nil
     self.scenario_action_hack_map = nil
 
-    local f = CreateFrame("Button", "WoWXIV_QuestItemButton", UIParent,
-                          "SecureActionButtonTemplate, FadeableFrameTemplate")
-    self.frame = f
     -- Place the button between the chat box and action bar.  (This size
     -- just fits with the default UI scale at resolution 2560x1440.)
-    f:SetPoint("BOTTOM", -470, 10)
-    f:SetSize(224, 112)
-    f:SetAlpha(0)
-    local holder = f:CreateTexture(nil, "ARTWORK")
+    self:SetPoint("BOTTOM", -470, 10)
+    self:SetSize(224, 112)
+    self:SetAlpha(0)
+    local holder = self:CreateTexture(nil, "ARTWORK")
     self.holder = holder
     holder:SetAllPoints()
     holder:SetTexture("Interface/ExtraButton/Default")
-    local icon = f:CreateTexture(nil, "BACKGROUND")
+    local icon = self:CreateTexture(nil, "BACKGROUND")
     self.icon = icon
     icon:SetPoint("CENTER", 0, -1.5)
     icon:SetSize(42, 42)
@@ -358,30 +366,26 @@ function QuestItemButton:__constructor()
     self.cooldown = cooldown
     cooldown:SetAllPoints(icon)
 
-    f:SetAttribute("*type1", "item")
-    f:SetAttribute("item", nil)
-    f:SetAttribute("spell", nil)
-    f:SetAttribute("unit", nil)
-    f:RegisterForClicks("LeftButtonDown", "RightButtonDown")
-    self:__super(f, "gamepad_use_quest_item",
-                    "CLICK WoWXIV_QuestItemButton:LeftButton",
-                    "gamepad_select_quest_item",
-                    "CLICK WoWXIV_QuestItemButton:RightButton")
+    self:SetAttribute("*type1", "item")
+    self:SetAttribute("item", nil)
+    self:SetAttribute("spell", nil)
+    self:SetAttribute("unit", nil)
+    self:RegisterForClicks("LeftButtonDown", "RightButtonDown")
 
-    f:RegisterUnitEvent("UNIT_QUEST_LOG_CHANGED", "player")
-    f:RegisterEvent("BAG_UPDATE")  -- for QUEST_ITEM quests
-    f:RegisterEvent("BAG_UPDATE_COOLDOWN")
-    f:SetScript("OnEvent", function(_,event) self:UpdateQuestItem() end)
-    f:SetScript("OnEnter", function() self:OnEnter() end)
-    f:SetScript("OnLeave", function() self:OnLeave() end)
-    f:HookScript("OnClick", function(frame,...) self:OnClick(...) end)
+    self:RegisterUnitEvent("UNIT_QUEST_LOG_CHANGED", "player")
+    self:RegisterEvent("BAG_UPDATE")  -- for QUEST_ITEM quests
+    self:RegisterEvent("BAG_UPDATE_COOLDOWN")
+    self:SetScript("OnEvent", function(_,event) self:UpdateQuestItem() end)
+    self:SetScript("OnEnter", self.OnEnter)
+    self:SetScript("OnLeave", self.OnLeave)
+    self:HookScript("OnClick", self.OnClick)
     self:UpdateQuestItem()
 end
 
 function QuestItemButton:OnEnter()
     if GameTooltip:IsForbidden() then return end
-    if not self.frame:IsVisible() then return end
-    GameTooltip:SetOwner(self.frame, "ANCHOR_TOP")
+    if not self:IsVisible() then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
     self:UpdateTooltip()
 end
 
@@ -405,7 +409,7 @@ function QuestItemButton:OnClick(button, down)
 end
 
 function QuestItemButton:UpdateTooltip()
-    if GameTooltip:IsForbidden() or GameTooltip:GetOwner() ~= self.frame then
+    if GameTooltip:IsForbidden() or GameTooltip:GetOwner() ~= self then
         return
     end
     if self.item then
@@ -458,16 +462,16 @@ function QuestItemButton:UpdateQuestItem(force, is_retry)
 
     if item then
         if item < 0 then
-            self.frame:SetAttribute("*type1", "spell")
-            self.frame:SetAttribute("spell", -item)
+            self:SetAttribute("*type1", "spell")
+            self:SetAttribute("spell", -item)
         else
-            self.frame:SetAttribute("*type1", "item")
+            self:SetAttribute("*type1", "item")
             -- Note that we have to use the "item:" format rather than just
             -- the numeric item ID, because the latter would be treated as an
             -- inventory index instead.  We can't use the item name because
             -- that fails when multiple items have the same name, such as the
             -- quest items for the various gormling world quests in Ardenweald.
-            self.frame:SetAttribute("item", "item:"..item)
+            self:SetAttribute("item", "item:"..item)
         end
         local known_target = ITEM_TARGET[item]
         if known_target then
@@ -475,21 +479,21 @@ function QuestItemButton:UpdateQuestItem(force, is_retry)
                 known_target = "none"  -- Fall back to right-stick targeting.
             end
             if #known_target > 0 then
-               self.frame:SetAttribute("unit", known_target)
+               self:SetAttribute("unit", known_target)
             else
-               self.frame:SetAttribute("unit", nil)
+               self:SetAttribute("unit", nil)
             end
         elseif IsHelpfulItem(item) or IsHarmfulItem(item) then
-            self.frame:SetAttribute("unit", "target")
+            self:SetAttribute("unit", "target")
         else
-            self.frame:SetAttribute("unit", "player")
+            self:SetAttribute("unit", "player")
         end
         local icon_id = (GetItemOrSpellIcon(item)
                          or "Interface/ICONS/INV_Misc_QuestionMark")
         self.icon:SetTexture(icon_id)
-        if self.frame:GetAlpha() < 1 and (self.frame.fadeout:IsPlaying() or not self.frame.fadein:IsPlaying()) then
-            self.frame.fadeout:Stop()
-            self.frame.fadein:Play()
+        if self:GetAlpha() < 1 and (self.fadeout:IsPlaying() or not self.fadein:IsPlaying()) then
+            self.fadeout:Stop()
+            self.fadein:Play()
         end
         local start, duration
         if item < 0 then
@@ -505,11 +509,11 @@ function QuestItemButton:UpdateQuestItem(force, is_retry)
         end
         self.cooldown:SetCooldown(start, duration)
     else
-        self.frame:SetAttribute("item", nil)
-        self.frame:SetAttribute("spell", nil)
-        if self.frame:GetAlpha() > 0 and (self.frame.fadein:IsPlaying() or not self.frame.fadeout:IsPlaying()) then
-            self.frame.fadein:Stop()
-            self.frame.fadeout:Play()
+        self:SetAttribute("item", nil)
+        self:SetAttribute("spell", nil)
+        if self:GetAlpha() > 0 and (self.fadein:IsPlaying() or not self.fadeout:IsPlaying()) then
+            self.fadein:Stop()
+            self.fadeout:Play()
         end
     end
 

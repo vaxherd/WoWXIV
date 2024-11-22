@@ -16,12 +16,14 @@ local class = WoWXIV.class
 Gamepad.LeaveVehicleButton = class(Gamepad.GamepadBoundButton)
 local LeaveVehicleButton = Gamepad.LeaveVehicleButton
 
+function LeaveVehicleButton:__allocator()
+    return Gamepad.GamepadBoundButton:__allocator("WoWXIV_LeaveVehicleButton")
+end
+
 function LeaveVehicleButton:__constructor()
-    local f = CreateFrame("Button", "WoWXIV_LeaveVehicleButton")
-    self.frame = f
-    f:SetScript("OnClick", function(_,...) self:OnClick(...) end)
-    self:__super(f, "gamepad_leave_vehicle",
+    self:__super("gamepad_leave_vehicle",
                  "CLICK WoWXIV_LeaveVehicleButton:LeftButton")
+    self:SetScript("OnClick", self.OnClick)
 end
 
 function LeaveVehicleButton:OnClick(button, down)

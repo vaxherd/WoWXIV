@@ -3,6 +3,7 @@ WoWXIV.Gamepad = WoWXIV.Gamepad or {}
 local Gamepad = WoWXIV.Gamepad
 
 local class = WoWXIV.class
+local Button = WoWXIV.Button
 
 local strsub = string.sub
 
@@ -47,12 +48,15 @@ end
 
 -- Base class for LeaveVehicleButton and QuestItemButton.
 -- Handles updating the input binding(s) on config change.
-Gamepad.GamepadBoundButton = class()
+Gamepad.GamepadBoundButton = class(Button)
 local GamepadBoundButton = Gamepad.GamepadBoundButton
 
+function GamepadBoundButton:__allocator(name, ...)
+    return Button.__allocator("Button", name, UIParent, ...)
+end
+
 -- Pass (setting,command) pairs to bind.
-function GamepadBoundButton:__constructor(frame, ...)
-    self.binding_frame = frame
+function GamepadBoundButton:__constructor(...)
     self.bindings = {}
     for i = 1, select("#",...), 2 do
         local setting, command = select(i, ...)
@@ -62,9 +66,9 @@ function GamepadBoundButton:__constructor(frame, ...)
 end
 
 function GamepadBoundButton:UpdateBinding()
-    ClearOverrideBindings(self.binding_frame)
+    ClearOverrideBindings(self)
     for _, binding in ipairs(self.bindings) do
-        SetOverrideBinding(self.binding_frame, false,
+        SetOverrideBinding(self, false,
                            WoWXIV_config[binding[1]], binding[2])
     end
 end
