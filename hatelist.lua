@@ -2,6 +2,7 @@ local _, WoWXIV = ...
 WoWXIV.HateList = {}
 
 local class = WoWXIV.class
+local Frame = WoWXIV.Frame
 
 local CLM = WoWXIV.CombatLogManager
 local UnitFlags = CLM.UnitFlags
@@ -10,41 +11,43 @@ local bor = bit.bor
 
 --------------------------------------------------------------------------
 
-local Enemy = class()
+local Enemy = class(Frame)
+
+function Enemy:__allocator(parent, y)
+    return Frame.__allocator("Frame", nil, parent)
+end
 
 function Enemy:__constructor(parent, y)
     self.guid = nil     -- GUID of currently monitored unit, nil if none
     self.name = ""      -- Name of unit (saved because we can't get it by GUID)
     self.token = nil    -- Token by which we can look up unit info, nil if none
 
-    local f = CreateFrame("Frame", nil, parent)
-    self.frame = f
-    f:SetSize(200, 27)
-    f:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, y)
-    f:Hide()
+    self:SetSize(200, 27)
+    self:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, y)
+    self:Hide()
 
-    local hate_icon = f:CreateTexture(nil, "ARTWORK")
+    local hate_icon = self:CreateTexture(nil, "ARTWORK")
     self.hate_icon = hate_icon
-    hate_icon:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -3)
+    hate_icon:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -3)
     hate_icon:SetSize(19, 19)
     WoWXIV.SetUITexture(hate_icon)
 
-    local name_label = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    local name_label = self:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     self.name_label = name_label
-    name_label:SetPoint("TOPLEFT", f, "TOPLEFT", 23, -1)
+    name_label:SetPoint("TOPLEFT", self, "TOPLEFT", 23, -1)
     name_label:SetTextScale(1.1)
     name_label:SetWordWrap(false)
     name_label:SetJustifyH("LEFT")
-    name_label:SetWidth(f:GetWidth())
+    name_label:SetWidth(self:GetWidth())
 
-    local hp = WoWXIV.UI.Gauge(f, 52)
+    local hp = WoWXIV.UI.Gauge(self, 52)
     self.hp = hp
     hp:SetBoxColor(0.533, 0.533, 0.533)
     hp:SetBarBackgroundColor(0.118, 0.118, 0.118)
     hp:SetBarColor(1, 1, 1)
     hp:SetSinglePoint("TOPLEFT", 19, -10)
 
-    local cast_bar = WoWXIV.UI.CastBar(f, 110)
+    local cast_bar = WoWXIV.UI.CastBar(self, 110)
     self.cast_bar = cast_bar
     cast_bar:SetSinglePoint("TOPLEFT", 88, -4)
 end
@@ -55,10 +58,10 @@ function Enemy:SetUnit(unit_guid, name)
     if unit_guid then
         self.token = nil  -- Force check in Update().
         self:Update(name)
-        self.frame:Show()
+        self:Show()
     else
         self.token = nil
-        self.frame:Hide()
+        self:Hide()
     end
     self.cast_bar:SetUnit(self.token)
 end
@@ -83,12 +86,12 @@ function Enemy:Update(new_name)
         self.cast_bar:SetUnit(self.token)
     end
     if self.token then
-        self.frame:SetAlpha(1.0)
+        self:SetAlpha(1.0)
         self.hate_icon:Show()
         self.hp:Show()
         self.cast_bar:Show()
     else
-        self.frame:SetAlpha(0.5)
+        self:SetAlpha(0.5)
         self.hate_icon:Hide()
         self.hp:Hide()
         self.cast_bar:Hide()
@@ -143,7 +146,11 @@ end
 
 --------------------------------------------------------------------------
 
-local HateList = class()
+local HateList = class(Frame)
+
+function HateList:__allocator()
+    return Frame.__allocator("Frame", "WoWXIV_HateList", UIParent)
+end
 
 function HateList:__constructor()
     self.enemies = {}  -- 1 per enemy slot (all precreated)
@@ -152,47 +159,45 @@ function HateList:__constructor()
 
     self.base_y = -(UIParent:GetHeight()/2) -- May be pushed down by party list
 
-    local f = CreateFrame("Frame", "WoWXIV_HateList", UIParent)
-    self.frame = f
-    f:Hide()
-    f:SetPoint("TOPLEFT", 30, base_y)
-    f:SetSize(200, 31)
-    f:SetScript("OnEvent", function(frame, ...) self:OnEvent(...) end)
+    self:Hide()
+    self:SetPoint("TOPLEFT", 30, base_y)
+    self:SetSize(200, 31)
+    self:SetScript("OnEvent", self.OnEvent)
 
-    local bg_t = f:CreateTexture(nil, "BACKGROUND")
+    local bg_t = self:CreateTexture(nil, "BACKGROUND")
     self.bg_t = bg_t
-    bg_t:SetPoint("TOP", f)
-    bg_t:SetSize(f:GetWidth(), 4)
+    bg_t:SetPoint("TOP", self)
+    bg_t:SetSize(self:GetWidth(), 4)
     WoWXIV.SetUITexture(bg_t, 0, 256, 0, 4)
     bg_t:SetVertexColor(0, 0, 0, 1)
-    local bg_b = f:CreateTexture(nil, "BACKGROUND")
+    local bg_b = self:CreateTexture(nil, "BACKGROUND")
     self.bg_b = bg_b
-    bg_b:SetPoint("BOTTOM", f)
-    bg_b:SetSize(f:GetWidth(), 4)
+    bg_b:SetPoint("BOTTOM", self)
+    bg_b:SetSize(self:GetWidth(), 4)
     WoWXIV.SetUITexture(bg_b, 0, 256, 7, 11)
     bg_b:SetVertexColor(0, 0, 0, 1)
-    local bg_c = f:CreateTexture(nil, "BACKGROUND")
+    local bg_c = self:CreateTexture(nil, "BACKGROUND")
     self.bg_c = bg_c
     bg_c:SetPoint("TOPLEFT", bg_t, "BOTTOMLEFT")
     bg_c:SetPoint("BOTTOMRIGHT", bg_b, "TOPRIGHT")
     WoWXIV.SetUITexture(bg_c, 0, 256, 4, 7)
     bg_c:SetVertexColor(0, 0, 0, 1)
 
-    local highlight_t = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+    local highlight_t = self:CreateTexture(nil, "BACKGROUND", nil, 1)
     self.highlight_t = highlight_t
-    highlight_t:SetSize(f:GetWidth(), 4)
+    highlight_t:SetSize(self:GetWidth(), 4)
     WoWXIV.SetUITexture(highlight_t, 0, 256, 0, 4)
     highlight_t:SetVertexColor(1, 1, 1, 0.5)
-    local highlight_c = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+    local highlight_c = self:CreateTexture(nil, "BACKGROUND", nil, 1)
     self.highlight_c = highlight_c
     highlight_c:SetPoint("TOP", highlight_t, "BOTTOM")
-    highlight_c:SetSize(f:GetWidth(), 27-6)
+    highlight_c:SetSize(self:GetWidth(), 27-6)
     WoWXIV.SetUITexture(highlight_c, 0, 256, 4, 7)
     highlight_c:SetVertexColor(1, 1, 1, 0.5)
-    local highlight_b = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+    local highlight_b = self:CreateTexture(nil, "BACKGROUND", nil, 1)
     self.highlight_b = highlight_b
     highlight_b:SetPoint("TOP", highlight_c, "BOTTOM")
-    highlight_b:SetSize(f:GetWidth(), 4)
+    highlight_b:SetSize(self:GetWidth(), 4)
     WoWXIV.SetUITexture(highlight_b, 0, 256, 7, 11)
     highlight_b:SetVertexColor(1, 1, 1, 0.5)
     highlight_t:Hide()
@@ -201,7 +206,7 @@ function HateList:__constructor()
 
     for i = 1, 8 do
         local y = -2-27*(i-1)
-        tinsert(self.enemies, Enemy(f, y))
+        tinsert(self.enemies, Enemy(self, y))
         tinsert(self.unit_not_seen, 0)
     end
 
@@ -209,26 +214,25 @@ function HateList:__constructor()
 end
 
 function HateList:Enable(enable)
-    local f = self.frame
     if enable then
-        f:RegisterEvent("FORBIDDEN_NAME_PLATE_UNIT_ADDED")
-        f:RegisterEvent("FORBIDDEN_NAME_PLATE_UNIT_REMOVED")
-        f:RegisterEvent("NAME_PLATE_UNIT_ADDED")
-        f:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
-        f:RegisterEvent("PLAYER_REGEN_ENABLED")
-        f:RegisterEvent("PLAYER_TARGET_CHANGED")
-        f:RegisterEvent("UNIT_FLAGS")
-        f:RegisterEvent("UNIT_HEALTH")
-        f:RegisterEvent("UNIT_NAME_UPDATE")
-        f:RegisterEvent("UNIT_THREAT_LIST_UPDATE")
+        self:RegisterEvent("FORBIDDEN_NAME_PLATE_UNIT_ADDED")
+        self:RegisterEvent("FORBIDDEN_NAME_PLATE_UNIT_REMOVED")
+        self:RegisterEvent("NAME_PLATE_UNIT_ADDED")
+        self:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
+        self:RegisterEvent("PLAYER_REGEN_ENABLED")
+        self:RegisterEvent("PLAYER_TARGET_CHANGED")
+        self:RegisterEvent("UNIT_FLAGS")
+        self:RegisterEvent("UNIT_HEALTH")
+        self:RegisterEvent("UNIT_NAME_UPDATE")
+        self:RegisterEvent("UNIT_THREAT_LIST_UPDATE")
         CLM.RegisterEventSubtype(self, self.OnAttack, "DAMAGE")
         CLM.RegisterEventSubtype(self, self.OnAttack, "PERIODIC_DAMAGE")
         CLM.RegisterEventSubtype(self, self.OnAttack, "MISS")
         CLM.RegisterEventCategory(self, self.OnUnitGone, "UNIT")
         self:Refresh(true)
     else
-        f:Hide()
-        f:UnregisterAllEvents()
+        self:Hide()
+        self:UnregisterAllEvents()
         CLM.UnregisterAllEvents(self)
     end
 end
@@ -452,10 +456,10 @@ end
 
 function HateList:ResizeFrame(count)
     if count > 0 then
-        self.frame:SetHeight(4+27*count)
-        self.frame:Show()
+        self:SetHeight(4+27*count)
+        self:Show()
     else
-        self.frame:Hide()
+        self:Hide()
     end
 end
 
@@ -473,7 +477,7 @@ function HateList:UpdateTargetHighlight()
     for index, enemy in ipairs(self.enemies) do
         if enemy:UnitGUID() == target_guid then
             highlight_t:ClearAllPoints()
-            highlight_t:SetPoint("TOPLEFT", self.frame, "TOPLEFT",
+            highlight_t:SetPoint("TOPLEFT", self, "TOPLEFT",
                                  0, -1-27*(index-1))
             highlight_t:Show()
             highlight_c:Show()
@@ -487,8 +491,8 @@ function HateList:SetMinTop(y)
     if y > self.base_y then  -- Remember that Y coordinates are negative!
         y = self.base_y
     end
-    self.frame:ClearAllPoints()
-    self.frame:SetPoint("TOPLEFT", 30, y)
+    self:ClearAllPoints()
+    self:SetPoint("TOPLEFT", 30, y)
 end
 
 ---------------------------------------------------------------------------
