@@ -6,6 +6,7 @@ local StandardMenuFrame = MenuCursor.StandardMenuFrame
 
 local class = WoWXIV.class
 
+local min = math.min
 local tinsert = tinsert
 
 ---------------------------------------------------------------------------
@@ -523,30 +524,43 @@ function QualityDialogHandler:__constructor()
     self:__super(QualityDialog)
     self.cancel_func = nil
     self.cancel_button = QualityDialog.CancelButton
+    self.quantity_inputs = {}
+    for _, container in ipairs(self.frame.containers) do
+        tinsert(self.quantity_inputs, 
+                MenuCursor.NumberInput(container.EditBox))
+    end
     self.targets = {
-        [QualityDialog.Container1.EditBox.DecrementButton] = {
-            on_click = self.ClickToMouseDown, lock_highlight = true,
+        [QualityDialog.Container1.EditBox] = {
+            on_click = function() self:EditQuantity(1) end,
             up = false, down = QualityDialog.AcceptButton},
-        [QualityDialog.Container1.EditBox.IncrementButton] = {
-            on_click = self.ClickToMouseDown, lock_highlight = true,
+        [QualityDialog.Container2.EditBox] = {
+            on_click = function() self:EditQuantity(2) end,
             up = false, down = QualityDialog.AcceptButton},
-        [QualityDialog.Container2.EditBox.DecrementButton] = {
-            on_click = self.ClickToMouseDown, lock_highlight = true,
-            up = false, down = QualityDialog.AcceptButton},
-        [QualityDialog.Container2.EditBox.IncrementButton] = {
-            on_click = self.ClickToMouseDown, lock_highlight = true,
-            up = false, down = QualityDialog.AcceptButton},
-        [QualityDialog.Container3.EditBox.DecrementButton] = {
-            on_click = self.ClickToMouseDown, lock_highlight = true,
-            up = false, down = QualityDialog.AcceptButton},
-        [QualityDialog.Container3.EditBox.IncrementButton] = {
-            on_click = self.ClickToMouseDown, lock_highlight = true,
+        [QualityDialog.Container3.EditBox] = {
+            on_click = function() self:EditQuantity(3) end,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.AcceptButton] = {
             can_activate = true, lock_highlight = true, is_default = true},
         [QualityDialog.CancelButton] = {
             can_activate = true, lock_highlight = true},
     }
+end
+
+function QualityDialogHandler:OnHide()
+    for _, input in ipairs(self.quantity_inputs) do
+        input:CancelEdit()
+    end
+    StandardMenuFrame.OnHide(self)
+end
+
+function QualityDialogHandler:EditQuantity(index)
+    local container = self.frame.containers[index]
+    local input = self.quantity_inputs[index]
+    local item = self.frame:GetReagent(index)
+    local required = self.frame:GetQuantityRequired()
+    local owned = ProfessionsUtil.GetReagentQuantityInPossession(item, self.frame.characterInventoryOnly)
+    local limit = min(required, owned)
+    input:Edit(0, limit)
 end
 
 

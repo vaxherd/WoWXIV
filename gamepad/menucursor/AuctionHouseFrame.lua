@@ -312,8 +312,13 @@ function CommoditiesBuyFrameHandler:__constructor()
     self.cancel_button = self.frame.BackButton
     self.has_Button3 = true  -- Used to trigger an item list refresh.
     self.tab_handler = AuctionHouseFrameHandler.instance.tab_handler
-    self.quantity_input =
-        MenuCursor.NumberInput(self.frame.BuyDisplay.QuantityInput.InputBox)
+    local InputBox = self.frame.BuyDisplay.QuantityInput.InputBox
+    self.quantity_input = MenuCursor.NumberInput(
+        InputBox,
+        function()
+            local callback = InputBox:GetInputChangedCallback()
+            if callback then callback() end
+        end)
 end
 
 function CommoditiesBuyFrameHandler:OnHide()

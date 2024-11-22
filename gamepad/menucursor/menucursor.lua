@@ -1694,15 +1694,17 @@ end
 --[[
     Class implementing a gamepad-controlled numeric input field.
     Pass the associated input frame, which must be an EditBox, to the
-    constructor.
+    constructor.  Optionally also pass a callback to be called whenever
+    the input value is changed during editing.
 ]]--
 MenuCursor.NumberInput = class(StandardMenuFrame)
 local NumberInput = MenuCursor.NumberInput
 
-function NumberInput:__constructor(editbox)
+function NumberInput:__constructor(editbox, on_change)
     assert(type(editbox) == "table")
     assert(editbox:GetObjectType() == "EditBox")
     self.editbox = editbox
+    self.on_change = on_change
 
     -- Value (text string) of the EditBox when editing was started.
     self.old_value = nil
@@ -1844,10 +1846,8 @@ function NumberInput:UpdateLabel()
     self.label:SetText(text)
 end
 
--- Takes care of also calling the edit box's update callback, if any.
+-- Takes care of also calling the on-change callback, if any.
 function NumberInput:SetEditBoxText(text)
-    local editbox = self.editbox
-    editbox:SetText(text)
-    local callback = editbox:GetInputChangedCallback()
-    if callback then callback() end
+    self.editbox:SetText(text)
+    if self.on_change then self.on_change() end
 end
