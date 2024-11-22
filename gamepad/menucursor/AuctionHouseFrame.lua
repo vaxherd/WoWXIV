@@ -337,10 +337,10 @@ function CommoditiesBuyFrameHandler:SetTargets()
                         left = false, right = false},
         [InputBox] = {on_click = function() self:EditQuantity() end,
                       up = ItemButton, down = BuyButton,
-                      left = false, right = false},
+                      left = false, right = false, is_default = true},
         [BuyButton] = {can_activate = true, lock_highlight = true,
                        up = InputBox, down = BackButton,
-                       left = false, right = false, is_default = true},
+                       left = false, right = false},
     }
 end
 
