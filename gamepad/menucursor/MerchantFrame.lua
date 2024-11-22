@@ -13,6 +13,7 @@ function MerchantFrameHandler:__constructor()
     self:__super(MerchantFrame)
     self.on_prev_page = "MerchantPrevPageButton"
     self.on_next_page = "MerchantNextPageButton"
+    self.tab_handler = function(direction) self:OnTabCycle(direction) end
     -- We use the "sell all junk" button (which is always displayed on the
     -- "buy" tab and never displayed on the "sell" tab) as a proxy for tab
     -- change detection.
@@ -34,6 +35,16 @@ function MerchantFrameHandler:SetTargets()
     return (self.targets[MerchantItem1ItemButton]
             and MerchantItem1ItemButton
             or MerchantSellAllJunkButton)
+end
+
+function MerchantFrameHandler:OnTabCycle(direction)
+    -- We have only two tabs, so we can just unconditionally click the
+    -- currently unselected one.
+    if MerchantFrame.selectedTab == 1 then
+        MerchantFrameTab2:Click()
+    else
+        MerchantFrameTab1:Click()
+    end
 end
 
 function MerchantFrameHandler:OnTabChange()
@@ -78,44 +89,40 @@ function MerchantFrameHandler:OnHideItemButton(frame)
 end
 
 function MerchantFrameHandler:UpdateTargets()
-    self.targets = {
-        [MerchantFrameTab1] = {can_activate = true},
-        [MerchantFrameTab2] = {can_activate = true},
-    }
+    self.targets = {}
     if MerchantFrame.selectedTab == 1 then
-        self.targets[MerchantSellAllJunkButton] = {
-            can_activate = true, lock_highlight = true,
-            send_enter_leave = true, down = MerchantFrameTab2}
-        self.targets[MerchantBuyBackItemItemButton] = {
-            can_activate = true, lock_highlight = true,
-            send_enter_leave = true,
-            up = MerchantNextPageButton, down = MerchantFrameTab2}
         if MerchantPrevPageButton:IsShown() then
             self.targets[MerchantPrevPageButton] = {
                 can_activate = true, lock_highlight = true,
-                down = MerchantSellAllJunkButton}
+                left = MerchantNextPageButton, right = MerchantNextPageButton}
             self.targets[MerchantNextPageButton] = {
                 can_activate = true, lock_highlight = true,
-                down = MerchantBuyBackItemItemButton}
-            self.targets[MerchantSellAllJunkButton].up = MerchantPrevPageButton
-            self.targets[MerchantBuyBackItemItemButton].up = MerchantNextPageButton
+                left = MerchantPrevPageButton, right = MerchantPrevPageButton}
         end
+        self.targets[MerchantSellAllJunkButton] = {
+            can_activate = true, lock_highlight = true,
+            send_enter_leave = true, down = false,
+            left = MerchantBuyBackItemItemButton,
+            right = MerchantBuyBackItemItemButton}
+        self.targets[MerchantBuyBackItemItemButton] = {
+            can_activate = true, lock_highlight = true,
+            send_enter_leave = true,
+            left = MerchantSellAllJunkButton,
+            right = MerchantSellAllJunkButton}
         if MerchantRepairItemButton:IsShown() then
             self.targets[MerchantRepairItemButton] = {
                 lock_highlight = true, send_enter_leave = true,
-                down = MerchantFrameTab1}
+                left = MerchantBuyBackItemItemButton,
+                right = MerchantRepairAllButton}
             self.targets[MerchantRepairAllButton] = {
                 can_activate = true, lock_highlight = true,
-                send_enter_leave = true, down = MerchantFrameTab2}
-            if MerchantPrevPageButton:IsShown() then
-                self.targets[MerchantRepairItemButton].up = MerchantPrevPageButton
-                self.targets[MerchantRepairAllButton].up = MerchantPrevPageButton
-            end
-            self.targets[MerchantFrameTab1].up = MerchantRepairItemButton
-            self.targets[MerchantFrameTab2].up = MerchantRepairAllButton
-        else
-            self.targets[MerchantFrameTab1].up = MerchantSellAllJunkButton
-            self.targets[MerchantFrameTab2].up = MerchantSellAllJunkButton
+                send_enter_leave = true,
+                left = MerchantRepairItemButton,
+                right = MerchantSellAllJunkButton}
+            self.targets[MerchantSellAllJunkButton].left =
+                MerchantRepairAllButton
+            self.targets[MerchantBuyBackItemItemButton].right =
+                MerchantRepairItemButton
         end
     end
     local initial = nil
@@ -152,82 +159,68 @@ function MerchantFrameHandler:UpdateMovement()
         last_item = last_item + 1
     end
     last_item = last_item - 1
-    local first_left, first_right, last_left, last_right
+    local first_left, first_right, last_left, last_right =
+        false, false, false, false
     if last_item > 0 then
         first_left = ItemButton(1)
         first_right = ItemButton(last_item==1 and 1 or 2)
-        local i = last_item
-        if i%2 == 0 then i = i-1 end
-        last_left = ItemButton(i)
-        last_right = ItemButton(last_item)
-        local prev = last_right
+        local prev = ItemButton(last_item)
         for i = 1, last_item do
             local button = ItemButton(i)
             local next = ItemButton(i==last_item and 1 or i+1)
             self.targets[button].left = prev
             self.targets[button].right = next
-            prev = button
-        end
-    else
-        if MerchantPrevPageButton:IsShown() then
-            first_left = MerchantPrevPageButton
-            first_right = MerchantNextPageButton
-        elseif MerchantSellAllJunkButton:IsShown() then
-            if MerchantRepairItemButton:IsShown() then
-                first_left = MerchantRepairItemButton
+            if i%2 == 0 then
+                last_right = button
             else
-                first_left = MerchantSellAllJunkButton
+                last_left = button
             end
-            first_right = MerchantSellAllJunkButton
-        else
-            first_left = false
-            first_right = false
-        end
-        last_left = MerchantFrameTab1
-        last_right = MerchantFrameTab2
-    end
-    if first_left then
-        self.targets[first_left].up = MerchantFrameTab1
-        self.targets[MerchantFrameTab1].down = first_left
-        if first_right ~= first_left then
-            self.targets[first_right].up = MerchantFrameTab2
-            self.targets[MerchantFrameTab2].down = first_right
+            prev = button
         end
     end
     if MerchantPrevPageButton:IsShown() then
+        assert(last_left)  -- Should never have page buttons without items.
+        self.targets[last_left].down = MerchantPrevPageButton
+        if last_right ~= last_left then
+            self.targets[last_right].down = MerchantNextPageButton
+        end
         self.targets[MerchantPrevPageButton].up = last_left
         self.targets[MerchantNextPageButton].up = last_right
-        if last_left then
-            self.targets[last_left].down = MerchantPrevPageButton
-            if last_right ~= last_left then
-                self.targets[last_right].down = MerchantNextPageButton
-            end
+        last_left = MerchantPrevPageButton
+        last_right = MerchantNextPageButton
+        first_left = first_left or last_left
+        first_right = first_right or last_right
+    end
+    if MerchantSellAllJunkButton:IsShown() then
+        local left_button
+        if MerchantRepairItemButton:IsShown() then
+            left_button = MerchantRepairItemButton
+        else
+            left_button = MerchantSellAllJunkButton
         end
-    elseif MerchantSellAllJunkButton:IsShown() then
-        local left
+        if last_left then
+            self.targets[last_left].down = left_button
+        end
+        if last_right ~= last_left then
+            self.targets[last_right].down = MerchantBuyBackItemItemButton
+        end
         if MerchantRepairItemButton:IsShown() then
             self.targets[MerchantRepairItemButton].up = last_left
             self.targets[MerchantRepairAllButton].up = last_left
-            left = MerchantRepairItemButton
-        else
-            left = MerchantSellAllJunkButton
         end
         self.targets[MerchantSellAllJunkButton].up = last_left
         self.targets[MerchantBuyBackItemItemButton].up = last_right
-        if last_left then
-            self.targets[last_left].down = left
-            if last_right ~= last_left then
-                self.targets[last_right].down = MerchantBuyBackItemItemButton
-            end
-        end
-    else
-        self.targets[MerchantFrameTab1].up = last_left
-        self.targets[MerchantFrameTab2].up = last_right
-        if last_left then
-            self.targets[last_left].down = MerchantFrameTab1
-            if last_right ~= last_left then
-                self.targets[last_right].down = MerchantFrameTab2
-            end
+        last_left = left_button
+        last_right = MerchantBuyBackItemItemButton
+        first_left = first_left or last_left
+        first_right = first_right or last_right
+    end
+    if first_left then
+        self.targets[first_left].up = last_left
+        self.targets[last_left].down = first_left
+        if first_right ~= first_left then
+            self.targets[first_right].up = last_right
+            self.targets[last_right].down = first_right
         end
     end
 end
