@@ -311,14 +311,12 @@ function CommoditiesBuyFrameHandler:__constructor()
     self.cancel_func = nil
     self.cancel_button = self.frame.BackButton
     self.has_Button3 = true  -- Used to trigger an item list refresh.
+    self.on_prev_page = function(dir) self:AdjustQuantity(dir) end
+    self.on_next_page = self.on_prev_page
     self.tab_handler = AuctionHouseFrameHandler.instance.tab_handler
     local InputBox = self.frame.BuyDisplay.QuantityInput.InputBox
     self.quantity_input = MenuCursor.NumberInput(
-        InputBox,
-        function()
-            local callback = InputBox:GetInputChangedCallback()
-            if callback then callback() end
-        end)
+        InputBox, function() self:OnQuantityChanged() end)
 end
 
 function CommoditiesBuyFrameHandler:OnHide()
@@ -352,15 +350,41 @@ function CommoditiesBuyFrameHandler:SetTargets()
     }
 end
 
-function CommoditiesBuyFrameHandler:EditQuantity()
+function CommoditiesBuyFrameHandler:GetMaxQuantity()
     local item = self.frame.BuyDisplay:GetItemID()
-    if item then
-        local limit = AuctionHouseUtil.AggregateSearchResultsByQuantity(
-            item, math.huge)
+    return item and AuctionHouseUtil.AggregateSearchResultsByQuantity(item, math.huge)
+end
+
+function CommoditiesBuyFrameHandler:AdjustQuantity(amount)
+    local InputBox = self.frame.BuyDisplay.QuantityInput.InputBox
+    if self:GetTarget() == InputBox then
+        local limit = self:GetMaxQuantity()
         if limit and limit > 0 then
-            self.quantity_input:Edit(1, limit)
+            local value = tonumber(InputBox:GetText())
+            if not value then
+                value = 1
+            else
+                value = value + amount
+                if value < 1 then value = 1 end
+                if value > limit then value = limit end
+            end
+            InputBox:SetText(tostring(value))
+            self:OnQuantityChanged()
         end
     end
+end
+
+function CommoditiesBuyFrameHandler:EditQuantity()
+    local limit = self:GetMaxQuantity()
+    if limit and limit > 0 then
+        self.quantity_input:Edit(1, limit)
+    end
+end
+
+function CommoditiesBuyFrameHandler:OnQuantityChanged()
+    local InputBox = self.frame.BuyDisplay.QuantityInput.InputBox
+    local callback = InputBox:GetInputChangedCallback()
+    if callback then callback() end
 end
 
 function CommoditiesBuyFrameHandler:OnAction(button)

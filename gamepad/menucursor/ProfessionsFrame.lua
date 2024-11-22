@@ -524,6 +524,8 @@ function QualityDialogHandler:__constructor()
     self:__super(QualityDialog)
     self.cancel_func = nil
     self.cancel_button = QualityDialog.CancelButton
+    self.on_prev_page = function(dir) self:AdjustQuantity(dir) end
+    self.on_next_page = self.on_prev_page
     self.quantity_inputs = {}
     for _, container in ipairs(self.frame.containers) do
         tinsert(self.quantity_inputs, 
@@ -553,14 +555,34 @@ function QualityDialogHandler:OnHide()
     StandardMenuFrame.OnHide(self)
 end
 
-function QualityDialogHandler:EditQuantity(index)
-    local container = self.frame.containers[index]
-    local input = self.quantity_inputs[index]
+function QualityDialogHandler:GetMaxQuantity(index)
     local item = self.frame:GetReagent(index)
     local required = self.frame:GetQuantityRequired()
     local owned = ProfessionsUtil.GetReagentQuantityInPossession(item, self.frame.characterInventoryOnly)
-    local limit = min(required, owned)
-    input:Edit(0, limit)
+    return min(required, owned)
+end
+
+function QualityDialogHandler:EditQuantity(index)
+    local input = self.quantity_inputs[index]
+    input:Edit(0, self:GetMaxQuantity(index))
+end
+
+function QualityDialogHandler:AdjustQuantity(amount)
+    local target = self:GetTarget()
+    for index, container in ipairs(self.frame.containers) do
+        if target == container.EditBox then
+            local limit = self:GetMaxQuantity(index)
+            local value = tonumber(target:GetText())
+            if not value then
+                value = 0
+            else
+                value = value + amount
+                if value < 0 then value = 0 end
+                if value > limit then value = limit end
+            end
+            target:SetText(tostring(value))
+        end
+    end
 end
 
 
