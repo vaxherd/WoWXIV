@@ -375,11 +375,20 @@ function QuestItemButton:__constructor()
     self:RegisterUnitEvent("UNIT_QUEST_LOG_CHANGED", "player")
     self:RegisterEvent("BAG_UPDATE")  -- for QUEST_ITEM quests
     self:RegisterEvent("BAG_UPDATE_COOLDOWN")
-    self:SetScript("OnEvent", function(_,event) self:UpdateQuestItem() end)
+    self:RegisterEvent("PLAYER_TARGET_CHANGED")
+    self:SetScript("OnEvent", self.OnEvent)
     self:SetScript("OnEnter", self.OnEnter)
     self:SetScript("OnLeave", self.OnLeave)
     self:HookScript("OnClick", self.OnClick)
     self:UpdateQuestItem()
+end
+
+function QuestItemButton:OnEvent(event)
+    if event == "PLAYER_TARGET_CHANGED" then
+        self:UpdateItemTarget()
+    else
+        self:UpdateQuestItem()
+    end
 end
 
 function QuestItemButton:OnEnter()
@@ -473,21 +482,7 @@ function QuestItemButton:UpdateQuestItem(force, is_retry)
             -- quest items for the various gormling world quests in Ardenweald.
             self:SetAttribute("item", "item:"..item)
         end
-        local known_target = ITEM_TARGET[item]
-        if known_target then
-            if known_target == "target" and not UnitExists("target") then
-                known_target = "none"  -- Fall back to right-stick targeting.
-            end
-            if #known_target > 0 then
-               self:SetAttribute("unit", known_target)
-            else
-               self:SetAttribute("unit", nil)
-            end
-        elseif IsHelpfulItem(item) or IsHarmfulItem(item) then
-            self:SetAttribute("unit", "target")
-        else
-            self:SetAttribute("unit", "player")
-        end
+        self:UpdateItemTarget()
         local icon_id = (GetItemOrSpellIcon(item)
                          or "Interface/ICONS/INV_Misc_QuestionMark")
         self.icon:SetTexture(icon_id)
@@ -519,6 +514,30 @@ function QuestItemButton:UpdateQuestItem(force, is_retry)
 
     self.item = item
     self:UpdateTooltip()
+end
+
+function QuestItemButton:UpdateItemTarget()
+    if InCombatLockdown() then return end
+    local item = self.selected_item
+    if not item then return end
+    local target = ITEM_TARGET[item]
+    if not target then
+        -- We should never hit this point for spells (item < 0), but
+        -- default to "target" for them.
+        if item < 0 or IsHelpfulItem(item) or IsHarmfulItem(item) then
+            target = "target"
+        else
+            target = "player"
+        end
+    end
+    if target == "target" and not UnitExists("target") then
+        target = "none"  -- Fall back to right-stick targeting.
+    end
+    if #target > 0 then
+       self:SetAttribute("unit", target)
+    else
+       self:SetAttribute("unit", nil)
+    end
 end
 
 -- Returns a pair (item, n), where |item| is the ID of the first item for
