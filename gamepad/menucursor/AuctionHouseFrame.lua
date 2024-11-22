@@ -186,6 +186,9 @@ function BuyTabHandler:RefreshTargets()
         self.targets[target].down = top or false
         self.targets[target].up = bottom or false
     end
+    if initial and not self:GetTargetFrame(initial) then
+        ItemScroll:ScrollToElementDataIndex(initial.index)
+    end
     return initial or top or SearchBar.FavoritesSearchButton
 end
 
