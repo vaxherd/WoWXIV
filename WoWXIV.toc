@@ -55,6 +55,7 @@ gamepad/menucursor/ProfessionsFrame.lua
 gamepad/menucursor/QuestFrame.lua
 gamepad/menucursor/SpellBookFrame.lua
 gamepad/menucursor/SplashFrame.lua
+gamepad/menucursor/StackSplitFrame.lua
 gamepad/menucursor/StaticPopup.lua
 gamepad/menucursor/UIWidgetCenterDisplayFrame.lua
 gamepad/menucursor/VoidStoragePurchaseFrame.lua

@@ -4,6 +4,8 @@ local MenuCursor = WoWXIV.Gamepad.MenuCursor
 
 local class = WoWXIV.class
 
+local floor = math.floor
+
 ---------------------------------------------------------------------------
 
 local MerchantFrameHandler = class(MenuCursor.CoreMenuFrame)
@@ -11,6 +13,7 @@ MenuCursor.Cursor.RegisterFrameHandler(MerchantFrameHandler)
 
 function MerchantFrameHandler:__constructor()
     self:__super(MerchantFrame)
+    self.has_Button4 = true  -- Used to purchase multiple of an item.
     self.on_prev_page = "MerchantPrevPageButton"
     self.on_next_page = "MerchantNextPageButton"
     self.tab_handler = function(direction) self:OnTabCycle(direction) end
@@ -35,6 +38,56 @@ function MerchantFrameHandler:SetTargets()
     return (self.targets[MerchantItem1ItemButton]
             and MerchantItem1ItemButton
             or MerchantSellAllJunkButton)
+end
+
+function MerchantFrameHandler:OnAction(button)
+    assert(button == "Button4")
+
+    local target = self:GetTarget()
+    local id
+    for i = 1, 12 do
+        local frame_name = "MerchantItem" .. i .. "ItemButton"
+        local frame = _G[frame_name]
+        if target == frame then
+            id = frame:GetID()
+            break
+        end
+    end
+    if not id then return end
+
+    --[[
+        This is essentially a reimplementation of
+        MerchantItemButton_OnModifiedClick().  We unfortunately can't
+        just call into that code because it explicitly checks
+        IsModifiedClick("SPLITSTACK"), which we can't affect.
+
+        Note a possible bug in Blizzard code, which calculates the limit
+        for alternate currencies as the number of individual items
+        purchasable; this doesn't match the test for regular money, which
+        counts the number of purchasable stacks instead).  It's not clear
+        whether there are any stacked items sold by merchants for non-money
+        currency, so it may only be a theoretical problem, but we avoid it
+        anyway.
+    ]]--
+    local info = C_MerchantFrame.GetItemInfo(id)
+    local limit = GetMerchantItemMaxStack(id)  -- Undocumented function.
+    if not limit or limit <= 1 then return end  -- Can't buy multiple.
+    if info.price and info.price > 0 then
+        local can_afford = floor(GetMoney() / info.price)
+        if can_afford < limit then limit = can_afford end
+    end
+    if info.hasExtendedCost then
+        for i = 1, GetMerchantItemCostInfo(id) do  -- Undocumented function.
+            local _, cost, link, currency_name = GetMerchantItemCostItem(id, i)  -- Undocumented function.
+            if link and not currency_name then
+                local owned = C_Item.GetItemCount(link, false, false, true)
+                local can_afford = floor(owned / cost)
+                if can_afford < limit then limit = can_afford end
+            end
+        end
+    end
+    StackSplitFrame:OpenStackSplitFrame(
+        limit, target, "BOTTOMLEFT", "TOPLEFT", info.stackCount)
 end
 
 function MerchantFrameHandler:OnTabCycle(direction)

@@ -404,7 +404,7 @@ function Cursor:UpdateCursor(in_combat)
     end
 
     if target and self.gamepad_active and not in_combat then
-        self:SetCursorPoint(target_frame)
+        self:SetCursorPoint(focus, target)
         if focus:IsTargetClickable(target) then
             self:SetAttribute("clickbutton1", target_frame)
         else
@@ -525,7 +525,7 @@ function Cursor:OnUpdate()
             - BfA troop recruit frame on first open after /reload
             - Upgrade confirmation dialog for Shadowlands covenant sanctum
     ]]--
-    self:SetCursorPoint(target_frame)
+    self:SetCursorPoint(focus, target)
 
     local t = GetTime()
     t = t - floor(t)
@@ -537,16 +537,12 @@ function Cursor:OnUpdate()
 end
 
 -- Helper for UpdateCursor() and OnUpdate() to set the cursor frame anchor.
-function Cursor:SetCursorPoint(target)
+function Cursor:SetCursorPoint(focus, target)
     self:ClearAllPoints()
     -- Work around frame reference limitations on secure buttons.
     --self:SetPoint("TOPRIGHT", target, "LEFT")
-    local x = target:GetLeft()
-    local _, y = target:GetCenter()
+    local x, y = focus:GetTargetPosition(target)
     if not x or not y then return end
-    local scale = target:GetEffectiveScale() / UIParent:GetEffectiveScale()
-    x = x * scale
-    y = y * scale
     self:SetPoint("TOPRIGHT", UIParent, "TOPLEFT", x, y-UIParent:GetHeight())
 end
 
@@ -892,6 +888,21 @@ function MenuFrame:GetTargetEffectiveScale(target)
     local frame = self:GetTargetFrame(target)
     if not frame then return nil end
     return frame:GetEffectiveScale()
+end
+
+-- Return the position (relative to UIParent) at which the cursor should be
+-- displayed for the given target.
+function MenuFrame:GetTargetPosition(target)
+    local params = self.targets[target]
+    local frame = self:GetTargetFrame(target)
+    local x = (params and params.x_rightalign) and frame:GetRight()
+                                               or frame:GetLeft()
+    local _, y = frame:GetCenter()
+    if not x or not y then return end
+    local scale = frame:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    x = (x + (params.x_offset or 0)) * scale
+    y = y * scale
+    return x, y
 end
 
 -- Return the next target in the given direction from the given target,
@@ -1702,7 +1713,9 @@ local NumberInput = MenuCursor.NumberInput
 
 function NumberInput:__constructor(editbox, on_change)
     assert(type(editbox) == "table")
-    assert(editbox:GetObjectType() == "EditBox")
+    -- Special case for StackSplitFrame, which uses a nonstandard input box.
+    self.is_StackSplitText = (editbox == StackSplitFrame.StackSplitText)
+    assert(self.is_StackSplitText or editbox:GetObjectType() == "EditBox")
     self.editbox = editbox
     self.on_change = on_change
 
@@ -1712,21 +1725,29 @@ function NumberInput:__constructor(editbox, on_change)
     self.edittext_alpha = nil
     -- Current input value (numeric).
     self.value = nil
-    -- Current digit position being editing (0 = units place, 1 = tens, etc).
+    -- Current digit position being edited (0 = units place, 1 = tens, etc).
     self.pos = nil
 
     local function Cancel()
         self:CancelEdit()
     end
-    hooksecurefunc(editbox, "Hide", Cancel)
+    hooksecurefunc(self.is_StackSplitText and StackSplitFrame or editbox,
+                   "Hide", Cancel)
 
     local f = CreateFrame("Frame")
     self:__super(f, MenuFrame.MODAL)
     self.cancel_func = Cancel
     f:Hide()
     f:SetFrameStrata("TOOLTIP") -- Make sure it's visible above other elements.
-    f:SetScale(editbox:GetEffectiveScale())
-    f:SetAllPoints(editbox)
+    if self.is_StackSplitText then
+        f:SetScale(UIParent:GetEffectiveScale()*0.64)
+        f:SetPoint("TOPRIGHT", editbox)
+        f:SetPoint("BOTTOMRIGHT", editbox)
+        f:SetWidth(72)
+    else
+        f:SetScale(editbox:GetEffectiveScale())
+        f:SetAllPoints(editbox)
+    end
 
     local label = f:CreateFontString(nil, "ARTWORK")
     self.label = label
