@@ -41,6 +41,9 @@ gamepad/menucursor/FlightMapFrame.lua
 gamepad/menucursor/GarrisonCapacitiveDisplayFrame.lua
 gamepad/menucursor/GossipFrame.lua
 gamepad/menucursor/InboxFrame.lua
+gamepad/menucursor/LFGDungeonReadyDialog.lua
+gamepad/menucursor/LFGListApplicationDialog.lua
+gamepad/menucursor/LFGListInviteDialog.lua
 gamepad/menucursor/MerchantFrame.lua
 gamepad/menucursor/OpenMailFrame.lua
 gamepad/menucursor/OrderHallTalentFrame.lua

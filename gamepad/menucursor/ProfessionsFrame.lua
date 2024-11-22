@@ -321,10 +321,10 @@ function SchematicFormHandler:SetTargets()
         can_activate = true, lock_highlight = true,
         down = top_icon, left = false}
     self.targets[CraftingPage.CreateMultipleInputBox.DecrementButton] = {
-        on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+        on_click = self.ClickToMouseDown, lock_highlight = true,
         down = top_icon}
     self.targets[CraftingPage.CreateMultipleInputBox.IncrementButton] = {
-        on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+        on_click = self.ClickToMouseDown, lock_highlight = true,
         down = top_icon}
     self.targets[CraftingPage.CreateButton] = {
         can_activate = true, lock_highlight = true, send_enter_leave = true,
@@ -525,22 +525,22 @@ function QualityDialogHandler:__constructor()
     self.cancel_button = QualityDialog.CancelButton
     self.targets = {
         [QualityDialog.Container1.EditBox.DecrementButton] = {
-            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            on_click = self.ClickToMouseDown, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.Container1.EditBox.IncrementButton] = {
-            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            on_click = self.ClickToMouseDown, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.Container2.EditBox.DecrementButton] = {
-            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            on_click = self.ClickToMouseDown, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.Container2.EditBox.IncrementButton] = {
-            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            on_click = self.ClickToMouseDown, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.Container3.EditBox.DecrementButton] = {
-            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            on_click = self.ClickToMouseDown, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.Container3.EditBox.IncrementButton] = {
-            on_click = self.ClickNumericSpinnerButton, lock_highlight = true,
+            on_click = self.ClickToMouseDown, lock_highlight = true,
             up = false, down = QualityDialog.AcceptButton},
         [QualityDialog.AcceptButton] = {
             can_activate = true, lock_highlight = true, is_default = true},

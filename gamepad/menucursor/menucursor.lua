@@ -1461,11 +1461,14 @@ function MenuFrame.HideTooltip()
     end
 end
 
--- on_click handler for NumericInputSpinnerTemplate increment/decrement
--- buttons, which use an OnMouseDown/Up event pair instead of OnClick.
-function MenuFrame.ClickNumericSpinnerButton(frame)
-    frame:GetScript("OnMouseDown")(frame, "LeftButton", true)
-    frame:GetScript("OnMouseUp")(frame, "LeftButton")
+-- Generic on_click handler which converts a click action into an
+-- OnMouseDown("LeftButton",true) event followed by an
+-- OnMouseUp("LeftButton") event for the button.
+function MenuFrame.ClickToMouseDown(frame)
+    local down = frame:GetScript("OnMouseDown")
+    if down then down(frame, "LeftButton", true) end
+    local up = frame:GetScript("OnMouseUp")
+    if up then up(frame, "LeftButton") end
 end
 
 -- Return a table suitable for use as a targets[] key for an element of
