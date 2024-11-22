@@ -799,6 +799,7 @@ function PartyList:__constructor()
     f.events["GROUP_ROSTER_UPDATE"] = f.OnPartyChange
     f.events["PARTY_LEADER_CHANGED"] = f.OnPartyChange
     f.events["PLAYER_ENTERING_WORLD"] = f.OnPartyChange
+    f.events["PLAYER_ROLES_ASSIGNED"] = f.OnPartyChange
     f.events["PLAYER_TARGET_CHANGED"] = f.OnTargetChange
     f.events["UNIT_ABSORB_AMOUNT_CHANGED"] = f.OnMemberUpdate
     f.events["UNIT_AURA"] = f.OnMemberUpdate
