@@ -164,45 +164,21 @@ function HateList:__constructor()
     self:SetSize(200, 31)
     self:SetScript("OnEvent", self.OnEvent)
 
-    local bg_t = self:CreateTexture(nil, "BACKGROUND")
-    self.bg_t = bg_t
-    bg_t:SetPoint("TOP", self)
-    bg_t:SetSize(self:GetWidth(), 4)
-    WoWXIV.SetUITexture(bg_t, 0, 256, 0, 4)
-    bg_t:SetVertexColor(0, 0, 0, 1)
-    local bg_b = self:CreateTexture(nil, "BACKGROUND")
-    self.bg_b = bg_b
-    bg_b:SetPoint("BOTTOM", self)
-    bg_b:SetSize(self:GetWidth(), 4)
-    WoWXIV.SetUITexture(bg_b, 0, 256, 7, 11)
-    bg_b:SetVertexColor(0, 0, 0, 1)
-    local bg_c = self:CreateTexture(nil, "BACKGROUND")
-    self.bg_c = bg_c
-    bg_c:SetPoint("TOPLEFT", bg_t, "BOTTOMLEFT")
-    bg_c:SetPoint("BOTTOMRIGHT", bg_b, "TOPRIGHT")
-    WoWXIV.SetUITexture(bg_c, 0, 256, 4, 7)
-    bg_c:SetVertexColor(0, 0, 0, 1)
+    local bg = self:CreateTexture(nil, "BACKGROUND")
+    self.bg = bg
+    bg:SetAllPoints()
+    WoWXIV.SetUITexture(bg, 0, 256, 0, 11)
+    bg:SetTextureSliceMargins(32, 4, 32, 4)
+    bg:SetVertexColor(0, 0, 0, 1)
 
-    local highlight_t = self:CreateTexture(nil, "BACKGROUND", nil, 1)
-    self.highlight_t = highlight_t
-    highlight_t:SetSize(self:GetWidth(), 4)
-    WoWXIV.SetUITexture(highlight_t, 0, 256, 0, 4)
-    highlight_t:SetVertexColor(1, 1, 1, 0.5)
-    local highlight_c = self:CreateTexture(nil, "BACKGROUND", nil, 1)
-    self.highlight_c = highlight_c
-    highlight_c:SetPoint("TOP", highlight_t, "BOTTOM")
-    highlight_c:SetSize(self:GetWidth(), 27-6)
-    WoWXIV.SetUITexture(highlight_c, 0, 256, 4, 7)
-    highlight_c:SetVertexColor(1, 1, 1, 0.5)
-    local highlight_b = self:CreateTexture(nil, "BACKGROUND", nil, 1)
-    self.highlight_b = highlight_b
-    highlight_b:SetPoint("TOP", highlight_c, "BOTTOM")
-    highlight_b:SetSize(self:GetWidth(), 4)
-    WoWXIV.SetUITexture(highlight_b, 0, 256, 7, 11)
-    highlight_b:SetVertexColor(1, 1, 1, 0.5)
-    highlight_t:Hide()
-    highlight_c:Hide()
-    highlight_b:Hide()
+    local highlight = self:CreateTexture(nil, "BACKGROUND")
+    self.highlight = highlight
+    highlight:SetSize(self:GetWidth(), self:GetHeight())
+    highlight:SetPoint("TOPLEFT")
+    WoWXIV.SetUITexture(highlight, 0, 256, 0, 11)
+    highlight:SetTextureSliceMargins(32, 4, 32, 4)
+    highlight:SetVertexColor(1, 1, 1, 0.5)
+    highlight:Hide()
 
     for i = 1, 8 do
         local y = -2-27*(i-1)
@@ -464,24 +440,18 @@ function HateList:ResizeFrame(count)
 end
 
 function HateList:UpdateTargetHighlight()
-    local highlight_t = self.highlight_t
-    local highlight_c = self.highlight_c
-    local highlight_b = self.highlight_b
-    highlight_t:Hide()
-    highlight_c:Hide()
-    highlight_b:Hide()
+    local highlight = self.highlight
+    highlight:Hide()
 
     local target_guid = UnitGUID("target")
     if not target_guid then return end
 
     for index, enemy in ipairs(self.enemies) do
         if enemy:UnitGUID() == target_guid then
-            highlight_t:ClearAllPoints()
-            highlight_t:SetPoint("TOPLEFT", self, "TOPLEFT",
-                                 0, -1-27*(index-1))
-            highlight_t:Show()
-            highlight_c:Show()
-            highlight_b:Show()
+            highlight:ClearAllPoints()
+            highlight:SetPoint("TOPLEFT", self, "TOPLEFT",
+                               0, -1-27*(index-1))
+            highlight:Show()
             return
         end
     end
