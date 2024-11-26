@@ -895,6 +895,7 @@ end
 function MenuFrame:GetTargetPosition(target)
     local params = self.targets[target]
     local frame = self:GetTargetFrame(target)
+    if not frame then return end
     local x = (params and params.x_rightalign) and frame:GetRight()
                                                or frame:GetLeft()
     local _, y = frame:GetCenter()
