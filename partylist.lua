@@ -325,7 +325,7 @@ function Member:__constructor(parent, unit)
         local class_icon = ClassIcon(f)
         self.class_icon = class_icon
         class_icon:SetAnchor("TOPLEFT", 0, -3, "BOTTOMRIGHT")
-        local hate_gauge = HateGauge(class_icon.frame, class_icon:GetWidth())
+        local hate_gauge = HateGauge(class_icon, class_icon:GetWidth())
         self.hate_gauge = hate_gauge
         hate_gauge:SetFrameLevel(class_icon:GetFrameLevel() + 1)
         hate_gauge:SetSinglePoint("BOTTOMLEFT", -4, -20)
