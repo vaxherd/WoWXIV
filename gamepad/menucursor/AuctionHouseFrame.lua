@@ -331,6 +331,14 @@ function CommoditiesBuyFrameHandler:SetTargets()
     local ItemButton = BuyDisplay.ItemDisplay.ItemButton
     local InputBox = BuyDisplay.QuantityInput.InputBox
     local BuyButton = BuyDisplay.BuyButton
+    local function ClickBuyButton()
+        -- Work around Blizzard bug which can leave the quantity field empty.
+        if InputBox:GetText() == "" then
+            InputBox:SetText("1")
+            self:OnQuantityChanged()
+        end
+        BuyButton:Click()
+    end
     self.targets = {
         [BackButton] = {can_activate = true, lock_highlight = true,
                         up = BuyButton, down = ItemButton,
@@ -344,7 +352,7 @@ function CommoditiesBuyFrameHandler:SetTargets()
         [InputBox] = {on_click = function() self:EditQuantity() end,
                       up = ItemButton, down = BuyButton,
                       left = false, right = false, is_default = true},
-        [BuyButton] = {can_activate = true, lock_highlight = true,
+        [BuyButton] = {on_click = ClickBuyButton, lock_highlight = true,
                        up = InputBox, down = BackButton,
                        left = false, right = false},
     }
