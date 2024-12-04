@@ -86,6 +86,10 @@ function InboxFrameHandler:UpdateMovement()
     for i = 1, 7 do
         local button = _G["MailItem"..i.."Button"]
         if button:IsShown() then
+            if self.targets[button] then
+                self.targets[button].up = nil
+                self.targets[button].down = nil
+            end
             if not first_item or button:GetTop() > first_item:GetTop() then
                 first_item = button
             end
