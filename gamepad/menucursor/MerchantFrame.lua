@@ -254,7 +254,7 @@ function MerchantFrameHandler:UpdateMovement()
         if last_left then
             self.targets[last_left].down = left_button
         end
-        if last_right ~= last_left then
+        if last_right and last_right ~= last_left then
             self.targets[last_right].down = MerchantBuyBackItemItemButton
         end
         if MerchantRepairItemButton:IsShown() then
