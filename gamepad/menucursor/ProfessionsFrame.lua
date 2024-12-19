@@ -221,11 +221,15 @@ function CraftingPageHandler:OnAction(button)
     filter_button:SetMenuOpen(true)
     if filter_button:IsMenuOpen() then
         local dropdown = self.SetupDropdownMenu(
-            filter_button, self.filter_dropdown_cache)
+            filter_button, self.filter_dropdown_cache, nil,
+            function()
+                local target = self:RefreshTargets()
+                self:SetTarget(target)
+            end)
         dropdown.has_Button4 = true
-        function dropdown.OnAction(button)
+        function dropdown:OnAction(button)
             assert(button == "Button4")
-            dropdown:SetMenuOpen(false)
+            filter_button:SetMenuOpen(false)
         end
         dropdown:Enable()
     end
