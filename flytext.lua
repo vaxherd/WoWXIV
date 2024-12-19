@@ -577,10 +577,19 @@ function FlyTextManager:OnCurrencyUpdate(event, id, total, change)
 
     -- Strip the faction from Shadowlands covenant and DF+ Renown currencies
     -- (which are internally named e.g. "Reservoir Anima-Night Fae" or
-    -- "Renown - Council of Dornogal").
-    local dash = strstr(name, " - ") or strstr(name, "-")
+    -- "Renown - Council of Dornogal").  The Shadowlands currencies are the
+    -- only ones that don't have a space around the dash, and we now have
+    -- currencies with hyphenated names (e.g. 3090 Flame-Blessed Iron), so
+    -- we need to detect those specially.
+    local dash = (strstr(name, " - ")
+                  or strstr(name, "-Kyrian")
+                  or strstr(name, "-Venthyr")
+                  or strstr(name, "-Night Fae")
+                  or strstr(name, "-Necrolord"))
     if dash then
         name = strsub(name, 1, dash-1)
+    elseif strsub(name, 1, 7) == "Renown-" then
+        name = "Renown"
     end
 
     local color = ITEM_QUALITY_COLORS[info.quality].hex or "|cff000000"
