@@ -251,6 +251,8 @@ function SchematicFormHandler:__constructor()
     end
     self.has_Button3 = true  -- Used to craft the recipe.
     self:SetTabSystem(ProfessionsFrame.TabSystem)
+    self.multiple_quantity_input = MenuCursor.NumberInput(
+        ProfessionsFrame.CraftingPage.CreateMultipleInputBox)
 end
 
 function SchematicFormHandler:OnShowCreateAllButton()
@@ -265,8 +267,7 @@ function SchematicFormHandler:OnHideCreateAllButton()
         local CraftingPage = ProfessionsFrame.CraftingPage
         local cur_target = self:GetTarget()
         if (cur_target == CraftingPage.CreateAllButton
-         or cur_target == CraftingPage.CreateMultipleInputBox.DecrementButton
-         or cur_target == CraftingPage.CreateMultipleInputBox.IncrementButton)
+         or cur_target == CraftingPage.CreateMultipleInputBox)
         then
             self:SetTarget(CraftingPage.CreateButton)
         end
@@ -325,11 +326,10 @@ function SchematicFormHandler:SetTargets()
     self.targets[CraftingPage.CreateAllButton] = {
         can_activate = true, lock_highlight = true,
         down = top_icon, left = false}
-    self.targets[CraftingPage.CreateMultipleInputBox.DecrementButton] = {
-        on_click = self.ClickToMouseDown, lock_highlight = true,
-        down = top_icon}
-    self.targets[CraftingPage.CreateMultipleInputBox.IncrementButton] = {
-        on_click = self.ClickToMouseDown, lock_highlight = true,
+    self.targets[CraftingPage.CreateMultipleInputBox] = {
+        on_click = function()
+             self.multiple_quantity_input:Edit(1, CraftingPage:GetCraftableCount())
+        end,
         down = top_icon}
     self.targets[CraftingPage.CreateButton] = {
         can_activate = true, lock_highlight = true, send_enter_leave = true,
@@ -449,8 +449,7 @@ function SchematicFormHandler:SetTargets()
     local create_left_up = r_left or r_bottom or top_icon
     local create_right_up = r_right or r_bottom or top_icon
     self.targets[CraftingPage.CreateAllButton].up = create_left_up
-    self.targets[CraftingPage.CreateMultipleInputBox.DecrementButton].up = create_left_up
-    self.targets[CraftingPage.CreateMultipleInputBox.IncrementButton].up = create_left_up
+    self.targets[CraftingPage.CreateMultipleInputBox].up = create_left_up
     self.targets[CraftingPage.CreateButton].up = create_right_up
     self.r_bottom = r_bottom
     self.r_bottom2 = r_bottom2
