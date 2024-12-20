@@ -261,6 +261,9 @@ local ITEM_TARGET = {
     [228582] = "none",    -- Streamlined Relic (84520: Ancient Curiosity: Utility)
     [228617] = "none",    -- Benatauk's Clue Book (84521: Thoughtful Pursuits)
     [228984] = "none",    -- Unbreakable Iron Idol (84519: Ancient Curiosity: Combat)
+    [227405] = "none",    -- Research Journal (83932: Historical Documents)
+    [228988] = "skip",    -- Rock Reviver (84680: Rock 'n Stone Revival)  // Provided separately by the game as a special action.
+    [230795] = "none",    -- Experimental Go-Pack (84252: Peak Precision)
 
     -- The following are scenario action spells:
     [-469853] = "none",   -- Drop Candle (Delve: Kriegval's Rest))
@@ -362,7 +365,7 @@ function QuestItemButton:__constructor()
     icon:SetPoint("CENTER", 0, -1.5)
     icon:SetSize(42, 42)
     local cooldown = CreateFrame("Cooldown", "WoWXIV_QuestItemButtonCooldown",
-                                 f, "CooldownFrameTemplate")
+                                 self, "CooldownFrameTemplate")
     self.cooldown = cooldown
     cooldown:SetAllPoints(icon)
 
@@ -490,19 +493,25 @@ function QuestItemButton:UpdateQuestItem(force, is_retry)
             self.fadeout:Stop()
             self.fadein:Play()
         end
-        local start, duration
+        local start, duration, rate
         if item < 0 then
             local cooldown = C_Spell.GetSpellCooldown(-item)
             if cooldown and cooldown.isEnabled then
                 start = cooldown.startTime
                 duration = cooldown.duration
+                rate = cooldown.modRate
             else
-                start, duration = 0, 0
+                start, duration = 0, 0, 1
             end
         else
-            start, duration = C_Item.GetItemCooldown(item)
+            local enable
+            start, duration, enable = C_Item.GetItemCooldown(item)
+            rate = 1
+            if not enable then
+                start, duration = 0, 0
+            end
         end
-        self.cooldown:SetCooldown(start, duration)
+        self.cooldown:SetCooldown(start, duration, rate)
     else
         self:SetAttribute("item", nil)
         self:SetAttribute("spell", nil)
