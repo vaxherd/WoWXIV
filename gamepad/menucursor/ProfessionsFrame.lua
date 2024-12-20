@@ -1289,21 +1289,25 @@ function OrderViewHandler:SetTargets()
             [oi.ReleaseOrderButton] = {
                 can_activate = true, lock_highlight = true,
                 up = false, down = false,
-                left = ov.CreateButton, right = bqc},
-            [bqc] = {
-                can_activate = true, lock_highlight = true,
-                up = false, down = false,
-                left = oi.ReleaseOrderButton, right = ov.CreateButton},
+                left = ov.CreateButton, right = ov.CreateButton},
             [ov.CreateButton] = {
                 can_activate = true, lock_highlight = true, is_default = true,
                 send_enter_leave = true, up = ctb, down = ctb,
-                left = bqc, right = oi.ReleaseOrderButton},
+                left = oi.ReleaseOrderButton, right = oi.ReleaseOrderButton},
             [ctb] = {
                 can_activate = true, lock_highlight = true,
                 send_enter_leave = true,
                 up = ov.CreateButton, down = ov.CreateButton,
                 left = false, right = false}
         }
+        if bqc:IsShown() then
+            self.targets[bqc] = {
+                can_activate = true, lock_highlight = true,
+                up = false, down = false,
+                left = oi.ReleaseOrderButton, right = ov.CreateButton}
+            self.targets[oi.ReleaseOrderButton].right = bqc
+            self.targets[ov.CreateButton].left = bqc
+        end
         -- FIXME: reagent selection not yet implemented
         reward_u = oi.ReleaseOrderButton
         reward_d = oi.ReleaseOrderButton
