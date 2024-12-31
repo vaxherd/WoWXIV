@@ -255,15 +255,17 @@ local ITEM_TARGET = {
     [224292] = "none",    -- Radiant Fuel Shard (81691: Special Assignment: Shadows Below)
     [224799] = "target",  -- Nizrek's potion (83177: Socialized Medicine)
     [225555] = "none",    -- Periapt of Pure Flame (82585: With Great Pyre)
+    [226261] = "target",  -- Sonic Scrambler (83827: Silence the Song)
+    [227405] = "none",    -- Research Journal (83932: Historical Documents)
     [227551] = "none",    -- Note from Rexxar (84278: Tracking Quest)
     [227664] = "none",    -- Spirit's Whistle (84296: The Trail's Gone Cold)
     [227669] = "skip",    -- Teleportation Scroll (81930: The War Within)
     [228582] = "none",    -- Streamlined Relic (84520: Ancient Curiosity: Utility)
     [228617] = "none",    -- Benatauk's Clue Book (84521: Thoughtful Pursuits)
     [228984] = "none",    -- Unbreakable Iron Idol (84519: Ancient Curiosity: Combat)
-    [227405] = "none",    -- Research Journal (83932: Historical Documents)
     [228988] = "skip",    -- Rock Reviver (84680: Rock 'n Stone Revival)  // Provided separately by the game as a special action.
     [230795] = "none",    -- Experimental Go-Pack (84252: Peak Precision)
+    [232466] = "none",    -- Leave the Storm (85113: Special Assignment: Storm's a Brewin)
 
     -- The following are scenario action spells:
     [-469853] = "none",   -- Drop Candle (Delve: Kriegval's Rest))
