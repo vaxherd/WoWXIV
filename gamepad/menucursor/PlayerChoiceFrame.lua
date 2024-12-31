@@ -62,7 +62,8 @@ function PlayerChoiceFrameHandler:SetTargets()
             end
             tinsert(buttons, button)
             if option.WidgetContainer:IsShown() then
-                self:AddWidgetTargets(option.WidgetContainer, {"Spell","Bar"},
+                self:AddWidgetTargets(option.WidgetContainer,
+                                      {"Spell","Item","Bar"},
                                       button, button, false, false)
                 -- FIXME: We don't currently support moving left/right
                 -- between widgets from different choices.  This would

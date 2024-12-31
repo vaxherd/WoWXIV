@@ -1369,7 +1369,7 @@ function MenuFrame:AddScrollBoxTargets(scrollbox, filter, foreach_override)
 end
 
 -- Add widgets in the given WidgetContainer whose type is one of the
--- given types (supported: "Spell", "Bar") to the given target list.
+-- given types (supported: "Spell", "Item", "Bar") to the given target list.
 -- |{up,down,left,right}_target| give the targets immediately in each
 -- direction relative to the widget container, and can be nil for default
 -- movement rules.
