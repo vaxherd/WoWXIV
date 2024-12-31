@@ -25,9 +25,23 @@ end
 
 function PlayerChoiceFrameHandler:__constructor()
     self:__super(PlayerChoiceFrame)
+    self:RegisterEvent("PLAYER_CHOICE_UPDATE")
+    self.current_option = nil  -- optionID of currently selected option
 end
 
-function PlayerChoiceFrameHandler:SetTargets()
+function PlayerChoiceFrameHandler:PLAYER_CHOICE_UPDATE()
+    if self.frame:IsShown() then
+        self:ClearTarget()
+        self:SetTarget(self:SetTargets(self.current_option))
+    end
+end
+
+function PlayerChoiceFrameHandler:OnShow()
+    self.current_option = nil
+    MenuCursor.AddOnMenuFrame.OnShow(self)
+end
+
+function PlayerChoiceFrameHandler:SetTargets(initial_option)
     local KNOWN_FORMATS = {  -- Only handle formats we've explicitly verified.
         -- Weekly quest choice, etc.
         PlayerChoiceNormalOptionTemplate = true,
@@ -74,12 +88,20 @@ function PlayerChoiceFrameHandler:SetTargets()
         end
     end
     if #buttons == 0 then return nil end  -- Ignore frame if no buttons found.
+    local initial_button
     table.sort(buttons, function(a,b) return a:GetLeft() < b:GetLeft() end)
     for i, button in ipairs(buttons) do
         self.targets[button].left = buttons[i==1 and #buttons or i-1]
         self.targets[button].right = buttons[i==#buttons and 1 or i+1]
+        if initial_option and button.optionID == initial_option then
+            initial_button = button
+        end
     end
-    return buttons[1]
+    return initial_button or buttons[1]
+end
+
+function PlayerChoiceFrameHandler:OnMove(old_target, new_target)
+    self.current_option = new_target.optionID
 end
 
 
