@@ -234,7 +234,7 @@ function MerchantFrameHandler:UpdateMovement()
     if MerchantPrevPageButton:IsShown() then
         assert(last_left)  -- Should never have page buttons without items.
         self.targets[last_left].down = MerchantPrevPageButton
-        if last_right ~= last_left then
+        if last_right and last_right ~= last_left then
             self.targets[last_right].down = MerchantNextPageButton
         end
         self.targets[MerchantPrevPageButton].up = last_left
