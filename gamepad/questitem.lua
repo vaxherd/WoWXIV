@@ -263,7 +263,7 @@ local ITEM_TARGET = {
     [228582] = "none",    -- Streamlined Relic (84520: Ancient Curiosity: Utility)
     [228617] = "none",    -- Benatauk's Clue Book (84521: Thoughtful Pursuits)
     [228984] = "none",    -- Unbreakable Iron Idol (84519: Ancient Curiosity: Combat)
-    [228988] = "skip",    -- Rock Reviver (84680: Rock 'n Stone Revival)  // Provided separately by the game as a special action.
+    [228988] = "none",    -- Rock Reviver (84680: Rock 'n Stone Revival)
     [230795] = "none",    -- Experimental Go-Pack (84252: Peak Precision)
     [232466] = "none",    -- Leave the Storm (85113: Special Assignment: Storm's a Brewin)
 
