@@ -489,7 +489,7 @@ end
 -- Show() handler; activates menu cursor periodic update.
 function Cursor:OnShow()
     self:SetScript("OnUpdate", self.OnUpdate)
-    self:OnUpdate()
+    self:OnUpdate(0)
 end
 
 -- Hide() handler; clears menu cursor periodic update.
@@ -501,9 +501,11 @@ end
 -- cursor bouncing, and to record the current focus frame and target
 -- element to avoid a single click activating multiple elements (see
 -- notes in OnClick()).
-function Cursor:OnUpdate()
+function Cursor:OnUpdate(dt)
     local focus, target = self:GetFocusAndTarget()
-    self.last_focus, self.last_target = focus, target
+    if dt > 0 then
+        self.last_focus, self.last_target = focus, target
+    end
     local target_frame = target and focus:GetTargetFrame(target)
     if target_frame and not target_frame.GetLeft then
         self:InternalForceClearTarget()
