@@ -209,6 +209,9 @@ function Cursor:AddFrame(frame, target, modal)
     self:LeaveTarget()
     target = target or frame:GetDefaultTarget()
     tinsert(stack, {frame, target})
+    if target then
+        frame:ScrollToTarget(target)
+    end
     self:EnterTarget()
     self:UpdateCursor()
 end
@@ -1019,8 +1022,9 @@ function MenuFrame:NextTarget(target, dir)
     return best
 end
 
--- Perform all actions appropriate to the cursor entering a target.
-function MenuFrame:EnterTarget(target)
+-- Perform any scrolling operations necessary to ensure that the given
+-- target is visible.
+function MenuFrame:ScrollToTarget(target)
     local params = self.targets[target]
     assert(params)
 
@@ -1062,6 +1066,14 @@ function MenuFrame:EnterTarget(target)
             end
         end
     end
+end
+
+-- Perform all actions appropriate to the cursor entering a target.
+function MenuFrame:EnterTarget(target)
+    local params = self.targets[target]
+    assert(params)
+
+    self:ScrollToTarget(target)
 
     local frame = self:GetTargetFrame(target)
     assert(frame)  -- May not hold until after we've scrolled above.
