@@ -524,6 +524,10 @@ local CURRENCY_PAIRS = {
     {2915, 2919},  -- Carved Harbinger Crest
     {2916, 2920},  -- Runed Harbinger Crest
     {2917, 2921},  -- Gilded Harbinger Crest
+    {3107, 3111},  -- Weathered Undermine Crest
+    {3108, 3112},  -- Carved Undermine Crest
+    {3109, 3113},  -- Runed Undermine Crest
+    {3110, 3114},  -- Gilded Undermine Crest
 }
 local CURRENCY_PAIR_MAP = {}
 for _, pair in ipairs(CURRENCY_PAIRS) do
