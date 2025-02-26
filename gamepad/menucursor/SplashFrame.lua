@@ -13,6 +13,20 @@ function SplashFrameHandler:__constructor()
     self:__super(SplashFrame)
 end
 
+function SplashFrameHandler:OnShow()
+    -- If we're going straight into a cinematic (as for a new expansion or
+    -- major patch), the frame won't be visible yet, so wait until the
+    -- cinematic is done.
+    if not self.frame:IsVisible() then
+        -- Make sure we weren't dismissed in the meantime.
+        if self.frame:IsShown() then
+            RunNextFrame(function() self:OnShow() end)
+        end
+        return
+    end
+    MenuCursor.CoreMenuFrame.OnShow(self)
+end
+
 function SplashFrameHandler:SetTargets()
     self.targets = {}
     self:OnUpdate()
