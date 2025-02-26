@@ -59,7 +59,8 @@ function PlayerChoiceFrameHandler:SetTargets(initial_option)
     self.targets = {}
     local buttons = {}
     for option in PlayerChoiceFrame.optionPools:EnumerateActiveByTemplate(PlayerChoiceFrame.optionFrameTemplate) do
-        for button in option.OptionButtonsContainer.buttonPool:EnumerateActive() do
+        for bframe in option.OptionButtonsContainer.buttonFramePool:EnumerateActive() do
+            local button = bframe.Button
             self.targets[button] = {can_activate = true,
                                     lock_highlight = true}
             if PlayerChoiceFrame.optionFrameTemplate == "PlayerChoiceTorghastOptionTemplate" then
