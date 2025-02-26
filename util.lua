@@ -137,6 +137,10 @@ function WoWXIV.HideBlizzardFrame(frame)
     function frame:SetHeight() end
     function frame:SetSize() end
     function frame:SetPoint() end
+    -- Needed to avoid errors from EditModeManagerFrame:
+    function frame:GetPoint(n)
+        if n==1 then return "TOPLEFT",UIParent,"TOPLEFT",0,0 end
+    end
 end
 
 ------------------------------------------------------------------------
