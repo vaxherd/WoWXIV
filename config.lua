@@ -131,9 +131,24 @@ end
 
 local CPCheckButton = class(ConfigPanelElement)
 
-function CPCheckButton:__constructor(panel, x, y, text, setting, on_change,
-                                     depends_on)
-    self.setting = setting
+-- If setting_or_state is a string, it gives the setting ID to which the
+-- button will be linked; otherwise, it gives the initial state of the
+-- button, either true (checked) or false (unchecked), and depends_on must
+-- be nil.
+function CPCheckButton:__constructor(panel, x, y, text, setting_or_state,
+                                     on_change, depends_on)
+    assert(type(setting_or_state)=="string"
+           or setting_or_state==true or setting_or_state==False)
+    assert(type(setting_or_state)=="string" or depends_on==nil)
+
+    local initial
+    if type(setting_or_state) == "string" then
+        self.setting = setting_or_state
+        initial = WoWXIV_config[setting_or_state]
+    else
+        self.setting = nil
+        initial = setting_or_state
+    end
     self.on_change = on_change
     self.depends_on = depends_on
     self.dependents = {}
@@ -145,7 +160,7 @@ function CPCheckButton:__constructor(panel, x, y, text, setting, on_change,
     button:SetPoint("TOPLEFT", x+30*indent, y)
     button.text:SetTextScale(1.25)
     button.text:SetText(text)
-    button:SetChecked(WoWXIV_config[setting])
+    button:SetChecked(initial)
     button:SetScript("OnClick", function() self:OnClick() end)
     if depends_on then
         depends_on:AddDependent(self)
@@ -173,17 +188,22 @@ end
 function CPCheckButton:SetChecked(checked)
     checked = checked and true or false  -- Force to boolean type.
     self.button:SetChecked(checked)
-    for _, dep in ipairs(self.dependents) do
-        dep:SetSensitive(checked)
-    end
-    WoWXIV_config[self.setting] = checked
-    if self.on_change then
-        self.on_change(checked)
-    end
+    self:OnClick()
 end
 
 function CPCheckButton:OnClick()
-    self:SetChecked(not WoWXIV_config[self.setting])
+    -- This is called _after_ the UIButton state has been toggled, so we
+    -- only need to perform appropriate updates.
+    local checked = self.button:GetChecked()
+    for _, dep in ipairs(self.dependents) do
+        dep:SetSensitive(checked)
+    end
+    if self.setting then
+        WoWXIV_config[self.setting] = checked
+    end
+    if self.on_change then
+        self.on_change(checked)
+    end
 end
 
 ------------------------------------------------------------------------
