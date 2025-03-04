@@ -78,36 +78,39 @@ function WeeklyRewardsFrameHandler:SetTargets()
         self.targets[right].right = left
     end
     local first = top_row[1][2]
-    local bottom = bottom_row[1][2]
+    local last = bottom_row[1][2]
     self.targets[first].is_default = true
     if can_claim then
         local cf = WeeklyRewardsFrame.ConcessionFrame
-        self.targets[cf] = {
-            -- This is a bit awkward/hackish because the OnEnter/OnLeave
-            -- handlers are attached to ConcessionFrame, but instead of
-            -- just toggling the tooltip on and off, they set up an
-            -- OnUpdate script which explicitly checks whether the mouse
-            -- cursor is over RewardsFrame.
-            on_enter = function()
-                assert(self.CFRewardsFrame_IsMouseOver == nil)
-                assert(cf.RewardsFrame.IsMouseOver)
-                self.CFRewardsFrame_IsMouseOver = cf.RewardsFrame.IsMouseOver
-                cf.RewardsFrame.IsMouseOver = function() return true end
-                cf:GetScript("OnEnter")(cf)
-            end,
-            on_leave = function()
-                assert(self.CFRewardsFrame_IsMouseOver)
-                cf:GetScript("OnLeave")(cf)
-                cf.RewardsFrame.IsMouseOver = self.CFRewardsFrame_IsMouseOver
-                self.CFRewardsFrame_IsMouseOver = nil
-            end,
-            on_click = function()
-                cf:GetScript("OnMouseDown")(cf)
-            end,
-            left = false, right = false, up = bottom}
+        if cf:IsShown() then
+            self.targets[cf] = {
+                -- This is a bit awkward/hackish because the OnEnter/OnLeave
+                -- handlers are attached to ConcessionFrame, but instead of
+                -- just toggling the tooltip on and off, they set up an
+                -- OnUpdate script which explicitly checks whether the mouse
+                -- cursor is over RewardsFrame.
+                on_enter = function()
+                    assert(self.CFRewardsFrame_IsMouseOver == nil)
+                    assert(cf.RewardsFrame.IsMouseOver)
+                    self.CFRewardsFrame_IsMouseOver = cf.RewardsFrame.IsMouseOver
+                    cf.RewardsFrame.IsMouseOver = function() return true end
+                    cf:GetScript("OnEnter")(cf)
+                end,
+                on_leave = function()
+                    assert(self.CFRewardsFrame_IsMouseOver)
+                    cf:GetScript("OnLeave")(cf)
+                    cf.RewardsFrame.IsMouseOver = self.CFRewardsFrame_IsMouseOver
+                    self.CFRewardsFrame_IsMouseOver = nil
+                end,
+                on_click = function()
+                    cf:GetScript("OnMouseDown")(cf)
+                end,
+                left = false, right = false, up = last}
+            last = cf
+        end
         self.targets[WeeklyRewardsFrame.SelectRewardButton] = {
             can_activate = true, lock_highlight = true,
-            left = false, right = false, down = first}
+            left = false, right = false, up = last, down = first}
         for _, activity in ipairs(top_row) do
             local target = activity[2]
             self.targets[target].up = WeeklyRewardsFrame.SelectRewardButton
