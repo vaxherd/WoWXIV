@@ -225,6 +225,7 @@ function ItemBuyFrameHandler:__constructor()
 end
 
 function ItemBuyFrameHandler:ITEM_SEARCH_RESULTS_UPDATED()
+    if not self.frame:IsShown() then return end  -- suppress when selling
     -- Looks like we have to wait a frame before the list finishes
     -- populating itself.
     RunNextFrame(function()
