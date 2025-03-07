@@ -35,9 +35,14 @@ function MerchantFrameHandler:SetTargets()
     assert(MerchantFrame.selectedTab == 1)
     self:UpdateTargets()
     self:UpdateMovement()
-    return (self.targets[MerchantItem1ItemButton]
-            and MerchantItem1ItemButton
-            or MerchantSellAllJunkButton)
+    if self.targets[MerchantItem1ItemButton] then
+        return MerchantItem1ItemButton
+    elseif self.targets[MerchantSellAllJunkButton] then
+        return MerchantSellAllJunkButton
+    else
+        assert(self.targets[MerchantRepairAllButton])
+        return MerchantRepairAllButton
+    end
 end
 
 function MerchantFrameHandler:OnAction(button)
@@ -117,7 +122,9 @@ function MerchantFrameHandler:OnShowItemButton(frame, skip_update)
         end,
     }
     -- Suppress updates when called from UpdateBuybackInfo().
-    if MerchantSellAllJunkButton:IsShown() ~= (MerchantFrame.selectedTab==1) then
+    local is_buy = (MerchantSellAllJunkButton:IsShown()
+                    or MerchantRepairAllButton:IsShown())
+    if is_buy ~= (MerchantFrame.selectedTab==1) then
         skip_update = true
     end
     if not skip_update then
@@ -136,7 +143,9 @@ function MerchantFrameHandler:OnHideItemButton(frame)
         end
     end
     self.targets[frame] = nil
-    if MerchantSellAllJunkButton:IsShown() == (MerchantFrame.selectedTab==1) then
+    local is_buy = (MerchantSellAllJunkButton:IsShown()
+                    or MerchantRepairAllButton:IsShown())
+    if is_buy == (MerchantFrame.selectedTab==1) then
         self:UpdateMovement()
     end
 end
@@ -152,30 +161,37 @@ function MerchantFrameHandler:UpdateTargets()
                 can_activate = true, lock_highlight = true,
                 left = MerchantPrevPageButton, right = MerchantPrevPageButton}
         end
-        self.targets[MerchantSellAllJunkButton] = {
-            can_activate = true, lock_highlight = true,
-            send_enter_leave = true, down = false,
-            left = MerchantBuyBackItemItemButton,
-            right = MerchantBuyBackItemItemButton}
-        self.targets[MerchantBuyBackItemItemButton] = {
-            can_activate = true, lock_highlight = true,
-            send_enter_leave = true,
-            left = MerchantSellAllJunkButton,
-            right = MerchantSellAllJunkButton}
+        local have_sell_all = MerchantSellAllJunkButton:IsShown()
+        if have_sell_all then
+            self.targets[MerchantSellAllJunkButton] = {
+                can_activate = true, lock_highlight = true,
+                send_enter_leave = true, down = false,
+                left = MerchantBuyBackItemItemButton,
+                right = MerchantBuyBackItemItemButton}
+            self.targets[MerchantBuyBackItemItemButton] = {
+                can_activate = true, lock_highlight = true,
+                send_enter_leave = true,
+                left = MerchantSellAllJunkButton,
+                right = MerchantSellAllJunkButton}
+        end
         if MerchantRepairItemButton:IsShown() then
             self.targets[MerchantRepairItemButton] = {
                 lock_highlight = true, send_enter_leave = true,
-                left = MerchantBuyBackItemItemButton,
+                left = (have_sell_all and MerchantBuyBackItemItemButton
+                                       or MerchantRepairAllButton),
                 right = MerchantRepairAllButton}
             self.targets[MerchantRepairAllButton] = {
                 can_activate = true, lock_highlight = true,
                 send_enter_leave = true,
                 left = MerchantRepairItemButton,
-                right = MerchantSellAllJunkButton}
-            self.targets[MerchantSellAllJunkButton].left =
-                MerchantRepairAllButton
-            self.targets[MerchantBuyBackItemItemButton].right =
-                MerchantRepairItemButton
+                right = (have_sell_all and MerchantSellAllJunkButton
+                                        or MerchantRepairItemButton)}
+            if have_sell_all then
+                self.targets[MerchantSellAllJunkButton].left =
+                    MerchantRepairAllButton
+                self.targets[MerchantBuyBackItemItemButton].right =
+                    MerchantRepairItemButton
+            end
         end
     end
     local initial = nil
@@ -244,27 +260,36 @@ function MerchantFrameHandler:UpdateMovement()
         first_left = first_left or last_left
         first_right = first_right or last_right
     end
-    if MerchantSellAllJunkButton:IsShown() then
-        local left_button
-        if MerchantRepairItemButton:IsShown() then
+    local have_repair = MerchantRepairItemButton:IsShown()
+    local have_sell_all = MerchantSellAllJunkButton:IsShown()
+    if have_repair or have_sell_all then
+        local left_button, right_button
+        if have_repair then
             left_button = MerchantRepairItemButton
         else
             left_button = MerchantSellAllJunkButton
+        end
+        if have_sell_all then
+            right_button = MerchantBuyBackItemItemButton
+        else
+            right_button = MerchantRepairAllButton
         end
         if last_left then
             self.targets[last_left].down = left_button
         end
         if last_right and last_right ~= last_left then
-            self.targets[last_right].down = MerchantBuyBackItemItemButton
+            self.targets[last_right].down = right_button
         end
-        if MerchantRepairItemButton:IsShown() then
+        if have_repair then
             self.targets[MerchantRepairItemButton].up = last_left
             self.targets[MerchantRepairAllButton].up = last_left
         end
-        self.targets[MerchantSellAllJunkButton].up = last_left
-        self.targets[MerchantBuyBackItemItemButton].up = last_right
+        if have_sell_all then
+            self.targets[MerchantSellAllJunkButton].up = last_left
+            self.targets[MerchantBuyBackItemItemButton].up = last_right
+        end
         last_left = left_button
-        last_right = MerchantBuyBackItemItemButton
+        last_right = right_button
         first_left = first_left or last_left
         first_right = first_right or last_right
     end
