@@ -255,17 +255,26 @@ local ITEM_TARGET = {
     [224292] = "none",    -- Radiant Fuel Shard (81691: Special Assignment: Shadows Below)
     [224799] = "target",  -- Nizrek's potion (83177: Socialized Medicine)
     [225555] = "none",    -- Periapt of Pure Flame (82585: With Great Pyre)
-    [226261] = "target",  -- Sonic Scrambler (83827: Silence the Song)
+    [226157] = "target",  -- Semi-Deluxe Noggenfogger Elixirs (83116: Potion Commotion)
+    [226217] = "none",    -- Lime (83199: Been Savin' This One)
+    [226261] = "none",    -- Sonic Scrambler (83827: Silence the Song)
+    [226356] = "player",  -- Spare Venture Co. Uniform (83119: It's Worth a Shot)
+    [226823] = "target",  -- Bilgewater Auto-Grappler (84122: Cut the Cameras)
     [227405] = "none",    -- Research Journal (83932: Historical Documents)
     [227551] = "none",    -- Note from Rexxar (84278: Tracking Quest)
     [227664] = "none",    -- Spirit's Whistle (84296: The Trail's Gone Cold)
     [227669] = "skip",    -- Teleportation Scroll (81930: The War Within)
+    [228196] = "none",    -- Anti-Darkfuse Pamphlets (83195: Rally the People)
     [228582] = "none",    -- Streamlined Relic (84520: Ancient Curiosity: Utility)
     [228617] = "none",    -- Benatauk's Clue Book (84521: Thoughtful Pursuits)
+    [228948] = "target",  -- Jazz's Shrink Ray (84303: Experimental Application / 84304: A Gem-Splitting Headache)
     [228984] = "none",    -- Unbreakable Iron Idol (84519: Ancient Curiosity: Combat)
     [228988] = "none",    -- Rock Reviver (84680: Rock 'n Stone Revival)
+    [230731] = "target",  -- Pitz's Masterwork Invention (84675: Showdown in the Attic)
     [230795] = "none",    -- Experimental Go-Pack (84252: Peak Precision)
+    [232464] = "none",    -- Crumpled Paystub (83123: A Miner Mistake)
     [232466] = "none",    -- Leave the Storm (85113: Special Assignment: Storm's a Brewin)
+    [232987] = "player",  -- Blood-B-Gone (85945: Side Gig: Blood-B-Gone)
 
     -- The following are scenario action spells:
     [-469853] = "none",   -- Drop Candle (Delve: Kriegval's Rest))
@@ -309,6 +318,15 @@ local QUEST_ITEM = {
         map = 2214,  -- Ringing Deeps
         items = {
             {224292, 3},  -- Radiant Fuel Shard
+        }
+    },
+    -- Undermine sidequest: Garbage Day
+    [84672] = {
+        map = 2346,  -- Undermine
+        items = {
+            229805,  -- Last Week's Undermine Inquirer
+            229824,  -- Banana Peel
+            229825,  -- Dented Can of Kaja'Cola
         }
     },
 }
