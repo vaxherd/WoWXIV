@@ -475,7 +475,9 @@ function AuctionsTabHandler:RefreshTargets(last_target)
     local function ForEachItem(callback)
         for _, index in ItemScroll:GetDataProvider():EnumerateEntireRange() do
             local element = C_AuctionHouse.GetOwnedAuctionInfo(index)
-            callback(element)
+            if element then
+                callback(element)
+            end
         end
     end
     local function AddTarget(elementdata, index)
