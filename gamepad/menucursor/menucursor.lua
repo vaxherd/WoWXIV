@@ -1643,6 +1643,9 @@ end
     OnShow() and its return value will be used as the initial target to
     pass to Enable().  If the method returns false (as opposed to nil),
     the OnShow event will instead be ignored.
+
+    OnShow() will ignore any show events sent while a parent frame is
+    hidden.
 ]]--
 MenuCursor.StandardMenuFrame = class(MenuFrame)
 local StandardMenuFrame = MenuCursor.StandardMenuFrame
@@ -1654,7 +1657,7 @@ function StandardMenuFrame:__constructor(frame, modal)
 end
 
 function StandardMenuFrame:OnShow()
-    assert(self.frame:IsVisible())
+    if not self.frame:IsVisible() then return end
     local initial_target = self.SetTargets and self:SetTargets()
     if initial_target ~= false then
         self:Enable(initial_target)
