@@ -69,7 +69,7 @@ function MerchantFrameHandler:OnAction(button)
         Note a possible bug in Blizzard code, which calculates the limit
         for alternate currencies as the number of individual items
         purchasable; this doesn't match the test for regular money, which
-        counts the number of purchasable stacks instead).  It's not clear
+        counts the number of purchasable stacks instead.  It's not clear
         whether there are any stacked items sold by merchants for non-money
         currency, so it may only be a theoretical problem, but we avoid it
         anyway.
@@ -93,6 +93,9 @@ function MerchantFrameHandler:OnAction(button)
     end
     StackSplitFrame:OpenStackSplitFrame(
         limit, target, "BOTTOMLEFT", "TOPLEFT", info.stackCount)
+    -- Immediately activate the quantity input (since that's why we opened
+    -- the box in the first place).
+    MenuCursor.StackSplitFrameEditQuantity()
 end
 
 function MerchantFrameHandler:OnTabCycle(direction)

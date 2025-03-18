@@ -51,3 +51,13 @@ function StackSplitFrameHandler:OnQuantityChanged()
     StackSplitFrame:UpdateStackText()
     StackSplitFrame:UpdateStackSplitFrame(StackSplitFrame.maxStack)
 end
+
+---------------------------------------------------------------------------
+
+-- Used by MerchantFrame.
+function MenuCursor.StackSplitFrameEditQuantity()
+    local instance = StackSplitFrameHandler.instance
+    assert(instance)
+    assert(instance.frame:IsShown())
+    instance:EditQuantity()
+end
