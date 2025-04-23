@@ -177,17 +177,17 @@ function OrderHallMissionFrameMissionsHandler:SetTargets(last_target)
         GameTooltip:AddLine(REWARDS)
         for id, reward in pairs(info.rewards) do
             if reward.quality then
-                GameTooltip:AddLine(ITEM_QUALITY_COLORS[reward.quality+1].hex .. reward.title .. FONT_COLOR_CODE_CLOSE)
+                GameTooltip:AddLine(WoWXIV.FormatItemColor(reward.title, reward.quality+1))
             elseif reward.itemID then
                 local name, _, rarity, _, _, _, _, _, _, texture =
                     C_Item.GetItemInfo(reward.itemID)
                 if name then
-                    GameTooltip:AddLine(ITEM_QUALITY_COLORS[rarity].hex .. name .. FONT_COLOR_CODE_CLOSE)
+                    GameTooltip:AddLine(WoWXIV.FormatItemColor(name, rarity))
                 end
             elseif reward.currencyID and reward.currencyID ~= 0 and reward.currencyQuantity then
                 local name, texture, quantity, quality = CurrencyContainerUtil.GetCurrencyContainerInfo(reward.currencyID, reward.quantity)
                 if name then
-                    GameTooltip:AddLine(ITEM_QUALITY_COLORS[quality].hex .. name .. FONT_COLOR_CODE_CLOSE)
+                    GameTooltip:AddLine(WoWXIV.FormatItemColor(name, quality))
                 end
             elseif reward.title then
                 GameTooltip:AddLine(reward.title)

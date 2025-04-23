@@ -2,6 +2,7 @@ local _, WoWXIV = ...
 WoWXIV.FlyText = {}
 
 local class = WoWXIV.class
+local typeof = type
 
 local CLM = WoWXIV.CombatLogManager
 local GetItemInfo = C_Item.GetItemInfo
@@ -138,7 +139,8 @@ function FlyText:__constructor(type, ...)
         self.amount = ...
     elseif type == FLYTEXT_LOOT_ITEM then
         self.unit = "player"
-        self.item_icon, self.item_name, self.item_color, self.amount = ...
+        self.item_icon, self.item_name, self.item_quality_or_color,
+            self.amount = ...
     else
         print("FlyText error: invalid type", type)
         self.frame = nil
@@ -256,17 +258,19 @@ function FlyText:__constructor(type, ...)
         icon:SetSize(24, 24)
         icon:SetMask("")
         icon:SetTexture(self.item_icon)
-        local color = self.item_color
-        local r = tonumber("0x"..strsub(color, 1, 2)) / 255
-        local g = tonumber("0x"..strsub(color, 3, 4)) / 255
-        local b = tonumber("0x"..strsub(color, 5, 6)) / 255
-        local text = self.item_name
+        local quality_or_color = self.item_quality_or_color
+        local text
+        if typeof(quality_or_color) == "number" then
+            text = WoWXIV.FormatItemColor(self.item_name, quality_or_color)
+        else
+            text = WoWXIV.FormatColoredText(self.item_name, quality_or_color)
+        end
         if self.amount and self.amount > 1 then
-            text = text .. WoWXIV.FormatColoredText("×"..self.amount, COLOR_BLUE)
+            text = text .. "×" .. self.amount
         end
         value:ClearAllPoints()
         value:SetPoint("LEFT", icon, "RIGHT", 2, 0)
-        value:SetTextColor(r, g, b)
+        value:SetTextColor(unpack(COLOR_BLUE))
         value:SetText(text)
 
     end
@@ -460,11 +464,22 @@ function FlyTextManager:DoAura(...)
     self.last_aura_list = last
 end
 
--- Returns: type, id, color, count [, name]
+-- Returns: type, id, quality_or_color, count [, name]
+-- quality_or_color is a number (item quality) or string (hex RRGGBB).
 local function ParseLootMsg(msg)
     local color = strstr(msg, "|c")
     if color then
-        color = strsub(msg, color+4, color+9)
+        if strsub(msg, color+2, color+4) == "nIQ" then
+            local colon = strstr(msg, ":", color)
+            if colon then
+                color = tonumber(strsub(msg, color+5, colon-1))
+                if color == nil then color = "fffffe" end
+            else
+                color = "fffffd"
+            end
+        else
+            color = strsub(msg, color+4, color+9)
+        end
     else
         color = "ffffff"
     end
@@ -596,10 +611,8 @@ function FlyTextManager:OnCurrencyUpdate(event, id, total, change)
         name = "Renown"
     end
 
-    local color = ITEM_QUALITY_COLORS[info.quality].hex or "|cff000000"
-    color = strsub(color, 5, 10)
     self:AddText(FlyText(FLYTEXT_LOOT_ITEM,
-                         info.iconFileID, name, color, change))
+                         info.iconFileID, name, info.quality, change))
     if CURRENCY_PAIR_MAP[id] then
         self.last_currency = {id, change}
     end

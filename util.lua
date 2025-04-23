@@ -152,15 +152,29 @@ local function ColorTo255(v)
     return floor((v<0 and 0 or v>1 and 1 or v) * 255 + 0.5)
 end
 
--- Return the given string enclosed in formatting codes for the given
--- color (expressed as normalized red, green, and blue component values
--- or a table thereof).
+-- Return the given string enclosed in markup codes for the given color.
+-- The color can be expressed as:
+--    * Normalized red, green, and blue component values
+--    * A table of normalized component values ({red, green, blue})
+--    * A 6-digit hexadecimal string of component values ("RRGGBB")
 function WoWXIV.FormatColoredText(text, r, g, b)
-    if type(r) == "table" then
-        r, g, b = unpack(r)
+    local hex
+    if type(r) == "string" then
+        hex = r
+    else
+        if type(r) == "table" then
+            r, g, b = unpack(r)
+        end
+        hex = ("%02X%02X%02X"):format(
+            ColorTo255(r), ColorTo255(g), ColorTo255(b))
     end
-    return ("|cFF%02X%02X%02X%s|r"):format(
-        ColorTo255(r), ColorTo255(g), ColorTo255(b), text)
+    return ("|cFF%s%s|r"):format(hex, text)
+end
+
+-- Return a markup string containing the given text in the color for the
+-- given item quality.
+function WoWXIV.FormatItemColor(text, quality)
+    return ("|cnIQ%d:%s|r"):format(quality, text)
 end
 
 ------------------------------------------------------------------------
