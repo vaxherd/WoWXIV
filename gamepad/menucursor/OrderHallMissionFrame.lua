@@ -277,7 +277,11 @@ function OrderHallMissionFrameFollowersHandler:SetTargets(redo)
             button, is_mission and "RightButton" or "LeftButton")
         if is_mission then
             local page = OrderHallMissionFrame:GetMissionPage()
-            if page.Followers[#page.Followers].info then
+            local party_size = #page.Followers
+            while party_size > 1 and not page.Followers[party_size]:IsShown() do
+                party_size = party_size - 1
+            end
+            if page.Followers[party_size].info then
                 if page == OrderHallMissionFrameHandler.instance_ZoneSupport.frame then
                     OrderHallMissionFrameHandler.instance_ZoneSupport:Activate()
                 else
