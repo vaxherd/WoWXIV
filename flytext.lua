@@ -485,7 +485,7 @@ local function ParseLootMsg(msg)
     end
     local link = strstr(msg, "|H")
     if link then
-        colon1 = strstr(msg, ":", link+2)
+        local colon1 = strstr(msg, ":", link+2)
         if colon1 then
             local type = strsub(msg, link+2, colon1-1)
             local colon2 = strstr(msg, ":", colon1+1)
