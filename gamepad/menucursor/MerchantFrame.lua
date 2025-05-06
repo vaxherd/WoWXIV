@@ -8,6 +8,21 @@ local floor = math.floor
 
 ---------------------------------------------------------------------------
 
+-- Convenience function to return the MerchantItemButton with the given
+-- index (1-12).
+local function ItemButton(index)
+    return _G["MerchantItem"..index.."ItemButton"]
+end
+
+-- Convenience function to return the MerchantItemButton frame for the
+-- given button ID.  Non-trivial because IDs are assigned uniquely across
+-- all shop items instead of being directly associated with the buttons.
+local function ItemButtonForID(id)
+    return ItemButton((id-1)%10 + 1)
+end
+
+---------------------------------------------------------------------------
+
 local MerchantFrameHandler = class(MenuCursor.CoreMenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(MerchantFrameHandler)
 
@@ -17,14 +32,15 @@ function MerchantFrameHandler:__constructor()
     self.on_prev_page = "MerchantPrevPageButton"
     self.on_next_page = "MerchantNextPageButton"
     self.tab_handler = function(direction) self:OnTabCycle(direction) end
-    -- We use the "sell all junk" button (which is always displayed on the
-    -- "buy" tab and never displayed on the "sell" tab) as a proxy for tab
-    -- change detection.
+    -- We use the "sell all junk" button (which is always[*] displayed on
+    -- the "buy" tab and never displayed on the "sell" tab) as a proxy for
+    -- tab change detection.
+    -- [*] Except at delve repair stations, but those have no sell tab
+    --     anyway so it's not an issue.
     self:HookShow(MerchantSellAllJunkButton,
                   self.OnTabChange, self.OnTabChange)
     for i = 1, 12 do
-        local frame_name = "MerchantItem" .. i .. "ItemButton"
-        local frame = _G[frame_name]
+        local frame = ItemButton(i)
         assert(frame)
         self:HookShow(frame, self.OnShowItemButton,
                              self.OnHideItemButton)
@@ -51,8 +67,7 @@ function MerchantFrameHandler:OnAction(button)
     local target = self:GetTarget()
     local id
     for i = 1, 12 do
-        local frame_name = "MerchantItem" .. i .. "ItemButton"
-        local frame = _G[frame_name]
+        local frame = ItemButton(i)
         if target == frame then
             id = frame:GetID()
             break
@@ -109,6 +124,7 @@ function MerchantFrameHandler:OnTabCycle(direction)
 end
 
 function MerchantFrameHandler:OnTabChange()
+print("tabchange!")--FIXME temp
     self:UpdateTargets()
     self:UpdateMovement()
 end
@@ -138,7 +154,7 @@ end
 function MerchantFrameHandler:OnHideItemButton(frame)
     if self:GetTarget() == frame then
         local prev_id = frame:GetID() - 1
-        local prev_frame = _G["MerchantItem" .. prev_id .. "ItemButton"]
+        local prev_frame = ItemButtonForID(prev_id)
         if prev_frame and prev_frame:IsShown() then
             self:SetTarget(prev_frame)
         else
@@ -200,7 +216,7 @@ function MerchantFrameHandler:UpdateTargets()
     local initial = nil
     for i = 1, 12 do
         local holder = _G["MerchantItem"..i]
-        local button = _G["MerchantItem"..i.."ItemButton"]
+        local button = _G["MerchantItem"..i.."ItemButton"]  -- ItemButton(i)
         assert(button)
         if holder:IsShown() and button:IsShown() then
             self:OnShowItemButton(button, true)
@@ -220,9 +236,6 @@ function MerchantFrameHandler:UpdateMovement()
     -- left/right to move through all items in sequence.  We assume the
     -- buttons are numbered in display order and that there are no holes
     -- in the sequence, which should be guaranteed by core game code.
-    local function ItemButton(n)
-        return _G["MerchantItem"..n.."ItemButton"]
-    end
     local last_item = 1
     while last_item <= 12 do
         if not ItemButton(last_item):IsVisible() then
