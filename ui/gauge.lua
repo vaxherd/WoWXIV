@@ -5,6 +5,72 @@ local UI = WoWXIV.UI
 local class = WoWXIV.class
 UI.Gauge = class()
 
+local floor = math.floor
+local strlen = string.len
+local strsub = string.sub
+
+------------------------------------------------------------------------
+
+-- Formatting mode values for FormatNumber().
+local VALUE_FORMAT_NONE = 0  -- Nothing special, just a string of digits.
+local VALUE_FORMAT_ABBR = 1  -- Abbreviate to 3 significant figures.
+local VALUE_FORMAT_SEP  = 2  -- Insert thousands separators.
+local VALUE_FORMAT_FADE = 3  -- Fade low-order thousands groups.
+
+-- Format a number into a string in the given mode (VALUE_FORMAT_*).
+-- color is required for FADE mode and should be an RGB triple giving
+-- the base text color.
+local function FormatNumber(n, mode, color)
+    local s = tostring(n)
+    if mode == VALUE_FORMAT_NONE then
+        -- Leave as is.
+    elseif mode == VALUE_FORMAT_ABBR then
+        local decimal = 0
+        local unit = ""
+        if strlen(s) >= 13 then
+            decimal = 12
+            unit = "T"
+        elseif strlen(s) >= 10 then
+            decimal = 9
+            unit = "B"  -- More common than "G".
+        elseif strlen(s) >= 7 then
+            decimal = 6
+            unit = "M"
+        elseif strlen(s) >= 4 then
+            decimal = 3
+            unit = "K"
+        end
+        if decimal > 0 then
+            local rem = strsub(s, -decimal)
+            s = strsub(s, 1, -(decimal+1))
+            if strlen(s) < 3 then
+                s = s .. "." .. strsub(rem, 1, 3-strlen(s))
+            end
+            s = s .. unit
+        end
+    elseif mode == VALUE_FORMAT_SEP then
+        for i = strlen(s)-3, 1, -3 do
+            s = strsub(s, 1, i) .. "," .. strsub(s, i+1)
+        end
+    elseif mode == VALUE_FORMAT_FADE then
+        local this_color = {}
+        for i = strlen(s)-3, 1, -3 do
+            local group_index = floor((i+2)/3)
+            local scale = 1
+            for j = 1, group_index do
+                scale = scale * 0.8
+            end
+            this_color[1] = color[1] * scale
+            this_color[2] = color[2] * scale
+            this_color[3] = color[3] * scale
+            s = (strsub(s, 1, i)
+                 .. WoWXIV.FormatColoredText(strsub(s, i+1, i+3), this_color)
+                 .. strsub(s, i+4))
+        end
+    end
+    return s
+end
+
 ------------------------------------------------------------------------
 
 local Gauge = UI.Gauge
@@ -12,6 +78,7 @@ local Gauge = UI.Gauge
 function Gauge:__constructor(parent, width)
     self.width = width
     self.show_value = false
+    self.value_format = VALUE_FORMAT_NONE
     self.show_shield_value = false
     self.show_overshield = false
 
@@ -154,8 +221,32 @@ function Gauge:SetShowOvershield(show)
      self.show_overshield = show
 end
 
-function Gauge:SetShowValue(show, on_top, offset)
+-- Set whether the numeric value of the gauge is is shown.
+--
+-- Parameters:
+--     show: True to show the value, false to not show it.  If false, all
+--         other parameters are ignored.
+--     on_top: True to show the value on top of the bar, false to show the
+--         value below the bar.
+--     format_mode: One of the following formatting mode codes:
+--         - "none" (or nil): No formatting, just display a string of digits.
+--         - "abbr": Abbreviate the value to 3 significant digits and a
+--               scale unit (K/M/B/T).  Truncated digits are rounded down.
+--         - "sep": Insert comma separators between thousands groups.
+--         - "fade": Fade out low-order thousands groups.
+function Gauge:SetShowValue(show, on_top, format_mode)
     self.show_value = show
+    if not format_mode or format_mode == "none" then
+        self.value_format = VALUE_FORMAT_NONE
+    elseif format_mode == "abbr" then
+        self.value_format = VALUE_FORMAT_ABBR
+    elseif format_mode == "sep" then
+        self.value_format = VALUE_FORMAT_SEP
+    elseif format_mode == "fade" then
+        self.value_format = VALUE_FORMAT_FADE
+    else
+        error("Invalid formatting mode: " .. format_mode)
+    end
     if show then
         self.value:ClearAllPoints()
         if on_top then
@@ -278,9 +369,11 @@ function Gauge:Update(max, cur, true_max, shield, heal_absorb)
         self.overshield_r:Hide()
     end
 
-    local value_text = cur
+    local format = self.value_format
+    local color = {self.value:GetTextColor()}
+    local value_text = FormatNumber(cur, format, color)
     if self.show_shield_value and shield > 0 then
-        value_text = value_text .. "+" .. shield
+        value_text = value_text .. "+" .. FormatNumber(shield, format, color)
     end
     self.value:SetText(value_text)
 end

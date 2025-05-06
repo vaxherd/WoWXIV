@@ -94,6 +94,8 @@ local CONFIG_DEFAULT = {
     targetbar_power = true,
     -- Target bar: only show target's power bar for bosses?
     targetbar_power_boss_only = true,
+    -- Target bar: numeric formatting mode
+    targetbar_value_format = "none",
     -- Target bar: show numeric value of target's health shield?
     targetbar_show_shield_value = false,
     -- Target bar: show all debuffs (true) or only own debuffs (false)?
@@ -560,6 +562,12 @@ function ConfigPanel:__constructor()
                         WoWXIV.TargetBar.Refresh)
     self:AddCheckButton("Only for bosses", "targetbar_power_boss_only",
                         WoWXIV.TargetBar.Refresh, "targetbar_power")
+    self:AddRadioGroup("Health amount formatting type:",
+                       "targetbar_value_format", WoWXIV.TargetBar.Refresh,
+                       "No special formatting", "none",
+                       "Abbreviate to 3 digits", "abbr",
+                       "Insert commas every 3 digits", "sep",
+                       "Fade low-order digit groups", "fade")
     self:AddCheckButton("Show shield amount next to health value",
                         "targetbar_show_shield_value",
                         WoWXIV.TargetBar.Refresh)

@@ -56,7 +56,7 @@ function TargetBar:__constructor(is_focus)
     if is_focus then
         name:SetWidth(self:GetWidth())
     else
-        hp:SetShowValue(true, true)
+        hp:SetShowValue(true, true, WoWXIV_config["targetbar_value_format"])
         local SPACING = 10
         -- This anchoring is technically overspecified because we're
         -- giving two different values for the bottom Y coordinate, but
@@ -242,7 +242,10 @@ function TargetBar:RefreshUnit()
         self.class_icon:Hide()
     end
 
-    self.hp:SetShowShieldValue(WoWXIV_config["targetbar_show_shield_value"])
+    if self.unit == "target" then
+        self.hp:SetShowValue(true, true, WoWXIV_config["targetbar_value_format"])
+        self.hp:SetShowShieldValue(WoWXIV_config["targetbar_show_shield_value"])
+    end
 
     local power = self.power
     local show = (WoWXIV_config["targetbar_power"]
