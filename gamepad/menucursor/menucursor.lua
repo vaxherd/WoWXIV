@@ -899,6 +899,7 @@ end
 -- displayed for the given target.
 function MenuFrame:GetTargetPosition(target)
     local params = self.targets[target]
+    if not params then return end
     local frame = self:GetTargetFrame(target)
     if not frame then return end
     local x = (params and params.x_rightalign) and frame:GetRight()
