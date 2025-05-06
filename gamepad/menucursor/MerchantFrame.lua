@@ -124,9 +124,12 @@ function MerchantFrameHandler:OnTabCycle(direction)
 end
 
 function MerchantFrameHandler:OnTabChange()
-print("tabchange!")--FIXME temp
+    self:SetTarget(nil)
     self:UpdateTargets()
     self:UpdateMovement()
+    -- OnHideItemButton() ensures we always have a target at position 1.
+    assert(self.targets[MerchantItem1ItemButton])
+    self:SetTarget(MerchantItem1ItemButton)
 end
 
 function MerchantFrameHandler:OnShowItemButton(frame, skip_update)
@@ -161,7 +164,13 @@ function MerchantFrameHandler:OnHideItemButton(frame)
             self:MoveCursor("down")
         end
     end
-    self.targets[frame] = nil
+    if frame == MerchantItem1ItemButton then
+        -- Dummy target so we have somewhere to put the cursor even if
+        -- the page is empty (as for the buyback page right after login).
+        self.targets[frame] = {}
+    else
+        self.targets[frame] = nil
+    end
     local is_buy = (MerchantSellAllJunkButton:IsShown()
                     or MerchantRepairAllButton:IsShown())
     if is_buy == (MerchantFrame.selectedTab==1) then
@@ -213,16 +222,14 @@ function MerchantFrameHandler:UpdateTargets()
             end
         end
     end
-    local initial = nil
     for i = 1, 12 do
         local holder = _G["MerchantItem"..i]
-        local button = _G["MerchantItem"..i.."ItemButton"]  -- ItemButton(i)
+        local button = _G["MerchantItem"..i.."ItemButton"]  -- ==ItemButton(i)
         assert(button)
         if holder:IsShown() and button:IsShown() then
             self:OnShowItemButton(button, true)
-            if not initial then
-                initial = button
-            end
+        elseif i == 1 then  -- Ensure we have at least one target.
+            self:OnHideItemButton(button, true)
         end
     end
 end
