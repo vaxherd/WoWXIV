@@ -145,6 +145,10 @@ function GamePadListener:SetCameraStickDisable(type, active)
             disable_x = true
             disable_y = true
         end
+        if type == "MAP" then
+            disable_x = true
+            disable_y = true
+        end
     end
     if disable_x then
         if not self.zoom_saved_yaw_speed then
@@ -240,6 +244,16 @@ function GamePadListener:OnGamePadStick(stick, x, y)
         local scroll = scroll_current + scroll_delta
         -- SetScroll function assumed to clamp to [0,child_height].
         scroll_SetScroll(scroll_frame, scroll)
+    end
+
+    -- Handle cursor movement on world map.
+    local focus = Gamepad.cursor:GetFocus()
+    local map_focused = (focus ~= nil
+                         and focus:GetFrame() == WorldMapFrame
+                         and focus:IsMapFocused())
+    self:SetCameraStickDisable("MAP", map_focused)
+    if map_focused and stick == "Camera" then
+        focus:HandleStickInput(x, y, self.frame_dt)
     end
 end
 

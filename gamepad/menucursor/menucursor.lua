@@ -532,11 +532,14 @@ function Cursor:OnUpdate(dt)
     ]]--
     self:SetCursorPoint(focus, target)
 
-    local t = GetTime()
-    t = t - floor(t)
-    local xofs = -4 * math.sin(t * math.pi)
     self.texture:ClearPointsOffset()
-    self.texture:AdjustPointsOffset(xofs, 0)
+    local cursor_type = focus:GetTargetCursorType(target)
+    if not cursor_type or cursor_type == "default" then
+        local t = GetTime()
+        t = t - floor(t)
+        local xofs = -4 * math.sin(t * math.pi)
+        self.texture:AdjustPointsOffset(xofs, 0)
+    end
 
     focus:OnUpdate(target_frame)
 end
@@ -731,6 +734,9 @@ function MenuFrame:__constructor(frame, modal)
     --    - can_activate: If true, a confirm input on this element causes a
     --         left-click action to be sent to the element (which must be a
     --         Button instance).
+    --    - cursor_type: Sets the cursor type for this target, one of:
+    --         - "default" (or nil): Default bouncing finger pointer.
+    --         - "static": Unmoving finger pointer.
     --    - dpad_override: If true, while the cursor is on this element,
     --         all directional pad inputs will be passed to the OnDPad()
     --         method rather than performing their normal cursor movement
@@ -910,6 +916,12 @@ function MenuFrame:GetTargetPosition(target)
     x = (x + (params.x_offset or 0)) * scale
     y = y * scale
     return x, y
+end
+
+-- Return the cursor display type for the given target.
+function MenuFrame:GetTargetCursorType(target)
+    local params = self.targets[target]
+    return params and params.cursor_type
 end
 
 -- Return the next target in the given direction from the given target,

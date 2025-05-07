@@ -62,6 +62,7 @@ gamepad/menucursor/StaticPopup.lua
 gamepad/menucursor/UIWidgetCenterDisplayFrame.lua
 gamepad/menucursor/VoidStoragePurchaseFrame.lua
 gamepad/menucursor/WeeklyRewardsFrame.lua
+gamepad/menucursor/WorldMapFrame.lua
 
 ui/aurabar.lua
 ui/castbar.lua
