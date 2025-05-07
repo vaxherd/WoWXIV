@@ -124,12 +124,15 @@ function MerchantFrameHandler:OnTabCycle(direction)
 end
 
 function MerchantFrameHandler:OnTabChange()
-    self:SetTarget(nil)
-    self:UpdateTargets()
-    self:UpdateMovement()
-    -- OnHideItemButton() ensures we always have a target at position 1.
-    assert(self.targets[MerchantItem1ItemButton])
-    self:SetTarget(MerchantItem1ItemButton)
+    local have_sell_junk = (self.targets[MerchantSellAllJunkButton] ~= nil)
+    if have_sell_junk ~= MerchantSellAllJunkButton:IsShown() then
+        self:SetTarget(nil)
+        self:UpdateTargets()
+        self:UpdateMovement()
+        -- OnHideItemButton() ensures we always have a target at position 1.
+        assert(self.targets[MerchantItem1ItemButton])
+        self:SetTarget(MerchantItem1ItemButton)
+    end
 end
 
 function MerchantFrameHandler:OnShowItemButton(frame, skip_update)
