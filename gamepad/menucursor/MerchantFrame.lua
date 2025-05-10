@@ -265,6 +265,8 @@ function MerchantFrameHandler:UpdateMovement()
             local next = ItemButton(i==last_item and 1 or i+1)
             self.targets[button].left = prev
             self.targets[button].right = next
+            self.targets[button].up = nil
+            self.targets[button].down = nil
             if i%2 == 0 then
                 last_right = button
             else
