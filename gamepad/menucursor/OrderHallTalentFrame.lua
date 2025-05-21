@@ -32,8 +32,9 @@ function OrderHallTalentFrameHandler:__constructor()
     -- to make sure we catch every such change.
     hooksecurefunc(OrderHallTalentFrame, "RefreshAllData",
                    function(frame)
-                       -- If the call was aborted because a previous
-                       -- refresh is in progress, don't do anything.
+                       -- self.refreshing true indicates that RefreshAllData()
+                       -- was called while a previous refresh was in progress,
+                       -- so don't do anything in that case.
                        if frame.refreshing then return end
                        self:RefreshTargets()
                    end)

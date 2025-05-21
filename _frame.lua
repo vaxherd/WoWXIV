@@ -56,8 +56,6 @@ assert(module.class, "_class.lua must be loaded first")
 
 local SUPPORTED_CLASSES = {"Button", "Frame"}
 
-local function empty_constructor() end
-
 for _, frame_type in ipairs(SUPPORTED_CLASSES) do
     local frame_class = module.class()
     local class_metatable = getmetatable(frame_class)  -- Always non-nil.

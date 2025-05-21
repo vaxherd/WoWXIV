@@ -5,8 +5,6 @@ local Cursor = MenuCursor.Cursor
 
 local class = WoWXIV.class
 
-local tinsert = tinsert
-
 ---------------------------------------------------------------------------
 
 -- Constants for trait trees.  These don't seem to be defined anywhere.
@@ -28,12 +26,7 @@ function GenericTraitFrameHandler:__constructor()
     -- tree icon to backing frame, so we need to hook the refresh function
     -- to make sure we catch every such change.
     hooksecurefunc(GenericTraitFrame, "LoadTalentTreeInternal",
-                   function(frame)
-                       -- If the call was aborted because a previous
-                       -- refresh is in progress, don't do anything.
-                       if frame.refreshing then return end
-                       self:RefreshTargets()
-                   end)
+                   function(frame) self:RefreshTargets() end)
 end
 
 function GenericTraitFrameHandler:OnShow()
