@@ -280,8 +280,9 @@ local ITEM_TARGET = {
     [232987] = "player",  -- Blood-B-Gone (85945: Side Gig: Blood-B-Gone)
 
     -- The following are scenario action spells:
-    [-469853] = "none",   -- Drop Candle (Delve: Kriegval's Rest))
-    [-469854] = "none",   -- Drop Air Totem (Delve: Earthen Waterworks)
+    [-314955] = "none",   -- Sanity Restoration Orb (N'Zoth's Horrific Visions)
+    [-469853] = "none",   -- Drop Candle (Delve: Kriegval's Rest, 11.0 only)
+    [-469854] = "none",   -- Drop Air Totem (Delve: Earthen Waterworks, 11.0 only)
 }
 
 -- Special cases for quests which don't have items assigned but really should.
@@ -584,6 +585,12 @@ function QuestItemButton:IterateQuestItems(predicate)
 
     if WoWXIV_config["questitem_scenario_action"] and ScenarioObjectiveTracker:IsShown() then
         local found = false  -- For delve hack, see below.
+        for _, ability in ipairs(C_ZoneAbility.GetActiveAbilities()) do
+            index = index + 1
+            if predicate and predicate(-ability.spellID) then
+                return -ability.spellID, index
+            end
+        end
         for frame in ScenarioObjectiveTracker.spellFramePool:EnumerateActive() do
             index = index + 1
             -- The spell button doesn't have a getter equivalent to SetSpell(),
