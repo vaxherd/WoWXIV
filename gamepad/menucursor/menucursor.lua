@@ -495,9 +495,13 @@ function Cursor:OnShow()
     self:OnUpdate(0)
 end
 
--- Hide() handler; clears menu cursor periodic update.
+-- Hide() handler; clears menu cursor periodic update.  Also stops any
+-- button repeat in progress, because apparently we lose button-up events
+-- if a frame is hidden after the button-down event (even if the frame is
+-- re-shown before the button is released).
 function Cursor:OnHide()
     self:SetScript("OnUpdate", nil)
+    self:StopRepeat()
 end
 
 -- Per-frame update routine.  This serves two purposes: to implement
