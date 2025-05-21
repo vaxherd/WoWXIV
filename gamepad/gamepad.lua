@@ -203,6 +203,7 @@ function GamePadListener:OnGamePadStick(stick, x, y)
     -- need two lists.
     local SCROLL_FRAMES = {  -- ScrollFrameTemplate
         ItemTextScrollFrame,
+        OpenMailScrollFrame,
         QuestDetailScrollFrame,
         QuestRewardScrollFrame,
     }
