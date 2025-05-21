@@ -40,6 +40,7 @@ gamepad/menucursor/DelvesCompanionConfigurationFrame.lua
 gamepad/menucursor/DelvesDifficultyPickerFrame.lua
 gamepad/menucursor/FlightMapFrame.lua
 gamepad/menucursor/GarrisonCapacitiveDisplayFrame.lua
+gamepad/menucursor/GenericTraitFrame.lua
 gamepad/menucursor/GossipFrame.lua
 gamepad/menucursor/InboxFrame.lua
 gamepad/menucursor/LFGDungeonReadyDialog.lua
