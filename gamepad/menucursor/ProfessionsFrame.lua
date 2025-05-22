@@ -1019,9 +1019,11 @@ function DetailedViewHandler:__constructor()
     -- We need to hook both show and hide events to ensure we end up in
     -- the proper state regardless of the show/hide order.
     self:HookShow(DetailedView.UnlockPathButton,
-                  self.RefreshTargets, self.RefreshTargets)
+                  self.RefreshTargetsForUnlockPath,
+                  self.RefreshTargetsForUnlockPath)
     self:HookShow(DetailedView.SpendPointsButton,
-                  self.RefreshTargets, self.RefreshTargets)
+                  self.RefreshTargetsForSpendPoints,
+                  self.RefreshTargetsForSpendPoints)
     self.cancel_func = function() self:Disable() end
     self.on_prev_page = function() self:CycleTabs(-1) end
     self.on_next_page = function() self:CycleTabs(1) end
@@ -1038,22 +1040,39 @@ function DetailedViewHandler:SetTargets()
     self:ClearTarget()
     self.targets = {}
     local target
+    local can_repeat
     if DetailedView.UnlockPathButton:IsShown() then
         target = DetailedView.UnlockPathButton
+        can_repeat = false
     elseif DetailedView.SpendPointsButton:IsShown() then
         target = DetailedView.SpendPointsButton
+        can_repeat = true
     end
     if target then
         self.targets[target] = {
             on_click = function(frame) self:Click(frame) end,
-            lock_highlight = true, is_default = true}
+            can_repeat = can_repeat, lock_highlight = true, is_default = true}
     end
     return target
 end
 
-function DetailedViewHandler:RefreshTargets()
-    local new_target = self:SetTargets()
-    self:SetTarget(new_target)
+-- In these handlers, we need to explicitly avoid clearing the target list
+-- if there is no actual change in state because doing so would break
+-- confirm input repeat.  (We seem to get no-op show/hide calls on both
+-- buttons for every point spent.)
+function DetailedViewHandler:RefreshTargetsForUnlockPath()
+    self:ConditionalRefreshTargets(
+        ProfessionsFrame.SpecPage.DetailedView.UnlockPathButton)
+end
+function DetailedViewHandler:RefreshTargetsForSpendPoints()
+    self:ConditionalRefreshTargets(
+        ProfessionsFrame.SpecPage.DetailedView.SpendPointsButton)
+end
+function DetailedViewHandler:ConditionalRefreshTargets(button)
+    if button:IsShown() ~= (self.targets[button] ~= nil) then
+        local new_target = self:SetTargets()
+        self:SetTarget(new_target)
+    end
 end
 
 -- We use this separate function instead of simply passing the click down

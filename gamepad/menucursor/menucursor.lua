@@ -79,7 +79,8 @@ function Cursor:__constructor()
     self:SetAttribute("type2", "click")
     self:SetAttribute("clickbutton1", nil)
     self:SetAttribute("clickbutton2", nil)
-    self:HookScript("OnClick", function(_,...) self:OnClick(...) end)
+    self:HookScript("OnClick",
+                    function(_,button,down) self:OnClick(button,down) end)
     self:RegisterForClicks("AnyDown", "AnyUp")
 
     for _, handler_class in pairs(Cursor.handlers) do
@@ -558,9 +559,8 @@ function Cursor:SetCursorPoint(focus, target)
     self:SetPoint("TOPRIGHT", UIParent, "TOPLEFT", x, y-UIParent:GetHeight())
 end
 
--- Click event handler; handles all events other than secure click
--- passthrough.
-function Cursor:OnClick(button, down)
+-- Click event handler; handles all events other than secure click passthrough.
+function Cursor:OnClick(button, down, is_repeat)
     if not down then
         self:StopRepeat()
         return
@@ -598,17 +598,41 @@ function Cursor:OnClick(button, down)
         end
         self:StartRepeat(button)
     elseif button == "LeftButton" then  -- i.e., confirm
-        -- Click event is passed to target by SecureActionButtonTemplate.
-        -- This code is called afterward, so it's possible that the click
-        -- already closed our (previously) current focus frame or otherwise
-        -- changed the cursor state.  If we blindly proceed with calling
-        -- the on_click handler here, we could potentially perform a second
-        -- click action from a single button press, so ensure that the
-        -- focus state has not in fact changed since the last OnUpdate() call.
+        if is_repeat and target and focus:IsTargetClickable(target) then
+            -- Repeated clicks naturally don't get forwarded, so we have to
+            -- call down ourselves.
+            local target_frame = focus:GetTargetFrame(target)
+            target_frame:GetScript("OnClick")(target_frame, button, down)
+            -- Focus/target might have changed! (see notes below)
+            focus, target = self:GetFocusAndTarget()
+        end
+        -- The click event (if not a repeat, see above) is passed to the
+        -- target frame by SecureActionButtonTemplate.  This code is called
+        -- afterward, so it's possible that the click already closed our
+        -- (previously) current focus frame or otherwise changed the cursor
+        -- state.  If we blindly proceed with calling the on_click handler
+        -- here, we could potentially perform a second click action from a
+        -- single button press, so ensure that the focus state has not in
+        -- fact changed since the last OnUpdate() call.
         if focus == self.last_focus and target == self.last_target then
             if target then
                 focus:OnConfirm(target)
+                focus, target = self:GetFocusAndTarget()
             end
+        end
+        -- Only allow confirm button repeating for buttons which explicitly
+        -- permit it, and then only if the confirm action didn't change the
+        -- target (intended for things like profession skill upgrade buttons).
+        local repeatable = false
+        if focus == self.last_focus and target == self.last_target then
+            repeatable = target and focus:IsTargetRepeatable(target)
+        end
+        if repeatable then
+            self:StartRepeat(button)
+        else
+            -- This could be the result of a repeated confirm action
+            -- changing the target, so we have to make sure to stop it!
+            self:StopRepeat(button)
         end
     elseif button == "Cancel" then
         -- If the frame declared a cancel button, the click is passed down
@@ -663,9 +687,9 @@ function Cursor:Move(dir)
     end
 end
 
--- Set auto-repeat state for a newly pressed directional button.  Does
--- nothing if the button is already being repeated, so that the caller does
--- not need to distinguish between an initial press and a repeated press.
+-- Set auto-repeat state for a newly pressed button.  Does nothing if the
+-- button is already being repeated, so that the caller does not need to
+-- distinguish between an initial press and a repeated press.
 function Cursor:StartRepeat(button)
     if self.repeat_button ~= button then
         self.repeat_button = button
@@ -683,12 +707,12 @@ function Cursor:CheckRepeat()
     if self.repeat_button then
         local now = GetTime()
         if now >= self.repeat_next then
-            -- Note that we add the period to the nominal timestamp of
-            -- the repeat event, not the actual current timestamp, to
-            -- ensure a consistent average interval regardless of frame
-            -- rate fluctuations.
+            -- Note that we add the period to the nominal timestamp of the
+            -- repeat event, not the actual current timestamp, to ensure a
+            -- consistent average interval regardless of fluctuations in
+            -- the game's refresh rate.
             self.repeat_next = self.repeat_next + CURSOR_REPEAT_PERIOD
-            self:OnClick(self.repeat_button, true)
+            self:OnClick(self.repeat_button, true, true)
         end
     end
 end
@@ -738,6 +762,11 @@ function MenuFrame:__constructor(frame, modal)
     --    - can_activate: If true, a confirm input on this element causes a
     --         left-click action to be sent to the element (which must be a
     --         Button instance).
+    --    - can_repeat: If true, confirm inputs on this element can be
+    --         repeated by holding down the confirm button.  Cannot be used
+    --         for actions which run secure code (attempting to do so will
+    --         trigger a taint error), since repeats are handled by
+    --         user-side logic.
     --    - cursor_type: Sets the cursor type for this target, one of:
     --         - "default" (or nil): Default bouncing finger pointer.
     --         - "static": Unmoving finger pointer.
@@ -874,11 +903,17 @@ function MenuFrame:GetTargetFrame(target)
     end
 end
 
--- Return whether click events should be securely passed down to the
--- given target's frame.
+-- Return whether confirm button click events should be securely passed
+-- down to the given target's frame.
 function MenuFrame:IsTargetClickable(target)
     local params = self.targets[target]
     return params and params.can_activate
+end
+
+-- Return whether confirm button click events should be repeatable.
+function MenuFrame:IsTargetRepeatable(target)
+    local params = self.targets[target]
+    return params and params.can_repeat
 end
 
 -- Return whether directional pad inputs should be passed directly to this
