@@ -32,6 +32,7 @@ gamepad/menucursor/menucursor.lua
 gamepad/menucursor/AdventureMapQuestChoiceDialog.lua
 gamepad/menucursor/AnimaDiversionFrame.lua
 gamepad/menucursor/AuctionHouseFrame.lua
+gamepad/menucursor/CharacterFrame.lua
 gamepad/menucursor/ClassTrainerFrame.lua
 gamepad/menucursor/ContributionCollectionFrame.lua
 gamepad/menucursor/CovenantMissionFrame.lua
@@ -43,6 +44,7 @@ gamepad/menucursor/GarrisonCapacitiveDisplayFrame.lua
 gamepad/menucursor/GenericTraitFrame.lua
 gamepad/menucursor/GossipFrame.lua
 gamepad/menucursor/InboxFrame.lua
+gamepad/menucursor/ItemUpgradeFrame.lua
 gamepad/menucursor/LFGDungeonReadyDialog.lua
 gamepad/menucursor/LFGListApplicationDialog.lua
 gamepad/menucursor/LFGListInviteDialog.lua

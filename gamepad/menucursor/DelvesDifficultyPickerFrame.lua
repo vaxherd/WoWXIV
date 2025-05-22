@@ -35,7 +35,7 @@ function DelvesDifficultyPickerFrameHandler:ToggleDropdown()
             function(selection)
                 return selection.data and selection.data.orderIndex + 1
             end,
-            function () self:RefreshTargets() end)
+            function() self:RefreshTargets() end)
         menu:Enable(initial_target)
     end
 end

@@ -397,6 +397,7 @@ function Cursor:UpdateCursor(in_combat)
         self:RemoveFrame(focus)
         focus, target = self:GetFocusAndTarget()
     end
+    local modal = (self:InternalGetFocusStack() == self.modal_stack)
 
     local target_frame
     if target then
@@ -429,8 +430,23 @@ function Cursor:UpdateCursor(in_combat)
     end
 
     ClearOverrideBindings(self)
-    SetOverrideBinding(self, true, WoWXIV_config["gamepad_menu_next_window"],
-                       "CLICK WoWXIV_MenuCursor:CycleFocus")
+    -- Any access to WoWXIV_config here will taint execution in StaticPopup
+    -- frames, which can break some common game actions such as item
+    -- upgrading.  We work around this by suppressing frame cycling on
+    -- modal frames (which shouldn't be a problem in practice) and
+    -- hard-coding confirm/cancel buttons.  FIXME: is there any way we can
+    -- secure these specific configuration values?
+    local confirm_button, cancel_button
+    if modal then
+        confirm_button = "PAD2"
+        cancel_button = "PAD1"
+    else
+        confirm_button = WoWXIV_config["gamepad_menu_confirm"]
+        cancel_button = WoWXIV_config["gamepad_menu_cancel"]
+        SetOverrideBinding(self, true,
+                           WoWXIV_config["gamepad_menu_next_window"],
+                           "CLICK WoWXIV_MenuCursor:CycleFocus")
+    end
     if focus and not entering_combat then
         SetOverrideBinding(self, true, "PADDUP",
                            "CLICK WoWXIV_MenuCursor:DPadUp")
@@ -441,7 +457,7 @@ function Cursor:UpdateCursor(in_combat)
         SetOverrideBinding(self, true, "PADDRIGHT",
                            "CLICK WoWXIV_MenuCursor:DPadRight")
         local cancel = focus:GetCancelButton() and "RightButton" or "Cancel"
-        SetOverrideBinding(self, true, WoWXIV_config["gamepad_menu_cancel"],
+        SetOverrideBinding(self, true, cancel_button,
                            "CLICK WoWXIV_MenuCursor:"..cancel)
         local prev, next = focus:GetPageHandlers()
         if prev and next then
@@ -473,8 +489,7 @@ function Cursor:UpdateCursor(in_combat)
         end
         -- Make sure the cursor is visible before we allow menu actions.
         if self:IsShown() then
-            SetOverrideBinding(self, true,
-                               WoWXIV_config["gamepad_menu_confirm"],
+            SetOverrideBinding(self, true, confirm_button,
                                "CLICK WoWXIV_MenuCursor:LeftButton")
             if focus:HasActionButton("Button3") then
                 SetOverrideBinding(self, true,
@@ -809,6 +824,12 @@ function MenuFrame:__constructor(frame, modal)
     --         targeted on the corresponding movement input from this
     --         element.  A value of false prevents movement in the
     --         corresponding direction.
+    --    - x_offset: Specifies the horizontal offset of the menu cursor
+    --         from its default position, in display units.  A nil value is
+    --         treated as zero.
+    --    - y_offset: Specifies the vertical offset of the menu cursor from
+    --         its default position, in display units.  A nil value is
+    --         treated as zero.
     self.targets = {}
     -- Function to call when the cancel button is pressed (receives self
     -- as an argument).  If nil, no action is taken.
@@ -953,7 +974,7 @@ function MenuFrame:GetTargetPosition(target)
     if not x or not y then return end
     local scale = frame:GetEffectiveScale() / UIParent:GetEffectiveScale()
     x = (x + (params.x_offset or 0)) * scale
-    y = y * scale
+    y = (y + (params.y_offset or 0)) * scale
     return x, y
 end
 
