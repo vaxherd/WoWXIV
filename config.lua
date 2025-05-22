@@ -3,6 +3,9 @@ WoWXIV.Config = {}
 
 local class = WoWXIV.class
 
+local floor = math.floor
+local function round(x) return math.floor(x+0.5) end
+
 -- Global config array, saved and restored by the API.
 -- This is currently restored after parsing, so the value will always be
 -- nil here, but we write it this way as future-proofing against values
@@ -15,10 +18,13 @@ WoWXIV_config = WoWXIV_config or {}
 -- WoWXIV_config after module load is inserted by the init routine.
 local CONFIG_DEFAULT = {
 
+--[[ Note: these are no longer used, see below under "Gamepad confirm/cancel button handling"
     -- Gamepad binding: menu cursor confirm
     gamepad_menu_confirm = "PAD2",
     -- Gamepad binding: menu cursor cancel
     gamepad_menu_cancel = "PAD1",
+]]--
+
     -- Gamepad binding: menu cursor button 3 (north)
     gamepad_menu_button3 = "PAD4",
     -- Gamepad binding: menu cursor button 4 (west)
@@ -287,6 +293,10 @@ local CPGamepadBinding = class(ConfigPanelElement)
 
 CPGamepadBinding.active_binding = nil
 
+-- |setting| is:
+--     - If is_cvar is true, the name of the cvar holding the button
+--     - If is_cvar is false and the value is a table, a {getter,setter} pair
+--     - If is_cvar is false and the value is a string, the config name
 function CPGamepadBinding:__constructor(panel, x, y, text, setting, is_cvar,
                                         on_change)
     self.setting = setting
@@ -328,6 +338,9 @@ function CPGamepadBinding:UpdateButtonText()
     local binding
     if self.is_cvar then
         binding = C_CVar.GetCVar(self.setting)
+    elseif type(self.setting) == "table" then
+        local getter = self.setting[1]
+        binding = getter()
     else
         binding = WoWXIV_config[self.setting]
     end
@@ -347,6 +360,9 @@ function CPGamepadBinding:SetBinding(value, suppress_onchange)
         assert(not value:find("-", 1, true))
         old_value = C_CVar.GetCVar(self.setting)
         C_CVar.SetCVar(self.setting, value)
+    elseif type(self.setting) == "table" then
+        local setter = self.setting[2]
+        setter(value)
     else
         old_value = WoWXIV_config[self.setting]
         WoWXIV_config[self.setting] = value
@@ -464,8 +480,12 @@ function ConfigPanel:__constructor()
     self:AddComment("The Alt modifier is used to confirm/cancel target selection from the party list.")
     self:AddBindingCvar("Confirm ground target", "GamePadCursorLeftClick")
     self:AddBindingCvar("RMB emulation (unused)", "GamePadCursorRightClick")
-    self:AddBindingLocal("Confirm menu selection", "gamepad_menu_confirm")
-    self:AddBindingLocal("Cancel menu selection", "gamepad_menu_cancel")
+    self:AddBindingSpecial("Confirm menu selection",
+                           WoWXIV.Config.GamePadConfirmButton,
+                           WoWXIV.Config.SetGamePadConfirmButton)
+    self:AddBindingSpecial("Cancel menu selection",
+                           WoWXIV.Config.GamePadCancelButton,
+                           WoWXIV.Config.SetGamePadCancelButton)
     self:AddBindingLocal("Menu action button 1", "gamepad_menu_button3")
     self:AddBindingLocal("Menu action button 2", "gamepad_menu_button4")
     self:AddBindingLocal("Previous menu page", "gamepad_menu_prev_page")
@@ -714,6 +734,14 @@ function ConfigPanel:AddBindingLocal(text, setting)
     self.y = self.y - binding:GetSpacing()
 end
 
+-- Specifically for confirm/cancel.
+function ConfigPanel:AddBindingSpecial(text, getter, setter)
+    local binding = CPGamepadBinding(self, self.x+15, self.y, text,
+                                     {getter, setter}, false,
+                                     WoWXIV.Gamepad.UpdateBindings)
+    self.y = self.y - binding:GetSpacing()
+end
+
 ------------------------------------------------------------------------
 
 -- Initialize configuration data and create the configuration window.
@@ -721,6 +749,11 @@ function WoWXIV.Config.Create()
     for k, v in pairs(CONFIG_DEFAULT) do
         if WoWXIV_config[k] == nil then
             WoWXIV_config[k] = v
+        end
+    end
+    for k, v in pairs(WoWXIV_config) do
+        if CONFIG_DEFAULT[k] == nil then
+            WoWXIV_config[k] = nil
         end
     end
 
@@ -758,4 +791,97 @@ end
 -- Open the addon configuration window.
 function WoWXIV.Config.Open()
     Settings.OpenToCategory(WoWXIV.Config.category.ID)
+end
+
+------------------------------------------------------------------------
+-- Gamepad confirm/cancel button handling
+--
+-- The gamepad confirm and cancel button settings are packed into the
+-- GamePadCamera{Yaw,Pitch}Speed cvars to avoid tainting the StaticPopup
+-- frames.  These functions handle returning (untainted) button settings
+-- and storing the button and camera speed together in a single cvar.
+--
+-- A side effect of this is that setting the camera speed to zero does
+-- not actually stop camera motion, but the difference should not be
+-- noticeable in normal circumstances.
+------------------------------------------------------------------------
+
+-- Return the button name corresponding to the given numeric ID (an
+-- integer in the range [0,15]), or nil if the button ID is unknown.
+local function DecodeButtonID(button)
+    -- Note that we probably can't use tables here because those would be
+    -- (tainted) data objects!  For whatever reason, we can get away with
+    -- passing literal strings around, though.
+    if button == 1 then return "PAD1" end
+    if button == 2 then return "PAD2" end
+    if button == 3 then return "PAD3" end
+    if button == 4 then return "PAD4" end
+    if button == 5 then return "PAD5" end
+    if button == 6 then return "PAD6" end
+    return nil
+end
+
+-- Encode the given button name as a numeric value for storing in a
+-- numeric cvar.  Returns 0 if the button name is unknown.
+local function EncodeButtonID(button)
+    if button == "PAD1" then return 1 end
+    if button == "PAD2" then return 2 end
+    if button == "PAD3" then return 3 end
+    if button == "PAD4" then return 4 end
+    if button == "PAD5" then return 5 end
+    if button == "PAD6" then return 6 end
+    return 0
+end
+
+-- Return the gamepad confirm button.
+function WoWXIV.Config.GamePadConfirmButton()
+    local speed = tonumber(C_CVar.GetCVar("GamePadCameraYawSpeed"))
+    local button_id = round(speed*65536)%16
+    return DecodeButtonID(button_id) or "PAD1"
+end
+
+-- Return the gamepad cancel button.
+function WoWXIV.Config.GamePadCancelButton()
+    local speed = tonumber(C_CVar.GetCVar("GamePadCameraPitchSpeed"))
+    local button_id = round(speed*65536)%16
+    return DecodeButtonID(button_id) or "PAD2"
+end
+
+-- Set the gamepad confirm button.
+function WoWXIV.Config.SetGamePadConfirmButton(button)
+    local speed = tonumber(C_CVar.GetCVar("GamePadCameraYawSpeed"))
+    speed = round(speed*256) / 256
+    button = EncodeButtonID(button)
+    C_CVar.SetCVar("GamePadCameraYawSpeed", speed + button/65536)
+end
+
+-- Set the gamepad cancel button.
+function WoWXIV.Config.SetGamePadCancelButton(button)
+    local speed = tonumber(C_CVar.GetCVar("GamePadCameraPitchSpeed"))
+    speed = round(speed*256) / 256
+    button = EncodeButtonID(button)
+    C_CVar.SetCVar("GamePadCameraPitchSpeed", speed + button/65536)
+end
+
+-- Return the global camera yaw or pitch speed.
+function WoWXIV.Config.GamePadCameraYawSpeed()
+    local speed = C_CVar.GetCVar("GamePadCameraYawSpeed")
+    return round(speed*256) / 256
+end
+function WoWXIV.Config.GamePadCameraPitchSpeed()
+    local speed = C_CVar.GetCVar("GamePadCameraPitchSpeed")
+    return round(speed*256) / 256
+end
+
+-- Set the global camera yaw or pitch speed.  The parameter will be
+-- rounded to the nearest 1/256th.
+function WoWXIV.Config.SetGamePadCameraYawSpeed(speed)
+    speed = round(speed*256) / 256
+    local button = EncodeButtonID(WoWXIV.Config.GamePadConfirmButton())
+    C_CVar.SetCVar("GamePadCameraYawSpeed", speed + button/65536)
+end
+function WoWXIV.Config.SetGamePadCameraPitchSpeed(speed)
+    speed = round(speed*256) / 256
+    local button = EncodeButtonID(WoWXIV.Config.GamePadCancelButton())
+    C_CVar.SetCVar("GamePadCameraPitchSpeed", speed + button/65536)
 end

@@ -662,9 +662,9 @@ function PartyCursor:__constructor(frame_level)
                        "CLICK WoWXIV_PartyCursor:CycleForward")
     SetOverrideBinding(f, false, "PADDUP",
                        "CLICK WoWXIV_PartyCursor:CycleBackward")
-    SetOverrideBinding(f, false, "ALT-"..WoWXIV_config["gamepad_menu_confirm"],
+    SetOverrideBinding(f, false, "ALT-"..WoWXIV.Config.GamePadConfirmButton(),
                        "CLICK WoWXIV_PartyCursor:Confirm")
-    SetOverrideBinding(f, false, "ALT-"..WoWXIV_config["gamepad_menu_cancel"],
+    SetOverrideBinding(f, false, "ALT-"..WoWXIV.Config.GamePadCancelButton(),
                        "CLICK WoWXIV_PartyCursor:Cancel")
 end
 

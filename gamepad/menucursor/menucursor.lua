@@ -433,16 +433,10 @@ function Cursor:UpdateCursor(in_combat)
     -- Any access to WoWXIV_config here will taint execution in StaticPopup
     -- frames, which can break some common game actions such as item
     -- upgrading.  We work around this by suppressing frame cycling on
-    -- modal frames (which shouldn't be a problem in practice) and
-    -- hard-coding confirm/cancel buttons.  FIXME: is there any way we can
-    -- secure these specific configuration values?
-    local confirm_button, cancel_button
-    if modal then
-        confirm_button = "PAD2"
-        cancel_button = "PAD1"
-    else
-        confirm_button = WoWXIV_config["gamepad_menu_confirm"]
-        cancel_button = WoWXIV_config["gamepad_menu_cancel"]
+    -- modal frames, which shouldn't be a problem in practice.  See
+    -- config.lua for how we deal with user-configurable confirm/cancel
+    -- buttons (which ideally would have their own cvars, but oh well).
+    if not modal then
         SetOverrideBinding(self, true,
                            WoWXIV_config["gamepad_menu_next_window"],
                            "CLICK WoWXIV_MenuCursor:CycleFocus")
@@ -457,7 +451,7 @@ function Cursor:UpdateCursor(in_combat)
         SetOverrideBinding(self, true, "PADDRIGHT",
                            "CLICK WoWXIV_MenuCursor:DPadRight")
         local cancel = focus:GetCancelButton() and "RightButton" or "Cancel"
-        SetOverrideBinding(self, true, cancel_button,
+        SetOverrideBinding(self, true, WoWXIV.Config.GamePadCancelButton(),
                            "CLICK WoWXIV_MenuCursor:"..cancel)
         local prev, next = focus:GetPageHandlers()
         if prev and next then
@@ -489,7 +483,8 @@ function Cursor:UpdateCursor(in_combat)
         end
         -- Make sure the cursor is visible before we allow menu actions.
         if self:IsShown() then
-            SetOverrideBinding(self, true, confirm_button,
+            SetOverrideBinding(self, true,
+                               WoWXIV.Config.GamePadConfirmButton(),
                                "CLICK WoWXIV_MenuCursor:LeftButton")
             if focus:HasActionButton("Button3") then
                 SetOverrideBinding(self, true,

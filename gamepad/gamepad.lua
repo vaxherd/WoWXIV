@@ -152,27 +152,23 @@ function GamePadListener:SetCameraStickDisable(type, active)
     end
     if disable_x then
         if not self.zoom_saved_yaw_speed then
-            self.zoom_saved_yaw_speed =
-                C_CVar.GetCVar("GamePadCameraYawSpeed")
-            C_CVar.SetCVar("GamePadCameraYawSpeed", 0)
+            self.zoom_saved_yaw_speed = WoWXIV.Config.GamePadCameraYawSpeed()
+            WoWXIV.Config.SetGamePadCameraYawSpeed(0)
         end
     else
         if self.zoom_saved_yaw_speed then
-            C_CVar.SetCVar("GamePadCameraYawSpeed",
-                           self.zoom_saved_yaw_speed)
+            WoWXIV.Config.SetGamePadCameraYawSpeed(self.zoom_saved_yaw_speed)
             self.zoom_saved_yaw_speed = nil
         end
     end
     if disable_y then
         if not self.zoom_saved_pitch_speed then
-            self.zoom_saved_pitch_speed =
-                C_CVar.GetCVar("GamePadCameraPitchSpeed")
-            C_CVar.SetCVar("GamePadCameraPitchSpeed", 0)
+            self.zoom_saved_pitch_speed = WoWXIV.Config.GamePadCameraPitchSpeed()
+            WoWXIV.Config.SetGamePadCameraPitchSpeed(0)
         end
     else
         if self.zoom_saved_pitch_speed then
-            C_CVar.SetCVar("GamePadCameraPitchSpeed",
-                           self.zoom_saved_pitch_speed)
+            WoWXIV.Config.SetGamePadCameraPitchSpeed(self.zoom_saved_pitch_speed)
             self.zoom_saved_pitch_speed = nil
         end
     end
@@ -287,8 +283,8 @@ function Gamepad.UpdateBindings()
 end
 
 function Gamepad.UpdateCameraSettings()
-    C_CVar.SetCVar("GamePadCameraYawSpeed",
-                   WoWXIV_config["gamepad_camera_invert_h"] and -1 or 1)
-    C_CVar.SetCVar("GamePadCameraPitchSpeed",
-                   WoWXIV_config["gamepad_camera_invert_v"] and -1 or 1)
+    WoWXIV.Config.SetGamePadCameraYawSpeed(
+        WoWXIV_config["gamepad_camera_invert_h"] and -1 or 1)
+    WoWXIV.Config.SetGamePadCameraPitchSpeed(
+        WoWXIV_config["gamepad_camera_invert_v"] and -1 or 1)
 end
