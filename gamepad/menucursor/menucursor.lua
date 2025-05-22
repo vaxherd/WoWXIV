@@ -556,7 +556,7 @@ function Cursor:OnUpdate(dt)
         self.texture:AdjustPointsOffset(xofs, 0)
     end
 
-    focus:OnUpdate(target_frame)
+    focus:OnUpdate(target_frame, dt)
 end
 
 -- Helper for UpdateCursor() and OnUpdate() to set the cursor frame anchor.
@@ -575,6 +575,7 @@ function Cursor:OnClick(button, down, is_repeat)
         self:StopRepeat()
         return
     end
+
     if button ~= self.repeat_button then
         self:StopRepeat()
     end
@@ -1177,9 +1178,10 @@ end
 -------- Cursor callbacks (can be overridden by specializations if needed)
 
 -- Per-frame update handler.  Receives the frame associated with the
--- current target (which may be different from the targets[] key itself).
--- This method is only called when the cursor is visible.
-function MenuFrame:OnUpdate(target_frame)
+-- current target (which may be different from the targets[] key itself)
+-- and the current time step (delta-t).  This method is only called when
+-- the cursor is visible.
+function MenuFrame:OnUpdate(target_frame, dt)
 end
 
 -- Confirm input event handler, called from Cursor:OnClick() for confirm
@@ -1211,9 +1213,8 @@ function MenuFrame:OnMove(old_target, new_target)
     -- No-op by default.
 end
 
--- Callback for D-pad input when a target is overriding it.
--- dir gives the direction, one of the strings "up", "down", "left", or
--- "right".
+-- Callback for D-pad input when a target is overriding it.  dir gives the
+-- direction, one of the strings "up", "down", "left", or "right".
 function MenuFrame:OnDPad(dir)
     -- No-op by default.
 end

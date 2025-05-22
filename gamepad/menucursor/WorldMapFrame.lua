@@ -8,6 +8,7 @@ local class = WoWXIV.class
 local function clamp(x, l, h)
     if x < l then return l elseif x > h then return h else return x end
 end
+local strsub = string.sub
 
 ---------------------------------------------------------------------------
 
@@ -16,9 +17,22 @@ MenuCursor.Cursor.RegisterFrameHandler(WorldMapFrameHandler)
 
 
 function WorldMapFrameHandler:__constructor()
+    -- Current cursor position, in normalized coordinates.
     self.cursor_x = 0.5
     self.cursor_y = 0.5
-    self.cursor_highlight = nil --Highlight pin currently under cursor, if any.
+    -- Current cursor movement direction (+/-1).
+    self.cursor_dx = 0
+    self.cursor_dy = 0
+    -- Current cursor movement speed (normalized coordinates / sec).
+    self.cursor_speed = 0
+    -- Cursor acceleration (speed / sec).  This is currently a constant.
+    self.cursor_accel = 1
+    -- Cursor minimum (initial) movement speed.  This is currently a constant.
+    self.cursor_min_speed = 0.8
+    -- Cursor maximum movement speed.  This is currently a constant.
+    self.cursor_max_speed = 2
+    -- Highlight pin currently under cursor, if any.
+    self.cursor_highlight = nil
 
     self:__super(WorldMapFrame)
     self.has_Button3 = true
@@ -27,28 +41,70 @@ function WorldMapFrameHandler:__constructor()
     self.cursor_frame =
         CreateFrame("Frame", nil, WorldMapFrame.ScrollContainer.Child)
     self.cursor_frame:SetSize(1, 1)
-    self.targets =
-        {[self.cursor_frame] = {cursor_type = "static", is_default = true,
-                                on_click = function() self:OnClickMap() end}}
+    self.cursor_frame:SetScript(
+        "OnGamePadButtonDown",
+        function(_, button) self:OnGamePadButton(button, true) end)
+    self.cursor_frame:SetScript(
+        "OnGamePadButtonUp",
+        function(_, button) self:OnGamePadButton(button, false) end)
+    self.targets = {
+        [self.cursor_frame] = {cursor_type = "static", dpad_override = true,
+                               on_click = function() self:OnClickMap() end,
+                               is_default = true},
+    }
 end
 
 function WorldMapFrameHandler:OnShow()
     self.cursor_x = 0.5
     self.cursor_y = 0.5
+    self.cursor_dx = 0
+    self.cursor_dy = 0
+    self.cursor_speed = 0
     self.cursor_highlight = nil
     self:UpdateCursorTarget()
     CoreMenuFrame.OnShow(self)
 end
 
-function WorldMapFrameHandler:OnUpdate()
-    -- If the map is faded out for player movement, also hide the cursor.
-    -- Note that the map frame's alpha animator doesn't go all the way to
-    -- the target value, so we have to allow a bit of leeway in the check.
-    if self.frame:GetAlpha() < 0.95 then
-        self:SetTarget(nil)
-        return
+function WorldMapFrameHandler:OnGamePadButton(button, down)
+    if self:HasFocus() then
+        if button == "PADDLEFT" or button == "PADDRIGHT" then
+            self.cursor_dx = down and (button=="PADDLEFT" and -1 or 1) or 0
+            -- It seems we have to explicitly toggle this flag on every event.
+            self.cursor_frame:SetPropagateKeyboardInput(false)
+            return
+        end
+        if button == "PADDUP" or button == "PADDDOWN" then
+            self.cursor_dy = down and (button=="PADDUP" and -1 or 1) or 0
+            self.cursor_frame:SetPropagateKeyboardInput(false)
+            return
+        end
+    else
+        self.cursor_dx = 0
+        self.cursor_dy = 0
     end
-    self:SetTarget(self.cursor_frame)
+    self.cursor_frame:SetPropagateKeyboardInput(true)
+end
+
+function WorldMapFrameHandler:OnUpdate(target_frame, dt)
+    local dx, dy = self.cursor_dx, self.cursor_dy
+    local speed = self.cursor_speed
+    if dx ~= 0 or dy ~= 0 then
+        speed = clamp(speed + (self.cursor_accel * dt),
+                      self.cursor_min_speed, self.cursor_max_speed)
+        self.cursor_speed = speed
+        local dist = speed * dt
+        if dx ~= 0 and dy ~= 0 then
+            dist = dist * (2^-0.5)
+        end
+        local x, y = self.cursor_x, self.cursor_y
+        x = clamp(x + dx*dist, 0, 1)
+        y = clamp(y + dy*dist, 0, 1)
+        self.cursor_x, self.cursor_y = x, y
+        self:UpdateCursorTarget()
+    else
+        self.cursor_speed = 0
+    end
+    target_frame:SetAlpha(self.frame:GetAlpha())
 end
 
 function WorldMapFrameHandler:OnAction(button)
@@ -93,22 +149,4 @@ function WorldMapFrameHandler:UpdateCursorTarget()
     local x, y, w, h = WorldMapFrame.ScrollContainer.Child:GetRect()
     cf:ClearAllPoints()
     cf:SetPoint("TOPLEFT", w*self.cursor_x, (-h)*self.cursor_y)
-end
-
--------- External interface functions called by camera stick input handler:
-
--- Return whether the map is currently focused.  We don't currently support
--- any UI elements on the map frame other than the map itself, but we hide
--- the cursor while the map is faded for player movement (see above).
-function WorldMapFrameHandler:IsMapFocused()
-    return self:GetTarget() == self.cursor_frame
-end
-
--- Apply analog stick input to the map cursor position.
-function WorldMapFrameHandler:HandleStickInput(x, y, dt)
-    local speed = 1.5
-    local move = dt * speed
-    self.cursor_x = clamp(self.cursor_x + x*move, 0, 1)
-    self.cursor_y = clamp(self.cursor_y - y*move, 0, 1)
-    self:UpdateCursorTarget()
 end
