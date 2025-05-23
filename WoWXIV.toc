@@ -48,6 +48,7 @@ gamepad/menucursor/ItemUpgradeFrame.lua
 gamepad/menucursor/LFGDungeonReadyDialog.lua
 gamepad/menucursor/LFGListApplicationDialog.lua
 gamepad/menucursor/LFGListInviteDialog.lua
+gamepad/menucursor/MajorFactionRenownFrame.lua
 gamepad/menucursor/MerchantFrame.lua
 gamepad/menucursor/OpenMailFrame.lua
 gamepad/menucursor/OrderHallMissionFrame.lua

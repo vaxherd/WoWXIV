@@ -760,8 +760,8 @@ MenuFrame.MODAL = true
 -------- Instance constructor
 
 -- Instance constructor.  Pass the WoW Frame instance to be managed.
--- If modal is true, the frame will be modal (preventing switching
--- input focus to any non-modal frame while active).
+-- If modal is true, the frame will be modal (preventing switching input
+-- focus to any non-modal frame while active).
 function MenuFrame:__constructor(frame, modal)
     self.frame = frame
     self.modal = modal
@@ -1400,7 +1400,7 @@ end
 -- is_scroll_box=true will automatically be added to the target attribute
 -- table, along with appropriate up and down attributes to enable proper
 -- cursor movement.  By default, the top element's "up" attribute will
--- point to the bottom  element and vice versa, so cursor movement wraps
+-- point to the bottom element and vice versa, so cursor movement wraps
 -- around; the caller is responsible for changing these attributes if
 -- different movement behavior is desired.
 --
@@ -1845,6 +1845,12 @@ function NumberInput:__constructor(editbox, on_change)
 
     self.targets = {[f] = {is_default = true, dpad_override = true,
                            on_click = function() self:ConfirmEdit() end}}
+end
+
+-- Set the rendering scale factor for the input text.  Useful when the
+-- default size doesn't match the size of the original InputBox text.
+function NumberInput:SetTextScale(scale)
+    self.label:SetTextScale(scale)
 end
 
 -- Start editing.  This grabs the menu cursor focus; focus will be returned
