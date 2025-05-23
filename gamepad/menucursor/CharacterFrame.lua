@@ -413,8 +413,9 @@ function CurrencyTransferMenuHandler:__constructor()
             on_click = function() self:EditQuantity() end,
             up = f.SourceSelector.Dropdown, down = f.ConfirmButton},
         [f.ConfirmButton] = {
-            -- NOTE: This currently fails due to taint, so currency transfer
-            -- needs to be done with the addon disabled.
+            -- NOTE: This currently fails due to taint (despite our best
+            -- efforts), so currency transfer needs to be done with the
+            -- addon disabled.
             can_activate = false, lock_highlight = true,
             up = f.AmountSelector.MaxQuantityButton,
             down = f.SourceSelector.DropDown, left = false},

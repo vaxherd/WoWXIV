@@ -438,7 +438,7 @@ function Cursor:UpdateCursor(in_combat)
     -- buttons (which ideally would have their own cvars, but oh well).
     if not modal then
         SetOverrideBinding(self, true,
-                           WoWXIV_config["gamepad_menu_next_window"],
+                           WoWXIV.Config.GamePadCycleFocusButton(),
                            "CLICK WoWXIV_MenuCursor:CycleFocus")
     end
     if focus and not entering_combat then
@@ -467,18 +467,18 @@ function Cursor:UpdateCursor(in_combat)
                 next_button = "CLICK WoWXIV_MenuCursor:NextPage"
             end
             SetOverrideBinding(self, true,
-                               WoWXIV_config["gamepad_menu_prev_page"],
+                               WoWXIV.Config.GamePadPrevPageButton(),
                                prev_button)
             SetOverrideBinding(self, true,
-                               WoWXIV_config["gamepad_menu_next_page"],
+                               WoWXIV.Config.GamePadNextPageButton(),
                                next_button)
         end
         if focus:GetTabHandler() then
             SetOverrideBinding(self, true,
-                               WoWXIV_config["gamepad_menu_prev_tab"],
+                               WoWXIV.Config.GamePadPrevTabButton(),
                                "CLICK WoWXIV_MenuCursor:PrevTab")
             SetOverrideBinding(self, true,
-                               WoWXIV_config["gamepad_menu_next_tab"],
+                               WoWXIV.Config.GamePadNextTabButton(),
                                "CLICK WoWXIV_MenuCursor:NextTab")
         end
         -- Make sure the cursor is visible before we allow menu actions.
@@ -488,12 +488,12 @@ function Cursor:UpdateCursor(in_combat)
                                "CLICK WoWXIV_MenuCursor:LeftButton")
             if focus:HasActionButton("Button3") then
                 SetOverrideBinding(self, true,
-                                   WoWXIV_config["gamepad_menu_button3"],
+                                   WoWXIV.Config.GamePadMenuButton3(),
                                    "CLICK WoWXIV_MenuCursor:Button3")
             end
             if focus:HasActionButton("Button4") then
                 SetOverrideBinding(self, true,
-                                   WoWXIV_config["gamepad_menu_button4"],
+                                   WoWXIV.Config.GamePadMenuButton4(),
                                    "CLICK WoWXIV_MenuCursor:Button4")
             end
         end

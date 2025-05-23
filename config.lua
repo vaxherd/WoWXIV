@@ -5,6 +5,10 @@ local class = WoWXIV.class
 
 local floor = math.floor
 local function round(x) return math.floor(x+0.5) end
+local strfind = string.find
+local strformat = string.format
+local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
+local strsub = string.sub
 
 -- Global config array, saved and restored by the API.
 -- This is currently restored after parsing, so the value will always be
@@ -18,13 +22,11 @@ WoWXIV_config = WoWXIV_config or {}
 -- WoWXIV_config after module load is inserted by the init routine.
 local CONFIG_DEFAULT = {
 
---[[ Note: these are no longer used, see below under "Gamepad confirm/cancel button handling"
+--[[ Note: these are no longer used, see below under "Gamepad menu button handling"
     -- Gamepad binding: menu cursor confirm
     gamepad_menu_confirm = "PAD2",
     -- Gamepad binding: menu cursor cancel
     gamepad_menu_cancel = "PAD1",
-]]--
-
     -- Gamepad binding: menu cursor button 3 (north)
     gamepad_menu_button3 = "PAD4",
     -- Gamepad binding: menu cursor button 4 (west)
@@ -39,6 +41,8 @@ local CONFIG_DEFAULT = {
     gamepad_menu_next_tab = "PADRTRIGGER",
     -- Gamepad binding: focus next input window
     gamepad_menu_next_window = "PADBACK",
+]]--
+
     -- Gamepad binding: use quest item
     gamepad_use_quest_item = "CTRL-PADLSTICK",
     -- Gamepad binding: select active quest item
@@ -486,13 +490,27 @@ function ConfigPanel:__constructor()
     self:AddBindingSpecial("Cancel menu selection",
                            WoWXIV.Config.GamePadCancelButton,
                            WoWXIV.Config.SetGamePadCancelButton)
-    self:AddBindingLocal("Menu action button 1", "gamepad_menu_button3")
-    self:AddBindingLocal("Menu action button 2", "gamepad_menu_button4")
-    self:AddBindingLocal("Previous menu page", "gamepad_menu_prev_page")
-    self:AddBindingLocal("Next menu page", "gamepad_menu_next_page")
-    self:AddBindingLocal("Previous menu tab", "gamepad_menu_prev_tab")
-    self:AddBindingLocal("Next menu tab", "gamepad_menu_next_tab")
-    self:AddBindingLocal("Select next window", "gamepad_menu_next_window")
+    self:AddBindingSpecial("Menu action button 1",
+                           WoWXIV.Config.GamePadMenuButton3,
+                           WoWXIV.Config.SetGamePadMenuButton3)
+    self:AddBindingSpecial("Menu action button 2",
+                           WoWXIV.Config.GamePadMenuButton4,
+                           WoWXIV.Config.SetGamePadMenuButton4)
+    self:AddBindingSpecial("Previous menu page",
+                           WoWXIV.Config.GamePadPrevPageButton,
+                           WoWXIV.Config.SetGamePadPrevPageButton)
+    self:AddBindingSpecial("Next menu page",
+                           WoWXIV.Config.GamePadNextPageButton,
+                           WoWXIV.Config.SetGamePadNextPageButton)
+    self:AddBindingSpecial("Previous menu tab",
+                           WoWXIV.Config.GamePadPrevTabButton,
+                           WoWXIV.Config.SetGamePadPrevTabButton)
+    self:AddBindingSpecial("Next menu tab",
+                           WoWXIV.Config.GamePadNextTabButton,
+                           WoWXIV.Config.SetGamePadNextTabButton)
+    self:AddBindingSpecial("Select next window",
+                           WoWXIV.Config.GamePadCycleFocusButton,
+                           WoWXIV.Config.SetGamePadCycleFocusButton)
     self:AddBindingLocal("Use quest item", "gamepad_use_quest_item")
     self:AddBindingLocal("Select quest item", "gamepad_select_quest_item")
     self:AddBindingLocal("Leave vehicle", "gamepad_leave_vehicle")
@@ -794,17 +812,34 @@ function WoWXIV.Config.Open()
 end
 
 ------------------------------------------------------------------------
--- Gamepad confirm/cancel button handling
+-- Gamepad menu button handling
 --
--- The gamepad confirm and cancel button settings are packed into the
--- GamePadCamera{Yaw,Pitch}Speed cvars to avoid tainting the StaticPopup
--- frames.  These functions handle returning (untainted) button settings
--- and storing the button and camera speed together in a single cvar.
+-- The gamepad menu button settings are packed into the GamePadCameraSpeed
+-- cvars to avoid tainting secure frames.  This workaround naturally has
+-- no effect on taint from execution, but it does avoid variable taint
+-- because cvar values and string literals do not add taint on their own,
+-- and that is apparently enough to allow secure operations initiated by
+-- button presses (such as from a StaticPopup confirmation) to proceed.
 --
--- A side effect of this is that setting the camera speed to zero does
--- not actually stop camera motion, but the difference should not be
--- noticeable in normal circumstances.
+-- These functions handle returning (untainted) button settings and
+-- storing the buttons and camera speed together in the relevant cvar.
+--
+-- A side effect of this workaround is that setting the camera speed to
+-- zero does not actually stop camera motion, but the difference should
+-- not be noticeable in normal circumstances.
+--
+-- Implementation note: It's unclear exactly how WoW handles the value
+-- passed to SetCVar(), but it seems possible to store and retrieve
+-- values of arbitrary precision (e.g. the 40 decimal places of
+-- "1.{0123456789}x4" are returned exactly).  This precision will
+-- naturally be lost if we try treating it as a number in Lua, so we
+-- manipulate the value with string operations instead.  This allows
+-- us to store all 9 menu buttons in a single cvar, though we keep the
+-- setters for both cvars in case we need a second one later.
 ------------------------------------------------------------------------
+
+-- Offset of encoded buttons (number of places after the decimal point).
+local BUTTON_OFFSET = 9
 
 -- Return the button name corresponding to the given numeric ID (an
 -- integer in the range [0,15]), or nil if the button ID is unknown.
@@ -812,76 +847,198 @@ local function DecodeButtonID(button)
     -- Note that we probably can't use tables here because those would be
     -- (tainted) data objects!  For whatever reason, we can get away with
     -- passing literal strings around, though.
-    if button == 1 then return "PAD1" end
-    if button == 2 then return "PAD2" end
-    if button == 3 then return "PAD3" end
-    if button == 4 then return "PAD4" end
-    if button == 5 then return "PAD5" end
-    if button == 6 then return "PAD6" end
+    if button ==  1 then return "PAD1" end
+    if button ==  2 then return "PAD2" end
+    if button ==  3 then return "PAD3" end
+    if button ==  4 then return "PAD4" end
+    if button ==  5 then return "PAD5" end
+    if button ==  6 then return "PAD6" end
+    if button ==  7 then return "PADSYSTEM" end
+    if button ==  8 then return "PADBACK" end
+    if button ==  9 then return "PADSTART" end
+    if button == 10 then return "PADLSHOULDER" end
+    if button == 11 then return "PADRSHOULDER" end
+    if button == 12 then return "PADLTRIGGER" end
+    if button == 13 then return "PADRTRIGGER" end
+    if button == 14 then return "PADLSTICK" end
+    if button == 15 then return "PADRSTICK" end
     return nil
 end
 
 -- Encode the given button name as a numeric value for storing in a
 -- numeric cvar.  Returns 0 if the button name is unknown.
 local function EncodeButtonID(button)
-    if button == "PAD1" then return 1 end
-    if button == "PAD2" then return 2 end
-    if button == "PAD3" then return 3 end
-    if button == "PAD4" then return 4 end
-    if button == "PAD5" then return 5 end
-    if button == "PAD6" then return 6 end
+    if button == "PAD1"         then return  1 end
+    if button == "PAD2"         then return  2 end
+    if button == "PAD3"         then return  3 end
+    if button == "PAD4"         then return  4 end
+    if button == "PAD5"         then return  5 end
+    if button == "PAD6"         then return  6 end
+    if button == "PADSYSTEM"    then return  7 end
+    if button == "PADBACK"      then return  8 end
+    if button == "PADSTART"     then return  9 end
+    if button == "PADLSHOULDER" then return 10 end
+    if button == "PADRSHOULDER" then return 11 end
+    if button == "PADLTRIGGER"  then return 12 end
+    if button == "PADRTRIGGER"  then return 13 end
+    if button == "PADLSTICK"    then return 14 end
+    if button == "PADRSTICK"    then return 15 end
     return 0
 end
 
--- Return the gamepad confirm button.
+-- Return the button encoded at the given button index (0-8) in the
+-- given cvar's value, or nil if no button is stored or the stored value
+-- is invalid.
+local function ExtractButton(cvar, index)
+    local value = C_CVar.GetCVar(cvar)
+    assert(type(value) == "string")
+    local dot = strstr(value, ".")
+    if not dot then return nil end
+    local pos = dot + 1 + BUTTON_OFFSET + 2*index
+    if strlen(value) < pos+1 then return nil end
+    return DecodeButtonID(tonumber(strsub(value, pos, pos+1)))
+end
+
+-- Encode the given button at the given index (0-8) and update the cvar value.
+local function InsertButton(cvar, index, button)
+    local value = C_CVar.GetCVar(cvar)
+    assert(type(value) == "string")
+    local dot = strstr(value, ".")
+    if not dot then
+        dot = strlen(value)
+        value = value .. "."
+    end
+    local pos = dot + 1 + BUTTON_OFFSET + 2*index
+    local encoded = strformat("%02d", EncodeButtonID(button))
+    if strlen(value) > pos+1 then
+        value = strsub(value, 1, pos-1) .. encoded .. strsub(value, pos+2)
+    else
+        -- Extract up to the encoding position, padding with 0 if needed.
+        local short = (pos-1) - strlen(value)
+        if short > 0 then
+            value = value .. strformat("%0"..short.."d", 0)
+        elseif short < 0 then
+            value = strsub(value, 1, pos-1)
+        end
+        -- Append the encoded button.
+        value = value .. encoded
+        -- Append a terminator digit (arbitrarily 7) so a trailing 0 is
+        -- not stripped.  (Currently no stripping is performed, but for
+        -- future-proofing.)
+        value = value .. "7"
+    end
+    C_CVar.SetCVar(cvar, value)
+end
+
+-- Return the base value of the given cvar, stripping any encoded buttons.
+local function GetValue(cvar)
+    local value = C_CVar.GetCVar(cvar)
+    assert(type(value) == "string")
+    local dot = strstr(value, ".")
+    if dot then
+        value = strsub(value, 1, dot + BUTTON_OFFSET)
+    end
+    return value
+end
+
+-- Set the base value of the given cvar without modifying the encoded buttons.
+local function SetValue(cvar, new_value)
+    local new_str = strformat("%."..BUTTON_OFFSET.."f", new_value)
+    local value = C_CVar.GetCVar(cvar)
+    assert(type(value) == "string")
+    local dot = strstr(value, ".")
+    if dot then
+        new_str = new_str .. strsub(value, dot + 1 + BUTTON_OFFSET)
+    end
+    C_CVar.SetCVar(cvar, new_str)
+end
+
+-- Get or set the gamepad confirm button.
 function WoWXIV.Config.GamePadConfirmButton()
-    local speed = tonumber(C_CVar.GetCVar("GamePadCameraYawSpeed"))
-    local button_id = round(speed*65536)%16
-    return DecodeButtonID(button_id) or "PAD1"
+    return ExtractButton("GamePadCameraYawSpeed", 0) or "PAD2"
 end
-
--- Return the gamepad cancel button.
-function WoWXIV.Config.GamePadCancelButton()
-    local speed = tonumber(C_CVar.GetCVar("GamePadCameraPitchSpeed"))
-    local button_id = round(speed*65536)%16
-    return DecodeButtonID(button_id) or "PAD2"
-end
-
--- Set the gamepad confirm button.
 function WoWXIV.Config.SetGamePadConfirmButton(button)
-    local speed = tonumber(C_CVar.GetCVar("GamePadCameraYawSpeed"))
-    speed = round(speed*256) / 256
-    button = EncodeButtonID(button)
-    C_CVar.SetCVar("GamePadCameraYawSpeed", speed + button/65536)
+    InsertButton("GamePadCameraYawSpeed", 0, button)
 end
 
--- Set the gamepad cancel button.
+-- Get or set the gamepad cancel button.
+function WoWXIV.Config.GamePadCancelButton()
+    return ExtractButton("GamePadCameraYawSpeed", 1) or "PAD1"
+end
 function WoWXIV.Config.SetGamePadCancelButton(button)
-    local speed = tonumber(C_CVar.GetCVar("GamePadCameraPitchSpeed"))
-    speed = round(speed*256) / 256
-    button = EncodeButtonID(button)
-    C_CVar.SetCVar("GamePadCameraPitchSpeed", speed + button/65536)
+    InsertButton("GamePadCameraYawSpeed", 1, button)
 end
 
--- Return the global camera yaw or pitch speed.
+-- Get or set the gamepad menu action 3 button.
+function WoWXIV.Config.GamePadMenuButton3()
+    return ExtractButton("GamePadCameraYawSpeed", 2) or "PAD4"
+end
+function WoWXIV.Config.SetGamePadMenuButton3(button)
+    InsertButton("GamePadCameraYawSpeed", 2, button)
+end
+
+-- Get or set the gamepad menu action 4 button.
+function WoWXIV.Config.GamePadMenuButton4()
+    return ExtractButton("GamePadCameraYawSpeed", 3) or "PAD3"
+end
+function WoWXIV.Config.SetGamePadMenuButton4(button)
+    InsertButton("GamePadCameraYawSpeed", 3, button)
+end
+
+-- Get or set the gamepad menu previous page button.
+function WoWXIV.Config.GamePadPrevPageButton()
+    return ExtractButton("GamePadCameraYawSpeed", 4) or "PADLSHOULDER"
+end
+function WoWXIV.Config.SetGamePadPrevPageButton(button)
+    InsertButton("GamePadCameraYawSpeed", 4, button)
+end
+
+-- Get or set the gamepad menu next page button.
+function WoWXIV.Config.GamePadNextPageButton()
+    return ExtractButton("GamePadCameraYawSpeed", 5) or "PADRSHOULDER"
+end
+function WoWXIV.Config.SetGamePadNextPageButton(button)
+    InsertButton("GamePadCameraYawSpeed", 5, button)
+end
+
+-- Get or set the gamepad menu previous tab button.
+function WoWXIV.Config.GamePadPrevTabButton()
+    return ExtractButton("GamePadCameraYawSpeed", 6) or "PADLTRIGGER"
+end
+function WoWXIV.Config.SetGamePadPrevTabButton(button)
+    InsertButton("GamePadCameraYawSpeed", 6, button)
+end
+
+-- Get or set the gamepad menu next tab button.
+function WoWXIV.Config.GamePadNextTabButton()
+    return ExtractButton("GamePadCameraYawSpeed", 7) or "PADRTRIGGER"
+end
+function WoWXIV.Config.SetGamePadNextTabButton(button)
+    InsertButton("GamePadCameraYawSpeed", 7, button)
+end
+
+-- Get or set the gamepad menu focus-next-window button.
+function WoWXIV.Config.GamePadCycleFocusButton()
+    return ExtractButton("GamePadCameraYawSpeed", 8) or "PADBACK"
+end
+function WoWXIV.Config.SetGamePadCycleFocusButton(button)
+    InsertButton("GamePadCameraYawSpeed", 8, button)
+end
+
+-- Get or set the global camera yaw speed.
 function WoWXIV.Config.GamePadCameraYawSpeed()
-    local speed = C_CVar.GetCVar("GamePadCameraYawSpeed")
-    return round(speed*256) / 256
+    return GetValue("GamePadCameraYawSpeed")
 end
-function WoWXIV.Config.GamePadCameraPitchSpeed()
-    local speed = C_CVar.GetCVar("GamePadCameraPitchSpeed")
-    return round(speed*256) / 256
+function WoWXIV.Config.SetGamePadCameraYawSpeed(speed)
+    SetValue("GamePadCameraYawSpeed", speed)
 end
 
--- Set the global camera yaw or pitch speed.  The parameter will be
--- rounded to the nearest 1/256th.
-function WoWXIV.Config.SetGamePadCameraYawSpeed(speed)
-    speed = round(speed*256) / 256
-    local button = EncodeButtonID(WoWXIV.Config.GamePadConfirmButton())
-    C_CVar.SetCVar("GamePadCameraYawSpeed", speed + button/65536)
+-- Get or set the global camera pitch speed.
+function WoWXIV.Config.GamePadCameraPitchSpeed()
+    -- We currently don't encode anything here, so we can just get/set
+    -- the value directly.
+    return C_CVar.GetCVar("GamePadCameraPitchSpeed")
 end
 function WoWXIV.Config.SetGamePadCameraPitchSpeed(speed)
-    speed = round(speed*256) / 256
-    local button = EncodeButtonID(WoWXIV.Config.GamePadCancelButton())
-    C_CVar.SetCVar("GamePadCameraPitchSpeed", speed + button/65536)
+    C_CVar.SetCVar("GamePadCameraPitchSpeed", speed)
 end
