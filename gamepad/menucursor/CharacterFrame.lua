@@ -328,6 +328,24 @@ function TokenFramePopupHandler:OnShow()
     RunNextFrame(function() MenuCursor.StandardMenuFrame.OnShow(self) end)
 end
 
+function TokenFramePopupHandler:OnHide()
+    MenuCursor.StandardMenuFrame.OnHide(self)
+    -- Work around a Blizzard bug that fails to deselect the currency
+    -- when the popup is closed.
+    local token = TokenFrame.selectedToken
+    if token then
+        TokenFrame.selectedToken = nil
+        local parent_handler = CharacterFrameHandler.instance_TokenFrame
+        for target, _ in pairs(parent_handler.targets) do
+            local frame = parent_handler:GetTargetFrame(target)
+            if frame and frame.elementData and frame.elementData.name == token then
+                frame:RefreshBackgroundHighlight()
+                frame:RefreshAccountCurrencyIcon()
+            end
+        end
+    end
+end
+
 function TokenFramePopupHandler:SetTargets()
     local f = self.frame
     local initial
