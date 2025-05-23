@@ -323,6 +323,11 @@ function TokenFramePopupHandler:__constructor()
                    function() self:UpdateTransferEnabled() end)
 end
 
+function TokenFramePopupHandler:OnShow()
+    -- It seems to take a frame before button states are set properly.
+    RunNextFrame(function() MenuCursor.StandardMenuFrame.OnShow(self) end)
+end
+
 function TokenFramePopupHandler:SetTargets()
     local f = self.frame
     local initial
