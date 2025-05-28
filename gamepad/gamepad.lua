@@ -242,10 +242,10 @@ end
 
 function GamePadListener:ItemTextFrame_OnShow()
     SetOverrideBinding(ItemTextFrame, true,
-                       WoWXIV_config["gamepad_menu_prev_page"],
+                       WoWXIV.Config.GamePadPrevPageButton(),
                        "CLICK ItemTextPrevPageButton:LeftButton")
     SetOverrideBinding(ItemTextFrame, true,
-                       WoWXIV_config["gamepad_menu_next_page"],
+                       WoWXIV.Config.GamePadNextPageButton(),
                        "CLICK ItemTextNextPageButton:LeftButton")
 end
 
