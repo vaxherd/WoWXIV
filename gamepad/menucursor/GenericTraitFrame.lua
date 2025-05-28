@@ -21,6 +21,7 @@ MenuCursor.Cursor.RegisterFrameHandler(GenericTraitFrameHandler)
 
 function GenericTraitFrameHandler:__constructor()
     self:__super(GenericTraitFrame)
+    self.has_Button4 = true
     -- The frame uses various events and actions to refresh its display,
     -- using a release/recreate strategy which can change the mapping from
     -- tree icon to backing frame, so we need to hook the refresh function
@@ -69,7 +70,8 @@ function GenericTraitFrameHandler:RefreshTargets()
         local id = button.nodeID
         assert(not buttons[id])
         buttons[id] = button
-        self.targets[button] = {can_activate = true, send_enter_leave = true}
+        self.targets[button] = {can_activate = true, send_enter_leave = true,
+                                has_Button4 = true}  -- for OnAction()
         if id == self.cur_node then
             cur_target = button
         end
@@ -94,4 +96,12 @@ end
 function GenericTraitFrameHandler:OnMove(old_target, new_target)
     MenuCursor.AddOnMenuFrame.OnMove(self, old_target, new_target)
     self.node_id = new_target and new_target.nodeID
+end
+
+function GenericTraitFrameHandler:OnAction(button)
+    assert(button == "Button4")
+    local target = self:GetTarget()
+    if target and self.targets[target].has_Button4 then
+        target:GetScript("OnClick")(target, "RightButton", true)
+    end
 end
