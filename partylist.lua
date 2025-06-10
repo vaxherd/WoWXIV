@@ -1020,12 +1020,16 @@ end
 
 -- Create the global party list instance.
 function WoWXIV.PartyList.Create()
-    WoWXIV.PartyList.list = PartyList()
-    
     local enable = "," .. WoWXIV_config["partylist_enable"] .. ","
     enable_solo  = (strstr(enable, ",solo,") ~= nil)
     enable_party = (strstr(enable, ",party,") ~= nil)
     enable_raid  = (strstr(enable, ",raid,") ~= nil)
+    if not (enable_solo or enable_party or enable_raid) then
+        return
+    end
+
+    WoWXIV.PartyList.list = PartyList()
+    
     if enable_party then
         WoWXIV.HideBlizzardFrame(PartyFrame)
         -- Technically not needed, but avoids tons and tons of taint errors:
