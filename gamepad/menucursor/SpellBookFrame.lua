@@ -36,8 +36,7 @@ function SpellBookFrameHandler.OnAddOnLoaded(class)
             end
         end)
     local pc = sbf.PagedSpellsFrame.PagingControls
-    local buttons = {sbf.HidePassivesCheckButton.Button,
-                     pc.PrevPageButton, pc.NextPageButton}
+    local buttons = {pc.PrevPageButton, pc.NextPageButton}
     for _, tab in ipairs(sbf.CategoryTabSystem.tabs) do
         tinsert(buttons, tab)
     end
@@ -129,8 +128,8 @@ function SpellBookFrameHandler:RefreshTargets()
     --[[
         Movement layout:
 
-        [Category tabs]             ←→             [] Hide Passives
-             ↑↓                                          ↑↓
+        [Category tabs]
+             ↑↓
         Top left spell ←→ ..................... ←→ Top right spell
              ↑↓                   ↑↓                   ↑↓
             .......         .....................          ........
@@ -143,10 +142,7 @@ function SpellBookFrameHandler:RefreshTargets()
         [Specialization] [Talents] [Spellbook] ←
     ]]--
 
-    self.targets = {
-        [sbf.HidePassivesCheckButton.Button] = {
-            can_activate = true, lock_highlight = true, right = false},
-    }
+    self.targets = {}
 
     local default_page_tab = nil
     local left_page_tab = nil
@@ -167,8 +163,8 @@ function SpellBookFrameHandler:RefreshTargets()
             end
         end
     end
-    self.targets[left_page_tab].left = false
-    self.targets[right_page_tab].right = sbf.HidePassivesCheckButton.Button
+    self.targets[left_page_tab].left = right_page_tab
+    self.targets[right_page_tab].right = left_page_tab
 
     local default_book_tab = nil
     local right_book_tab = nil
@@ -195,13 +191,12 @@ function SpellBookFrameHandler:RefreshTargets()
     local page_buttons = {pc.PrevPageButton, pc.NextPageButton}
     for _, button in ipairs(page_buttons) do
         self.targets[button] = {can_activate = true, lock_highlight = true,
-                                up = sbf.HidePassivesCheckButton.Button,
+                                up = right_page_tab,
                                 down = right_book_tab}
     end
     self.targets[right_book_tab].right = pc.PrevPageButton
     self.targets[pc.PrevPageButton].left = right_book_tab
     self.targets[pc.NextPageButton].right = false
-    self.targets[sbf.HidePassivesCheckButton.Button].down = pc.PrevPageButton
 
     local first_spell = nil
     local columns = {}
@@ -224,7 +219,7 @@ function SpellBookFrameHandler:RefreshTargets()
         local is_right = (x_index == #column_x)
         local is_left_half = ((x_index-1) < 0.5*(#column_x-1))
         local top_target =
-            is_left_half and default_page_tab or sbf.HidePassivesCheckButton.Button
+            is_left_half and default_page_tab or right_page_tab
         local bottom_target =
             is_left_half and default_book_tab or pc.PrevPageButton
         local column = columns[x]
@@ -245,9 +240,6 @@ function SpellBookFrameHandler:RefreshTargets()
                 first_spell = button
             end
             if is_right then
-                if is_top then
-                    self.targets[sbf.HidePassivesCheckButton.Button].down = button
-                end
                 if is_bottom then
                     for _, page_button in ipairs(page_buttons) do
                         self.targets[page_button].up = button
