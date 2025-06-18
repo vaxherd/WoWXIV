@@ -134,6 +134,12 @@ function BuyTabHandler:OnShow()
 end
 
 function BuyTabHandler:OnHide()
+    -- Clear the target now to call the OnLeave handler and thus clear the
+    -- row highlight; otherwise, next time we return to the frame without a
+    -- list refresh (such as after buying an item), scrolling the current
+    -- item to the center of the frame will leave a highlight on the item's
+    -- previous row.
+    self:ClearTarget()
     self:Disable()
 end
 
