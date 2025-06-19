@@ -238,7 +238,6 @@ function MerchantFrameHandler:UpdateTargets()
 end
 
 function MerchantFrameHandler:UpdateMovement()
-    -- FIXME: is this check still needed?
     if not self:HasFocus() then
         return  -- Deal with calls during frame setup on UI reload.
     end
@@ -275,6 +274,7 @@ function MerchantFrameHandler:UpdateMovement()
             prev = button
         end
     end
+    last_right = last_right or last_left
     if MerchantPrevPageButton:IsShown() then
         assert(last_left)  -- Should never have page buttons without items.
         self.targets[last_left].down = MerchantPrevPageButton
@@ -326,7 +326,7 @@ function MerchantFrameHandler:UpdateMovement()
         self.targets[last_left].down = first_left
         if first_right ~= first_left then
             self.targets[first_right].up = last_right
-            self.targets[last_right].down = first_right
         end
+        self.targets[last_right].down = first_right
     end
 end
