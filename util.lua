@@ -136,7 +136,9 @@ function WoWXIV.HideBlizzardFrame(frame)
     function frame:SetWidth() end
     function frame:SetHeight() end
     function frame:SetSize() end
-    function frame:SetPoint() end
+    if frame ~= BuffFrame and frame ~= DebuffFrame then  -- _causes_ taint errors on logout in 11.2.0
+        function frame:SetPoint() end
+    end
     -- Needed to avoid errors from EditModeManagerFrame:
     function frame:GetPoint(n)
         if n==1 then return "TOPLEFT",UIParent,"TOPLEFT",0,0 end
