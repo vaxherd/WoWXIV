@@ -423,6 +423,7 @@ function CurrencyTransferMenuHandler:__constructor()
     local f = self.frame
     self.cancel_func = nil
     self.cancel_button = f.CloseButton
+--[[ --FIXME temp for 11.2.0
     self.targets = {
         [f.SourceSelector.Dropdown] = {
             on_click = function() self:OnClickDropdown() end,
@@ -450,6 +451,7 @@ function CurrencyTransferMenuHandler:__constructor()
     self.quantity_input = MenuCursor.NumberInput(
         f.AmountSelector.InputBox, function() self:OnQuantityChanged() end)
     self.quantity_input:SetTextScale(0.64)
+]]--
 end
 
 function CurrencyTransferMenuHandler:OnClickDropdown()
