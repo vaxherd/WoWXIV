@@ -13,13 +13,18 @@ MenuCursor.Cursor.RegisterFrameHandler(StaticPopupHandler)
 
 function StaticPopupHandler.Initialize(class, cursor)
     class.instances = {}
-    for i = 1, STATICPOPUP_NUMDIALOGS do
-        local frame_name = "StaticPopup" .. i
-        local frame = _G[frame_name]
-        assert(frame)
+    local function StaticPopupFrame(n)
+        local frame_name = "StaticPopup" .. n
+        return _G[frame_name]
+    end
+    assert(StaticPopupFrame(1))
+    local i = 1
+    while StaticPopupFrame(i) do
+        local frame = StaticPopupFrame(i)
         local instance = StaticPopupHandler(frame, MenuCursor.MenuFrame.MODAL)
         class.instances[i] = instance
         instance:HookShow(frame)
+        i = i + 1
     end
 end
 
@@ -36,22 +41,33 @@ end
 function StaticPopupHandler:SetTargets()
     local frame = self.frame
     self.targets = {}
-    local leftmost = nil
+    local leftmost, button2
     for i = 1, 5 do
-        local name = i==5 and "extraButton" or "button"..i
-        local button = frame[name]
+        local button
+        if true then --FIXME 11.2.0
+            if i == 5 then
+                button = frame.ExtraButton
+            else
+                button = frame.ButtonContainer["Button"..i]
+            end
+        else --FIXME 11.1.7
+            local name = i==5 and "extraButton" or "button"..i
+            button = frame[name]
+        end
         assert(button)
         if button:IsShown() then
             self.targets[button] = {can_activate = true, lock_highlight = true}
             if not leftmost or button:GetLeft() < leftmost:GetLeft() then
                 leftmost = button
             end
+            if i == 2 then button2 = button end
         end
     end
     if leftmost then  -- i.e., if we found any buttons
         self.targets[leftmost].is_default = true
-        if frame.button2:IsShown() then
-            self.cancel_button = frame.button2
+        if button2 then
+            -- FIXME: 11.2.0 complains because this passes down a right button click (instead of left button)
+            self.cancel_button = button2
         end
     end
     -- Special cases for extra elements like item icons in specific popups.

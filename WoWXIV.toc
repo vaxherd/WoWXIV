@@ -1,4 +1,4 @@
-## Interface: 110107
+## Interface: 110107, 110200
 ## Title: WoWXIV
 ## Author: vaxherd
 ## Version: 0.1+
