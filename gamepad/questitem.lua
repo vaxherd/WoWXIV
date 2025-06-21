@@ -28,6 +28,8 @@ local IsHelpfulItem = C_Item.IsHelpfulItem
 -- so for the meantime we record specific items whose required targets we
 -- know and use fallback logic for others.
 local ITEM_TARGET = {
+    [ 29482] = "none",    -- Ethereum Essence (10385: Potential for Brain Damage = High)
+    [ 29618] = "none",    -- Protectorate Disruptor (10408: Nexus-King Salhadaar)
     [ 71964] = "none",    -- Iron Stock (29508: Baby Needs Two Pair of Shoes)
     [ 71967] = "none",    -- Horseshoe (29508: Baby Needs Two Pair of Shoes)
     [ 71977] = "none",    -- Darkmoon Craftsman's Kit (29517: Eyes on the Prizes)
