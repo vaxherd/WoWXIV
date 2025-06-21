@@ -1003,7 +1003,7 @@ function PartyList:UpdateHate(unit)
     end
     table.sort(hate, HateSort)
     local max_threat = hate[1][3]
-    if max_threat < 1 then max_hate = 1 end
+    if max_threat < 1 then max_threat = 1 end
     for index, data in ipairs(hate) do
         local token, is_target, threat = unpack(data)
         local member = self.party[token]
