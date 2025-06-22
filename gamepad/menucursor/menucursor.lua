@@ -1386,6 +1386,15 @@ function MenuFrame:ClearTarget()
     self:SetTarget(nil)
 end
 
+-- Update cursor state.  Cursor updates are normally handled automatically,
+-- but this method should be called if input assignments (cancel_button,
+-- has_Button*) are changed without any cursor movement.
+function MenuFrame:UpdateCursor(target)
+    if global_cursor:GetFocus() == self then
+        global_cursor:UpdateCursor()
+    end
+end
+
 
 -------- Target list management methods
 

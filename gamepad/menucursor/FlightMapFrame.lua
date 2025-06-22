@@ -5,6 +5,7 @@ local MenuCursor = WoWXIV.Gamepad.MenuCursor
 local class = WoWXIV.class
 
 local abs = math.abs
+local band = bit.band
 local tinsert = tinsert
 
 ---------------------------------------------------------------------------
@@ -15,11 +16,28 @@ MenuCursor.Cursor.RegisterFrameHandler(FlightMapFrameHandler)
 
 function FlightMapFrameHandler:__constructor()
     self:__super(FlightMapFrame)
+    hooksecurefunc(self.frame, "OnMapChanged",
+                   function() self:UpdateZoomButton() end)
+    hooksecurefunc(self.frame, "OnCanvasScaleChanged",
+                   function() self:UpdateZoomButton() end)
 end
 
 function FlightMapFrameHandler:SetTargets()
+    self:UpdateZoomButton()
     self.targets = {}
     return self:AddTargets()
+end
+
+function FlightMapFrameHandler:UpdateZoomButton()
+    local info = C_Map.GetMapInfo(self.frame.mapID)
+    local autozoom = band(info.flags, Enum.UIMapFlag.FlightMapShowZoomOut) ~= 0
+    self.has_Button3 = autozoom and self.frame:GetCanvasZoomPercent() > 0.5
+    self:UpdateCursor()
+end
+
+function FlightMapFrameHandler:OnAction(button)
+    assert(button == "Button3")
+    self.frame:ZoomOut()
 end
 
 function FlightMapFrameHandler:AddTargets()
