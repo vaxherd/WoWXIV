@@ -44,7 +44,7 @@ function StaticPopupHandler:SetTargets()
     local leftmost, button2
     for i = 1, 5 do
         local button
-        if true then --FIXME 11.2.0
+        if frame.ButtonContainer then --FIXME 11.2.0
             if i == 5 then
                 button = frame.ExtraButton
             else
