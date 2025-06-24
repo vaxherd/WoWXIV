@@ -30,6 +30,9 @@ local IsHelpfulItem = C_Item.IsHelpfulItem
 local ITEM_TARGET = {
     [ 29482] = "none",    -- Ethereum Essence (10385: Potential for Brain Damage = High)
     [ 29618] = "none",    -- Protectorate Disruptor (10408: Nexus-King Salhadaar)
+    [ 34833] = "none",    -- Unlit Torches (11657: Torch Catching)
+    [ 35237] = "none",    -- Orb of the Crawler (11891: An Innocent Disguise)
+    [ 35828] = "none",    -- Totemic Beacon (11886: Unusual Activity)
     [ 71964] = "none",    -- Iron Stock (29508: Baby Needs Two Pair of Shoes)
     [ 71967] = "none",    -- Horseshoe (29508: Baby Needs Two Pair of Shoes)
     [ 71977] = "none",    -- Darkmoon Craftsman's Kit (29517: Eyes on the Prizes)
@@ -289,6 +292,17 @@ local ITEM_TARGET = {
 
 -- Special cases for quests which don't have items assigned but really should.
 local QUEST_ITEM = {
+    -- Midsummer Fire Festival quest: An Innocent Disguise
+    -- This quest has two items, but only one can be assigned as the
+    -- "quest item" in the quest log, so we have to implement the second
+    -- manually.
+    [11891] = {
+        map = 63,  -- Ashenvale
+        items = {
+            35237,  -- Orb of the Crawler
+            35828,  -- Totemic Beacon
+        }
+    },
     -- Marasmius daily quest: Go Beyond! [Lonely Matriarch]
     [60188] = {
         map = 1565,  -- Ardenweald
