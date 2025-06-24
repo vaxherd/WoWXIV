@@ -395,6 +395,10 @@ function WoWXIV.TargetBar.Create()
         WoWXIV.HideBlizzardFrame(TargetFrame)
         WoWXIV.HideBlizzardFrame(FocusFrame)
         WoWXIV.HideBlizzardFrame(BossTargetFrameContainer)
+        -- Because BossTargetFrameContainer is hidden/shown during combat,
+        -- we can't rely on our Show/SetShown hooks to re-hide it.
+        -- Instead, we suppress the event handling which would show it.
+        Boss1TargetFrame:UnregisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT")
     end
     if WoWXIV_config["targetbar_move_top_center"] then
         -- Put it about halfway between the hotbars and menu bar.

@@ -128,21 +128,9 @@ end
 function WoWXIV.HideBlizzardFrame(frame)
     frame:UnregisterAllEvents()
     frame:Hide()
-    function frame:Show() end
-    function frame:SetShown() end
-    function frame:Update() end
-    -- Also cleared to prevent taint warnings:
-    function frame:Hide() end
-    function frame:SetWidth() end
-    function frame:SetHeight() end
-    function frame:SetSize() end
-    if frame ~= BuffFrame and frame ~= DebuffFrame then  -- _causes_ taint errors on logout in 11.2.0
-        function frame:SetPoint() end
-    end
-    -- Needed to avoid errors from EditModeManagerFrame:
-    function frame:GetPoint(n)
-        if n==1 then return "TOPLEFT",UIParent,"TOPLEFT",0,0 end
-    end
+    hooksecurefunc(frame, "Show", frame.Hide)
+    hooksecurefunc(frame, "SetShown",
+                   function(f,show) if show then f:Hide() end end)
 end
 
 ------------------------------------------------------------------------
