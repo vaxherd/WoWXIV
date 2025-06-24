@@ -41,8 +41,7 @@ function ItemUpgradeFrameHandler:SetTargets()
              up = f.UpgradeButton, down = f.UpgradeButton,
              left = false, right = false},
         [f.UpgradeButton] =
-            {can_activate=true,--on_click = function() self:OnClickUpgradeButton() end,
-             lock_highlight = true,
+            {can_activate = true, lock_highlight = true,
              up = f.UpgradeItemButton, down = f.UpgradeItemButton,
              left = false, right = false}
     }
@@ -50,6 +49,7 @@ function ItemUpgradeFrameHandler:SetTargets()
     local topright = f.UpgradeItemButton
     local dropdown = f.ItemInfo.Dropdown
     if dropdown:IsShown() then
+      if false then  -- FIXME: taints the upgrade action
         self.targets[dropdown] = {
             on_click = function() self:OnClickDropdown() end,
             send_enter_leave = true,
@@ -58,6 +58,7 @@ function ItemUpgradeFrameHandler:SetTargets()
         self.targets[f.UpgradeItemButton].left = dropdown
         self.targets[f.UpgradeItemButton].right = dropdown
         topright = dropdown
+      end
     end
 
     if f.UpgradeCostFrame:IsShown() then
@@ -103,13 +104,6 @@ end
 
 function ItemUpgradeFrameHandler:OnClickItemButton()
     MenuCursor.CharacterFrameHandler.OpenForItemUpgrade()
-end
-
-function ItemUpgradeFrameHandler:OnClickUpgradeButton()
-    -- We can't upgrade via gamepad even using click passthrough because
-    -- the upgrade frame throws up a confirmation popup before calling the
-    -- secure function UpgradeItem(), and popups are tainted due to the
-    -- confirm button being user-configurable.
 end
 
 function ItemUpgradeFrameHandler:OnAction(button)
