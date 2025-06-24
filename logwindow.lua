@@ -1166,16 +1166,10 @@ function WoWXIV.LogWindow.Create()
             WoWXIV.HideBlizzardFrame(frame)
             index = index + 1
         end
-        DEFAULT_CHAT_FRAME.AddMessage = function(frame, ...)
-            WoWXIV.LogWindow.window:AddMessage(...)
-        end
-    else
-        local saved_AddMessage = DEFAULT_CHAT_FRAME.AddMessage
-        DEFAULT_CHAT_FRAME.AddMessage = function(frame, ...)
-            saved_AddMessage(frame, ...)
-            WoWXIV.LogWindow.window:AddMessage("_", ...)
-        end
     end
+    hooksecurefunc(DEFAULT_CHAT_FRAME, "AddMessage", function(frame, ...)
+                       WoWXIV.LogWindow.window:AddMessage(...)
+                   end)
 end
 
 -- Discard any log window history entries older than the current limit.
