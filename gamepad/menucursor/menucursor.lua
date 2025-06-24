@@ -429,6 +429,8 @@ function Cursor:UpdateCursor(in_combat)
         end
     end
 
+    if in_combat and not entering_combat then return end
+
     ClearOverrideBindings(self)
     -- Any access to WoWXIV_config here will taint execution in StaticPopup
     -- frames, which can break some common game actions such as item

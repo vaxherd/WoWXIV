@@ -80,14 +80,14 @@ function WoWXIV.BuffBar.Create()
     f:SetHeight(40*4)
     f:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -250, -10)
 
-    local x = UIParent:GetWidth() - 250
     --WoWXIV.BuffBar.buff_bar = WoWXIV.UI.AuraBar(
     --    "HELPFUL", "BOTTOMRIGHT", 20, 2, f, 0, 80)
     WoWXIV.BuffBar.buff_bar = PlayerBuffBar(f, 0, 80)
     WoWXIV.BuffBar.debuff_bar = WoWXIV.UI.AuraBar(
         "HARMFUL", "TOPRIGHT", 20, 1, f, 0, -80)
     WoWXIV.BuffBar.debuff_bar:SetUnit("player")
-    -- FIXME: not sure how to separate out misc buffs from others
+    -- FIXME: not sure how to separate out misc buffs from others (and we can't
+    -- anyway until SecureAuraHeaderTemplate gives us a better filter option)
     --WoWXIV.BuffBar.misc_bar = WoWXIV.UI.AuraBar(
     --    "MISC", "TOPRIGHT", 20, 1, f, 0, -120)
 end
