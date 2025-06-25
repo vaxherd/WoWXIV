@@ -6,24 +6,442 @@ local class = WoWXIV.class
 
 local tinsert = tinsert
 
+-- Just different enough from OrderHallMissionFrame that it's hard to
+-- merge the two... (sigh)
+
 ---------------------------------------------------------------------------
 
 local CovenantMissionFrameHandler = class(MenuCursor.AddOnMenuFrame)
 CovenantMissionFrameHandler.ADDON_NAME = "Blizzard_GarrisonUI"
 MenuCursor.Cursor.RegisterFrameHandler(CovenantMissionFrameHandler)
+local CovenantMissionFrameMissionsHandler = class(MenuCursor.StandardMenuFrame)
+local CovenantMissionFrameFollowersHandler = class(MenuCursor.StandardMenuFrame)
+local MissionTabHandler = class(MenuCursor.MenuFrame)
+local FollowerTabHandler = class(MenuCursor.MenuFrame)
+local CompleteDialogHandler = class(MenuCursor.StandardMenuFrame)
+local MissionCompleteHandler = class(MenuCursor.StandardMenuFrame)
+local MapTabHandler = class(MenuCursor.StandardMenuFrame)
+
+function CovenantMissionFrameHandler.OnAddOnLoaded(class)
+    local instance = class()
+    class.instance = instance
+    class.instance_Missions = CovenantMissionFrameMissionsHandler()
+    class.instance_Followers = CovenantMissionFrameFollowersHandler()
+    class.instance_MissionTab = MissionTabHandler()
+    class.instance_FollowerTab = FollowerTabHandler()
+    class.instance_CompleteDialog = CompleteDialogHandler()
+    class.instance_MissionComplete = MissionCompleteHandler()
+    class.instance_MapTab = MapTabHandler()
+end
 
 function CovenantMissionFrameHandler:__constructor()
     self:__super(CovenantMissionFrame)
 end
 
-function CovenantMissionFrameHandler:SetTargets()
+function CovenantMissionFrameHandler:__constructor()
+    self:__super(CovenantMissionFrame)
+    self.tab_handler = function(direction) self:OnTabCycle(direction) end
+end
+
+function CovenantMissionFrameHandler:OnTabCycle(direction)
+    local f = self.frame
+    local target = f.selectedTab + direction
+    if target > f.numTabs then target = 1 end
+    if target < 1 then target = f.numTabs end
+    f:SelectTab(target)
+    -- Hack for missions list not getting activated if we started with
+    -- the followers tab selected.
+    local missions = CovenantMissionFrameHandler.instance_Missions
+    if missions.frame:IsVisible() and not missions:HasFocus() then
+        missions:OnShow()
+    end
+end
+
+function CovenantMissionFrameHandler:OnShow()
+    if CovenantMissionFrameMissions:IsVisible() then
+        CovenantMissionFrameHandler.instance_Missions:OnShow()
+    elseif CovenantMissionFrameFollowers:IsVisible() then
+        CovenantMissionFrameHandler.instance_Followers:OnShow()
+    elseif CovenantMissionFrame.MapTab:IsVisible() then
+        CovenantMissionFrameHandler.instance_MapTab:OnShow()
+    end
+end
+
+function CovenantMissionFrameHandler:OnHide()
+    CovenantMissionFrameHandler.instance_Missions:OnHide()
+    CovenantMissionFrameHandler.instance_Followers:OnHide()
+    CovenantMissionFrameHandler.instance_MapTab:OnHide()
+    MenuCursor.AddOnMenuFrame:OnHide(self)
+end
+
+
+function CovenantMissionFrameMissionsHandler:__constructor()
+    self:__super(CovenantMissionFrameMissions)
+    self.cancel_func = function() HideUIPanel(CovenantMissionFrame) end
+    self.tab_handler = CovenantMissionFrameHandler.instance.tab_handler
+end
+
+function CovenantMissionFrameMissionsHandler:RefreshTargets()
+    local target = self:GetTarget()
+    if target and self.targets[target].is_scroll_box then
+        target = target.index
+    end
+    self:ClearTarget()
+    self:SetTarget(self:SetTargets(target))
+end
+
+function CovenantMissionFrameMissionsHandler:SetTargets(last_target)
+    local f = self.frame
+    self.targets = {}
+
+    local function ClickMission(target)
+        local button = self:GetTargetFrame(target)
+        button:Click("LeftButton", true)
+    end
+    local function OnEnterMission(target)
+        -- We have two sets of information to display for available
+        -- missions: the mission info and the reward.  In both cases, the
+        -- tooltip is shown in an awkward place (mission info relative to
+        -- the mouse pointer, reward info relative to the upper-right
+        -- corner so it looks like it belongs to the line above), so we
+        -- roll our own tooltip instead.
+        local button = self:GetTargetFrame(target)
+        GameTooltip:SetOwner(button, "ANCHOR_NONE")  -- ANCHOR_RIGHT doesn't do what you'd expect...
+        GameTooltip:SetPoint("LEFT", button, "RIGHT")
+        local info = button.info
+        GameTooltip:SetText(info.name)
+        if info.inProgress then
+            -- from GarrisonMissionButton_SetInProgressTooltip()
+            if (GarrisonFollowerOptions[info.followerTypeID].showILevelOnMission
+                and info.isMaxLevel and info.iLevel > 0)
+            then
+                GameTooltip:AddLine(
+                    format(GARRISON_MISSION_LEVEL_ITEMLEVEL_TOOLTIP,
+                           info.level, info.iLevel), 1, 1, 1)
+            else
+                GameTooltip:AddLine(format(GARRISON_MISSION_LEVEL_TOOLTIP,
+                                           info.level), 1, 1, 1)
+            end
+            if info.isComplete then
+                GameTooltip:AddLine(COMPLETE, 1, 1, 1)
+            end
+            local chance = C_Garrison.GetMissionSuccessChance(info.missionID)
+            if chance and info.followerTypeID ~= Enum.GarrisonFollowerType.FollowerType_9_0_GarrisonFollower then
+                GameTooltip:AddLine(format(GARRISON_MISSION_PERCENT_CHANCE,
+                                           chance), 1, 1, 1)
+            end
+            if info.followers then
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine(GarrisonFollowerOptions[info.followerTypeID].strings.FOLLOWER_NAME)
+                for _, follower in ipairs(info.followers) do
+                    GameTooltip:AddLine(C_Garrison.GetFollowerName(follower),
+                                        1, 1, 1)
+                end
+            end
+        else
+            -- from GarrisonMissionButton_OnEnter()
+            GameTooltip:AddLine(
+                string.format(GARRISON_MISSION_TOOLTIP_NUM_REQUIRED_FOLLOWERS,
+                              info.numFollowers), 1, 1, 1)
+            local mission_frame = GarrisonMissionButton_GetMissionFrame(button)
+            GarrisonMissionButton_AddThreatsToTooltip(
+                info.missionID, mission_frame.followerTypeID, false,
+                mission_frame.abilityCountersForMechanicTypes)
+            if info.isRare then
+                GameTooltip:AddLine(GARRISON_MISSION_AVAILABILITY)
+                GameTooltip:AddLine(info.offerTimeRemaining, 1, 1, 1)
+            end
+            if not C_Garrison.IsPlayerInGarrison(GarrisonFollowerOptions[mission_frame.followerTypeID].garrisonType) then
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine(GarrisonFollowerOptions[mission_frame.followerTypeID].strings.RETURN_TO_START, nil, nil, nil, 1);
+            end
+        end
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(REWARDS)
+        for id, reward in pairs(info.rewards) do
+            if reward.quality then
+                GameTooltip:AddLine(WoWXIV.FormatItemColor(reward.title, reward.quality+1))
+            elseif reward.itemID then
+                local name, _, rarity, _, _, _, _, _, _, texture =
+                    C_Item.GetItemInfo(reward.itemID)
+                if name then
+                    GameTooltip:AddLine(WoWXIV.FormatItemColor(name, rarity))
+                end
+            elseif reward.currencyID and reward.currencyID ~= 0 and reward.currencyQuantity then
+                local name, texture, quantity, quality = CurrencyContainerUtil.GetCurrencyContainerInfo(reward.currencyID, reward.quantity)
+                if name then
+                    GameTooltip:AddLine(WoWXIV.FormatItemColor(name, quality))
+                end
+            elseif reward.title then
+                GameTooltip:AddLine(reward.title)
+            end
+        end
+        GameTooltip:Show()
+    end
+    local function AddTarget(elementdata, index)
+        return {on_click = ClickMission,
+                on_enter = OnEnterMission, on_leave = self.HideTooltip,
+                left = false, right = false}, index == last_target
+    end
+    local top, bottom, initial =
+        self:AddScrollBoxTargets(f.ScrollBox, AddTarget)
+    return initial or top
+end
+
+
+function CovenantMissionFrameFollowersHandler:__constructor()
+    self:__super(CovenantMissionFrameFollowers)
+    self.cancel_func = function() self:OnCancel() end
+    self.has_Button3 = true  -- Used to swap to the mission tab.
+    self.has_Button4 = true  -- Used to add followers to missions.
+    self.tab_handler = CovenantMissionFrameHandler.instance.tab_handler
+end
+
+function CovenantMissionFrameFollowersHandler:OnCancel()
+    -- The followers frame is also used when showing the follower list to
+    -- add to a mission, so we have to make sure not to back too far out.
+    if CovenantMissionFrame.MissionTab.MissionPage:IsVisible() then
+        CovenantMissionFrame.MissionTab.MissionPage.CloseButton:Click()
+    else
+        HideUIPanel(CovenantMissionFrame)
+    end
+end
+
+function CovenantMissionFrameFollowersHandler:SetTargets(redo)
+    self.targets = {
+        [self.frame.HealAllButton] = {can_activate = true,
+                                      lock_highlight = true}
+    }
+    -- Hack to deal with list sometimes not being initialized on the first
+    -- frame.
+    if not redo then
+        RunNextFrame(function() self:SetTarget(self:SetTargets(true)) end)
+        return nil
+    end
+    local function ClickFollower(target)
+        local button = self:GetTargetFrame(target).Follower
+        local is_mission = CovenantMissionFrame.MissionTab:IsVisible()
+        if is_mission and self.frame.ScrollBox.followerFrame.selectedFollower == button.id then
+            self.frame.ScrollBox.followerFrame.selectedFollower = nil
+            PlaySound(SOUNDKIT.UI_GARRISON_COMMAND_TABLE_SELECT_FOLLOWER_9_0)
+            self.frame:UpdateData()
+        else
+            -- Deliberately not :Click() because the button's OnClick script
+            -- calls _OnUserClick(), which checks IsModifiedClick() (which is
+            -- invalid in this context).
+            GarrisonFollowerListButton_OnClick(button, "LeftButton")
+            if is_mission then
+                CovenantMissionFrameHandler.instance_MissionTab:Activate(true)
+            else
+                CovenantMissionFrameHandler.instance_FollowerTab:Activate()
+            end
+        end
+    end
+    local function AddTarget(elementdata, index)
+        if not elementdata.follower then return nil end
+        return {on_click = ClickFollower, send_enter_leave = true,
+                left = false, right = false, info = elementdata.follower}
+    end
+    local top, bottom =
+        self:AddScrollBoxTargets(self.frame.ScrollBox, AddTarget)
+    local healall = self.frame.HealAllButton
+    if top then
+        self.targets[top].up = healall
+        self.targets[bottom].down = healall
+        self.targets[healall].up = bottom
+        self.targets[healall].down = top
+    end
+    return top or healall
+end
+
+function CovenantMissionFrameFollowersHandler:OnAction(button)
+    local is_mission = CovenantMissionFrame.MissionTab:IsVisible()
+    if button == "Button3" then
+        if is_mission then
+            CovenantMissionFrameHandler.instance_MissionTab:Activate()
+        end
+    elseif button == "Button4" then
+        local target = self:GetTarget()
+        if target ~= self.frame.HealAllButton and is_mission then
+            GarrisonFollowerListButton_OnClick(
+                self:GetTargetFrame(target).Follower, "RightButton")
+            local info = CovenantMissionFrame:GetMissionPage().missionInfo
+            if C_Garrison.GetNumFollowersOnMission(info.missionID) >= info.numFollowers then
+                CovenantMissionFrameHandler.instance_MissionTab:Activate()
+            end
+        end
+    end
+end
+
+
+function MissionTabHandler:__constructor()
+    self:__super(CovenantMissionFrame.MissionTab)
+    self.cancel_func = function() self:Disable() end
+    self.has_Button4 = true  -- Used to remove followers from missions.
+end
+
+function MissionTabHandler:Activate(is_follower_placement)
+    self:ClearTarget()
+    self:Enable(self:SetTargets(is_follower_placement))
+end
+
+function MissionTabHandler:SetTargets(is_follower_placement)
+    local page = self.frame.MissionPage
+    self.targets = {
+        [page.StartMissionButton] = {
+            can_activate = true, lock_highlight = true,
+            left = false, right = false},
+    }
+    local left_x, top_y
+    for enemy in page.Board:EnumerateEnemies() do
+        self.targets[enemy] = {send_enter_leave = true}
+        local x = enemy:GetLeft()
+        if not left_x or x < left_x then
+            left_x = x
+        end
+        local y = enemy:GetTop()
+        if not top_y or y > top_y then
+            top_y = y
+        end
+    end
+    for enemy in page.Board:EnumerateEnemies() do
+        if enemy:GetTop() == top_y then
+            self.targets[enemy].up = page.StartMissionButton
+            if enemy:GetLeft() == left_x then
+                self.targets[page.StartMissionButton].down = enemy
+            end
+        end
+    end
+    local first
+    for follower in page.Board:EnumerateFollowers() do
+        self.targets[follower] = {
+            send_enter_leave = true, is_follower = true,
+            on_click = function() self:ClickFollowerSlot(follower) end}
+        if not first or follower:GetLeft() < first:GetLeft() then
+            first = follower
+        end
+    end
+    return is_follower_placement and first or page.StartMissionButton
+end
+
+function MissionTabHandler:ClickFollowerSlot(follower)
+    local followerFrame = CovenantMissionFrameFollowers.ScrollBox.followerFrame
+    local selected = followerFrame.selectedFollower
+    if selected then
+        local info
+        CovenantMissionFrameFollowers.ScrollBox:ForEachElementData(
+            function(data)
+                if data.follower and data.follower.followerID == selected then
+                    assert(not info)
+                    info = data.follower
+                end
+            end)
+        assert(info)
+        self:LeaveTarget(follower)
+        CovenantMissionFrame:AssignFollowerToMission(follower, info)
+        self:EnterTarget(follower)
+        followerFrame.selectedFollower = nil
+        CovenantMissionFrameFollowers:UpdateData()
+    end
+end
+
+function MissionTabHandler:OnAction(button)
+    assert(button == "Button4")
+    local target = self:GetTarget()
+    if target and self.targets[target].is_follower then
+        self:LeaveTarget(target)
+        CovenantMissionFrame:RemoveFollowerFromMission(target)
+        self:EnterTarget(target)
+        PlaySound(SOUNDKIT.UI_ADVENTURES_ADVENTURER_UNSLOTTED)
+    end
+end
+
+
+function FollowerTabHandler:__constructor()
+    self:__super(CovenantMissionFrame.FollowerTab)
+    self.cancel_func = function() self:Disable() end
+end
+
+function FollowerTabHandler:Activate()
+    self:ClearTarget()
+    self:Enable(self:SetTargets())
+end
+
+function FollowerTabHandler:SetTargets()
+    local f = self.frame
+    local heal = self.frame.HealFollowerFrame.HealFollowerButton
+    self.targets = {
+        [heal] = {can_activate = true, lock_highlight = true,
+                  send_enter_leave = true, is_default = true},
+    }
+    local left
+    for button in f.autoSpellPool:EnumerateActive() do
+        self.targets[button] = {send_enter_leave = true, up = heal}
+        if not left or button:GetLeft() < left:GetLeft() then
+            left = button
+        end
+    end
+    self.targets[heal].up = left
+    self.targets[heal].down = left
+    return left
+end
+
+
+function CompleteDialogHandler:__constructor()
+    self:__super(CovenantMissionFrameMissions.CompleteDialog,
+                 MenuCursor.MenuFrame.MODAL)
+    self.cancel_func = nil
+end
+
+function CompleteDialogHandler:SetTargets()
+    self.targets = {
+        [self.frame.BorderFrame.ViewButton] =
+            {can_activate = true, lock_highlight = true, is_default = true},
+    }
+end
+
+
+function MissionCompleteHandler:__constructor()
+    self:__super(CovenantMissionFrame.MissionComplete,
+                 MenuCursor.MenuFrame.MODAL)
+    self.cancel_func = nil
+    self:HookShow(self.frame.RewardsScreen.FinalRewardsPanel,
+                  self.RefreshTargets, self.RefreshTargets)
+end
+
+function MissionCompleteHandler:RefreshTargets()
+    self:ClearTarget()
+    self:SetTarget(self:SetTargets() or self:GetDefaultTarget())
+end
+
+function MissionCompleteHandler:SetTargets()
+    local f = self.frame
+    local button
+    if f.RewardsScreen.FinalRewardsPanel.ContinueButton:IsVisible() then
+        button = f.RewardsScreen.FinalRewardsPanel.ContinueButton
+    else
+        button = f.CompleteFrame.ContinueButton
+    end
+    self.targets = {
+        [button] = {can_activate = true, lock_highlight = true,
+                    is_default = true, left = false, right = false}
+    }
+end
+
+
+function MapTabHandler:__constructor()
+    self:__super(CovenantMissionFrame.MapTab)
+    self.cancel_func = function() HideUIPanel(CovenantMissionFrame) end
+end
+
+function MapTabHandler:SetTargets()
     self.targets = {}
     -- Pin load is delayed, so wait for data to show up.
     self:AddTargets()
 end
 
-function CovenantMissionFrameHandler:AddTargets()
-    local pool = self.frame.MapTab.pinPools.AdventureMap_QuestChoicePinTemplate
+function MapTabHandler:AddTargets()
+    local pool = self.frame.pinPools.AdventureMap_QuestChoicePinTemplate
     if pool then
         local pins = {}
         for pin in pool:EnumerateActive() do
@@ -52,16 +470,16 @@ function CovenantMissionFrameHandler:AddTargets()
     RunNextFrame(function() self:AddTargets() end)
 end
 
-function CovenantMissionFrameHandler:OnEnterPin(pin)
+function MapTabHandler:OnEnterPin(pin)
     pin:OnMouseEnter()
     pin:LockHighlight()
 end
 
-function CovenantMissionFrameHandler:OnLeavePin(pin)
+function MapTabHandler:OnLeavePin(pin)
     pin:UnlockHighlight()
     pin:OnMouseLeave()
 end
 
-function CovenantMissionFrameHandler:OnClickPin(pin)
+function MapTabHandler:OnClickPin(pin)
     pin:OnClick("LeftButton", true)
 end
