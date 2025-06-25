@@ -3,6 +3,7 @@
 ## Author: vaxherd
 ## Version: 0.1+
 ## Category: User Interface
+## IconTexture: Interface/AddOns/WoWXIV/textures/icon.png
 ## SavedVariables: WoWXIV_config
 ## SavedVariablesPerCharacter: WoWXIV_isearch_cache, WoWXIV_logwindow_history, WoWXIV_logwindow_hist_top
 
