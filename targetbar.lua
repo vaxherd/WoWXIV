@@ -402,26 +402,19 @@ function WoWXIV.TargetBar.Create()
     end
     if WoWXIV_config["targetbar_move_top_center"] then
         -- Put it about halfway between the hotbars and menu bar.
-        -- FIXME: UIParent:GetWidth() returns the wrong value at startup/reload
-        -- (why? is there a better time/way to do this?)
-        --[[
-        local offset_x = UIParent:GetWidth() * 0.262
-        UIWidgetTopCenterContainerFrame:ClearAllPoints()
-        UIWidgetTopCenterContainerFrame:SetPoint("BOTTOM", UIParent, "BOTTOM",
-                                                 offset_x, 15)
-        ]]--
-        local f = CreateFrame("Frame")
-        WoWXIV.TargetBar.tmtc_hack_frame = f
-        f.saved_x = 0
-        f:SetScript("OnUpdate", function(self)
+        -- The global (UIParent) scale is not properly set on startup,
+        -- so we have to wait for the scale update event.  Note that
+        -- this event isn't triggered by a direct UIParent:SetScale()
+        -- call, so the widget will get out of position in that case.
+        local f = WoWXIV.CreateEventFrame()
+        WoWXIV.TargetBar.tmtc_event_frame = f
+        f:RegisterEvent("UI_SCALE_CHANGED")
+        function f:UI_SCALE_CHANGED()
             local offset_x = UIParent:GetWidth() * 0.262
-            if offset_x ~= self.saved_x then
-                self.saved_x = offset_x
-                UIWidgetTopCenterContainerFrame:ClearAllPoints()
-                UIWidgetTopCenterContainerFrame:SetPoint("BOTTOM", UIParent, "BOTTOM",
-                                                         offset_x, 15)
-            end
-        end)
+            UIWidgetTopCenterContainerFrame:ClearAllPoints()
+            UIWidgetTopCenterContainerFrame:SetPoint(
+                "BOTTOM", UIParent, "BOTTOM", offset_x, 15)
+        end
     end
 end
 
