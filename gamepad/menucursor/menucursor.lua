@@ -1623,7 +1623,7 @@ end
 --         selection (as returned by the menu's CollectSelectionData()
 --         method).  If omitted, the cursor will always default to the
 --         first item in the dropdown list.
---     onClick: Function to be called when an option is clicked.  May be
+--     onClick: Function to be called after an option is clicked.  May be
 --         omitted.
 function MenuFrame.SetupDropdownMenu(dropdown, cache, getIndex, onClick)
     local menu = dropdown.menu
