@@ -47,6 +47,9 @@ function WorldMapFrameHandler:__constructor()
     self.cursor_frame:SetScript(
         "OnGamePadButtonUp",
         function(_, button) self:OnGamePadButton(button, false) end)
+    self.cursor_frame:SetScript(
+        "OnEvent", function(_, ...) self:OnEnterCombat() end)
+    self.cursor_frame:RegisterEvent("PLAYER_REGEN_DISABLED")
     self.targets = {
         [self.cursor_frame] = {cursor_type = "static", dpad_override = true,
                                on_click = function() self:OnClickMap() end,
@@ -66,7 +69,7 @@ function WorldMapFrameHandler:OnShow()
 end
 
 function WorldMapFrameHandler:OnGamePadButton(button, down)
-    if self:HasFocus() then
+    if self:HasFocus() and not InCombatLockdown() then
         if button == "PADDLEFT" or button == "PADDRIGHT" then
             self.cursor_dx = down and (button=="PADDLEFT" and -1 or 1) or 0
             -- It seems we have to explicitly toggle this flag on every event.
@@ -82,6 +85,14 @@ function WorldMapFrameHandler:OnGamePadButton(button, down)
         self.cursor_dx = 0
         self.cursor_dy = 0
     end
+    if not InCombatLockdown() then
+        self.cursor_frame:SetPropagateKeyboardInput(true)
+    end
+end
+
+function WorldMapFrameHandler:OnEnterCombat()
+    self.cursor_dx = 0
+    self.cursor_dy = 0
     self.cursor_frame:SetPropagateKeyboardInput(true)
 end
 
