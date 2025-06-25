@@ -399,6 +399,16 @@ function WoWXIV.TargetBar.Create()
         -- we can't rely on our Show/SetShown hooks to re-hide it.
         -- Instead, we suppress the event handling which would show it.
         Boss1TargetFrame:UnregisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT")
+        -- Avoid the target frame reappearing when changing "scenes"
+        -- (e.g. during the "History of Corrupt" world quest in Bastion).
+        -- This introduces taint to a global function, but only at the
+        -- end of the secure execution sequence for all call sites, so
+        -- it's safe (as of 11.2.0).
+        local function nop() end
+        local dummy_TargetFrame = {Hide = nop, Update = nop}
+        local fenv = setmetatable({TargetFrame = dummy_TargetFrame},
+                                  {__index = _G})
+        setfenv(UpdateUIElementsForClientScene, fenv)
     end
     if WoWXIV_config["targetbar_move_top_center"] then
         -- Put it about halfway between the hotbars and menu bar.
