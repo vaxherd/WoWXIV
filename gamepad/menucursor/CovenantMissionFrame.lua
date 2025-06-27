@@ -367,11 +367,24 @@ function FollowerTabHandler:Activate()
     self:Enable(self:SetTargets())
 end
 
+-- We use a custom click handler for the heal button to acknowledge the
+-- heal button help tip in case it's shown.  As of 11.1.7, the heal
+-- operation is not protected, so it's safe to taint the click (this
+-- transiently taints the StaticPopup used for the confirmation, but
+-- only until it's reused in a secure call).
+local function OnHealFollower(button)
+    button:Click("LeftButton", true)
+    -- See CovenantFollowerTabMixin:ShowHealFollowerTutorial() for the
+    -- bitfield reference.
+    C_CVar.SetCVarBitfield("covenantMissionTutorial",
+                           Enum.GarrAutoCombatTutorial.HealCompanion, true)
+end
+
 function FollowerTabHandler:SetTargets()
     local f = self.frame
     local heal = self.frame.HealFollowerFrame.HealFollowerButton
     self.targets = {
-        [heal] = {can_activate = true, lock_highlight = true,
+        [heal] = {on_click = OnHealFollower, lock_highlight = true,
                   send_enter_leave = true, is_default = true},
     }
     local left
