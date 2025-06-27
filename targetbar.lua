@@ -395,20 +395,21 @@ function WoWXIV.TargetBar.Create()
         WoWXIV.HideBlizzardFrame(TargetFrame)
         WoWXIV.HideBlizzardFrame(FocusFrame)
         WoWXIV.HideBlizzardFrame(BossTargetFrameContainer)
-        -- Because BossTargetFrameContainer is hidden/shown during combat,
-        -- we can't rely on our Show/SetShown hooks to re-hide it.
-        -- Instead, we suppress the event handling which would show it.
+        -- Because BossTargetFrameContainer may be hidden and re-shown
+        -- during combat, we can't rely on our Show/SetShown hooks to hide
+        -- it again.  Instead, we suppress the event handling which would
+        -- show the container in the first place.
         Boss1TargetFrame:UnregisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT")
-        -- Avoid the target frame reappearing when changing "scenes"
-        -- (e.g. during the "History of Corrupt" world quest in Bastion).
-        -- This introduces taint to a global function, but only at the
-        -- end of the secure execution sequence for all call sites, so
-        -- it's safe (as of 11.2.0).
-        local function nop() end
-        local dummy_TargetFrame = {Hide = nop, Update = nop}
-        local fenv = setmetatable({TargetFrame = dummy_TargetFrame},
-                                  {__index = _G})
-        setfenv(UpdateUIElementsForClientScene, fenv)
+        -- UIParent's UpdateUIElementsForClientScene() attempts to refresh
+        -- the player and target frames on a "scene change" (such as for
+        -- minigames or when transitioning in/out of the "vision of the
+        -- past" phase using the Vesper of History in Bastion).  This is
+        -- specifically needed to hide the frames during minigames, so we
+        -- can't just nop out the function itself, but if we leave it
+        -- alone, the target frame will reappear on any other "scene
+        -- change" during combat.  This seems to be the cleanest (least
+        -- taint-error-provoking) method available to suppress that behavior.
+        function TargetFrame:Update() end
     end
     if WoWXIV_config["targetbar_move_top_center"] then
         -- Put it about halfway between the hotbars and menu bar.
