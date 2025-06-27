@@ -1034,6 +1034,7 @@ function WoWXIV.PartyList.Create()
         WoWXIV.HideBlizzardFrame(PartyFrame)
         -- Technically not needed, but avoids tons and tons of taint errors:
         WoWXIV.HideBlizzardFrame(CompactPartyFrame)
+        function CompactPartyFrame:RefreshMembers() end
         for i = 1, 5 do
             WoWXIV.HideBlizzardFrame(_G["CompactPartyFrameMember"..i])
             WoWXIV.HideBlizzardFrame(_G["CompactPartyFramePet"..i])
