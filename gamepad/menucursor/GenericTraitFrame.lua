@@ -10,12 +10,14 @@ local class = WoWXIV.class
 ---------------------------------------------------------------------------
 
 -- Constants for trait trees.  These don't seem to be defined anywhere.
-local TREEID_TWW_VISIONS = 1057  -- Horrific Visions Revisited
+local TREEID_TWW_VISIONS     = 1057  -- Horrific Visions Revisited
 local TREEID_TWW_OVERCHARGED = 1061  -- Overcharged Delves
+local TREEID_TWW_RESHII      = 1115  -- Reshii Wraps
 
 local SUPPORTED_TRAIT_TREES = {
     [TREEID_TWW_VISIONS] = 1,
     [TREEID_TWW_OVERCHARGED] = 1,
+    [TREEID_TWW_RESHII] = 1,
 }
 
 
@@ -127,11 +129,11 @@ function GenericTraitFrameHandler:RefreshTargets()
         if self.tree then
             target = buttons[self.tree[1][1]]
         else
-            local nodes = C_Traits.GetTreeNodes(self.tree_id)
-            assert(nodes)
-            assert(nodes[1])
-            assert(buttons[nodes[1]])
-            target = buttons[nodes[1]]
+            for _, button in pairs(buttons) do
+                if not target or button:GetTop() > target:GetTop() then
+                    target = button
+                end
+            end
         end
     end
     self:SetTarget(target)
