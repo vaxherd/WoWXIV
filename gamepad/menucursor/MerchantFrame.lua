@@ -29,8 +29,6 @@ MenuCursor.Cursor.RegisterFrameHandler(MerchantFrameHandler)
 function MerchantFrameHandler:__constructor()
     self:__super(MerchantFrame)
     self.has_Button4 = true  -- Used to purchase multiple of an item.
-    self.on_prev_page = "MerchantPrevPageButton"
-    self.on_next_page = "MerchantNextPageButton"
     self.tab_handler = function(direction) self:OnTabCycle(direction) end
     -- We use the "sell all junk" button (which is always[*] displayed on
     -- the "buy" tab and never displayed on the "sell" tab) as a proxy for
@@ -45,6 +43,17 @@ function MerchantFrameHandler:__constructor()
         self:HookShow(frame, self.OnShowItemButton,
                              self.OnHideItemButton)
     end
+end
+
+function MerchantFrameHandler:OnShow()
+    if MerchantPrevPageButton:IsShown() then
+        self.on_prev_page = "MerchantPrevPageButton"
+        self.on_next_page = "MerchantNextPageButton"
+    else
+        self.on_prev_page = nil
+        self.on_next_page = nil
+    end
+    MenuCursor.CoreMenuFrame.OnShow(self)
 end
 
 function MerchantFrameHandler:SetTargets()
