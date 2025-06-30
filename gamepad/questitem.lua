@@ -441,7 +441,12 @@ function QuestItemButton:OnEvent(event)
     if event == "PLAYER_TARGET_CHANGED" then
         self:UpdateItemTarget()
     else
-        self:UpdateQuestItem()
+        -- Always update immediately on inventory change, since using one
+        -- quest item to create another (e.g. combining Resonating Anima Mote
+        -- into Resonating Anima Core) has a short delay before the created
+        -- item appears in the inventory.
+        local force = (event == "BAG_UPDATE")
+        self:UpdateQuestItem(force)
     end
 end
 
@@ -487,19 +492,22 @@ function QuestItemButton:UpdateQuestItem(force, is_retry)
     if not is_retry and not force and self.pending_update then return end
     local now = GetTime()
     if InCombatLockdown() or (not force and now - self.last_update < 1) then
-        self.pending_update = true
-        C_Timer.After(1, function() self:UpdateQuestItem(force, true) end)
+        if not self.pending_update then
+            self.pending_update = true
+            C_Timer.After(1, function() self:UpdateQuestItem(force, true) end)
+        end
         return
     end
+    -- In theory, we should only clear pending_update if this is a retry,
+    -- but if we ever lost a retry call (C_Timer wiped its delayed call
+    -- table, etc.), the pending_update check above would prevent us from
+    -- ever updating again.  We accept the risk of overlapping retry calls
+    -- as the cost of preventing that failure mode.
     self.pending_update = false
     self.last_update = now
 
     local index = 0
-    local first_item = nil  -- In case selected_index is out of range.
     local function MaybeChooseItem(this_item)  -- Predicate for iteration.
-        if not first_item then
-            first_item = this_item
-        end
         index = index + 1
         if self.selected_item then
             if this_item == self.selected_item then
@@ -512,13 +520,13 @@ function QuestItemButton:UpdateQuestItem(force, is_retry)
             return index == self.selected_index
         end
     end
-    local item = self:IterateQuestItems(MaybeChooseItem)
+    local item, _, enable = self:IterateQuestItems(MaybeChooseItem)
     if not item then
         -- Either no quest items are available at all, or selected_index
         -- was out of range or selected_item was not found (perhaps because
         -- a quest was just completed).  Reset to the first item in all cases.
         self.selected_index = 1
-        item = first_item
+        item, _, enable = self:IterateQuestItems(MaybeChooseItem)
     end
     self.selected_item = item
     self.scenario_action_hack_time = nil
@@ -537,9 +545,12 @@ function QuestItemButton:UpdateQuestItem(force, is_retry)
             self:SetAttribute("item", "item:"..item)
         end
         self:UpdateItemTarget()
+        self:SetEnabled(enable)
         local icon_id = (GetItemOrSpellIcon(item)
                          or "Interface/ICONS/INV_Misc_QuestionMark")
         self.icon:SetTexture(icon_id)
+        local brightness = enable and 1.0 or 0.5
+        self.icon:SetVertexColor(brightness, brightness, brightness)
         if self:GetAlpha() < 1 and (self.fadeout:IsPlaying() or not self.fadein:IsPlaying()) then
             self.fadeout:Stop()
             self.fadein:Play()
@@ -600,12 +611,14 @@ function QuestItemButton:UpdateItemTarget()
     end
 end
 
--- Returns a pair (item, n), where |item| is the ID of the first item for
--- which the predicate returned true and |n| is the index of that item in
--- the overall quest item list.  If no item is found (or no predicate is
--- given), |item| is nil and |n| is the number of available quest items.
--- The predicate function should accept a single argument, which is the
--- item ID.  When a scenario action is selected, the "item ID" is a
+-- Returns a tuple (item, n, enable), where |item| is the ID of the first
+-- item for which the predicate returned true, |n| is the index of that
+-- item in the overall quest item list, and |enable| is a flag indicating
+-- whether the quest item button should be enabled (true) or visible but
+-- disabled (false).  If no item is found (or no predicate is given),
+-- |item| is nil, |n| is the number of available quest items, and |enable|
+-- is false.  The predicate function should accept a single argument, which
+-- is the item ID.  When a scenario action is selected, the "item ID" is a
 -- negative number whose arithmetic inverse is the spell ID.
 function QuestItemButton:IterateQuestItems(predicate)
     local index = 0
@@ -615,7 +628,7 @@ function QuestItemButton:IterateQuestItems(predicate)
         for _, ability in ipairs(C_ZoneAbility.GetActiveAbilities()) do
             index = index + 1
             if predicate and predicate(-ability.spellID) then
-                return -ability.spellID, index
+                return -ability.spellID, index, true
             end
         end
         for frame in ScenarioObjectiveTracker.spellFramePool:EnumerateActive() do
@@ -624,7 +637,7 @@ function QuestItemButton:IterateQuestItems(predicate)
             -- so we have to break encapsulation here.
             local spell_id = frame.SpellButton.spellID
             if predicate and predicate(-spell_id) then
-                return -spell_id, index
+                return -spell_id, index, true
             end
             if -spell_id == self.selected_item then found = true end
         end
@@ -648,7 +661,7 @@ function QuestItemButton:IterateQuestItems(predicate)
             then
                 index = index + 1
                 if predicate and predicate(self.selected_item) then
-                    return self.selected_item, index
+                    return self.selected_item, index, true
                 end
             end
         end
@@ -662,10 +675,11 @@ function QuestItemButton:IterateQuestItems(predicate)
                     if type(quest_item) == "table" then
                         quest_item, amount = unpack(quest_item)
                     end
-                    if GetItemCount(quest_item) >= amount then
+                    local owned = GetItemCount(quest_item)
+                    if owned > 0 then
                         index = index + 1
                         if predicate and predicate(quest_item) then
-                            return quest_item, index
+                            return quest_item, index, owned >= amount
                         end
                     end
                 end
@@ -686,11 +700,11 @@ function QuestItemButton:IterateQuestItems(predicate)
             if ITEM_TARGET[item] ~= "skip" then
                 index = index + 1
                 if predicate and predicate(item) then
-                    return item, index
+                    return item, index, true
                 end
             end
         end
     end
 
-    return nil, index
+    return nil, index, false
 end
