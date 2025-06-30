@@ -1113,13 +1113,20 @@ function LogWindow:AddMessage(event, text, r, g, b)
         self.last_message[5] = b
         RunNextFrame(function() self.last_message[2] = 0 end)
     end  -- if not KEEP_NATIVE_FRAME
-    if self.tab_bar:GetActiveTab():Filter(event, text) then
+    if self:FilterOut(event, text) then
+        -- Ignore
+    elseif self.tab_bar:GetActiveTab():Filter(event, text) then
         self:InternalAddMessage(true, true, event, text, r, g, b)
     elseif self.tab_bar:FilterAnyTab(event, text) then
         self:InternalAddMessage(false, true, event, text, r, g, b)
     elseif strsub(event,1,4) ~= "CLM_" then
-        self.frame:AddMessage(true, false, event, "[WoWXIV.LogWindow] Event not taken by any tab: ["..event.."] "..text, 1, 1, 1)
+        self.frame:AddMessage("[WoWXIV.LogWindow] Event not taken by any tab: ["..event.."] "..text, 1, 1, 1)
     end
+end
+
+function LogWindow:FilterOut(event, text)
+    if strsub(event,1,17)  == "CHAT_MSG_MONSTER_" and strsub(text,1,17) == "Brann Bronzebeard" then return true end  -- Suppress messages from wiseass delve companion.
+    return false
 end
 
 function LogWindow:InternalAddMessage(show, save, event, text, r, g, b)
