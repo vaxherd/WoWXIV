@@ -18,6 +18,7 @@ local MissionPageHandler = class(MenuCursor.MenuFrame)
 local ZoneSupportMissionPageHandler = class(MenuCursor.MenuFrame)
 local CompleteDialogHandler = class(MenuCursor.StandardMenuFrame)
 local MissionCompleteHandler = class(MenuCursor.StandardMenuFrame)
+local MapTabHandler = class(MenuCursor.StandardMenuFrame)
 
 function OrderHallMissionFrameHandler.OnAddOnLoaded(class)
     local instance = class()
@@ -29,6 +30,7 @@ function OrderHallMissionFrameHandler.OnAddOnLoaded(class)
     class.instance_ZoneSupport = ZoneSupportMissionPageHandler()
     class.instance_CompleteDialog = CompleteDialogHandler()
     class.instance_MissionComplete = MissionCompleteHandler()
+    class.instance_MapTab = MapTabHandler()
 end
 
 function OrderHallMissionFrameHandler:__constructor()
@@ -49,12 +51,15 @@ function OrderHallMissionFrameHandler:OnShow()
         OrderHallMissionFrameHandler.instance_Missions:OnShow()
     elseif OrderHallMissionFrameFollowers:IsVisible() then
         OrderHallMissionFrameHandler.instance_Followers:OnShow()
+    elseif OrderHallMissionFrame.MapTab:IsVisible() then
+        OrderHallMissionFrameHandler.instance_MapTab:OnShow()
     end
 end
 
 function OrderHallMissionFrameHandler:OnHide()
     OrderHallMissionFrameHandler.instance_Missions:OnHide()
     OrderHallMissionFrameHandler.instance_Followers:OnHide()
+    OrderHallMissionFrameHandler.instance_MapTab:OnHide()
     MenuCursor.AddOnMenuFrame:OnHide(self)
 end
 
@@ -515,4 +520,60 @@ function MissionCompleteHandler:SetTargets()
              left = false, right = false}
         return ChestButton
     end
+end
+
+
+function MapTabHandler:__constructor()
+    self:__super(OrderHallMissionFrame.MapTab)
+    self.cancel_func = function() HideUIPanel(OrderHallMissionFrame) end
+end
+
+function MapTabHandler:SetTargets()
+    self.targets = {}
+    -- Pin load is delayed, so wait for data to show up.
+    self:AddTargets()
+end
+
+function MapTabHandler:AddTargets()
+    local pool = self.frame.pinPools.AdventureMap_QuestChoicePinTemplate
+    if pool then
+        local pins = {}
+        for pin in pool:EnumerateActive() do
+            tinsert(pins, pin)
+        end
+        if #pins > 0 then
+            local function OnEnterPin(pin) self:OnEnterPin(pin) end
+            local function OnLeavePin(pin) self:OnLeavePin(pin) end
+            local function OnClickPin(pin) self:OnClickPin(pin) end
+            local top
+            for _, pin in ipairs(pins) do
+                -- Pins aren't true buttons and don't have IsEnabled(), so
+                -- we can't use lock_highlight and have to roll our own.
+                self.targets[pin] = {on_click = OnClickPin,
+                                     on_enter = OnEnterPin,
+                                     on_leave = OnLeavePin}
+                if not top or pin.normalizedY < top.normalizedY then
+                    top = pin
+                end
+            end
+            self:SetTarget(top)
+            return
+        end
+    end
+    -- Pins are not yet loaded, so try again next frame.
+    RunNextFrame(function() self:AddTargets() end)
+end
+
+function MapTabHandler:OnEnterPin(pin)
+    pin:OnMouseEnter()
+    pin:LockHighlight()
+end
+
+function MapTabHandler:OnLeavePin(pin)
+    pin:UnlockHighlight()
+    pin:OnMouseLeave()
+end
+
+function MapTabHandler:OnClickPin(pin)
+    pin:OnClick("LeftButton", true)
 end
