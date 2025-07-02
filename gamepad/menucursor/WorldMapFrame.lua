@@ -121,8 +121,11 @@ end
 function WorldMapFrameHandler:OnAction(button)
     assert(button == "Button3")
     local last_map = WorldMapFrame.mapID
-    WorldMapFrame:NavigateToParentMap()
-    if WorldMapFrame.mapID == last_map then return end  -- Already at top map.
+    local info = C_Map.GetMapInfo(last_map)
+    local parent_map = info and info.parentMapID
+    if not parent_map or parent_map == 0 then return end
+    if parent_map == last_map then return end  -- Already at top map.
+    C_Map.OpenWorldMap(parent_map)
     self:PutCursorAtMapLinkOrCenter(last_map)
     self:UpdateCursorTarget()
 end
@@ -132,7 +135,7 @@ function WorldMapFrameHandler:OnClickMap()
     local info = C_Map.GetMapInfoAtPosition(
         current_map, self.cursor_x, self.cursor_y)
     if info then
-        self.frame:SetMapID(info.mapID)
+        C_Map.OpenWorldMap(info.mapID)
         self:PutCursorAtMapLinkOrCenter(current_map)
         self:UpdateCursorTarget()
     end
