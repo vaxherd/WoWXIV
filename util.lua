@@ -202,3 +202,17 @@ local CLASS_ATLAS = {rare = "UI-HUD-UnitFrame-Target-PortraitOn-Boss-Rare-Star",
 function WoWXIV.UnitClassificationIcon(unit)
     return CLASS_ATLAS[UnitClassification(unit)]
 end
+
+-- Call a function with a specified environment, restoring the function's
+-- original environment afterward.  Only the first return value (if any)
+-- is passed up to the caller.  Note that as of 11.1.7, setting the
+-- environment for a function does not in itself appear to taint the
+-- function (though of course taint will be passed in via the execution
+-- path).
+function WoWXIV.envcall(env, fn, ...)
+    local saved_env = getfenv(fn)
+    setfenv(fn, env)
+    local retval = fn(...)
+    setfenv(fn, saved_env)
+    return retval
+end
