@@ -1,0 +1,158 @@
+local _, WoWXIV = ...
+assert(WoWXIV.Gamepad.MenuCursor)
+local MenuCursor = WoWXIV.Gamepad.MenuCursor
+
+local class = WoWXIV.class
+
+local envcall = WoWXIV.envcall
+local min = math.min
+local tinsert = tinsert
+
+---------------------------------------------------------------------------
+
+local TorghastLevelPickerFrameHandler = class(MenuCursor.AddOnMenuFrame)
+TorghastLevelPickerFrameHandler.ADDON_NAME = "Blizzard_TorghastLevelPicker"
+MenuCursor.Cursor.RegisterFrameHandler(TorghastLevelPickerFrameHandler)
+
+function TorghastLevelPickerFrameHandler:__constructor()
+    self.top_row = {}     -- Ordered list of level buttons in the top row.
+    self.bottom_row = {}  -- Ordered list of level buttons in the bottom row.
+
+    self:__super(TorghastLevelPickerFrame)
+    self.cancel_func = nil
+    self.cancel_button = self.frame.CloseButton
+    self.on_prev_page = self.frame.Pager.PreviousPage
+    self.on_next_page = self.frame.Pager.NextPage
+    self.has_Button3 = true  -- Used as a shortcut for the Climb button.
+    hooksecurefunc(self.frame, "SetupOptionsByStartingIndex",
+                   function() self:RefreshTargets() end)
+end
+
+function TorghastLevelPickerFrameHandler:RefreshTargets()
+    local last_target = self:GetTarget()
+    self:SetTarget(nil)
+    self:SetTarget(self:SetTargets(last_target))
+end
+
+function TorghastLevelPickerFrameHandler:SetTargets(last_target)
+    local f = self.frame
+    local ClimbButton = f.OpenPortalButton
+
+    self.targets = {
+        [ClimbButton] = {
+            can_activate = true, lock_highlight = true,
+            left = false, right = false},
+    }
+    local was_level_target = (last_target and not self.targets[last_target])
+
+    local levels = {}
+    local y_top, y_bottom
+    for button in f.gossipOptionsPool:EnumerateActive() do
+        if button:IsShown() then
+            tinsert(levels, button)
+            local y = button:GetTop()
+            if not y_top or y > y_top then y_top = y end
+            if not y_bottom or y < y_bottom then y_bottom = y end
+        end
+    end
+    local top_row, bottom_row = {}, {}
+    local function OnEnterLevel(level) self:OnEnterLevel(level) end
+    local function OnLeaveLevel(level) self:OnLeaveLevel(level) end
+    for _, button in ipairs(levels) do
+        self.targets[button] = {can_activate = true, on_enter = OnEnterLevel,
+                                on_leave = OnLeaveLevel}
+        local y = button:GetTop()
+        if y == y_top then
+            tinsert(top_row, button)
+        else
+            assert(y == y_bottom)
+            tinsert(bottom_row, button)
+        end
+    end
+    table.sort(top_row, function(a,b) return a:GetLeft() < b:GetLeft() end)
+    table.sort(bottom_row, function(a,b) return a:GetLeft() < b:GetLeft() end)
+    for i, button in ipairs(top_row) do
+        self.targets[button].left = top_row[i>1 and i-1 or #top_row]
+        self.targets[button].right = top_row[i<#top_row and i+1 or 1]
+        self.targets[button].up = ClimbButton
+        if #bottom_row == 0 then
+            self.targets[button].down = ClimbButton
+        else
+            self.targets[button].down = bottom_row[min(i, #bottom_row)]
+        end
+        if i == 1 then
+            self.targets[ClimbButton].up = button
+        end
+    end
+    for i, button in ipairs(bottom_row) do
+        self.targets[button].left = bottom_row[i>1 and i-1 or #bottom_row]
+        self.targets[button].right = bottom_row[i<#bottom_row and i+1 or 1]
+        self.targets[button].up = top_row[i]
+        self.targets[button].down = ClimbButton
+        if i == 1 then
+            self.targets[ClimbButton].up = button
+        end
+    end
+    self.targets[ClimbButton].down = top_row[1]
+    self.top_row = top_row
+    self.bottom_row = bottom_row
+
+    return (was_level_target and top_row[1]) or last_target or top_row[1]
+end
+
+function TorghastLevelPickerFrameHandler:OnEnterLevel(level)
+    local reward = level.RewardBanner.Reward
+
+    -- Annoyingly, both level and reward buttons explicitly check
+    -- IsMouseOver() or equivalent, so we have to override those.
+    local level_env = {
+        RegionUtil = {
+            IsAnyDescendantOfOrSame = function() return true end
+        }
+    }
+    setmetatable(level_env, {__index = _G})
+    envcall(level_env, level.RefreshTooltip, level)
+
+    if reward:IsVisible() then
+        local reward_oldmeta = getmetatable(reward)
+        reward_newmeta = {__index = setmetatable(
+            {IsMouseOver = function() return true end},
+            {__index = reward_oldmeta.__index})}
+        setmetatable(reward, reward_newmeta)
+        reward:RefreshTooltip()
+        setmetatable(reward, reward_oldmeta)
+        if EmbeddedItemTooltip:IsVisible() then
+            EmbeddedItemTooltip:ClearAllPoints()
+            EmbeddedItemTooltip:SetPoint("TOP", GameTooltip, "BOTTOM")
+        end
+    end
+end
+
+function TorghastLevelPickerFrameHandler:OnLeaveLevel(level)
+    local reward = level.RewardBanner.Reward
+    level:OnLeave()
+    reward:OnLeave()
+end
+
+function TorghastLevelPickerFrameHandler:OnMove(old_target, new_target)
+    MenuCursor.AddOnMenuFrame.OnMove(self, old_target, new_target)
+
+    local f = self.frame
+    for i = 1, 3 do
+        if self.top_row[i]==new_target or self.bottom_row[i]==new_target then
+            local last_row =
+                #self.bottom_row > 0 and self.bottom_row or self.top_row
+            self.targets[f.OpenPortalButton].up = last_row[i]
+            self.targets[f.OpenPortalButton].down = self.top_row[i]
+            break
+        end
+    end
+end
+
+function TorghastLevelPickerFrameHandler:OnAction(button)
+    assert(button == "Button3")
+    local ClimbButton = self.frame.OpenPortalButton
+    if ClimbButton:IsEnabled() then
+        ClimbButton:Click()
+    end
+end

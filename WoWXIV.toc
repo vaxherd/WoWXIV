@@ -40,6 +40,7 @@ gamepad/menucursor/CovenantMissionFrame.lua
 gamepad/menucursor/CovenantSanctumFrame.lua
 gamepad/menucursor/DelvesCompanionConfigurationFrame.lua
 gamepad/menucursor/DelvesDifficultyPickerFrame.lua
+gamepad/menucursor/EventToastManagerFrame.lua
 gamepad/menucursor/FlightMapFrame.lua
 gamepad/menucursor/GarrisonCapacitiveDisplayFrame.lua
 gamepad/menucursor/GenericTraitFrame.lua
@@ -64,6 +65,7 @@ gamepad/menucursor/SpellBookFrame.lua
 gamepad/menucursor/SplashFrame.lua
 gamepad/menucursor/StackSplitFrame.lua
 gamepad/menucursor/StaticPopup.lua
+gamepad/menucursor/TorghastLevelPickerFrame.lua
 gamepad/menucursor/UIWidgetCenterDisplayFrame.lua
 gamepad/menucursor/VoidStoragePurchaseFrame.lua
 gamepad/menucursor/WeeklyRewardsFrame.lua
