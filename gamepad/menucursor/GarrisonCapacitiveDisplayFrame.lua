@@ -12,17 +12,19 @@ MenuCursor.Cursor.RegisterFrameHandler(GarrisonCapacitiveDisplayFrameHandler)
 
 function GarrisonCapacitiveDisplayFrameHandler:__constructor()
     self:__super(GarrisonCapacitiveDisplayFrame)
+    local f = self.frame
     self.targets = {
-        [GarrisonCapacitiveDisplayFrame.CreateAllWorkOrdersButton] =
-            {can_activate = true, lock_highlight = true},
-        [GarrisonCapacitiveDisplayFrame.DecrementButton] =
+        [f.CreateAllWorkOrdersButton] =
+            {can_activate = true, lock_highlight = true,
+             left = f.StartWorkOrderButton},
+        [f.DecrementButton] =
             {on_click = GarrisonCapacitiveDisplayFrameDecrement_OnClick,
              lock_highlight = true},
-        [GarrisonCapacitiveDisplayFrame.IncrementButton] =
+        [f.IncrementButton] =
             {on_click = GarrisonCapacitiveDisplayFrameIncrement_OnClick,
              lock_highlight = true},
-        [GarrisonCapacitiveDisplayFrame.StartWorkOrderButton] =
+        [f.StartWorkOrderButton] =
             {can_activate = true, lock_highlight = true,
-             is_default = true},
+             is_default = true, right = f.CreateAllWorkOrdersButton},
     }
 end
