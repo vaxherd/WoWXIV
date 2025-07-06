@@ -105,7 +105,11 @@ local ITEM_TARGET = {
     [152971] = "target",  -- Talisman of the Prophet (48691: Soul Chain)
     [157540] = "none",    -- Battered S.E.L.F.I.E. Camera (51092: Picturesque Boralus)
     [167231] = "none",    -- Delormi's Synchronous Thread (53807: A Stitch in Time)
+    [168035] = "none",    -- Mawrat Harness (Torghast)
     [168482] = "none",    -- Benthic Sealant (56160: Plug the Geysers)
+    [170498] = "none",    -- Deadsoul Hound Harness (Torghast)
+    [170499] = "none",    -- Maw Seeker Harness (Torghast)
+    [170540] = "target",  -- Ravenous Anima Cell (Torghast)
     [173373] = "skip",    -- Faol's Hearthstone (40705: Priestly Matters)
     [173379] = "target",  -- Purify Stone (41966: House Call)
     [173430] = "skip",    -- Nexus Teleport Scroll (41628: Eyes of the Dragon)
@@ -139,11 +143,13 @@ local ITEM_TARGET = {
     [186089] = "target",  -- Niya's Staff (63840: They Grow Up So Quickly)
     [186097] = "none",    -- Heirmir's Runeblade (63945: The Soul Blade)
     [186199] = "target",  -- Lady Moonberry's Wand (63971: Snail Stomping)
+    [186448] = "target",  -- Mikanikos' Restorative Contraption (64043: We Need a Healer - You!)
     [186474] = "target",  -- Korayn's Javelin (64080: Down to Earth)
     [186569] = "target",  -- Angry Needler Nest (63974: That's Going to Sting)
     [186695] = "target",  -- Lovely Pet Bandage (64196: Pet Up)
     [187012] = "none",    -- Unbalanced Riftstone (63951: A Shady Place)
     [187128] = "none",    -- Find-A-Spy (64167: Pets Detective)
+    [187186] = "target",  -- Orb of Deception (Torghast)
     [187941] = "none",    -- Depleted Automa Core (64761: Core Competency)
     [187999] = "none",    -- Fishing Portal (65102: Fish Eyes)
     [188134] = "player",  -- Bronze Timepiece (65118: How to Glide with Your Dragon)
@@ -297,6 +303,7 @@ local ITEM_TARGET = {
 
     -- The following are scenario action spells:
     [-314955] = "none",   -- Sanity Restoration Orb (N'Zoth's Horrific Visions)
+    [-357857] = "none",   -- Activate Empowerment (Torghast)
     [-469853] = "none",   -- Drop Candle (Delve: Kriegval's Rest, 11.0 only)
     [-469854] = "none",   -- Drop Air Totem (Delve: Earthen Waterworks, 11.0 only)
 }
@@ -425,41 +432,24 @@ function QuestItemButton:__constructor()
     self:SetAttribute("spell", nil)
     self:SetAttribute("unit", nil)
     self:RegisterForClicks("LeftButtonDown", "RightButtonDown")
+    self:HookScript("OnClick", self.OnClick)
+    self:SetScript("OnEnter", self.OnEnter)
+    self:SetScript("OnLeave", self.OnLeave)
+    self:SetScript("OnEvent", self.OnEvent)
 
     self:RegisterUnitEvent("UNIT_QUEST_LOG_CHANGED", "player")
     self:RegisterEvent("BAG_UPDATE")  -- for QUEST_ITEM quests
     self:RegisterEvent("BAG_UPDATE_COOLDOWN")
     self:RegisterEvent("PLAYER_TARGET_CHANGED")
-    self:SetScript("OnEvent", self.OnEvent)
-    self:SetScript("OnEnter", self.OnEnter)
-    self:SetScript("OnLeave", self.OnLeave)
-    self:HookScript("OnClick", self.OnClick)
-    self:UpdateQuestItem()
-end
-
-function QuestItemButton:OnEvent(event)
-    if event == "PLAYER_TARGET_CHANGED" then
-        self:UpdateItemTarget()
-    else
-        -- Always update immediately on inventory change, since using one
-        -- quest item to create another (e.g. combining Resonating Anima Mote
-        -- into Resonating Anima Core) has a short delay before the created
-        -- item appears in the inventory.
-        local force = (event == "BAG_UPDATE")
-        self:UpdateQuestItem(force)
+    -- We could theoretically dissect ZoneAbilityFrame and work out exactly
+    -- which events trigger show/hide of the frame, but the frame itself
+    -- makes for a convenient proxy.
+    for _, name in ipairs({"Show", "Hide", "SetShown"}) do
+        hooksecurefunc(ZoneAbilityFrame, name,
+                       function() self:UpdateQuestItem(true) end)
     end
-end
 
-function QuestItemButton:OnEnter()
-    if GameTooltip:IsForbidden() then return end
-    if not self:IsVisible() then return end
-    GameTooltip:SetOwner(self, "ANCHOR_TOP")
-    self:UpdateTooltip()
-end
-
-function QuestItemButton:OnLeave()
-    if GameTooltip:IsForbidden() then return end
-    GameTooltip:Hide()
+    self:UpdateQuestItem()
 end
 
 function QuestItemButton:OnClick(button, down)
@@ -476,6 +466,31 @@ function QuestItemButton:OnClick(button, down)
     end
 end
 
+function QuestItemButton:OnEnter()
+    if GameTooltip:IsForbidden() then return end
+    if not self:IsVisible() then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    self:UpdateTooltip()
+end
+
+function QuestItemButton:OnLeave()
+    if GameTooltip:IsForbidden() then return end
+    GameTooltip:Hide()
+end
+
+function QuestItemButton:OnEvent(event)
+    if event == "PLAYER_TARGET_CHANGED" then
+        self:UpdateItemTarget()
+    else
+        -- Always update immediately on inventory change, since using one
+        -- quest item to create another (e.g. combining Resonating Anima Mote
+        -- into Resonating Anima Core) has a short delay before the created
+        -- item appears in the inventory.
+        local force = (event == "BAG_UPDATE")
+        self:UpdateQuestItem(force)
+    end
+end
+
 function QuestItemButton:UpdateTooltip()
     if GameTooltip:IsForbidden() or GameTooltip:GetOwner() ~= self then
         return
@@ -488,22 +503,21 @@ function QuestItemButton:UpdateTooltip()
     end
 end
 
-function QuestItemButton:UpdateQuestItem(force, is_retry)
-    if not is_retry and not force and self.pending_update then return end
+-- If |force| is false, calls will be throttled to no more than 1/second.
+-- (Throttled calls will be delayed and rerun in the background.)
+function QuestItemButton:UpdateQuestItem(force)
+    if self.pending_update and not force then return end
     local now = GetTime()
     if InCombatLockdown() or (not force and now - self.last_update < 1) then
         if not self.pending_update then
             self.pending_update = true
-            C_Timer.After(1, function() self:UpdateQuestItem(force, true) end)
+            C_Timer.After(1, function()
+                self.pending_update = false
+                self:UpdateQuestItem(force)
+            end)
         end
         return
     end
-    -- In theory, we should only clear pending_update if this is a retry,
-    -- but if we ever lost a retry call (C_Timer wiped its delayed call
-    -- table, etc.), the pending_update check above would prevent us from
-    -- ever updating again.  We accept the risk of overlapping retry calls
-    -- as the cost of preventing that failure mode.
-    self.pending_update = false
     self.last_update = now
 
     local index = 0
@@ -522,10 +536,12 @@ function QuestItemButton:UpdateQuestItem(force, is_retry)
     end
     local item, _, enable = self:IterateQuestItems(MaybeChooseItem)
     if not item then
-        -- Either no quest items are available at all, or selected_index
-        -- was out of range or selected_item was not found (perhaps because
-        -- a quest was just completed).  Reset to the first item in all cases.
+        -- Either no quest items are available at all, or selected_index was
+        -- out of range or selected_item was not found (perhaps because a
+        -- quest was just completed).  Reset to the first item in all cases.
+        self.selected_item = nil
         self.selected_index = 1
+        index = 0
         item, _, enable = self:IterateQuestItems(MaybeChooseItem)
     end
     self.selected_item = item
@@ -641,9 +657,12 @@ function QuestItemButton:IterateQuestItems(predicate)
             end
             if -spell_id == self.selected_item then found = true end
         end
-        if self.selected_item and self.selected_item < 0 and not found then
+        local _, _, difficulty_id = GetInstanceInfo()
+        local DIFFICULTY_ID_DELVES = 208
+        local use_delve_workaround = (difficulty_id == DIFFICULTY_ID_DELVES)
+        if use_delve_workaround and self.selected_item and self.selected_item < 0 and not found then
             -- When starting a "safety item carry" type delve such as
-            -- Kriegval's Rest or Earthen Waterworks, if picking up the
+            -- Kriegval's Rest or Earthen Waterworks(*), if picking up the
             -- safety item (candle, air totem) triggers scenario
             -- progression (as it typically does at the entrance), the
             -- spell icon will disappear for a moment as the objective
@@ -652,6 +671,9 @@ function QuestItemButton:IterateQuestItems(predicate)
             -- the next update chance (which may not occur until the next
             -- end of combat), we treat the spell as available for a short
             -- time after first detecting this state.
+            -- (*) Both of these delves were changed to use standard duty
+            --     actions in patch 11.1, but we keep the logic in case
+            --     it's useful again in the future.
             if not self.scenario_action_hack_time then
                 self.scenario_action_hack_time = GetTime() + 2.0
                 self.scenario_action_hack_map = C_Map.GetBestMapForUnit("player")
@@ -663,6 +685,22 @@ function QuestItemButton:IterateQuestItems(predicate)
                 if predicate and predicate(self.selected_item) then
                     return self.selected_item, index, true
                 end
+            end
+        end
+    end
+
+    -- Special special cases for Torghast items
+    for _, item in ipairs({
+        168035,  -- Mawrat Harness
+        170498,  -- Deadsoul Hound Harness
+        170499,  -- Maw Seeker Harness
+        170540,  -- Ravenous Anima Cell
+        187186,  -- Orb of Deception
+    }) do
+        if GetItemCount(item) > 0 then
+            index = index + 1
+            if predicate and predicate(item) then
+                return item, index, true
             end
         end
     end

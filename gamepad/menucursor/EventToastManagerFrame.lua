@@ -43,6 +43,8 @@ function EventToastManagerFrameHandler:SetTargets()
     self.targets = {
         [HideButton] = {
             can_activate = true, lock_highlight = true, is_default = true,
+            -- Immediately hide cursor when clicking the Close button.
+            on_click = function() self:Disable() end,
             x_offset = text_x - hide_x, y_offset = text_y - hide_y,
             up = false, down = false, left = false, right = false},
     }
