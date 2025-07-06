@@ -79,6 +79,45 @@ function CovenantMissionFrameMissionsHandler:__constructor()
     self:__super(CovenantMissionFrameMissions)
     self.cancel_func = function() HideUIPanel(CovenantMissionFrame) end
     self.tab_handler = CovenantMissionFrameHandler.instance.tab_handler
+    hooksecurefunc(self.frame, "UpdateMissions",
+                   function() self:MaybeRefreshTargets() end)
+end
+
+function CovenantMissionFrameMissionsHandler:MaybeRefreshTargets()
+    -- Blizzard code refreshes the mission list every frame (which that code
+    -- acknowledges is suboptimal, see CovenantMissionListMixin:Update()).
+    -- If we blindly RefreshTargets() in response, we block cursor repeat,
+    -- so we mimic Blizzard code behavior and check whether there has in
+    -- fact been any change in the mission list before refreshing the
+    -- target set.
+    local missions = {}
+    local index = 0
+    self.frame.ScrollBox:ForEachElementData(function(data)
+        index = index + 1
+        missions[index] = data
+    end)
+    local all_match = true
+    for target, params in pairs(self.targets) do
+        if params.is_scroll_box then
+            if missions[target.index] then
+                missions[target.index] = false
+            else
+                all_match = false
+                break
+            end
+        end
+    end
+    if not all_match then
+        for k, v in pairs(missions) do
+            if v then
+                all_match = false
+                break
+            end
+        end
+    end
+    if not all_match then
+        self:RefreshTargets()
+    end
 end
 
 function CovenantMissionFrameMissionsHandler:RefreshTargets()
@@ -207,17 +246,34 @@ function CovenantMissionFrameFollowersHandler:OnCancel()
     end
 end
 
+function CovenantMissionFrameFollowersHandler:OnShow() --FIXME temp
+    MenuCursor.StandardMenuFrame.OnShow(self)
+end
+
+function CovenantMissionFrameFollowersHandler:SetTarget(target) --FIXME temp
+    MenuCursor.StandardMenuFrame.SetTarget(self, target)
+end
+
 function CovenantMissionFrameFollowersHandler:SetTargets(redo)
+    -- Hack to deal with list sometimes not being initialized on the first
+    -- frame.
+    if not redo then
+        RunNextFrame(function() self:SetTarget(self:SetTargets(true))
+ end)
+        return nil
+    end
+    local last_target = self:GetTarget()
+    self:SetTarget(nil)
+    local last_index
+    if last_target and self.targets[last_target].is_scroll_box then
+        assert(type(last_target.index) == "number")
+        last_index = last_target.index
+        last_target = nil
+    end
     self.targets = {
         [self.frame.HealAllButton] = {can_activate = true,
                                       lock_highlight = true}
     }
-    -- Hack to deal with list sometimes not being initialized on the first
-    -- frame.
-    if not redo then
-        RunNextFrame(function() self:SetTarget(self:SetTargets(true)) end)
-        return nil
-    end
     local function ClickFollower(target)
         local button = self:GetTargetFrame(target).Follower
         local is_mission = CovenantMissionFrame.MissionTab:IsVisible()
@@ -239,10 +295,11 @@ function CovenantMissionFrameFollowersHandler:SetTargets(redo)
     end
     local function AddTarget(elementdata, index)
         if not elementdata.follower then return nil end
-        return {on_click = ClickFollower, send_enter_leave = true,
-                left = false, right = false, info = elementdata.follower}
+        local attr = {on_click = ClickFollower, send_enter_leave = true,
+                      left = false, right = false, info = elementdata.follower}
+        return attr, index == last_index
     end
-    local top, bottom =
+    local top, bottom, initial =
         self:AddScrollBoxTargets(self.frame.ScrollBox, AddTarget)
     local healall = self.frame.HealAllButton
     if top then
@@ -251,7 +308,7 @@ function CovenantMissionFrameFollowersHandler:SetTargets(redo)
         self.targets[healall].up = bottom
         self.targets[healall].down = top
     end
-    return top or healall
+    return last_target or initial or top or healall
 end
 
 function CovenantMissionFrameFollowersHandler:OnAction(button)
