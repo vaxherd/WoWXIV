@@ -53,14 +53,37 @@ function TorghastLevelPickerFrameHandler:SetTargets(last_target)
             local y = button:GetTop()
             if not y_top or y > y_top then y_top = y end
             if not y_bottom or y < y_bottom then y_bottom = y end
+            -- Work around a bug in Blizzard code: one level beyond the
+            -- maximum unlocked level is enabled, due to an off-by-one
+            -- error in looking up the button associated with the maximum
+            -- unlocked level (Blizzard_TorghastLevelPicker.lua line 177
+            -- in retail 11.1.7 build 61609, comparing 0-based layer.index
+            -- and 1-based highestAvailableLayerIndex).
+            if button:IsEnabled() and button.optionInfo and button.optionInfo.status == Enum.GossipOptionStatus.Locked then
+                local correct_index = button.index - 1
+                self.frame.highestAvailableLayerIndex = correct_index
+                button:SetState(Enum.GossipOptionStatus.Locked)
+                for b2 in f.gossipOptionsPool:EnumerateActive() do
+                    if b2.index == correct_index then
+                        self.frame:SelectLevel(b2)
+                        break
+                    end
+                end
+            end
         end
     end
     local top_row, bottom_row = {}, {}
     local function OnEnterLevel(level) self:OnEnterLevel(level) end
     local function OnLeaveLevel(level) self:OnLeaveLevel(level) end
     for _, button in ipairs(levels) do
-        self.targets[button] = {can_activate = true, on_enter = OnEnterLevel,
+        self.targets[button] = {can_activate = true, lock_highlight = true,
+                                on_enter = OnEnterLevel,
                                 on_leave = OnLeaveLevel}
+        -- On first call (no previous target), default to the button set
+        -- as the initial selection.
+        if not last_target and self.frame.currentSelectedButton == button then
+            last_target = button
+        end
         local y = button:GetTop()
         if y == y_top then
             tinsert(top_row, button)
