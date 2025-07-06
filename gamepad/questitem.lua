@@ -405,10 +405,6 @@ function QuestItemButton:__constructor()
     self.pending_update = false
     self.last_update = 0
 
-    -- Hacks to work around objective tracker glitches, see IterateQuestItems()
-    self.scenario_action_hack_time = nil
-    self.scenario_action_hack_map = nil
-
     -- Place the button between the chat box and action bar.  (This size
     -- just fits with the default UI scale at resolution 2560x1440.)
     self:SetPoint("BOTTOM", -470, 10)
@@ -545,7 +541,6 @@ function QuestItemButton:UpdateQuestItem(force)
         item, _, enable = self:IterateQuestItems(MaybeChooseItem)
     end
     self.selected_item = item
-    self.scenario_action_hack_time = nil
 
     if item then
         if item < 0 then
@@ -640,7 +635,6 @@ function QuestItemButton:IterateQuestItems(predicate)
     local index = 0
 
     if WoWXIV_config["questitem_scenario_action"] and ScenarioObjectiveTracker:IsShown() then
-        local found = false  -- For delve hack, see below.
         for _, ability in ipairs(C_ZoneAbility.GetActiveAbilities()) do
             index = index + 1
             if predicate and predicate(-ability.spellID) then
@@ -654,37 +648,6 @@ function QuestItemButton:IterateQuestItems(predicate)
             local spell_id = frame.SpellButton.spellID
             if predicate and predicate(-spell_id) then
                 return -spell_id, index, true
-            end
-            if -spell_id == self.selected_item then found = true end
-        end
-        local _, _, difficulty_id = GetInstanceInfo()
-        local DIFFICULTY_ID_DELVES = 208
-        local use_delve_workaround = (difficulty_id == DIFFICULTY_ID_DELVES)
-        if use_delve_workaround and self.selected_item and self.selected_item < 0 and not found then
-            -- When starting a "safety item carry" type delve such as
-            -- Kriegval's Rest or Earthen Waterworks(*), if picking up the
-            -- safety item (candle, air totem) triggers scenario
-            -- progression (as it typically does at the entrance), the
-            -- spell icon will disappear for a moment as the objective
-            -- tracker refreshes.  We typically get a BAG_UPDATE_COOLDOWN
-            -- event at the same time, so to avoid losing the spell until
-            -- the next update chance (which may not occur until the next
-            -- end of combat), we treat the spell as available for a short
-            -- time after first detecting this state.
-            -- (*) Both of these delves were changed to use standard duty
-            --     actions in patch 11.1, but we keep the logic in case
-            --     it's useful again in the future.
-            if not self.scenario_action_hack_time then
-                self.scenario_action_hack_time = GetTime() + 2.0
-                self.scenario_action_hack_map = C_Map.GetBestMapForUnit("player")
-            end
-            if (GetTime() < self.scenario_action_hack_time
-                and C_Map.GetBestMapForUnit("player") == self.scenario_action_hack_map)
-            then
-                index = index + 1
-                if predicate and predicate(self.selected_item) then
-                    return self.selected_item, index, true
-                end
             end
         end
     end
