@@ -58,6 +58,8 @@ function CovenantMissionFrameHandler:OnTabCycle(direction)
 end
 
 function CovenantMissionFrameHandler:OnShow()
+    CovenantMissionFrameHandler.instance_Missions:Reset()
+    CovenantMissionFrameHandler.instance_Followers:Reset()
     if CovenantMissionFrameMissions:IsVisible() then
         CovenantMissionFrameHandler.instance_Missions:OnShow()
     elseif CovenantMissionFrameFollowers:IsVisible() then
@@ -81,6 +83,15 @@ function CovenantMissionFrameMissionsHandler:__constructor()
     self.tab_handler = CovenantMissionFrameHandler.instance.tab_handler
     hooksecurefunc(self.frame, "UpdateMissions",
                    function() self:MaybeRefreshTargets() end)
+
+    -- Currently selected mission's ID.  Used to preserve cursor position
+    -- across tab changes.
+    self.current = nil
+end
+
+-- Call when the wrapper frame is first shown to reset the current selection.
+function CovenantMissionFrameMissionsHandler:Reset()
+    self.current = nil
 end
 
 function CovenantMissionFrameMissionsHandler:MaybeRefreshTargets()
@@ -122,8 +133,10 @@ end
 
 function CovenantMissionFrameMissionsHandler:RefreshTargets()
     local target = self:GetTarget()
-    if target and self.targets[target].is_scroll_box then
-        target = target.index
+    if not target then
+        target = self.current
+    elseif self.targets[target].is_scroll_box then
+        target = self.targets[target].id
     end
     self:ClearTarget()
     self:SetTarget(self:SetTargets(target))
@@ -218,13 +231,24 @@ function CovenantMissionFrameMissionsHandler:SetTargets(last_target)
         GameTooltip:Show()
     end
     local function AddTarget(elementdata, index)
-        return {on_click = ClickMission,
-                on_enter = OnEnterMission, on_leave = self.HideTooltip,
-                left = false, right = false}, index == last_target
+        local attr = {on_click = ClickMission,
+                      on_enter = OnEnterMission, on_leave = self.HideTooltip,
+                      left = false, right = false, id = elementdata.missionID}
+        return attr, last_target == attr.id
     end
     local top, bottom, initial =
         self:AddScrollBoxTargets(f.ScrollBox, AddTarget)
     return initial or top
+end
+
+function CovenantMissionFrameMissionsHandler:EnterTarget(target)
+    MenuCursor.StandardMenuFrame.EnterTarget(self, target)
+    local param = self.targets[target]
+    if param.is_scroll_box then
+        self.current = param.id
+    else
+        self.current = nil
+    end
 end
 
 
@@ -234,6 +258,15 @@ function CovenantMissionFrameFollowersHandler:__constructor()
     self.has_Button3 = true  -- Used to swap to the mission tab.
     self.has_Button4 = true  -- Used to add followers to missions.
     self.tab_handler = CovenantMissionFrameHandler.instance.tab_handler
+
+    -- Currently selected follower's ID.  Used to preserve cursor position
+    -- across tab changes.
+    self.current = nil
+end
+
+-- Call when the wrapper frame is first shown to reset the current selection.
+function CovenantMissionFrameFollowersHandler:Reset()
+    self.current = nil
 end
 
 function CovenantMissionFrameFollowersHandler:OnCancel()
@@ -255,10 +288,11 @@ function CovenantMissionFrameFollowersHandler:SetTargets(redo)
     end
     local last_target = self:GetTarget()
     self:SetTarget(nil)
-    local last_index
-    if last_target and self.targets[last_target].is_scroll_box then
-        assert(type(last_target.index) == "number")
-        last_index = last_target.index
+    local last_id
+    if not last_target then
+        last_id = self.current
+    elseif self.targets[last_target].is_scroll_box then
+        last_id = self.targets[last_target].id
         last_target = nil
     end
     self.targets = {
@@ -287,8 +321,9 @@ function CovenantMissionFrameFollowersHandler:SetTargets(redo)
     local function AddTarget(elementdata, index)
         if not elementdata.follower then return nil end
         local attr = {on_click = ClickFollower, send_enter_leave = true,
-                      left = false, right = false, info = elementdata.follower}
-        return attr, index == last_index
+                      left = false, right = false,
+                      id = elementdata.follower.followerID}
+        return attr, last_id == attr.id
     end
     local top, bottom, initial =
         self:AddScrollBoxTargets(self.frame.ScrollBox, AddTarget)
@@ -318,6 +353,16 @@ function CovenantMissionFrameFollowersHandler:OnAction(button)
                 CovenantMissionFrameHandler.instance_MissionTab:Activate()
             end
         end
+    end
+end
+
+function CovenantMissionFrameFollowersHandler:EnterTarget(target)
+    MenuCursor.StandardMenuFrame.EnterTarget(self, target)
+    local param = self.targets[target]
+    if param.is_scroll_box then
+        self.current = param.id
+    else
+        self.current = nil
     end
 end
 
