@@ -428,7 +428,7 @@ function QuestItemButton:__constructor()
     self:SetAttribute("spell", nil)
     self:SetAttribute("unit", nil)
     self:RegisterForClicks("LeftButtonDown", "RightButtonDown")
-    self:HookScript("OnClick", self.OnClick)
+    self:SetScript("OnMouseDown", self.OnMouseDown)
     self:SetScript("OnEnter", self.OnEnter)
     self:SetScript("OnLeave", self.OnLeave)
     self:SetScript("OnEvent", self.OnEvent)
@@ -448,7 +448,7 @@ function QuestItemButton:__constructor()
     self:UpdateQuestItem()
 end
 
-function QuestItemButton:OnClick(button, down)
+function QuestItemButton:OnMouseDown(button)
     if button == "RightButton" then
         local _, n = self:IterateQuestItems()
         if self.selected_index >= n then
