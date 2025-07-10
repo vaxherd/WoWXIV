@@ -399,16 +399,26 @@ function Cursor:UpdateCursor(in_combat)
     end
     local modal = (self:InternalGetFocusStack() == self.modal_stack)
 
+    local should_show = self.gamepad_active and not in_combat
+
     local target_frame
     if target then
         target_frame = focus:GetTargetFrame(target)
+        if not target_frame and should_show and not self:IsShown() then
+            -- The target might not have a frame only because it's
+            -- scrolled out of view and SetTarget() didn't scroll to it
+            -- because the cursor wasn't visible, so we resolve that
+            -- chicken-and-egg problem here.
+            focus:ScrollToTarget(target)
+            target_frame = focus:GetTargetFrame(target)
+        end
         if not target_frame then
             self:SetTarget(nil)
             target = nil
         end
     end
 
-    if target and self.gamepad_active and not in_combat then
+    if target and should_show then
         self:SetCursorPoint(focus, target)
         if focus:IsTargetClickable(target) then
             self:SetAttribute("clickbutton1", target_frame)

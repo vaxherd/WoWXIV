@@ -246,20 +246,11 @@ function CovenantMissionFrameFollowersHandler:OnCancel()
     end
 end
 
-function CovenantMissionFrameFollowersHandler:OnShow() --FIXME temp
-    MenuCursor.StandardMenuFrame.OnShow(self)
-end
-
-function CovenantMissionFrameFollowersHandler:SetTarget(target) --FIXME temp
-    MenuCursor.StandardMenuFrame.SetTarget(self, target)
-end
-
 function CovenantMissionFrameFollowersHandler:SetTargets(redo)
     -- Hack to deal with list sometimes not being initialized on the first
     -- frame.
     if not redo then
-        RunNextFrame(function() self:SetTarget(self:SetTargets(true))
- end)
+        RunNextFrame(function() self:SetTarget(self:SetTargets(true)) end)
         return nil
     end
     local last_target = self:GetTarget()
