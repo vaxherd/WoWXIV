@@ -33,6 +33,7 @@ gamepad/menucursor/menucursor.lua
 gamepad/menucursor/AdventureMapQuestChoiceDialog.lua
 gamepad/menucursor/AnimaDiversionFrame.lua
 gamepad/menucursor/AuctionHouseFrame.lua
+gamepad/menucursor/BonusRollFrame.lua
 gamepad/menucursor/CharacterFrame.lua
 gamepad/menucursor/ClassTrainerFrame.lua
 gamepad/menucursor/ContainerFrame.lua
