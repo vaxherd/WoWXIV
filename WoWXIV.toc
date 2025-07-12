@@ -35,6 +35,7 @@ gamepad/menucursor/AnimaDiversionFrame.lua
 gamepad/menucursor/AuctionHouseFrame.lua
 gamepad/menucursor/CharacterFrame.lua
 gamepad/menucursor/ClassTrainerFrame.lua
+gamepad/menucursor/ContainerFrame.lua
 gamepad/menucursor/ContributionCollectionFrame.lua
 gamepad/menucursor/CovenantMissionFrame.lua
 gamepad/menucursor/CovenantSanctumFrame.lua

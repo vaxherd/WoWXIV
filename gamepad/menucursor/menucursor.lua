@@ -772,8 +772,12 @@ MenuFrame.MODAL = true
 -------- Instance constructor
 
 -- Instance constructor.  Pass the WoW Frame instance to be managed.
--- If modal is true, the frame will be modal (preventing switching input
+-- If |modal| is true, the frame will be modal (preventing switching input
 -- focus to any non-modal frame while active).
+-- |frame| == nil is permitted only if the instance overrides GetFrame()
+-- or otherwise arranges for instance.frame to have the proper value
+-- whenever the menu cursor is on a target managed by the instance.
+-- (See ContainerFrameHandler for an example.)
 function MenuFrame:__constructor(frame, modal)
     self.frame = frame
     self.modal = modal
