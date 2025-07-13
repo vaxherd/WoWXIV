@@ -1755,7 +1755,13 @@ end
     and a default cancel_func of MenuFrame.CancelUIFrame.  The frame itself
     is hooked with HookShow() by the constructor.
 
-    If the subclass defines a SetTargets() method, it will be called by
+    As with the base MenuFrame, StandardMenuFrame supports a nil frame
+    reference to allow one instance to handle multiple frames; in this
+    case, the instance is responsible for both hooking the necessary
+    frames and setting self.frame to the proper value before calling
+    StandardMenuFrame.OnShow().
+
+    If the instance defines a SetTargets() method, it will be called by
     OnShow() and its return value will be used as the initial target to
     pass to Enable().  If the method returns false (as opposed to nil),
     the OnShow event will instead be ignored.
@@ -1768,7 +1774,7 @@ local StandardMenuFrame = MenuCursor.StandardMenuFrame
 
 function StandardMenuFrame:__constructor(frame, modal)
     self:__super(frame, modal)
-    self:HookShow(frame)
+    if frame then self:HookShow(frame) end
     self.cancel_func = MenuFrame.CancelUIFrame
 end
 
@@ -1880,7 +1886,15 @@ function NumberInput:__constructor(editbox, on_change)
         f:SetWidth(72)
     else
         f:SetScale(editbox:GetEffectiveScale())
-        f:SetAllPoints(editbox)
+        -- Don't overlap the money icon in money input boxes (esp. silver).
+        local parent = editbox:GetParent()
+        if editbox == parent.GoldBox or editbox == parent.SilverBox then
+            f:SetPoint("LEFT", editbox, "LEFT", 10, 0)
+            f:SetPoint("TOPRIGHT", editbox.Icon, "TOPLEFT", -3, 0)
+            f:SetPoint("BOTTOMRIGHT", editbox.Icon, "BOTTOMLEFT", -3, 0)
+        else
+            f:SetAllPoints(editbox)
+        end
     end
 
     local label = f:CreateFontString(nil, "ARTWORK")

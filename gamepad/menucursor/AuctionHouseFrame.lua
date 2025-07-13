@@ -10,6 +10,8 @@ local tinsert = tinsert
 
 ---------------------------------------------------------------------------
 
+local cache_SellDurationDropdown = {}
+
 local AuctionHouseFrameHandler = class(MenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(AuctionHouseFrameHandler)
 local BuyTabHandler = class(StandardMenuFrame)
@@ -317,7 +319,7 @@ function CommoditiesBuyFrameHandler:__constructor()
     self:__super(AuctionHouseFrame.CommoditiesBuyFrame)
     self.cancel_func = nil
     self.cancel_button = self.frame.BackButton
-    self.has_Button3 = true  -- Used to trigger an item list refresh.
+    self.has_Button3 = true  -- Used to trigger an auction list refresh.
     self.on_prev_page = function(dir) self:AdjustQuantity(dir) end
     self.on_next_page = self.on_prev_page
     self.tab_handler = AuctionHouseFrameHandler.instance.tab_handler
@@ -430,12 +432,189 @@ function BuyDialogHandler:SetTargets()
 end
 
 
--------- Sell tab (FIXME: not yet implemented)
+-------- Sell tab
 
 function SellTabHandler:__constructor()
-    self:__super(AuctionHouseFrame.ItemSellFrame)
+    -- The sell tab is implemented as two separate but basically identical
+    -- frames, ItemSellFrame and CommoditiesSellFrame.  Rather than
+    -- implementing separate handlers for each, we just use a single
+    -- handler and swap self.frame to whichever one happens to be shown
+    -- at the moment.
+    self:__super(nil)
+    self:HookShow(AuctionHouseFrame.ItemSellFrame)
+    self:HookShow(AuctionHouseFrame.CommoditiesSellFrame)
+    self:HookShow(AuctionHouseFrame.CommoditiesSellFrame.QuantityInput,
+                  self.RefreshTargets, self.RefreshTargets)
+
     self.cancel_func = AuctionHouseFrameHandler.CancelMenu
+    self.has_Button3 = true  -- Used to trigger an auction list refresh.
+    self.on_prev_page = function(dir) self:AdjustNumber(dir) end
+    self.on_next_page = self.on_prev_page
     self.tab_handler = AuctionHouseFrameHandler.instance.tab_handler
+    self.quantity_input = MenuCursor.NumberInput(  -- Commodities frame only.
+        AuctionHouseFrame.CommoditiesSellFrame.QuantityInput.InputBox,
+        function() self:OnQuantityChanged() end)
+    -- We unfortunately need separate copies of this for each version of
+    -- the frame... sigh.
+    self.gold_input_i = MenuCursor.NumberInput(
+        AuctionHouseFrame.ItemSellFrame.PriceInput.MoneyInputFrame.GoldBox,
+        function() self:OnPriceChanged() end)
+    self.silver_input_i = MenuCursor.NumberInput(
+        AuctionHouseFrame.ItemSellFrame.PriceInput.MoneyInputFrame.SilverBox,
+        function() self:OnPriceChanged() end)
+    self.gold_input_c = MenuCursor.NumberInput(
+        AuctionHouseFrame.CommoditiesSellFrame.PriceInput.MoneyInputFrame.GoldBox,
+        function() self:OnPriceChanged() end)
+    self.silver_input_c = MenuCursor.NumberInput(
+        AuctionHouseFrame.CommoditiesSellFrame.PriceInput.MoneyInputFrame.SilverBox,
+        function() self:OnPriceChanged() end)
+end
+
+function SellTabHandler:OnShow(frame)
+    self:ClearTarget()
+    self.frame = frame
+    StandardMenuFrame.OnShow(self)
+end
+
+function SellTabHandler:OnHide()
+    self.quantity_input:CancelEdit()
+    self.gold_input_i:CancelEdit()
+    self.silver_input_i:CancelEdit()
+    self.gold_input_c:CancelEdit()
+    self.silver_input_c:CancelEdit()
+    StandardMenuFrame.OnHide(self)
+end
+
+function SellTabHandler:RefreshTargets()
+    if not self.frame or not self.frame:IsShown() then return end
+    local target = self:GetTarget()
+    self:ClearTarget()
+    self:SetTargets()
+    if not self.targets[target] then target = self:GetDefaultTarget() end
+    self:SetTarget(target)
+end
+
+function SellTabHandler:SetTargets()
+    local qi = self.frame.QuantityInput
+    local pi = self.frame.PriceInput
+    local QuantityBox = qi.InputBox
+    local MaxButton = qi.MaxButton
+    local GoldBox = pi.MoneyInputFrame.GoldBox
+    local SilverBox = pi.MoneyInputFrame.SilverBox
+    local Duration = self.frame.Duration.Dropdown
+    local PostButton = self.frame.PostButton
+    -- Buyout mode button skipped because I'd never use it (and supporting
+    -- it means having to add support for the extra fields it needs).
+
+    self.targets = {
+        [GoldBox] = {on_click = function() self:EditGold() end,
+                     up = PostButton, down = Duration,
+                     left = SilverBox, right = SilverBox},
+        [SilverBox] = {on_click = function() self:EditSilver() end,
+                       up = PostButton, down = Duration,
+                       left = GoldBox, right = GoldBox},
+        [Duration] = {on_click = function() self:ToggleDurationDropdown() end,
+                      lock_highlight = true, up = GoldBox, down = PostButton,
+                      left = false, right = false},
+        [PostButton] = {can_activate = true, lock_highlight = true,
+                        up = Duration, down = GoldBox,
+                        left = false, right = false, is_default = true},
+    }
+    if QuantityBox:IsVisible() then
+        self.targets[QuantityBox] = {
+            on_click = function() self:EditQuantity() end,
+            up = PostButton, down = GoldBox,
+            left = MaxButton, right = MaxButton}
+        self.targets[MaxButton] = {
+            can_activate = true, lock_highlight = true,
+            up = PostButton, down = SilverBox,
+            left = QuantityBox, right = QuantityBox}
+        self.targets[GoldBox].up = QuantityBox
+        self.targets[SilverBox].up = MaxButton
+        self.targets[PostButton].down = QuantityBox
+    end
+end
+
+function SellTabHandler:ToggleDurationDropdown()
+    local dropdown = self.frame.Duration.Dropdown
+    dropdown:SetMenuOpen(not dropdown:IsMenuOpen())
+    if dropdown:IsMenuOpen() then
+        local menu, initial_target = self.SetupDropdownMenu(
+            dropdown, cache_SellDurationDropdown,
+            function(selection) return selection.data end)
+        menu:Enable(initial_target)
+    end
+end
+
+function SellTabHandler:GetMaxQuantity()
+    return AuctionHouseFrame.CommoditiesSellFrame:GetMaxQuantity()
+end
+
+function SellTabHandler:AdjustNumber(amount)
+    local target = self:GetTarget()
+    local limit
+    local qi = self.frame.QuantityInput
+    local pi = self.frame.PriceInput
+    if target == pi.MoneyInputFrame.GoldBox then
+        limit = 9999999
+    elseif target == pi.MoneyInputFrame.SilverBox then
+        limit = 99
+    elseif qi and target == qi.InputBox then
+        limit = self:GetMaxQuantity()
+    else
+        return
+    end
+    local value = tonumber(target:GetText())
+    if not value then
+        value = 0
+    else
+        value = value + amount
+        if value < 0 then value = 0 end
+        if value > limit then value = limit end
+    end
+    target:SetText(tostring(value))
+    if qi and target == qi.InputBox then
+        self:OnQuantityChanged()
+    else
+        self:OnPriceChanged()
+    end
+end
+
+function SellTabHandler:EditGold()
+    local gold_input = (self.frame==AuctionHouseFrame.ItemSellFrame
+                        and self.gold_input_i or self.gold_input_c)
+    gold_input:Edit(0, 9999999)
+end
+
+function SellTabHandler:EditSilver()
+    local silver_input = (self.frame==AuctionHouseFrame.ItemSellFrame
+                          and self.silver_input_i or self.silver_input_c)
+    silver_input:Edit(0, 99)
+end
+
+function SellTabHandler:OnPriceChanged()
+    -- We can pass either GoldBox or SilverBox here; the function just
+    -- takes the parent (MoneyInputFrame) and works with that.
+    MoneyInputFrame_OnTextChanged(self.frame.PriceInput.MoneyInputFrame.GoldBox)
+end
+
+function SellTabHandler:EditQuantity()
+    local limit = self:GetMaxQuantity()
+    if limit and limit > 0 then
+        self.quantity_input:Edit(1, limit)
+    end
+end
+
+function SellTabHandler:OnQuantityChanged()
+    local InputBox = self.frame.QuantityInput.InputBox
+    local callback = InputBox:GetInputChangedCallback()
+    if callback then callback() end
+end
+
+function SellTabHandler:OnAction(button)
+    assert(button == "Button3")
+    local button = self.frame.RefreshFrame.RefreshButton
+    button:GetScript("OnClick")(button, "LeftButton", true)
 end
 
 

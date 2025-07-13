@@ -175,6 +175,10 @@ function ItemSubmenu:__constructor()
     self.menuitem_use = ItemSubmenuButton(self, "Use", true)
     self.menuitem_use:SetAttribute("type", "item")
 
+    self.menuitem_auction = ItemSubmenuButton(self, "Auction", false)
+    self.menuitem_auction.ExecuteInsecure =
+        function(item, info) self:DoAuction(item, info) end
+
     self.menuitem_disenchant = ItemSubmenuButton(self, "Disenchant", true)
     self.menuitem_disenchant:SetAttribute("type", "spell")
     self.menuitem_disenchant:SetAttribute("spell", 13262)
@@ -265,6 +269,12 @@ function ItemSubmenu:ConfigureForItem()
         self:AppendButton(self.menuitem_use)
     end
 
+    if AuctionHouseFrame:IsShown() then
+        if C_AuctionHouse.IsSellItemValid(self.item_loc, false) then
+            self:AppendButton(self.menuitem_auction)
+        end
+    end
+
     if class == Enum.ItemClass.Weapon
     or class == Enum.ItemClass.Armor
     or class == Enum.ItemClass.Profession
@@ -327,6 +337,12 @@ end
 
 
 -------- Individual menu option handlers
+
+function ItemSubmenu:DoAuction(item, info)
+    local bag = item:GetBagID()
+    local slot = item:GetID()
+    AuctionHouseFrame:SetPostItem(ItemLocation:CreateFromBagAndSlot(bag, slot))
+end
 
 function ItemSubmenu:DoSplitStack(item, info)
     local bag = item:GetBagID()
