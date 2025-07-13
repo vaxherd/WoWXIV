@@ -257,6 +257,7 @@ function ItemSubmenu:ConfigureForItem()
     local bag, slot = self.item_loc:GetBagAndSlot()
     local bagslot = strformat("%d %d", bag, slot)
     local info = C_Container.GetContainerItemInfo(bag, slot)
+    local class = select(12, C_Item.GetItemInfo(guid))
 
     if C_Item.IsEquippableItem(guid) then
         self:AppendButton(self.menuitem_equip)
@@ -264,12 +265,17 @@ function ItemSubmenu:ConfigureForItem()
         self:AppendButton(self.menuitem_use)
     end
 
-    local prof1, prof2 = GetProfessions()
-    local TEXTURE_ENCHANTING = 4620672
-    if (prof1 and select(2, GetProfessionInfo(prof1)) == TEXTURE_ENCHANTING)
-    or (prof2 and select(2, GetProfessionInfo(prof2)) == TEXTURE_ENCHANTING)
+    if class == Enum.ItemClass.Weapon
+    or class == Enum.ItemClass.Armor
+    or class == Enum.ItemClass.Profession
     then
-        self:AppendButton(self.menuitem_disenchant)
+        local prof1, prof2 = GetProfessions()
+        local TEXTURE_ENCHANTING = 4620672
+        if (prof1 and select(2, GetProfessionInfo(prof1)) == TEXTURE_ENCHANTING)
+        or (prof2 and select(2, GetProfessionInfo(prof2)) == TEXTURE_ENCHANTING)
+        then
+            self:AppendButton(self.menuitem_disenchant)
+        end
     end
 
     if info.stackCount > 1 then
