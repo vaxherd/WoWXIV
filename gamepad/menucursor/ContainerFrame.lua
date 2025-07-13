@@ -161,18 +161,23 @@ function ItemSubmenu:__constructor()
     self.MIN_EDGE = 4  -- Don't get closer than this to the screen edge.
     self.buttons = {}  -- List of buttons currently shown in the layout.
 
+    -- FIXME: "Use" for spell-type items (e.g. Hearthstone) and "Disenchant"
+    -- currently fail due to taint errors when activated via menu cursor.
+    -- They work fine via physical mouse click, so hopefully not an
+    -- unresolvable problem?
+
     -- Note that both of these are the same action because "item" resolves
     -- to either "equip" or "use" based on C_Item.IsEquippableItem() (see
     -- SECURE_ACTIONS.item in SecureTemplates.lua), which is the same test
     -- we use for showing the "Equip" menu item in place of "Use".
     self.menuitem_equip = ItemSubmenuButton(self, "Equip", true)
-    self.menuitem_equip:SetAttribute("type1", "item")
+    self.menuitem_equip:SetAttribute("type", "item")
     self.menuitem_use = ItemSubmenuButton(self, "Use", true)
-    self.menuitem_use:SetAttribute("type1", "item")
+    self.menuitem_use:SetAttribute("type", "item")
 
     self.menuitem_disenchant = ItemSubmenuButton(self, "Disenchant", true)
-    self.menuitem_disenchant:SetAttribute("type1", "spell")
-    self.menuitem_disenchant:SetAttribute("spell", "Disenchant")
+    self.menuitem_disenchant:SetAttribute("type", "spell")
+    self.menuitem_disenchant:SetAttribute("spell", 13262)
 
     self.menuitem_splitstack = ItemSubmenuButton(self, "Split stack", false)
     self.menuitem_splitstack.ExecuteInsecure =
@@ -187,9 +192,9 @@ function ItemSubmenu:__constructor()
     self:SetScript("OnHide", self.OnHide)
     -- Immediately close the submenu on any mouse click, to reduce the
     -- risk of colliding inventory operations.
-    self:RegisterEvent("GLOBAL_MOUSE_DOWN")
+    self:RegisterEvent("GLOBAL_MOUSE_UP")
     self:SetScript("OnEvent", function(self, event)
-        if event == "GLOBAL_MOUSE_DOWN" then self:Hide() end
+        if event == "GLOBAL_MOUSE_UP" and self:IsShown() then self:Hide() end
     end)
 
     self.background = self:CreateTexture(nil, "BACKGROUND")
@@ -255,10 +260,8 @@ function ItemSubmenu:ConfigureForItem()
 
     if C_Item.IsEquippableItem(guid) then
         self:AppendButton(self.menuitem_equip)
-        self.menuitem_equip:SetAttribute("item", bagslot)
     elseif C_Item.IsUsableItem(guid) or info.hasLoot or info.isReadable then
         self:AppendButton(self.menuitem_use)
-        self.menuitem_use:SetAttribute("item", bagslot)
     end
 
     local prof1, prof2 = GetProfessions()
@@ -482,6 +485,8 @@ function ItemSubmenuButton:__constructor(parent, text, secure)
     label:SetTextScale(1.0)
     label:SetText(text)
     self:SetSize(label:GetStringWidth()+4, label:GetStringHeight()+2)
+    self:RegisterForClicks("LeftButtonUp")
+    self:SetAttribute("useOnKeyDown", false)  -- Indirect clicks are always up.
     self:HookScript("PostClick", function() parent:Hide() end)
     if not secure then
         self:SetScript("OnClick", self.OnClick)
@@ -519,8 +524,13 @@ end
 -- Called by ItemSubmenu to set the target item.
 function ItemSubmenuButton:SetItem(item)
     self.item = item
+    local bag = item:GetBagID()
+    local slot = item:GetID()
     self.item_id = C_Item.GetItemID(
-        ItemLocation:CreateFromBagAndSlot(item:GetBagID(), item:GetID()))
+        ItemLocation:CreateFromBagAndSlot(bag, slot))
+    self:SetAttribute("item", bag.." "..slot)
+    self:SetAttribute("target-bag", bag)
+    self:SetAttribute("target-slot", slot)
 end
 
 -- Insecure menu options should override this function to implement their
