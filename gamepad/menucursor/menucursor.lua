@@ -173,15 +173,20 @@ function Cursor:CanShow()
     return 
 end
 
--- Add the given frame (a MenuFrame instance) to the focus stack, make it
--- the current focus, and point the cursor at the given input element.
--- If |target| is nil, the initial input element is taken by calling the
--- frame's GetDefaultTarget() method.  If the frame is already in the focus
--- stack, it is moved to the top, and if |target| is nil, the frame's
--- current target is left unchanged.  If |modal| is true, the frame becomes
--- a modal frame, blocking menu cursor input to any other frame until it is
--- removed.
-function Cursor:AddFrame(frame, target, modal)
+-- Add the given frame (a MenuFrame instance) to the focus stack, set its
+-- current target to the given input element, and optionally set the menu
+-- cursor focus to that frame.
+-- |target| sets the initial target element for the frame.  If the frame
+-- is already in the focus stack, its target is changed to that element.
+-- If nil, the initial input element for a newly added frame is chosen by
+-- calling the frame's GetDefaultTarget() method, and no change is made if
+-- the frame is already in the focus stack.
+-- If |modal| is true, the frame becomes a modal frame, blocking menu
+-- cursor input to any other frame until it is removed.
+-- If |focus| is true, the frame is added to the top of its focus stack,
+-- or moved there if it is already in the stack; otherwise, if it is not
+-- already in the stack, it is added to the bottom.
+function Cursor:AddFrame(frame, target, modal, focus)
     local other_stack = modal and self.focus_stack or self.modal_stack
     for _, v in ipairs(other_stack) do
         if v and v[1] == frame then
@@ -194,27 +199,37 @@ function Cursor:AddFrame(frame, target, modal)
     local stack = modal and self.modal_stack or self.focus_stack
     for i, v in ipairs(stack) do
         if v and v[1] == frame then
-            if i == #stack then
-                -- Frame was already on top, so just change the target.
-                if target then 
-                    self:SetTarget(target)
+            if i == #stack or not focus then
+                -- Frame is not changing position in the stack, so just
+                -- change the target.
+                if target then
+                    self:SetTargetForFrame(target)
                 end
                 return
             end
             target = target or v[2]
-            tremove(stack, i)
+            if focus then
+                tremove(stack, i)
+            end
             found = true
             break
         end
     end
-    self:LeaveTarget()
-    target = target or frame:GetDefaultTarget()
-    tinsert(stack, {frame, target})
-    if target then
+    if focus or #stack == 0 then
+        self:LeaveTarget()
+        target = target or frame:GetDefaultTarget()
+        tinsert(stack, {frame, target})
+        if target then
+            frame:ScrollToTarget(target)
+        end
+        self:EnterTarget()
+        self:UpdateCursor()
+    else
+        assert(not found)  -- Must be the case when not focusing.
+        target = target or frame:GetDefaultTarget()
+        tinsert(stack, 1, {frame, target})
         frame:ScrollToTarget(target)
     end
-    self:EnterTarget()
-    self:UpdateCursor()
 end
 
 -- Remove the given frame (a MenuFrame instance) from the focus stack.
@@ -1339,7 +1354,14 @@ end
 -- Enable cursor input for this frame, and set it as the input focus.  If
 -- initial_target is not nil, the cursor target will be set to that target.
 function MenuFrame:Enable(initial_target)
-    global_cursor:AddFrame(self, initial_target, self.modal)
+    global_cursor:AddFrame(self, initial_target, self.modal, true)
+end
+
+-- Enable cursor input for this frame, but do not set it as the input focus
+-- unless there is currently no frame focused.  If initial_target is not
+-- nil, the frame's current cursor target will be set to that target.
+function MenuFrame:EnableBackground(initial_target)
+    global_cursor:AddFrame(self, initial_target, self.modal, false)
 end
 
 -- Disable cursor input for this frame.

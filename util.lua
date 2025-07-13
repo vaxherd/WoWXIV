@@ -1,6 +1,7 @@
 local _, WoWXIV = ...
 
 local floor = math.floor
+local max = math.max
 
 ------------------------------------------------------------------------
 -- Timing routines
@@ -132,6 +133,86 @@ function WoWXIV.HideBlizzardFrame(frame)
     hooksecurefunc(frame, "SetShown",
                    function(f,show) if show then f:Hide() end end)
 end
+
+-- Show a confirmation message with optional checkbox.  If check_text is
+-- not nil, a checkbox with that text will be inserted under the primary
+-- popup text, and the "accept" option will be disabled until it is checked.
+--
+-- Parameters:
+--     text: Primary popup text.
+--     check_text: Checkbox text, or nil for no checkbox.
+--     accept_text: Text for the "accept" button.
+--     cancel_text: Text for the "cancel" button.
+--     accept_cb: Callback function for the "accept" button.
+--     cancel_cb: Callback function for the "cancel" button.  Also called
+--         if the dialog is closed or suppressed.  May be nil.
+function WoWXIV.ShowConfirmation(text, check_text, accept_text,
+                                 cancel_text, accept_cb, cancel_cb)
+    assert(type(text) == "string")
+    assert(check_text == nil or type(check_text) == "string")
+    assert(type(accept_text) == "string")
+    assert(type(cancel_text) == "string")
+    assert(type(accept_cb) == "function")
+    assert(cancel_cb == nil or type(cancel_cb) == "function")
+    assert(not StaticPopupDialogs[id])
+
+    local button = WoWXIV._ShowStaticPopup_check_button
+    if not button then
+        wrapper = CreateFrame("Frame")
+        WoWXIV._ShowStaticPopup_check_wrapper = wrapper
+        button = CreateFrame("CheckButton", "WoWXIV_StaticPopupCheckButton",
+                             wrapper, "UICheckButtonTemplate")
+        WoWXIV._ShowStaticPopup_check_button = button
+        button.text:SetFontObject("GameFontHighlight")
+        button:SetPoint("LEFT")
+    end
+
+    local data = {
+        text = text,
+        check_text = check_text,
+        accept_text = accept_text,
+        cancel_text = cancel_text,
+        accept_cb = accept_cb,
+        cancel_cb = cancel_cb,
+    }
+    StaticPopup_Show("WOWXIV_CONFIRMATION", nil, nil, data,
+                     check_text and wrapper)
+end
+
+-- Similar to GENERIC_CONFIRMATION, but adjusted for our purposes.
+StaticPopupDialogs["WOWXIV_CONFIRMATION"] = {
+    text = "",
+    button1 = "",
+    button2 = "",
+    OnAccept = function(self, data)
+        data.accept_cb()
+    end,
+    OnCancel = function(self, data)
+        if data.cancel_cb then data.cancel_cb() end
+    end,
+    OnShow = function(self, data)
+        self.text:SetText(data.text)
+        self.button1:SetText(data.accept_text)
+        self.button2:SetText(data.cancel_text)
+        if data.check_text then
+            local button = WoWXIV._ShowStaticPopup_check_button
+            button.text:SetText(data.check_text)
+            button:GetParent():SetWidth(button:GetWidth() + button.text:GetStringWidth())
+            button:GetParent():SetHeight(max(button:GetHeight(), button.text:GetStringHeight()))
+            button:SetChecked(false)
+            button:SetScript("OnClick", function()
+                self.button1:SetEnabled(button:GetChecked())
+            end)
+            self.button1:Disable()
+        end
+    end,
+    OnHide = function(self, data)
+        local button = WoWXIV._ShowStaticPopup_check_button
+        button:SetScript("OnClick", nil)
+    end,
+    timeout = 0,
+    hideOnEscape = true,
+}
 
 ------------------------------------------------------------------------
 -- Text formatting routines

@@ -41,7 +41,7 @@ end
 function StaticPopupHandler:SetTargets()
     local frame = self.frame
     self.targets = {}
-    local leftmost, button2
+    local leftmost, rightmost, button2
     for i = 1, 5 do
         local button
         if frame.ButtonContainer then --FIXME 11.2.0
@@ -60,16 +60,22 @@ function StaticPopupHandler:SetTargets()
             if not leftmost or button:GetLeft() < leftmost:GetLeft() then
                 leftmost = button
             end
+            if not rightmost or button:GetLeft() > rightmost:GetLeft() then
+                rightmost = button
+            end
             if i == 2 then button2 = button end
         end
     end
     if leftmost then  -- i.e., if we found any buttons
         self.targets[leftmost].is_default = true
+        self.targets[leftmost].left = rightmost
+        self.targets[rightmost].right = leftmost
         if button2 then
             -- FIXME: 11.2.0 complains because this passes down a right button click (instead of left button)
             self.cancel_button = button2
         end
     end
+
     -- Special cases for extra elements like item icons in specific popups.
     if frame.which == "CONFIRM_SELECT_WEEKLY_REWARD" then
         assert(frame.insertedFrame)
@@ -100,5 +106,24 @@ function StaticPopupHandler:SetTargets()
             self.targets[leftmost].up = first
             self.targets[leftmost].down = ItemFrame
         end
+
+    elseif frame.which == "WOWXIV_CONFIRMATION" then  -- see util.lua
+        if frame.insertedFrame then
+            local button_wrapper = frame.insertedFrame
+            assert(button_wrapper:IsShown())
+            local button = select(1, button_wrapper:GetChildren())
+            assert(button)
+            assert(button:IsShown())
+            self.targets[button] = {can_activate = true, lock_highlight = true,
+                                    up = leftmost, down = leftmost,
+                                    left = false, right = false}
+            for target, params in pairs(self.targets) do
+                if target ~= button then
+                    params.up = button
+                    params.down = button
+                end
+            end
+        end
+
     end
 end
