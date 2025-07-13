@@ -120,7 +120,6 @@ function ContainerFrameHandler:EnterTarget(target)
     if target:GetRight() then
         MenuCursor.MenuFrame.EnterTarget(self, target)
     else
-print("delaying enter") --FIXME temp
         RunNextFrame(function() self:EnterTarget(target) end)
     end
 end
@@ -175,9 +174,13 @@ function ItemSubmenu:__constructor()
     self.menuitem_disenchant:SetAttribute("type1", "spell")
     self.menuitem_disenchant:SetAttribute("spell", "Disenchant")
 
+    self.menuitem_splitstack = ItemSubmenuButton(self, "Split stack", false)
+    self.menuitem_splitstack.ExecuteInsecure =
+        function(item, info) self:DoSplitStack(item, info) end
+
     self.menuitem_discard = ItemSubmenuButton(self, "Discard", false)
-    self.menuitem_discard:SetScript(
-        "OnClick", function() self:DoDiscard(self.item_loc) end)
+    self.menuitem_discard.ExecuteInsecure =
+        function(item, info) self:DoDiscard(item, info) end
 
     self:Hide()
     self:SetFrameStrata("DIALOG")
@@ -246,12 +249,14 @@ function ItemSubmenu:ConfigureForItem()
     local prev_element = self.top_border
 
     local guid = C_Item.GetItemGUID(self.item_loc)
-    local bagslot = strformat("%d %d", self.item:GetBagID(), self.item:GetID())
+    local bag, slot = self.item_loc:GetBagAndSlot()
+    local bagslot = strformat("%d %d", bag, slot)
+    local info = C_Container.GetContainerItemInfo(bag, slot)
 
     if C_Item.IsEquippableItem(guid) then
         self:AppendButton(self.menuitem_equip)
         self.menuitem_equip:SetAttribute("item", bagslot)
-    elseif C_Item.IsUsableItem(guid) then
+    elseif C_Item.IsUsableItem(guid) or info.hasLoot or info.isReadable then
         self:AppendButton(self.menuitem_use)
         self.menuitem_use:SetAttribute("item", bagslot)
     end
@@ -262,6 +267,10 @@ function ItemSubmenu:ConfigureForItem()
     or (prof2 and select(2, GetProfessionInfo(prof2)) == TEXTURE_ENCHANTING)
     then
         self:AppendButton(self.menuitem_disenchant)
+    end
+
+    if info.stackCount > 1 then
+        self:AppendButton(self.menuitem_splitstack)
     end
 
     self:AppendButton(self.menuitem_discard)
@@ -297,6 +306,7 @@ end
 function ItemSubmenu:AppendButton(button)
     self:AppendLayout(button)
     tinsert(self.buttons, button)
+    button:SetItem(self.item)
     button:Show()
 end
 
@@ -309,12 +319,99 @@ end
 
 -------- Individual menu option handlers
 
-function ItemSubmenu:DoDiscard(item_loc)
-    local bag, slot = item_loc:GetBagAndSlot()
-    assert(type(bag) == "number")
-    assert(type(slot) == "number")
+function ItemSubmenu:DoSplitStack(item, info)
+    local bag = item:GetBagID()
+    local slot = item:GetID()
+    if info.stackCount <= 1 then return end
+    local limit = info.stackCount - 1
+    StackSplitFrame:OpenStackSplitFrame(limit, item, "BOTTOMLEFT", "TOPLEFT")
+    -- We have to pass item as the owner to get the frame anchored correctly,
+    -- but we want to get the SplitStack callback ourselves.
+    StackSplitFrame.owner = {SplitStack = function(_, count)
+        self:DoSplitStackConfirm(bag, slot, info.hyperlink, count)
+    end}
+    MenuCursor.StackSplitFrameEditQuantity()
+end
+
+function ItemSubmenu:DoSplitStackConfirm(bag, slot, link, count)
     local info = C_Container.GetContainerItemInfo(bag, slot)
-    assert(info)
+    if info.isLocked then
+        WoWXIV.Error("Item is locked.")
+        return
+    end
+    -- Verify that the slot has the same item we asked the user about,
+    -- just in case the inventory changed when we weren't looking.
+    if info.hyperlink ~= link then
+        WoWXIV.Error("Item could not be found.")
+        return
+    end
+    -- Find an empty slot for the new stack.  We prefer a slot in the same
+    -- bag even if it's the wrong bag for the item type.
+    local target_bag, target_slot
+    local class, subclass =
+        select(12, C_Item.GetItemInfo(strformat("item:%d", info.itemID)))
+    local function FindSlot(bag_id)
+        for i = 1, C_Container.GetContainerNumSlots(bag_id) do
+            if not C_Container.GetContainerItemInfo(bag_id, i) then
+                target_bag = bag_id
+                target_slot = i
+                return true
+            end
+        end
+    end
+    FindSlot(bag)
+    if not target_bag and class == Enum.ItemClass.Tradegoods then
+        for i = 1, Constants.InventoryConstants.NumReagentBagSlots do
+            local reagent_bag = Constants.InventoryConstants.NumBagSlots + i
+            if FindSlot(reagent_bag) then
+                break
+            end
+        end
+    end
+    if not target_bag then
+        -- It looks like item-to-bag filtering code is not exposed to Lua,
+        -- so we have to reimplement it ourselves.
+        local type_flag
+        if info.quality == Enum.ItemQuality.Poor then
+            type_flag = Enum.BagSlotFlags.ClassJunk
+        elseif class == Enum.ItemClass.Consumable then
+            type_flag = Enum.BagSlotFlags.ClassConsumables
+        elseif class == Enum.ItemClass.Weapon or
+               class == Enum.ItemClass.Armor then
+            type_flag = Enum.BagSlotFlags.ClassEquipment
+        elseif class == Enum.ItemClass.Tradegoods then
+            type_flag = Enum.BagSlotFlags.ClassReagents
+        elseif class == Enum.ItemClass.Profession then
+            type_flag = Enum.BagSlotFlags.ClassProfessionGoods
+        end
+        if type_flag then
+            for i = 1, Constants.InventoryConstants.NumBagSlots do
+                if C_Container.GetBagSlotFlag(i, type_flag) then
+                    if FindSlot(i) then
+                        break
+                    end
+                end
+            end
+        end
+    end
+    if not target_bag then
+        for i = 1, Constants.InventoryConstants.NumBagSlots do
+            if FindSlot(i) then
+                break
+            end
+        end
+    end
+    if not target_bag then
+        WoWXIV.Error("No free inventory slots for new stack.")
+        return
+    end
+    C_Container.SplitContainerItem(bag, slot, count)
+    C_Container.PickupContainerItem(target_bag, target_slot)
+end
+
+function ItemSubmenu:DoDiscard(item, info)
+    local bag = item:GetBagID()
+    local slot = item:GetID()
     local class =
         select(12, C_Item.GetItemInfo(strformat("item:%d", info.itemID)))
     local text, check_text
@@ -349,23 +446,19 @@ function ItemSubmenu:DoDiscardConfirm(bag, slot, link)
     assert(not GetCursorInfo())
     local info = C_Container.GetContainerItemInfo(bag, slot)
     if info.isLocked then
-        PlaySound(SOUNDKIT.IG_QUEST_LOG_ABANDON_QUEST)  -- generic error sound
-        print(WoWXIV.FormatColoredText("Item is locked.",
-                                       RED_FONT_COLOR:GetRGB()))
+        WoWXIV.Error("Item is locked.")
         return
     end
     C_Container.PickupContainerItem(bag, slot)
     -- Verify that we picked up the same item we asked the user about,
     -- just in case the inventory changed when we weren't looking.
     local cursor_type, _, cursor_link = GetCursorInfo()
-    if cursor_type == "item" and cursor_link == link then
-        DeleteCursorItem()
-    else
-        PlaySound(SOUNDKIT.IG_QUEST_LOG_ABANDON_QUEST)
-        print(WoWXIV.FormatColoredText("Item could not be found.",
-                                       RED_FONT_COLOR:GetRGB()))
+    if not (cursor_type == "item" and cursor_link == link) then
+        WoWXIV.Error("Item could not be found.")
         ClearCursor()
+        return
     end
+    DeleteCursorItem()
 end
 
 
@@ -382,7 +475,6 @@ end
 
 function ItemSubmenuButton:__constructor(parent, text, secure)
     self:Hide()
-    self:HookScript("PostClick", function() parent:Hide() end)
     local label = self:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     self.label = label
     label:SetPoint("CENTER")
@@ -390,6 +482,10 @@ function ItemSubmenuButton:__constructor(parent, text, secure)
     label:SetTextScale(1.0)
     label:SetText(text)
     self:SetSize(label:GetStringWidth()+4, label:GetStringHeight()+2)
+    self:HookScript("PostClick", function() parent:Hide() end)
+    if not secure then
+        self:SetScript("OnClick", self.OnClick)
+    end
 end
 
 function ItemSubmenuButton:SetEnabled(enabled)
@@ -400,3 +496,38 @@ end
 -- Ensure all enable changes go through SetEnabled() to update the text color.
 function ItemSubmenu:Enable() self:SetEnabled(true) end
 function ItemSubmenu:Disable() self:SetEnabled(false) end
+
+function ItemSubmenuButton:OnClick()
+    assert(self.item)
+    local bag = self.item:GetBagID()
+    local slot = self.item:GetID()
+    local info = C_Container.GetContainerItemInfo(bag, slot)
+    -- If the item expired or was otherwise consumed or moved, we could
+    -- see one of two things:
+    -- (1) The slot is now empty.
+    if not info then return end
+    -- (2) The slot now holds a different item (item granted by the
+    -- expiring item, loot that randomly dropped into the same slot, etc).
+    if info.itemID ~= self.item_id then return end
+    -- If we get here, the slot has the same item as it originally did.
+    -- It may not be the same specific instance (GUID), but we accept
+    -- like-for-like substitutions to avoid potentially confusing error
+    -- messages.
+    self.ExecuteInsecure(self.item, info)
+end
+
+-- Called by ItemSubmenu to set the target item.
+function ItemSubmenuButton:SetItem(item)
+    self.item = item
+    self.item_id = C_Item.GetItemID(
+        ItemLocation:CreateFromBagAndSlot(item:GetBagID(), item:GetID()))
+end
+
+-- Insecure menu options should override this function to implement their
+-- behavior.  The target item button is passed, along with its container
+-- info as obtained from C_Container.GetContainerItemInfo().  The function
+-- is not called if the slot is empty or holds a different item than when
+-- SetItem() was called, as can occur if a time-limited item expires.
+-- Note that this is a simple function, not an instance method!
+function ItemSubmenuButton.ExecuteInsecure(item, info)
+end

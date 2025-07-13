@@ -297,3 +297,9 @@ function WoWXIV.envcall(env, fn, ...)
     setfenv(fn, saved_env)
     return retval
 end
+
+-- Display an error message.
+function WoWXIV.Error(text)
+    PlaySound(SOUNDKIT.IG_QUEST_LOG_ABANDON_QUEST)  -- generic error sound
+    print(WoWXIV.FormatColoredText(text, RED_FONT_COLOR:GetRGB()))
+end
