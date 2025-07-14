@@ -387,7 +387,7 @@ function MissionTabHandler:SetTargets(is_follower_placement)
     }
     local left_x, top_y
     for enemy in page.Board:EnumerateEnemies() do
-        self.targets[enemy] = {send_enter_leave = true}
+        self.targets[enemy] = {send_enter_leave = enemy:IsShown()}
         local x = enemy:GetLeft()
         if not left_x or x < left_x then
             left_x = x
