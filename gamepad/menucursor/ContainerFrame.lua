@@ -70,7 +70,7 @@ function ContainerFrameHandler:__constructor()
     -- we deliberately pass a nil frame reference to the base constructor
     -- and manage self.frame on our own.
     self:__super(nil)
-    self.cancel_func = function() CloseAllBags(nil) end
+    self.cancel_func = self.OnCancel
     self.has_Button4 = true  -- Used to display item operation submenu.
 
     -- Currently selected item slot's bag and slot index.
@@ -87,6 +87,23 @@ function ContainerFrameHandler:__constructor()
     end
     for _, frame in ipairs(self.bag_frames) do
         self:HookShow(frame)
+    end
+
+    -- Icon holder for item being moved.  We place this next to the cursor
+    -- when an item is held.
+    local held = self.cursor:CreateTexture(nil, "ARTWORK", nil, -1)
+    self.held_item_icon = held
+    held:Hide()
+    held:SetSize(30, 30)
+    held:SetPoint("TOPLEFT", 15, -8)
+end
+
+function ContainerFrameHandler:OnCancel()
+    if GetCursorInfo() then
+        ClearCursor()
+        self:UpdateCursor()
+    else
+        CloseAllBags(nil)
     end
 end
 
@@ -121,6 +138,28 @@ function ContainerFrameHandler:OnHide(frame)
             self.current_slot = nil
             self:Disable()
         end
+    end
+end
+
+function ContainerFrameHandler:OnFocus()
+    self:UpdateCursor()
+end
+
+function ContainerFrameHandler:OnBlur()
+    self:UpdateCursor(true)
+end
+
+function ContainerFrameHandler:UpdateCursor(is_blur)
+    local info = {GetCursorInfo()}
+    local texture
+    if not is_blur and info[1] == "item" then
+        texture = select(10, C_Item.GetItemInfo(info[2]))
+    end
+    if texture then
+        self.held_item_icon:SetTexture(texture)
+        self.held_item_icon:Show()
+    else
+        self.held_item_icon:Hide()
     end
 end
 
@@ -160,8 +199,19 @@ function ContainerFrameHandler:ClickItem()
     local slot = item:GetID()
     local item_loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
     local info = C_Container.GetContainerItemInfo(bag, slot)
+    local cursor = {GetCursorInfo()}
 
-    if AuctionHouseFrame and AuctionHouseFrame:IsShown() then
+    if GetCursorInfo() then
+        -- We prioritize this over checking info.isLocked because we might
+        -- be putting an item back where we picked it up, in which case
+        -- the slot will be locked but this call will still succeed.
+        -- There doesn't seem to be any way to determine the location of
+        -- the held item, so we rely on the game itself to handle errors
+        -- in this case.
+        C_Container.PickupContainerItem(bag, slot)
+    elseif info.isLocked then
+        WoWXIV.Error("Item is locked.")
+    elseif AuctionHouseFrame and AuctionHouseFrame:IsShown() then
         if C_AuctionHouse.IsSellItemValid(item_loc, false) then
             SendToAuctionHouse(item_loc)
         end
@@ -170,12 +220,16 @@ function ContainerFrameHandler:ClickItem()
         if C_MerchantFrame.IsSellAllJunkEnabled() then
             SellItem(bag, slot, info)
         end
+    else
+        C_Container.PickupContainerItem(bag, slot)
     end
+    self:UpdateCursor()
 end
 
 function ContainerFrameHandler:OnAction(button)
     assert(button == "Button4")
     if InCombatLockdown() then return end
+    if GetCursorInfo() then return end
     local item = self:GetTarget()
     self.item_submenu:Open(item)
 end
@@ -325,7 +379,7 @@ function ItemSubmenu:ConfigureForItem()
         end
 
     elseif MerchantFrame and MerchantFrame:IsShown() then
-        -- Assuming this tracks the "does merchant accept selling" state
+        -- We assume this tracks the "does merchant accept selling" state
         -- (e.g. can't sell to delve repair points).
         if C_MerchantFrame.IsSellAllJunkEnabled() then
             self:AppendButton(self.menuitem_sell)

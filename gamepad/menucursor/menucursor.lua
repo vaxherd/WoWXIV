@@ -223,11 +223,13 @@ function Cursor:AddFrame(frame, modal, target, focus)
     end
     if focus or #stack == 0 then
         self:LeaveTarget()
+        self:SendBlur()
         target = target or frame:GetDefaultTarget()
         tinsert(stack, {frame, target})
         if target then
             frame:ScrollToTarget(target)
         end
+        self:SendFocus()
         self:EnterTarget()
         self:UpdateCursor()
     else
@@ -256,9 +258,15 @@ function Cursor:InternalRemoveFrameFromStack(frame, stack, is_top_stack)
     for i, v in ipairs(stack) do
         if v and v[1] == frame then
             local is_focus = is_top_stack and i == #stack
-            if is_focus then self:LeaveTarget() end
+            if is_focus then
+                self:LeaveTarget()
+                self:SendBlur()
+            end
             tremove(stack, i)
-            if is_focus then self:EnterTarget() end
+            if is_focus then
+                self:SendFocus()
+                self:EnterTarget()
+            end
             self:UpdateCursor()
             return
         end
@@ -310,7 +318,9 @@ function Cursor:SetFocus(frame)
         if (frame and v and v[1] == frame) or (not frame and not v) then
             if i < top then
                 self:LeaveTarget()
+                self:SendBlur()
                 tinsert(stack, tremove(stack, i))
+                self:SendFocus()
                 self:EnterTarget()
                 self:UpdateCursor()
             end
@@ -318,6 +328,18 @@ function Cursor:SetFocus(frame)
         end
     end
     error("SetFocus for frame ("..tostring(frame)..") not in focus stack")
+end
+
+-- Send an OnFocus event to the currently focused MenuFrame.
+function Cursor:SendFocus()
+    local focus = self:GetFocus()
+    if focus then focus:OnFocus() end
+end
+
+-- Send an OnBlur event to the currently focused MenuFrame.
+function Cursor:SendBlur()
+    local focus = self:GetFocus()
+    if focus then focus:OnBlur() end
 end
 
 -- Set the menu cursor target for the currently focused frame.  If nil,
@@ -619,8 +641,10 @@ function Cursor:OnClick(button, down, is_repeat)
             local top = #stack
             if top > 1 then
                 self:LeaveTarget()
+                self:SendBlur()
                 tinsert(stack, 1, tremove(stack, top))
                 assert(#stack == top)
+                self:SendFocus()
                 self:EnterTarget()
                 self:UpdateCursor()
             end
@@ -1219,6 +1243,16 @@ end
 -- and the current time step (delta-t).  This method is only called when
 -- the cursor is visible.
 function MenuFrame:OnUpdate(target_frame, dt)
+end
+
+-- Focus-in event handler.  Called when the frame receives focus,
+-- immediately before EnterTarget() is called for the current target (if any).
+function MenuFrame:OnFocus()
+end
+
+-- Focus-out event handler.  Called when the frame loses focus,
+-- immediately after LeaveTarget() is called for the current target (if any).
+function MenuFrame:OnBlur()
 end
 
 -- Confirm input event handler, called from Cursor:OnClick() for confirm
