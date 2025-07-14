@@ -6,7 +6,6 @@ local class = WoWXIV.class
 local Button = WoWXIV.Button
 local Frame = WoWXIV.Frame
 
-local max = math.max
 local strformat = string.format
 local strsub = string.sub
 local tinsert = tinsert
@@ -17,14 +16,104 @@ local function ContainerFrame_IsHeldBag(id)
     return id >= Enum.BagIndex.Backpack and id <= NUM_TOTAL_BAG_FRAMES
 end
 
--- Class implementing the item submenu.  We roll our own rather than using
--- the standard DropdownMenuButton so we can include secure buttons to
--- perform use/disenchant/etc actions.
-local ItemSubmenu = class(Frame)
+-- Class implementing the item submenu for inventory items.  We roll our
+-- own rather than using the standard DropdownMenuButton so we can include
+-- secure buttons to perform use/disenchant/etc actions.
+local InventoryItemSubmenu = class(WoWXIV.UI.ItemSubmenu)
+
 
 ---------------------------------------------------------------------------
 -- Utility routines
 ---------------------------------------------------------------------------
+
+-- Send an item (identified by ItemLocation) to the auction house, and
+-- focus the auction house sell frame if it's already visible.  (If it's
+-- not visible, it will be imminently Show()n and the manu handler will
+-- focus it at that point.)
+local function SendToAuctionHouse(item_loc)
+    AuctionHouseFrame:SetPostItem(item_loc)
+    MenuCursor.AuctionHouseFrameHandler.FocusSellFrame()
+end
+
+-- Send an item to the currently active bank frame.
+local function SendToBank(bag, slot, info)
+    ClearCursor()
+    assert(not GetCursorInfo())
+    if info.isLocked then
+        WoWXIV.Error("Item is locked.")
+        return
+    end
+    local limit = select(8, C_Item.GetItemInfo("item:"..info.itemID)) or 0
+    local function SearchBag(bag_id)
+        local size = C_Container.GetContainerNumSlots(bag_id) or 0
+        local empty_slot
+        for i = 1, size do
+            local info2 = C_Container.GetContainerItemInfo(bag_id, i)
+            if info2 then
+                if info2.itemID == info.itemID then
+                    if info.stackCount + info2.stackCount <= limit then
+                        return bag_id, i
+                    end
+                end
+            else
+                if not empty_slot then
+                    empty_slot = i
+                end
+            end
+        end
+        return nil, empty_slot
+    end
+    local target_bag, target_slot, empty_bag, empty_slot
+    if BankSlotsFrame:IsVisible() then
+        for i = 0, 7 do
+            local bag_id =
+                i==0 and Enum.BagIndex.Bank or (Enum.BagIndex.BankBag_1 + (i-1))
+            target_bag, target_slot = SearchBag(bag_id)
+            if target_bag then break end
+            if not empty_bag and target_slot then
+                empty_bag, empty_slot = bag_id, target_slot
+            end
+        end
+    elseif ReagentBankFrame:IsVisible() then
+        if select(12, C_Item.GetItemInfo("item:"..info.itemID)) ~= Enum.ItemClass.Tradegoods then
+            WoWXIV.Error("That item doesn't go in that container.")
+            return
+        end
+        local bag_id = Enum.BagIndex.Reagentbank
+        target_bag, target_slot = SearchBag(bag_id)
+        if not target_bag and target_slot then
+            empty_bag, empty_slot = bag_id, target_slot
+        end
+    else
+        assert(AccountBankPanel:IsVisible())
+        for i = 1, 5 do
+            local bag_id = Enum.BagIndex.AccountBankTab_1 + (i-1)
+            target_bag, target_slot = SearchBag(bag_id)
+            if target_bag then break end
+            -- Standard game behavior is to take the first empty slot in
+            -- the numerically first tab, but we choose to prioritize an
+            -- empty slot in the currently displayed tab as better UX.
+            if (not empty_bag
+                or (bag_id == AccountBankPanel.selectedTabID
+                    and empty_bag ~= bag_id))
+            and target_slot then
+                empty_bag, empty_slot = bag_id, target_slot
+            end
+        end
+    end
+    if not target_bag then
+        if empty_bag then
+            target_bag, target_slot = empty_bag, empty_slot
+        else
+            WoWXIV.Error("No room in bank for item.")
+            return
+        end
+    end
+    C_Container.PickupContainerItem(bag, slot)
+    local cursor_type, _, cursor_link = GetCursorInfo()
+    assert(cursor_type == "item" and cursor_link == info.hyperlink)
+    C_Container.PickupContainerItem(target_bag, target_slot)
+end
 
 -- Sell an item to a merchant.
 local function SellItem(bag, slot, info)
@@ -40,14 +129,6 @@ local function SellItem(bag, slot, info)
     SellCursorItem()
 end
 
--- Send an item (identified by ItemLocation) to the auction house, and
--- focus the auction house sell frame if it's already visible.  (If it's
--- not visible, it will be imminently Show()n and the manu handler will
--- focus it at that point.)
-local function SendToAuctionHouse(item_loc)
-    AuctionHouseFrame:SetPostItem(item_loc)
-    MenuCursor.AuctionHouseFrameHandler.FocusSellFrame()
-end
 
 ---------------------------------------------------------------------------
 -- Menu handler for ContainerFrames
@@ -55,14 +136,14 @@ end
 
 local ContainerFrameHandler = class(MenuCursor.MenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(ContainerFrameHandler)
-local ItemSubmenuHandler = class(MenuCursor.StandardMenuFrame)
+local InventoryItemSubmenuHandler = class(MenuCursor.StandardMenuFrame)
 
 function ContainerFrameHandler.Initialize(class, cursor)
     class.cursor = cursor
     class.instance = class()
     -- Item submenu dropdown and associated cursor handler.
-    class.item_submenu = ItemSubmenu()
-    class.instance_submenu = ItemSubmenuHandler(class.item_submenu)
+    class.item_submenu = InventoryItemSubmenu()
+    class.instance_submenu = InventoryItemSubmenuHandler(class.item_submenu)
 end
 
 function ContainerFrameHandler:__constructor()
@@ -70,6 +151,7 @@ function ContainerFrameHandler:__constructor()
     -- we deliberately pass a nil frame reference to the base constructor
     -- and manage self.frame on our own.
     self:__super(nil)
+    self.cursor_show_item = true
     self.cancel_func = self.OnCancel
     self.has_Button4 = true  -- Used to display item operation submenu.
 
@@ -88,20 +170,11 @@ function ContainerFrameHandler:__constructor()
     for _, frame in ipairs(self.bag_frames) do
         self:HookShow(frame)
     end
-
-    -- Icon holder for item being moved.  We place this next to the cursor
-    -- when an item is held.
-    local held = self.cursor:CreateTexture(nil, "ARTWORK", nil, -1)
-    self.held_item_icon = held
-    held:Hide()
-    held:SetSize(30, 30)
-    held:SetPoint("TOPLEFT", 15, -8)
 end
 
 function ContainerFrameHandler:OnCancel()
     if GetCursorInfo() then
         ClearCursor()
-        self:UpdateCursor()
     else
         CloseAllBags(nil)
     end
@@ -116,8 +189,7 @@ function ContainerFrameHandler:OnShow(frame)
         self.frame = frame
         -- Various UIs automatically open the inventory alongside them,
         -- so don't steal focus from any other frame that's already open.
-        --self:EnableBackground(target)
-        self:Enable(target) --FIXME temp
+        self:EnableBackground(target)
     else
         local target, frame = self:SetTargets()
         assert(target == cur_target)
@@ -141,36 +213,15 @@ function ContainerFrameHandler:OnHide(frame)
     end
 end
 
-function ContainerFrameHandler:OnFocus()
-    self:UpdateCursor()
-end
-
-function ContainerFrameHandler:OnBlur()
-    self:UpdateCursor(true)
-end
-
-function ContainerFrameHandler:UpdateCursor(is_blur)
-    local info = {GetCursorInfo()}
-    local texture
-    if not is_blur and info[1] == "item" then
-        texture = select(10, C_Item.GetItemInfo(info[2]))
-    end
-    if texture then
-        self.held_item_icon:SetTexture(texture)
-        self.held_item_icon:Show()
-    else
-        self.held_item_icon:Hide()
-    end
-end
-
 -- Returns the frame owning the current target as a second return value.
 function ContainerFrameHandler:SetTargets()
     self.targets = {}
     local cur_target, cur_frame
     for _, frame in ipairs(self.bag_frames) do
         for _, item in frame:EnumerateItems() do
-            self.targets[item] = {frame = frame, send_enter_leave = true,
-                                  on_click = function() self:ClickItem() end}
+            self.targets[item] = {
+                frame = frame, send_enter_leave = true, lock_highlight = true,
+                on_click = function() self:ClickItem() end}
             if item:GetBagID() == self.current_bag and item:GetID() == self.current_slot then
                 cur_target = item
                 cur_frame = frame
@@ -215,15 +266,16 @@ function ContainerFrameHandler:ClickItem()
         if C_AuctionHouse.IsSellItemValid(item_loc, false) then
             SendToAuctionHouse(item_loc)
         end
+    elseif BankFrame and BankFrame:IsShown() then
+        SendToBank(bag, slot, info)
     elseif MerchantFrame and MerchantFrame:IsShown() then
-        -- See notes at ItemSubmenu:ConfigureForItem().
+        -- See notes at InventoryItemSubmenu:ConfigureForItem().
         if C_MerchantFrame.IsSellAllJunkEnabled() then
             SellItem(bag, slot, info)
         end
     else
         C_Container.PickupContainerItem(bag, slot)
     end
-    self:UpdateCursor()
 end
 
 function ContainerFrameHandler:OnAction(button)
@@ -231,16 +283,20 @@ function ContainerFrameHandler:OnAction(button)
     if InCombatLockdown() then return end
     if GetCursorInfo() then return end
     local item = self:GetTarget()
-    self.item_submenu:Open(item)
+    self.item_submenu:Open(item, item:GetBagID(), item:GetID())
 end
 
 
-function ItemSubmenuHandler:__constructor(submenu)
+---------------------------------------------------------------------------
+-- Item submenu handler and implementation
+---------------------------------------------------------------------------
+
+function InventoryItemSubmenuHandler:__constructor(submenu)
     self:__super(submenu, MenuCursor.MenuFrame.MODAL)
     self.cancel_func = function(self) self.frame:Close() end
 end
 
-function ItemSubmenuHandler:SetTargets()
+function InventoryItemSubmenuHandler:SetTargets()
     self.targets = {}
     local initial
     for _, button in ipairs(self.frame.buttons) do
@@ -251,21 +307,8 @@ function ItemSubmenuHandler:SetTargets()
 end
 
 
----------------------------------------------------------------------------
--- Item submenu implementation
----------------------------------------------------------------------------
-
-local ItemSubmenuButton = class(Button)
-
-
-function ItemSubmenu:__allocator()
-    return Frame.__allocator("Frame", "WoWXIV_ItemSubmenu", UIParent)
-end
-
-function ItemSubmenu:__constructor()
-    self.BORDER = 4  -- Inset from frame edge to menu items.
-    self.MIN_EDGE = 4  -- Don't get closer than this to the screen edge.
-    self.buttons = {}  -- List of buttons currently shown in the layout.
+function InventoryItemSubmenu:__constructor()
+    self:__super()
 
     -- FIXME: "Use" for spell-type items (e.g. Hearthstone) and "Disenchant"
     -- currently fail due to taint errors when activated via menu cursor.
@@ -276,99 +319,49 @@ function ItemSubmenu:__constructor()
     -- to either "equip" or "use" based on C_Item.IsEquippableItem() (see
     -- SECURE_ACTIONS.item in SecureTemplates.lua), which is the same test
     -- we use for showing the "Equip" menu item in place of "Use".
-    self.menuitem_equip = ItemSubmenuButton(self, "Equip", true)
+    self.menuitem_equip =
+        WoWXIV.UI.ItemSubmenuButton(self, "Equip", true)
     self.menuitem_equip:SetAttribute("type", "item")
-    self.menuitem_use = ItemSubmenuButton(self, "Use", true)
+    self.menuitem_use =
+        WoWXIV.UI.ItemSubmenuButton(self, "Use", true)
     self.menuitem_use:SetAttribute("type", "item")
 
-    self.menuitem_sell = ItemSubmenuButton(self, "Sell", false)
+    self.menuitem_sendtobank =
+        WoWXIV.UI.ItemSubmenuButton(self, "Send to bank", false)
+    self.menuitem_sendtobank.ExecuteInsecure =
+        function(bag, slot, info) self:DoSendToBank(bag, slot, info) end
+
+    self.menuitem_sell =
+        WoWXIV.UI.ItemSubmenuButton(self, "Sell", false)
     self.menuitem_sell.ExecuteInsecure =
-        function(item, info) self:DoSell(item, info) end
+        function(bag, slot, info) self:DoSell(bag, slot, info) end
 
-    self.menuitem_auction = ItemSubmenuButton(self, "Auction", false)
+    self.menuitem_auction =
+        WoWXIV.UI.ItemSubmenuButton(self, "Auction", false)
     self.menuitem_auction.ExecuteInsecure =
-        function(item, info) self:DoAuction(item, info) end
+        function(bag, slot, info) self:DoAuction(bag, slot, info) end
 
-    self.menuitem_disenchant = ItemSubmenuButton(self, "Disenchant", true)
+    self.menuitem_disenchant =
+        WoWXIV.UI.ItemSubmenuButton(self, "Disenchant", true)
     self.menuitem_disenchant:SetAttribute("type", "spell")
     self.menuitem_disenchant:SetAttribute("spell", 13262)
 
-    self.menuitem_splitstack = ItemSubmenuButton(self, "Split stack", false)
+    self.menuitem_splitstack =
+        WoWXIV.UI.ItemSubmenuButton(self, "Split stack", false)
     self.menuitem_splitstack.ExecuteInsecure =
-        function(item, info) self:DoSplitStack(item, info) end
+        function(bag, slot, info, item)
+            self:DoSplitStack(bag, slot, info, item)
+        end
 
-    self.menuitem_discard = ItemSubmenuButton(self, "Discard", false)
+    self.menuitem_discard =
+        WoWXIV.UI.ItemSubmenuButton(self, "Discard", false)
     self.menuitem_discard.ExecuteInsecure =
-        function(item, info) self:DoDiscard(item, info) end
-
-    self:Hide()
-    self:SetFrameStrata("DIALOG")
-    self:SetScript("OnHide", self.OnHide)
-    -- Immediately close the submenu on any mouse click, to reduce the
-    -- risk of colliding inventory operations.
-    self:RegisterEvent("GLOBAL_MOUSE_UP")
-    self:SetScript("OnEvent", function(self, event)
-        if event == "GLOBAL_MOUSE_UP" and self:IsShown() then self:Hide() end
-    end)
-
-    self.background = self:CreateTexture(nil, "BACKGROUND")
-    self.background:SetAllPoints()
-    self.background:SetColorTexture(0, 0, 0)
+        function(bag, slot, info) self:DoDiscard(bag, slot, info) end
 end
 
-function ItemSubmenu:Open(item_button)
-    if self:IsShown() then
-        self:Close()
-    end
-
-    self.item = item_button
-    self.item_loc = ItemLocation:CreateFromBagAndSlot(
-        item_button:GetBagID(), item_button:GetID())
-    if not self.item_loc:IsValid() then  -- nothing there!
-        self.item = nil
-        self.item_loc = nil
-        return
-    end
-
-    self:ConfigureForItem()
-
-    self:ClearAllPoints()
-    local w, h = self:GetSize()
-    local ix, iy, iw, ih = item_button:GetRect()
-    local anchor, refpoint
-    if (ix+iw) + w + self.MIN_EDGE <= UIParent:GetWidth() then
-        anchor = "TOPLEFT"
-        refpoint = "BOTTOMRIGHT"
-    else
-        -- Doesn't fit on the right side, move to the left.
-        anchor = "TOPRIGHT"
-        refpoint = "BOTTOMLEFT"
-    end
-    local y_offset = max((h + self.MIN_EDGE) - iy, 0)
-    self:SetPoint(anchor, item_button, refpoint, 0, y_offset)
-    self:Show()
-end
-
--- Just a synonym for Hide().  Included for parallelism with Open().
-function ItemSubmenu:Close()
-    self:Hide()
-end
-
-function ItemSubmenu:OnHide()
-    for _, button in ipairs(self.buttons) do
-        button:Hide()
-    end
-    self.buttons = {}
-    self.item = nil
-    self.item_loc = nil
-end
-
-function ItemSubmenu:ConfigureForItem()
-    self:ClearLayout()
-    local prev_element = self.top_border
-
-    local guid = C_Item.GetItemGUID(self.item_loc)
-    local bag, slot = self.item_loc:GetBagAndSlot()
+function InventoryItemSubmenu:ConfigureForItem(bag, slot)
+    local guid =
+        C_Item.GetItemGUID(ItemLocation:CreateFromBagAndSlot(bag, slot))
     local bagslot = strformat("%d %d", bag, slot)
     local info = C_Container.GetContainerItemInfo(bag, slot)
     local class = select(12, C_Item.GetItemInfo(guid))
@@ -377,6 +370,9 @@ function ItemSubmenu:ConfigureForItem()
         if C_AuctionHouse.IsSellItemValid(self.item_loc, false) then
             self:AppendButton(self.menuitem_auction)
         end
+
+    elseif BankFrame and BankFrame:IsShown() then
+        self:AppendButton(self.menuitem_sendtobank)
 
     elseif MerchantFrame and MerchantFrame:IsShown() then
         -- We assume this tracks the "does merchant accept selling" state
@@ -420,69 +416,34 @@ function ItemSubmenu:ConfigureForItem()
     end
 
     self:AppendButton(self.menuitem_discard)
-
-    self:FinishLayout()
-end  
-
-function ItemSubmenu:ClearLayout()
-    self.layout_prev = nil
-    self.layout_width = 64  -- Set a sensible minimum width.
-    self.layout_height = 0
-    self.buttons = {}
 end
-
-function ItemSubmenu:AppendLayout(element)
-    local target, ref, offset
-    if self.layout_prev then
-        target = self.layout_prev
-        ref = "BOTTOM"
-        offset = 0
-    else
-        target = self
-        ref = "TOP"
-        offset = self.BORDER
-    end
-    element:ClearAllPoints()
-    element:SetPoint("TOPLEFT", target, ref.."LEFT", offset, -offset)
-    self.layout_width = max(self.layout_width, element:GetWidth())
-    self.layout_height = self.layout_height + element:GetHeight()
-    self.layout_prev = element
-end
-
-function ItemSubmenu:AppendButton(button)
-    self:AppendLayout(button)
-    tinsert(self.buttons, button)
-    button:SetItem(self.item)
-    button:Show()
-end
-
-function ItemSubmenu:FinishLayout()
-    self:SetSize(self.layout_width + 2*self.BORDER,
-                 self.layout_height + 2*self.BORDER)
-    self.layout_prev = nil
-end
-
 
 -------- Individual menu option handlers
 
-function ItemSubmenu:DoSell(item, info)
-    local bag = item:GetBagID()
-    local slot = item:GetID()
+function InventoryItemSubmenu:DoSendToBank(bag, slot, info)
+    SendToBank(bag, slot, info)
+end
+
+function InventoryItemSubmenu:DoSell(bag, slot, info)
     SellItem(bag, slot, info)
 end
 
-function ItemSubmenu:DoAuction(item, info)
-    local bag = item:GetBagID()
-    local slot = item:GetID()
+function InventoryItemSubmenu:DoAuction(bag, slot, info)
     SendToAuctionHouse(ItemLocation:CreateFromBagAndSlot(bag, slot))
 end
 
-function ItemSubmenu:DoSplitStack(item, info)
-    local bag = item:GetBagID()
-    local slot = item:GetID()
+function InventoryItemSubmenu:DoSplitStack(bag, slot, info, item_button)
     if info.stackCount <= 1 then return end
     local limit = info.stackCount - 1
-    StackSplitFrame:OpenStackSplitFrame(limit, item, "BOTTOMLEFT", "TOPLEFT")
+    -- Due to a bug in StackSplitFrame, we can't request a limit of 1 (the
+    -- frame opens but then closes on the next input without sending a
+    -- completion event), so we have to handle that case manually.
+    if limit == 1 then
+        self:DoSplitStackConfirm(bag, slot, info.hyperlink, 1)
+        return
+    end
+    StackSplitFrame:OpenStackSplitFrame(limit, item_button,
+                                        "BOTTOMLEFT", "TOPLEFT")
     -- We have to pass item as the owner to get the frame anchored correctly,
     -- but we want to get the SplitStack callback ourselves.
     StackSplitFrame.owner = {SplitStack = function(_, count)
@@ -491,7 +452,7 @@ function ItemSubmenu:DoSplitStack(item, info)
     MenuCursor.StackSplitFrameEditQuantity()
 end
 
-function ItemSubmenu:DoSplitStackConfirm(bag, slot, link, count)
+function InventoryItemSubmenu:DoSplitStackConfirm(bag, slot, link, count)
     local info = C_Container.GetContainerItemInfo(bag, slot)
     if info.isLocked then
         WoWXIV.Error("Item is locked.")
@@ -503,75 +464,11 @@ function ItemSubmenu:DoSplitStackConfirm(bag, slot, link, count)
         WoWXIV.Error("Item could not be found.")
         return
     end
-    -- Find an empty slot for the new stack.  We prefer a slot in the same
-    -- bag even if it's the wrong bag for the item type.
-    local target_bag, target_slot
-    local class, subclass =
-        select(12, C_Item.GetItemInfo(strformat("item:%d", info.itemID)))
-    local function FindSlot(bag_id)
-        for i = 1, C_Container.GetContainerNumSlots(bag_id) do
-            if not C_Container.GetContainerItemInfo(bag_id, i) then
-                target_bag = bag_id
-                target_slot = i
-                return true
-            end
-        end
-    end
-    FindSlot(bag)
-    if not target_bag and class == Enum.ItemClass.Tradegoods then
-        for i = 1, Constants.InventoryConstants.NumReagentBagSlots do
-            local reagent_bag = Constants.InventoryConstants.NumBagSlots + i
-            if FindSlot(reagent_bag) then
-                break
-            end
-        end
-    end
-    if not target_bag then
-        -- It looks like item-to-bag filtering code is not exposed to Lua,
-        -- so we have to reimplement it ourselves.
-        local type_flag
-        if info.quality == Enum.ItemQuality.Poor then
-            type_flag = Enum.BagSlotFlags.ClassJunk
-        elseif class == Enum.ItemClass.Consumable then
-            type_flag = Enum.BagSlotFlags.ClassConsumables
-        elseif class == Enum.ItemClass.Weapon or
-               class == Enum.ItemClass.Armor then
-            type_flag = Enum.BagSlotFlags.ClassEquipment
-        elseif class == Enum.ItemClass.Tradegoods then
-            type_flag = Enum.BagSlotFlags.ClassReagents
-        elseif class == Enum.ItemClass.Profession then
-            type_flag = Enum.BagSlotFlags.ClassProfessionGoods
-        end
-        if type_flag then
-            for i = 1, Constants.InventoryConstants.NumBagSlots do
-                if C_Container.GetBagSlotFlag(i, type_flag) then
-                    if FindSlot(i) then
-                        break
-                    end
-                end
-            end
-        end
-    end
-    if not target_bag then
-        for i = 1, Constants.InventoryConstants.NumBagSlots do
-            if FindSlot(i) then
-                break
-            end
-        end
-    end
-    if not target_bag then
-        WoWXIV.Error("No free inventory slots for new stack.")
-        return
-    end
     C_Container.SplitContainerItem(bag, slot, count)
-    C_Container.PickupContainerItem(target_bag, target_slot)
 end
 
-function ItemSubmenu:DoDiscard(item, info)
-    local bag = item:GetBagID()
-    local slot = item:GetID()
-    local class =
-        select(12, C_Item.GetItemInfo(strformat("item:%d", info.itemID)))
+function InventoryItemSubmenu:DoDiscard(bag, slot, info)
+    local class = select(12, C_Item.GetItemInfo("item:"..info.itemID))
     local text, check_text
     if class == Enum.ItemClass.Questitem then
         text = "Discard |W%s,|w abandoning any related quests?"
@@ -599,7 +496,7 @@ function ItemSubmenu:DoDiscard(item, info)
         function() self:DoDiscardConfirm(bag, slot, info.hyperlink) end)
 end
 
-function ItemSubmenu:DoDiscardConfirm(bag, slot, link)
+function InventoryItemSubmenu:DoDiscardConfirm(bag, slot, link)
     ClearCursor()
     assert(not GetCursorInfo())
     local info = C_Container.GetContainerItemInfo(bag, slot)
@@ -608,8 +505,6 @@ function ItemSubmenu:DoDiscardConfirm(bag, slot, link)
         return
     end
     C_Container.PickupContainerItem(bag, slot)
-    -- Verify that we picked up the same item we asked the user about,
-    -- just in case the inventory changed when we weren't looking.
     local cursor_type, _, cursor_link = GetCursorInfo()
     if not (cursor_type == "item" and cursor_link == link) then
         WoWXIV.Error("Item could not be found.")
@@ -617,84 +512,4 @@ function ItemSubmenu:DoDiscardConfirm(bag, slot, link)
         return
     end
     DeleteCursorItem()
-end
-
-
----------------------------------------------------------------------------
--- Item submenu menu item (button) implementation
----------------------------------------------------------------------------
-
-function ItemSubmenuButton:__allocator(parent, text, secure)
-    if secure then
-        return Button.__allocator("Button", nil, parent,
-                                  "SecureActionButtonTemplate")
-    else
-        return Button.__allocator("Button", nil, parent)
-    end
-end
-
-function ItemSubmenuButton:__constructor(parent, text, secure)
-    self:Hide()
-    local label = self:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    self.label = label
-    label:SetPoint("CENTER")
-    label:SetTextColor(WHITE_FONT_COLOR:GetRGB())
-    label:SetTextScale(1.0)
-    label:SetText(text)
-    self:SetSize(label:GetStringWidth()+4, label:GetStringHeight()+2)
-    self:RegisterForClicks("LeftButtonUp")
-    self:SetAttribute("useOnKeyDown", false)  -- Indirect clicks are always up.
-    self:HookScript("PostClick", function() parent:Hide() end)
-    if not secure then
-        self:SetScript("OnClick", self.OnClick)
-    end
-end
-
-function ItemSubmenuButton:SetEnabled(enabled)
-    Button.SetEnabled(self, enabled)
-    self.label:SetTextColor(
-        (enabled and WHITE_FONT_COLOR or GRAY_FONT_COLOR):GetRGB())
-end
--- Ensure all enable changes go through SetEnabled() to update the text color.
-function ItemSubmenu:Enable() self:SetEnabled(true) end
-function ItemSubmenu:Disable() self:SetEnabled(false) end
-
-function ItemSubmenuButton:OnClick()
-    assert(self.item)
-    local bag = self.item:GetBagID()
-    local slot = self.item:GetID()
-    local info = C_Container.GetContainerItemInfo(bag, slot)
-    -- If the item expired or was otherwise consumed or moved, we could
-    -- see one of two things:
-    -- (1) The slot is now empty.
-    if not info then return end
-    -- (2) The slot now holds a different item (item granted by the
-    -- expiring item, loot that randomly dropped into the same slot, etc).
-    if info.itemID ~= self.item_id then return end
-    -- If we get here, the slot has the same item as it originally did.
-    -- It may not be the same specific instance (GUID), but we accept
-    -- like-for-like substitutions to avoid potentially confusing error
-    -- messages.
-    self.ExecuteInsecure(self.item, info)
-end
-
--- Called by ItemSubmenu to set the target item.
-function ItemSubmenuButton:SetItem(item)
-    self.item = item
-    local bag = item:GetBagID()
-    local slot = item:GetID()
-    self.item_id = C_Item.GetItemID(
-        ItemLocation:CreateFromBagAndSlot(bag, slot))
-    self:SetAttribute("item", bag.." "..slot)
-    self:SetAttribute("target-bag", bag)
-    self:SetAttribute("target-slot", slot)
-end
-
--- Insecure menu options should override this function to implement their
--- behavior.  The target item button is passed, along with its container
--- info as obtained from C_Container.GetContainerItemInfo().  The function
--- is not called if the slot is empty or holds a different item than when
--- SetItem() was called, as can occur if a time-limited item expires.
--- Note that this is a simple function, not an instance method!
-function ItemSubmenuButton.ExecuteInsecure(item, info)
 end

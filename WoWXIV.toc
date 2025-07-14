@@ -25,6 +25,13 @@ slashcmd.lua
 targetbar.lua
 util.lua
 
+# Must precede gamepad/ to avoid declaration ordering issues
+# (specifically subclassing of UI.ItemSubmenu).
+ui/aurabar.lua
+ui/castbar.lua
+ui/gauge.lua
+ui/itemmenu.lua
+
 gamepad/gamepad.lua
 gamepad/leavevehicle.lua
 gamepad/questitem.lua
@@ -33,6 +40,7 @@ gamepad/menucursor/menucursor.lua
 gamepad/menucursor/AdventureMapQuestChoiceDialog.lua
 gamepad/menucursor/AnimaDiversionFrame.lua
 gamepad/menucursor/AuctionHouseFrame.lua
+gamepad/menucursor/BankFrame.lua
 gamepad/menucursor/BonusRollFrame.lua
 gamepad/menucursor/CharacterFrame.lua
 gamepad/menucursor/ClassTrainerFrame.lua
@@ -72,7 +80,3 @@ gamepad/menucursor/UIWidgetCenterDisplayFrame.lua
 gamepad/menucursor/VoidStoragePurchaseFrame.lua
 gamepad/menucursor/WeeklyRewardsFrame.lua
 gamepad/menucursor/WorldMapFrame.lua
-
-ui/aurabar.lua
-ui/castbar.lua
-ui/gauge.lua

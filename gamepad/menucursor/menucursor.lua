@@ -73,6 +73,7 @@ function Cursor:__constructor()
     self:SetScript("OnHide", self.OnHide)
     self:SetScript("OnEvent", self.OnEvent)
     self:RegisterEvent("GAME_PAD_ACTIVE_CHANGED")
+    self:RegisterEvent("CURSOR_CHANGED")
     self:RegisterEvent("PLAYER_REGEN_DISABLED")
     self:RegisterEvent("PLAYER_REGEN_ENABLED")
     self:SetAttribute("type1", "click")
@@ -93,6 +94,13 @@ function Cursor:__constructor()
     texture:SetTexture("Interface/CURSOR/Point")  -- Default mouse cursor image
     -- Flip it horizontally to distinguish it from the mouse cursor.
     texture:SetTexCoord(1, 0, 0, 1)
+
+    -- Icon holder for an item held by the game cursor.
+    local held = self:CreateTexture(nil, "ARTWORK", nil, -1)
+    self.held_item_icon = held
+    held:Hide()
+    held:SetSize(30, 30)
+    held:SetPoint("TOPLEFT", 15, -8)
 end
 
 -- Register a frame handler class.  The handler's Initialize() class method
@@ -155,6 +163,11 @@ end
 -- Handler for input type changes.
 function Cursor:GAME_PAD_ACTIVE_CHANGED(active)
     self.gamepad_active = active
+    self:UpdateCursor()
+end
+
+-- Handler for cursor state changes.
+function Cursor:CURSOR_CHANGED(active)
     self:UpdateCursor()
 end
 
@@ -221,7 +234,12 @@ function Cursor:AddFrame(frame, modal, target, focus)
             break
         end
     end
-    if focus or #stack == 0 then
+    -- Always focus the frame if it's the only one active, or if it's
+    -- the only one in the modal stack (regardless of non-modal frames)
+    if not self:GetFocus() or (modal and #stack == 0) then
+        focus = true
+    end
+    if focus then
         self:LeaveTarget()
         self:SendBlur()
         target = target or frame:GetDefaultTarget()
@@ -481,6 +499,22 @@ function Cursor:UpdateCursor(in_combat)
             self:Hide()
         end
     end
+
+    if self:IsShown() then
+        local item_texture
+        if focus and focus:IsCursorShowItem() then
+            local info = {GetCursorInfo()}
+            if info[1] == "item" then
+                item_texture = select(10, C_Item.GetItemInfo(info[2]))
+            end
+        if item_texture then
+            self.held_item_icon:SetTexture(item_texture)
+            self.held_item_icon:Show()
+        else
+            self.held_item_icon:Hide()
+        end
+    end
+end
 
     if in_combat and not entering_combat then return end
 
@@ -839,6 +873,9 @@ function MenuFrame:__constructor(frame, modal)
     --         for actions which run secure code (attempting to do so will
     --         trigger a taint error), since repeats are handled by
     --         user-side logic.
+    --    - cursor_show_item: If true, an item held by the game cursor
+    --         (as indicated by GetCursorInfo()) will be displayed next to
+    --         the cursor image.
     --    - cursor_type: Sets the cursor type for this target, one of:
     --         - "default" (or nil): Default bouncing finger pointer.
     --         - "static": Unmoving finger pointer.
@@ -954,6 +991,11 @@ end
 function MenuFrame:HasActionButton(button)
     assert(button == "Button3" or button == "Button4")
     return self["has_"..button]
+end
+
+-- Return whether a held-item icon should be displayed with the cursor.
+function MenuFrame:IsCursorShowItem()
+    return self.cursor_show_item
 end
 
 -- Return the frame's default cursor target, or nil if none.
