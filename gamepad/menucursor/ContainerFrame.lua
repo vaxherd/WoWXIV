@@ -26,6 +26,20 @@ local ItemSubmenu = class(Frame)
 -- Utility routines
 ---------------------------------------------------------------------------
 
+-- Sell an item to a merchant.
+local function SellItem(bag, slot, info)
+    ClearCursor()
+    assert(not GetCursorInfo())
+    if info.isLocked then
+        WoWXIV.Error("Item is locked.")
+        return
+    end
+    C_Container.PickupContainerItem(bag, slot)
+    local cursor_type, _, cursor_link = GetCursorInfo()
+    assert(cursor_type == "item" and cursor_link == info.hyperlink)
+    SellCursorItem()
+end
+
 -- Send an item (identified by ItemLocation) to the auction house, and
 -- focus the auction house sell frame if it's already visible.  (If it's
 -- not visible, it will be imminently Show()n and the manu handler will
@@ -145,8 +159,14 @@ function ContainerFrameHandler:ClickItem()
     local bag = item:GetBagID()
     local slot = item:GetID()
     local item_loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
+    local info = C_Container.GetContainerItemInfo(bag, slot)
 
-    if AuctionHouseFrame and AuctionHouseFrame:IsShown() then
+    if MerchantFrame:IsShown() then
+        -- See notes at ItemSubmenu:ConfigureForItem().
+        if C_MerchantFrame.IsSellAllJunkEnabled() then
+            SellItem(bag, slot, info)
+        end
+    elseif AuctionHouseFrame and AuctionHouseFrame:IsShown() then
         if C_AuctionHouse.IsSellItemValid(item_loc, false) then
             SendToAuctionHouse(item_loc)
         end
@@ -206,6 +226,10 @@ function ItemSubmenu:__constructor()
     self.menuitem_equip:SetAttribute("type", "item")
     self.menuitem_use = ItemSubmenuButton(self, "Use", true)
     self.menuitem_use:SetAttribute("type", "item")
+
+    self.menuitem_sell = ItemSubmenuButton(self, "Sell", false)
+    self.menuitem_sell.ExecuteInsecure =
+        function(item, info) self:DoSell(item, info) end
 
     self.menuitem_auction = ItemSubmenuButton(self, "Auction", false)
     self.menuitem_auction.ExecuteInsecure =
@@ -301,6 +325,20 @@ function ItemSubmenu:ConfigureForItem()
         self:AppendButton(self.menuitem_use)
     end
 
+    if MerchantFrame:IsShown() then
+        -- Assuming this tracks the "does merchant accept selling" state
+        -- (e.g. can't sell to delve repair points).
+        if C_MerchantFrame.IsSellAllJunkEnabled() then
+            self:AppendButton(self.menuitem_sell)
+            -- Generally speaking, hasNoValue tracks sellPrice==0 from
+            -- C_Item.GetItemInfo() (return index 11), but in a few cases
+            -- hasNoValue is used to indicate items which might someday
+            -- become sellable but are restricted, like current season
+            -- crafting sparks or the BfA corruption cloak Ashjra'kamas.
+            self.menuitem_sell:SetEnabled(not info.hasNoValue)
+        end
+    end
+
     if AuctionHouseFrame and AuctionHouseFrame:IsShown() then
         if C_AuctionHouse.IsSellItemValid(self.item_loc, false) then
             self:AppendButton(self.menuitem_auction)
@@ -369,6 +407,12 @@ end
 
 
 -------- Individual menu option handlers
+
+function ItemSubmenu:DoSell(item, info)
+    local bag = item:GetBagID()
+    local slot = item:GetID()
+    SellItem(bag, slot, info)
+end
 
 function ItemSubmenu:DoAuction(item, info)
     local bag = item:GetBagID()
@@ -551,7 +595,7 @@ end
 
 function ItemSubmenuButton:SetEnabled(enabled)
     Button.SetEnabled(self, enabled)
-    label:SetTextColor(
+    self.label:SetTextColor(
         (enabled and WHITE_FONT_COLOR or GRAY_FONT_COLOR):GetRGB())
 end
 -- Ensure all enable changes go through SetEnabled() to update the text color.
