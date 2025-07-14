@@ -35,7 +35,9 @@ local function FindInventorySlot(info)
         for bag_id = 0, NUM_TOTAL_BAG_FRAMES do
             for i = 1, C_Container.GetContainerNumSlots(bag_id) do
                 local slot_info = C_Container.GetContainerItemInfo(bag_id, i)
-                if slot_info and info.stackCount + slot_info.stackCount < max_count then
+                if slot_info and slot_info.itemID == info.itemID
+                and info.stackCount + slot_info.stackCount < max_stack
+                then
                     if not slot_info.isLocked then
                         return bag_id, i
                     end
