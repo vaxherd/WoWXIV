@@ -10,12 +10,6 @@ local strformat = string.format
 local strsub = string.sub
 local tinsert = tinsert
 
--- This is named like a global function but turns out to be local...
-local function ContainerFrame_IsHeldBag(id)
-    local NUM_TOTAL_BAG_FRAMES = Constants.InventoryConstants.NumBagSlots + Constants.InventoryConstants.NumReagentBagSlots  -- Also only defined locally.
-    return id >= Enum.BagIndex.Backpack and id <= NUM_TOTAL_BAG_FRAMES
-end
-
 -- Class implementing the item submenu for inventory items.  We roll our
 -- own rather than using the standard DropdownMenuButton so we can include
 -- secure buttons to perform use/disenchant/etc actions.
@@ -165,7 +159,7 @@ function ContainerFrameHandler:__constructor()
     self.bag_frames = {ContainerFrameCombinedBags}
     local i = 1
     local function Container(i) return _G["ContainerFrame"..i] end
-    while Container(i) and ContainerFrame_IsHeldBag(Container(i):GetBagID()) do
+    while Container(i) do
         tinsert(self.bag_frames, Container(i))
         i = i+1
     end
@@ -348,7 +342,13 @@ function ContainerFrameHandler:ClickItem()
             SendToAuctionHouse(item_loc)
         end
     elseif BankFrame and BankFrame:IsShown() then
-        SendToBank(bag, slot, info)
+        -- The mouse default is SendToBank, but that's a bit awkward
+        -- when extended bank bags appear as ContainerFrames.
+        -- Stick with PickupContainerItem for now, and revisit if
+        -- the character bank interface is ever changed to match the
+        -- new (tabbed) account bank UI.
+        --SendToBank(bag, slot, info)
+        C_Container.PickupContainerItem(bag, slot)
     elseif MerchantFrame and MerchantFrame:IsShown() then
         -- See notes at InventoryItemSubmenu:ConfigureForItem().
         if C_MerchantFrame.IsSellAllJunkEnabled() then
