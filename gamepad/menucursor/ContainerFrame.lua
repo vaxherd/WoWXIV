@@ -176,6 +176,14 @@ function ContainerFrameHandler:OnCancel()
         ClearCursor()
     else
         CloseAllBags(nil)
+        -- Also close any frames which might have opened bags for us.
+        HideUIPanel(AuctionHouseFrame)
+        HideUIPanel(BankFrame)
+        HideUIPanel(ItemInteractionFrame)
+        HideUIPanel(ItemUpgradeFrame)
+        HideUIPanel(MailFrame)
+        HideUIPanel(MerchantFrame)
+        HideUIPanel(ScrappingMachineFrame)
     end
 end
 
