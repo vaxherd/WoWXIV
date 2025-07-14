@@ -13,6 +13,7 @@ local tinsert = tinsert
 local cache_SellDurationDropdown = {}
 
 local AuctionHouseFrameHandler = class(MenuFrame)
+MenuCursor.AuctionHouseFrameHandler = AuctionHouseFrameHandler  -- For exports.
 MenuCursor.Cursor.RegisterFrameHandler(AuctionHouseFrameHandler)
 local BuyTabHandler = class(StandardMenuFrame)
 local ItemBuyFrameHandler = class(StandardMenuFrame)
@@ -476,7 +477,7 @@ function SellTabHandler:OnShow(frame)
     StandardMenuFrame.OnShow(self)
 end
 
-function SellTabHandler:OnHide()
+function SellTabHandler:OnHide(frame)
     self.quantity_input:CancelEdit()
     self.gold_input_i:CancelEdit()
     self.silver_input_i:CancelEdit()
@@ -688,4 +689,19 @@ function AuctionsTabHandler:OnAction(button)
     assert(button == "Button3")
     local button = self.frame.AllAuctionsList.RefreshFrame.RefreshButton
     button:GetScript("OnClick")(button, "LeftButton", true)
+end
+
+---------------------------------------------------------------------------
+
+-- Exported function, called by ContainerFrame.  Focuses whichever sell
+-- frame is visible, if any.
+function AuctionHouseFrameHandler.FocusSellFrame()
+    local frames = {AuctionHouseFrame.ItemSellFrame,
+                    AuctionHouseFrame.CommoditiesSellFrame}
+    for _, frame in ipairs(frames) do
+        if frame:IsVisible() then
+            AuctionHouseFrameHandler.instance_SellTab:OnShow(frame)
+            return
+        end
+    end
 end

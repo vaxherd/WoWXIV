@@ -23,6 +23,21 @@ end
 local ItemSubmenu = class(Frame)
 
 ---------------------------------------------------------------------------
+-- Utility routines
+---------------------------------------------------------------------------
+
+-- Send an item (identified by ItemLocation) to the auction house, and
+-- focus the auction house sell frame if it's already visible.  (If it's
+-- not visible, it will be imminently Show()n and the manu handler will
+-- focus it at that point.)
+local function SendToAuctionHouse(item_loc)
+    AuctionHouseFrame:SetPostItem(item_loc)
+    MenuCursor.AuctionHouseFrameHandler.FocusSellFrame()
+end
+
+---------------------------------------------------------------------------
+-- Menu handler for ContainerFrames
+---------------------------------------------------------------------------
 
 local ContainerFrameHandler = class(MenuCursor.MenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(ContainerFrameHandler)
@@ -101,7 +116,8 @@ function ContainerFrameHandler:SetTargets()
     local cur_target, cur_frame
     for _, frame in ipairs(self.bag_frames) do
         for _, item in frame:EnumerateItems() do
-            self.targets[item] = {frame = frame, send_enter_leave = true}
+            self.targets[item] = {frame = frame, send_enter_leave = true,
+                                  on_click = function() self:ClickItem() end}
             if item:GetBagID() == self.current_bag and item:GetID() == self.current_slot then
                 cur_target = item
                 cur_frame = frame
@@ -121,6 +137,19 @@ function ContainerFrameHandler:EnterTarget(target)
         MenuCursor.MenuFrame.EnterTarget(self, target)
     else
         RunNextFrame(function() self:EnterTarget(target) end)
+    end
+end
+
+function ContainerFrameHandler:ClickItem()
+    local item = self:GetTarget()
+    local bag = item:GetBagID()
+    local slot = item:GetID()
+    local item_loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
+
+    if AuctionHouseFrame:IsShown() then
+        if C_AuctionHouse.IsSellItemValid(item_loc, false) then
+            SendToAuctionHouse(item_loc)
+        end
     end
 end
 
@@ -147,6 +176,9 @@ function ItemSubmenuHandler:SetTargets()
     return initial
 end
 
+
+---------------------------------------------------------------------------
+-- Item submenu implementation
 ---------------------------------------------------------------------------
 
 local ItemSubmenuButton = class(Button)
@@ -341,7 +373,7 @@ end
 function ItemSubmenu:DoAuction(item, info)
     local bag = item:GetBagID()
     local slot = item:GetID()
-    AuctionHouseFrame:SetPostItem(ItemLocation:CreateFromBagAndSlot(bag, slot))
+    SendToAuctionHouse(ItemLocation:CreateFromBagAndSlot(bag, slot))
 end
 
 function ItemSubmenu:DoSplitStack(item, info)
@@ -487,7 +519,9 @@ function ItemSubmenu:DoDiscardConfirm(bag, slot, link)
 end
 
 
--------- Menu item implementation
+---------------------------------------------------------------------------
+-- Item submenu menu item (button) implementation
+---------------------------------------------------------------------------
 
 function ItemSubmenuButton:__allocator(parent, text, secure)
     if secure then

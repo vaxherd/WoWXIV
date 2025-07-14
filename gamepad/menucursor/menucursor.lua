@@ -176,17 +176,20 @@ end
 -- Add the given frame (a MenuFrame instance) to the focus stack, set its
 -- current target to the given input element, and optionally set the menu
 -- cursor focus to that frame.
--- |target| sets the initial target element for the frame.  If the frame
--- is already in the focus stack, its target is changed to that element.
--- If nil, the initial input element for a newly added frame is chosen by
--- calling the frame's GetDefaultTarget() method, and no change is made if
--- the frame is already in the focus stack.
+--
 -- If |modal| is true, the frame becomes a modal frame, blocking menu
 -- cursor input to any other frame until it is removed.
+--
+-- |target| sets the initial target for the frame.  If the frame is
+-- already in the focus stack, its target is changed to that element.
+-- If nil, the initial target is chosen by calling the frame's
+-- GetDefaultTarget() method, but no change is made if the frame is
+-- already in the focus stack and has a (non-nil) target.
+--
 -- If |focus| is true, the frame is added to the top of its focus stack,
 -- or moved there if it is already in the stack; otherwise, if it is not
 -- already in the stack, it is added to the bottom.
-function Cursor:AddFrame(frame, target, modal, focus)
+function Cursor:AddFrame(frame, modal, target, focus)
     local other_stack = modal and self.focus_stack or self.modal_stack
     for _, v in ipairs(other_stack) do
         if v and v[1] == frame then
@@ -201,9 +204,12 @@ function Cursor:AddFrame(frame, target, modal, focus)
         if v and v[1] == frame then
             if i == #stack or not focus then
                 -- Frame is not changing position in the stack, so just
-                -- change the target.
+                -- change the target if appropriate.
+                if not target and not v[2] then
+                    target = frame:GetDefaultTarget()
+                end
                 if target then
-                    self:SetTargetForFrame(target)
+                    self:SetTargetForFrame(frame, target)
                 end
                 return
             end
@@ -1354,14 +1360,14 @@ end
 -- Enable cursor input for this frame, and set it as the input focus.  If
 -- initial_target is not nil, the cursor target will be set to that target.
 function MenuFrame:Enable(initial_target)
-    global_cursor:AddFrame(self, initial_target, self.modal, true)
+    global_cursor:AddFrame(self, self.modal, initial_target, true)
 end
 
 -- Enable cursor input for this frame, but do not set it as the input focus
 -- unless there is currently no frame focused.  If initial_target is not
 -- nil, the frame's current cursor target will be set to that target.
 function MenuFrame:EnableBackground(initial_target)
-    global_cursor:AddFrame(self, initial_target, self.modal, false)
+    global_cursor:AddFrame(self, self.modal, initial_target, false)
 end
 
 -- Disable cursor input for this frame.
