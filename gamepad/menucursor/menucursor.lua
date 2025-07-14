@@ -253,7 +253,10 @@ function Cursor:AddFrame(frame, modal, target, focus)
     else
         assert(not found)  -- Must be the case when not focusing.
         target = target or frame:GetDefaultTarget()
-        tinsert(stack, 1, {frame, target})
+        -- Don't put it underneath the no-input entry if that entry is
+        -- on the bottom of the stack
+        local index = stack[1] and 1 or 2
+        tinsert(stack, index, {frame, target})
         frame:ScrollToTarget(target)
     end
 end
