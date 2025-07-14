@@ -161,14 +161,14 @@ function ContainerFrameHandler:ClickItem()
     local item_loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
     local info = C_Container.GetContainerItemInfo(bag, slot)
 
-    if MerchantFrame:IsShown() then
+    if AuctionHouseFrame and AuctionHouseFrame:IsShown() then
+        if C_AuctionHouse.IsSellItemValid(item_loc, false) then
+            SendToAuctionHouse(item_loc)
+        end
+    elseif MerchantFrame and MerchantFrame:IsShown() then
         -- See notes at ItemSubmenu:ConfigureForItem().
         if C_MerchantFrame.IsSellAllJunkEnabled() then
             SellItem(bag, slot, info)
-        end
-    elseif AuctionHouseFrame and AuctionHouseFrame:IsShown() then
-        if C_AuctionHouse.IsSellItemValid(item_loc, false) then
-            SendToAuctionHouse(item_loc)
         end
     end
 end
@@ -319,13 +319,12 @@ function ItemSubmenu:ConfigureForItem()
     local info = C_Container.GetContainerItemInfo(bag, slot)
     local class = select(12, C_Item.GetItemInfo(guid))
 
-    if C_Item.IsEquippableItem(guid) then
-        self:AppendButton(self.menuitem_equip)
-    elseif C_Item.IsUsableItem(guid) or info.hasLoot or info.isReadable then
-        self:AppendButton(self.menuitem_use)
-    end
+    if AuctionHouseFrame and AuctionHouseFrame:IsShown() then
+        if C_AuctionHouse.IsSellItemValid(self.item_loc, false) then
+            self:AppendButton(self.menuitem_auction)
+        end
 
-    if MerchantFrame:IsShown() then
+    elseif MerchantFrame and MerchantFrame:IsShown() then
         -- Assuming this tracks the "does merchant accept selling" state
         -- (e.g. can't sell to delve repair points).
         if C_MerchantFrame.IsSellAllJunkEnabled() then
@@ -337,11 +336,15 @@ function ItemSubmenu:ConfigureForItem()
             -- crafting sparks or the BfA corruption cloak Ashjra'kamas.
             self.menuitem_sell:SetEnabled(not info.hasNoValue)
         end
-    end
 
-    if AuctionHouseFrame and AuctionHouseFrame:IsShown() then
-        if C_AuctionHouse.IsSellItemValid(self.item_loc, false) then
-            self:AppendButton(self.menuitem_auction)
+    else
+        -- Don't show Equip/Use while at a special location because those
+        -- may cause the "default behavior" invoked by those commands to
+        -- do something different.
+        if C_Item.IsEquippableItem(guid) then
+            self:AppendButton(self.menuitem_equip)
+        elseif C_Item.IsUsableItem(guid) or info.hasLoot or info.isReadable then
+            self:AppendButton(self.menuitem_use)
         end
     end
 
