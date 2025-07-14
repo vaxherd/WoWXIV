@@ -147,19 +147,21 @@ function ContainerFrameHandler.Initialize(class, cursor)
 end
 
 function ContainerFrameHandler:__constructor()
-    -- In order to implement cursor movement across multiple bag frames,
-    -- we deliberately pass a nil frame reference to the base constructor
-    -- and manage self.frame on our own.
+    -- In order to implement page swapping across multiple bag frames, we
+    -- deliberately pass a nil frame reference to the base constructor and
+    -- manage self.frame on our own.
     self:__super(nil)
     self.cursor_show_item = true
     self.cancel_func = self.OnCancel
     self.has_Button4 = true  -- Used to display item operation submenu.
+    self.on_prev_page = function() self:CycleBag(-1) end
+    self.on_next_page = function() self:CycleBag(1) end
 
     -- Currently selected item slot's bag and slot index.
     self.current_bag = nil
     self.current_slot = nil
 
-    -- List of all bag-type container frames.
+    -- List of all bag-type container frames, in page-cycle order.
     self.bag_frames = {ContainerFrameCombinedBags}
     local i = 1
     local function Container(i) return _G["ContainerFrame"..i] end
@@ -170,6 +172,9 @@ function ContainerFrameHandler:__constructor()
     for _, frame in ipairs(self.bag_frames) do
         self:HookShow(frame)
     end
+
+    -- Ordered list of item buttons in the current bag.
+    self.items = {}
 end
 
 function ContainerFrameHandler:OnCancel()
@@ -206,42 +211,118 @@ function ContainerFrameHandler:OnHide(frame)
                 break
             end
         end
-        if not self.current_bag then
+        if self.current_bag then
+            self:SetTarget(nil)
+            local target, frame = self:SetTargets()
+            self.frame = frame
+            self:SetTarget(target)
+        else
             self.current_slot = nil
             self:Disable()
         end
     end
 end
 
+function ContainerFrameHandler:CycleBag(direction)
+    local new_index = 1
+    for i, frame in ipairs(self.bag_frames) do
+        if frame == self.frame then
+            -- Tough decision here: do we cycle in bag order (bottom up)
+            -- or natural reading order (top down)?  For now, we'll go
+            -- with top down.
+            direction = -direction
+            new_index = i + direction
+            while new_index ~= i do
+                if new_index < 1 then new_index = #self.bag_frames end
+                if new_index > #self.bag_frames then new_index = 1 end
+                if self.bag_frames[new_index]:IsShown() then break end
+                new_index = new_index + direction
+            end
+            break
+        end
+    end
+    local frame = self.bag_frames[new_index]
+    self.current_bag = frame:GetBagID()
+    self:SetTarget(nil)
+    self.frame = frame
+    local target, frame_check = self:SetTargets()
+    if target then
+        assert(frame_check == frame)
+    else
+        -- The new bag doesn't have as many slots as the previous one.
+        -- Select the last slot, but don't update current_slot yet
+        -- so we can stay at a later slot while cycling through a
+        -- smaller bag.  (We update current_slot in OnMove() and not
+        -- EnterTarget() to allow this behavior.)
+        target = self.items[#self.items]
+    end
+    self:SetTarget(target)
+end
+
 -- Returns the frame owning the current target as a second return value.
 function ContainerFrameHandler:SetTargets()
     self.targets = {}
+    self.items = {}
     local cur_target, cur_frame
     for _, frame in ipairs(self.bag_frames) do
-        for _, item in frame:EnumerateItems() do
-            self.targets[item] = {
-                frame = frame, send_enter_leave = true, lock_highlight = true,
-                on_click = function() self:ClickItem() end}
-            if item:GetBagID() == self.current_bag and item:GetID() == self.current_slot then
-                cur_target = item
-                cur_frame = frame
+        if frame:IsShown() and frame:GetBagID() == self.current_bag then
+            for _, item in frame:EnumerateItems() do
+                if item:IsExtended() then
+                    -- This is for the extra 4 backpack slots which are
+                    -- unlocked with 2FA.  We just ignore them if disabled.
+                else
+                    self.targets[item] = {
+                        send_enter_leave = true, lock_highlight = true,
+                        on_click = function() self:ClickItem() end}
+                    self.items[item:GetID()] = item
+                    if item:GetID() == self.current_slot then
+                        cur_target = item
+                        cur_frame = frame
+                    end
+                end
             end
+            local bag_size = C_Container.GetContainerNumSlots(self.current_bag)
+            assert(#self.items == bag_size)
+            -- Set directional movement.  We assume a fixed row size of 4.
+            local rowlen = 4
+            assert(#self.items >= rowlen)
+            local top_row_offset = (rowlen - (#self.items % rowlen)) % rowlen
+            local bottom_left = #self.items - 3
+            local function last_row(i)
+                return bottom_left + ((i-1 + top_row_offset) % 4)
+            end
+            local function first_row(i)
+                local col = i - bottom_left
+                return 1 + (col + (4 - top_row_offset)) % 4
+            end
+            for i, item in ipairs(self.items) do
+                self.targets[item].up = self.items[i>rowlen and i-rowlen
+                                                   or last_row(i)]
+                self.targets[item].down = self.items[i<bottom_left and i+rowlen
+                                                     or first_row(i)]
+                self.targets[item].left = self.items[i==1 and #self.items
+                                                     or i-1]
+                self.targets[item].right = self.items[i==#self.items and 1
+                                                      or i+1]
+            end
+            break
         end
     end
     return cur_target, cur_frame
 end
 
 function ContainerFrameHandler:EnterTarget(target)
-    local params = self.targets[target]
-    self.frame = params.frame
-    self.current_bag = target:GetBagID()
-    self.current_slot = target:GetID()
     -- Work around item button layout sometimes not completing immediately.
     if target:GetRight() then
         MenuCursor.MenuFrame.EnterTarget(self, target)
     else
         RunNextFrame(function() self:EnterTarget(target) end)
     end
+end
+
+function ContainerFrameHandler:OnMove(old_target, new_target)
+    local params = self.targets[new_target]
+    self.current_slot = new_target:GetID()
 end
 
 function ContainerFrameHandler:ClickItem()
@@ -318,13 +399,21 @@ function InventoryItemSubmenu:__constructor()
     -- Note that both of these are the same action because "item" resolves
     -- to either "equip" or "use" based on C_Item.IsEquippableItem() (see
     -- SECURE_ACTIONS.item in SecureTemplates.lua), which is the same test
-    -- we use for showing the "Equip" menu item in place of "Use".
+    -- we use for showing the "Equip" menu item in place of "Use".  "Open"
+    -- and "Read" are just aliases for "Use" we use for loot-type and
+    -- book-type items.
     self.menuitem_equip =
         WoWXIV.UI.ItemSubmenuButton(self, "Equip", true)
     self.menuitem_equip:SetAttribute("type", "item")
     self.menuitem_use =
         WoWXIV.UI.ItemSubmenuButton(self, "Use", true)
     self.menuitem_use:SetAttribute("type", "item")
+    self.menuitem_open =
+        WoWXIV.UI.ItemSubmenuButton(self, "Open", true)
+    self.menuitem_open:SetAttribute("type", "item")
+    self.menuitem_read =
+        WoWXIV.UI.ItemSubmenuButton(self, "Read", true)
+    self.menuitem_read:SetAttribute("type", "item")
 
     self.menuitem_sendtobank =
         WoWXIV.UI.ItemSubmenuButton(self, "Send to bank", false)
@@ -393,6 +482,10 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
         -- do something different.
         if C_Item.IsEquippableItem(guid) then
             self:AppendButton(self.menuitem_equip)
+        elseif info.hasLoot then
+            self:AppendButton(self.menuitem_open)
+        elseif info.isReadable then
+            self:AppendButton(self.menuitem_read)
         elseif C_Item.IsUsableItem(guid) or info.hasLoot or info.isReadable then
             self:AppendButton(self.menuitem_use)
         end
