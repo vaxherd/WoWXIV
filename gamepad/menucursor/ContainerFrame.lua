@@ -146,7 +146,7 @@ function ContainerFrameHandler:ClickItem()
     local slot = item:GetID()
     local item_loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
 
-    if AuctionHouseFrame:IsShown() then
+    if AuctionHouseFrame and AuctionHouseFrame:IsShown() then
         if C_AuctionHouse.IsSellItemValid(item_loc, false) then
             SendToAuctionHouse(item_loc)
         end
@@ -301,7 +301,7 @@ function ItemSubmenu:ConfigureForItem()
         self:AppendButton(self.menuitem_use)
     end
 
-    if AuctionHouseFrame:IsShown() then
+    if AuctionHouseFrame and AuctionHouseFrame:IsShown() then
         if C_AuctionHouse.IsSellItemValid(self.item_loc, false) then
             self:AppendButton(self.menuitem_auction)
         end
