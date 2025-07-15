@@ -379,6 +379,8 @@ function ContainerFrameHandler:ClickItem()
     elseif AuctionHouseFrame and AuctionHouseFrame:IsShown() then
         if C_AuctionHouse.IsSellItemValid(item_loc, false) then
             SendToAuctionHouse(item_loc)
+        else
+            WoWXIV.Error("You can't sell this item.")
         end
     elseif BankFrame and BankFrame:IsShown() then
         -- The mouse default is SendToBank, but that's a bit awkward
@@ -388,6 +390,14 @@ function ContainerFrameHandler:ClickItem()
         -- new (tabbed) account bank UI.
         --SendToBank(bag, slot, info)
         C_Container.PickupContainerItem(bag, slot)
+    elseif ItemUpgradeFrame and ItemUpgradeFrame:IsShown() then
+        if C_ItemUpgrade.CanUpgradeItem(item_loc) then
+            C_Container.PickupContainerItem(bag, slot)
+            C_ItemUpgrade.SetItemUpgradeFromCursorItem()
+            MenuCursor.ItemUpgradeFrameHandler.FocusUpgradeButton()
+        else
+            WoWXIV.Error("Item cannot be upgraded.")
+        end
     elseif MerchantFrame and MerchantFrame:IsShown() then
         -- See notes at InventoryItemSubmenu:ConfigureForItem().
         if C_MerchantFrame.IsSellAllJunkEnabled() then

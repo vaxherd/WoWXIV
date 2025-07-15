@@ -9,6 +9,7 @@ local class = WoWXIV.class
 local cache_ItemInfoDropdown = {}
 
 local ItemUpgradeFrameHandler = class(MenuCursor.AddOnMenuFrame)
+MenuCursor.ItemUpgradeFrameHandler = ItemUpgradeFrameHandler  -- for exports
 ItemUpgradeFrameHandler.ADDON_NAME = "Blizzard_ItemUpgradeUI"
 MenuCursor.Cursor.RegisterFrameHandler(ItemUpgradeFrameHandler)
 
@@ -112,4 +113,15 @@ function ItemUpgradeFrameHandler:OnAction(button)
     if self:GetTarget() == item_button then
         item_button:GetScript("OnClick")(item_button, "RightButton", true)
     end
+end
+
+---------------------------------------------------------------------------
+
+-- Give input focus to ItemUpgradeFrame and put the cursor on the "Upgrade"
+-- button.  The frame is assumed to be open.
+function ItemUpgradeFrameHandler.FocusUpgradeButton()
+    local instance = ItemUpgradeFrameHandler.instance
+    assert(instance:GetTarget())  -- i.e., the frame is open
+    instance:SetTarget(ItemUpgradeFrame.UpgradeButton)
+    instance:Focus()
 end
