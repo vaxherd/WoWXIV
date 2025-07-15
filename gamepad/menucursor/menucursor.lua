@@ -363,19 +363,6 @@ function Cursor:SendBlur()
     if focus then focus:OnBlur() end
 end
 
--- Set the menu cursor target for the currently focused frame.  If nil,
--- clears the current target.
-function Cursor:SetTarget(target)
-    local stack = self:InternalGetFocusStack()
-    local top = #stack
-    assert(not target or top > 0)
-    if top == 0 or target == stack[top][2] then return end
-    self:LeaveTarget()
-    stack[top][2] = target
-    self:EnterTarget()
-    self:UpdateCursor()
-end
-
 -- Call the enter-target callback for the currently active target, if any.
 -- Does nothing if the cursor is not currently shown.
 function Cursor:EnterTarget()
@@ -434,17 +421,38 @@ function Cursor:GetTargetForFrame(frame)
     return stack and stack[index][2] or nil
 end
 
--- Set the menu cursor target for a specific frame.  Equivalent to
--- SetTarget() if the frame is topmost on the focus stack; otherwise, sets
--- the input element to be activated next time that frame becomes topmost
--- on the stack.  Does nothing if the given frame is not on the focus stack.
+-- Set the menu cursor target for a specific frame.  If the frame is
+-- topmost on the focus stack, also sends the appropriate LeaveTarget()
+-- and EnterTarget() calls for the old and new targets.  Does nothing if
+-- the given frame is not on the focus stack.
 function Cursor:SetTargetForFrame(frame, target)
     local stack, index = self:InternalFindFrame(frame)
     if stack then
-        if stack == self:InternalGetFocusStack() and index == #stack then
-            self:SetTarget(target)
+        local is_focus =
+            stack == self:InternalGetFocusStack() and index == #stack
+        if target == stack[index][2] then
+            return  -- No change.
+        elseif is_focus and stack[index][2] then
+            -- We're changing the target of the focused frame, so send a
+            -- LeaveTarget() to the current target.  This could trigger a
+            -- change of input focus or even remove the current frame, so
+            -- we have to be careful here.
+            local entry = stack[index]
+            self:LeaveTarget()
+            entry[2] = nil
+            -- If something changed the current focus (so we end up
+            -- skipping the UpdateCursor() call below), that will itself
+            -- have triggered an UpdateCursor() call, so we don't need to
+            -- add an extra call for that case.
+            return self:SetTargetForFrame(frame, target)
         else
             stack[index][2] = target
+            if is_focus then
+                if target then
+                    self:EnterTarget()
+                end
+                self:UpdateCursor()
+            end
         end
     end
 end
@@ -470,14 +478,14 @@ function Cursor:UpdateCursor(in_combat)
         target_frame = focus:GetTargetFrame(target)
         if not target_frame and should_show and not self:IsShown() then
             -- The target might not have a frame only because it's
-            -- scrolled out of view and SetTarget() didn't scroll to it
-            -- because the cursor wasn't visible, so we resolve that
+            -- scrolled out of view and SetTargetForFrame() didn't scroll
+            -- to it because the cursor wasn't visible, so we resolve that
             -- chicken-and-egg problem here.
             focus:ScrollToTarget(target)
             target_frame = focus:GetTargetFrame(target)
         end
         if not target_frame then
-            self:SetTarget(nil)
+            self:SetTargetForFrame(focus, nil)
             target = nil
         end
     end
@@ -785,9 +793,13 @@ function Cursor:Move(dir)
     local focus, target = self:GetFocusAndTarget()
     local new_target = focus:NextTarget(target, dir)
     if new_target and new_target ~= target then
-        self:SetTarget(new_target)
-        if focus.OnMove then
-            focus:OnMove(target, new_target)
+        self:SetTargetForFrame(focus, new_target)
+        -- Check for the pathological case of the frame closing during
+        -- the movement (as in SetCursorForFrame()).
+        if self:InternalFindFrame(focus) then
+            if focus.OnMove then
+                focus:OnMove(target, new_target)
+            end
         end
     end
 end
