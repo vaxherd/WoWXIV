@@ -5,6 +5,7 @@ local CoreMenuFrame = MenuCursor.CoreMenuFrame
 
 local class = WoWXIV.class
 
+local abs = math.abs
 local function clamp(x, l, h)
     if x < l then return l elseif x > h then return h else return x end
 end
@@ -132,10 +133,26 @@ end
 
 function WorldMapFrameHandler:OnClickMap()
     local current_map = self.frame.mapID
-    local info = C_Map.GetMapInfoAtPosition(
-        current_map, self.cursor_x, self.cursor_y)
-    if info then
-        C_Map.OpenWorldMap(info.mapID)
+    local target_map
+    for _, info in ipairs(C_Map.GetMapLinksForMap(current_map)) do
+        -- We use a box instead of circle test since the icons are
+        -- generally more boxy than circular.
+        if abs(info.position.x - self.cursor_x) <= 0.03
+        and abs(info.position.y - self.cursor_y) <= 0.03
+        then
+            target_map = info.linkedUiMapID
+            break
+        end
+    end
+    if not target_map then
+        local info = C_Map.GetMapInfoAtPosition(
+            current_map, self.cursor_x, self.cursor_y)
+        if info then
+            target_map = info.mapID
+        end
+    end
+    if target_map then
+        C_Map.OpenWorldMap(target_map)
         self:PutCursorAtMapLinkOrCenter(current_map)
         self:UpdateCursorTarget()
     end
