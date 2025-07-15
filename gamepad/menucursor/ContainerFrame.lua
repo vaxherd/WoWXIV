@@ -390,6 +390,13 @@ function ContainerFrameHandler:ClickItem()
         -- new (tabbed) account bank UI.
         --SendToBank(bag, slot, info)
         C_Container.PickupContainerItem(bag, slot)
+    elseif ItemInteractionFrame and ItemInteractionFrame:IsShown() then
+        if C_Item.IsItemConvertibleAndValidForPlayer(item_loc) then
+            C_ItemInteraction.SetPendingItem(item_loc)
+            MenuCursor.ItemInteractionFrameHandler.FocusActionButton()
+        else
+            WoWXIV.Error("Invalid selection.")
+        end
     elseif ItemUpgradeFrame and ItemUpgradeFrame:IsShown() then
         if C_ItemUpgrade.CanUpgradeItem(item_loc) then
             C_Container.PickupContainerItem(bag, slot)

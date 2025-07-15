@@ -4,8 +4,6 @@ local MenuCursor = WoWXIV.Gamepad.MenuCursor
 
 local class = WoWXIV.class
 
--- FIXME: currently just a minimal implementation for use by ItemUpgradeFrame
-
 ---------------------------------------------------------------------------
 
 local cache_TokenFilterDropdown = {}
@@ -129,7 +127,16 @@ end
 
 function PaperDollFrameHandler:OnClickSlot(slot)
     if slot.itemContextMatchResult == ItemButtonUtil.ItemContextMatchResult.Match then
-        PaperDollItemSlotButton_OnClick(slot, "RightButton")
+        if ItemInteractionFrame:IsShown() then
+            -- Blizzard's own code fails to move a right-clicked item to
+            -- the interaction frame, so we work around that failure.
+            local name = PaperDollItemSlotButton_GetSlotName(slot)
+            local id = GetInventorySlotInfo(name)
+            local loc = ItemLocation:CreateFromEquipmentSlot(id)
+            C_ItemInteraction.SetPendingItem(loc)
+        else
+            PaperDollItemSlotButton_OnClick(slot, "RightButton")
+        end
         HideUIPanel(CharacterFrame)
     end
 end
@@ -479,8 +486,9 @@ end
 
 ---------------------------------------------------------------------------
 
--- Exported function, called by ItemUpgradeFrame.  (FIXME: this is a bit
--- sloppy, revisit when PaperDollFrame is more fully implemented)
+-- Exported function, called by ItemUpgradeFrame and ItemInteractionFrame.
+-- (FIXME: this is a bit sloppy, revisit when PaperDollFrame is more fully
+-- implemented)
 function CharacterFrameHandler.OpenForItemUpgrade()
     ToggleCharacter("PaperDollFrame", true)
     CharacterFrameHandler.instance_PaperDollFrame:Enable()  -- In case it was already open.
