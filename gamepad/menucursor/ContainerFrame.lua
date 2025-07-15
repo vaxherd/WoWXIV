@@ -10,6 +10,9 @@ local strformat = string.format
 local strsub = string.sub
 local tinsert = tinsert
 
+
+assert(WoWXIV.UI.ItemSubmenu)  -- Ensure proper load order.
+
 -- Class implementing the item submenu for inventory items.  We roll our
 -- own rather than using the standard DropdownMenuButton so we can include
 -- secure buttons to perform use/disenchant/etc actions.
@@ -123,12 +126,38 @@ local function SellItem(bag, slot, info)
     SellCursorItem()
 end
 
+-- Send an item to the BfA scrapping machine.
+local function SendToScrapper(bag, slot, info)
+    ClearCursor()
+    assert(not GetCursorInfo())
+    if info.isLocked then
+        WoWXIV.Error("Item is locked.")
+        return
+    end
+    local scrap_slot
+    for i = 0, 8 do
+        if not C_ScrappingMachineUI.GetCurrentPendingScrapItemLocationByIndex(i) then  -- whew, that's a mouthful
+            scrap_slot = i
+            break
+        end
+    end
+    if not scrap_slot then
+        WoWXIV.Error("The scrapper is full.")
+        return
+    end
+    C_Container.PickupContainerItem(bag, slot)
+    local cursor_type, _, cursor_link = GetCursorInfo()
+    assert(cursor_type == "item" and cursor_link == info.hyperlink)
+    C_ScrappingMachineUI.DropPendingScrapItemFromCursor(scrap_slot)
+end
+
 
 ---------------------------------------------------------------------------
 -- Menu handler for ContainerFrames
 ---------------------------------------------------------------------------
 
 local ContainerFrameHandler = class(MenuCursor.MenuFrame)
+MenuCursor.ContainerFrameHandler = ContainerFrameHandler  -- For exports.
 MenuCursor.Cursor.RegisterFrameHandler(ContainerFrameHandler)
 local InventoryItemSubmenuHandler = class(MenuCursor.StandardMenuFrame)
 
@@ -177,6 +206,8 @@ function ContainerFrameHandler:OnCancel()
     else
         CloseAllBags(nil)
         -- Also close any frames which might have opened bags for us.
+        -- Note that we don't have to check for nil (unloaded addons)
+        -- because HideUIPanel() is nil-safe.
         HideUIPanel(AuctionHouseFrame)
         HideUIPanel(BankFrame)
         HideUIPanel(ItemInteractionFrame)
@@ -362,6 +393,8 @@ function ContainerFrameHandler:ClickItem()
         if C_MerchantFrame.IsSellAllJunkEnabled() then
             SellItem(bag, slot, info)
         end
+    elseif ScrappingMachineFrame and ScrappingMachineFrame:IsShown() then
+        SendToScrapper(bag, slot, info)
     else
         C_Container.PickupContainerItem(bag, slot)
     end
@@ -613,4 +646,17 @@ function InventoryItemSubmenu:DoDiscardConfirm(bag, slot, link)
         return
     end
     DeleteCursorItem()
+end
+
+
+---------------------------------------------------------------------------
+-- Exported utility routines
+---------------------------------------------------------------------------
+
+-- Give input focus to ContainerFrameHandler if any container is open.
+function ContainerFrameHandler.FocusIfOpen()
+    local instance = ContainerFrameHandler.instance
+    if instance:GetTarget() then  -- will be non-nil iff a bag is open
+        instance:Focus()
+    end
 end

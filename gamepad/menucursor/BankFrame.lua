@@ -9,6 +9,9 @@ local strformat = string.format
 local strsub = string.sub
 local tinsert = tinsert
 
+
+assert(WoWXIV.UI.ItemSubmenu)  -- Ensure proper load order.
+
 local BankItemSubmenu = class(WoWXIV.UI.ItemSubmenu)
 
 
