@@ -198,13 +198,17 @@ function GamePadListener:OnGamePadStick(stick, x, y)
         OpenMailScrollFrame,
         QuestDetailScrollFrame,
         QuestRewardScrollFrame,
+        "ItemSocketingScrollFrame",
     }
     local SCROLLBOX_FRAMES = {  -- WowScrollBoxList
         GossipFrame.GreetingPanel.ScrollBox,
     }
     local scroll_frame, scroll_current, scroll_SetScroll
     for _, frame in ipairs(SCROLL_FRAMES) do
-        if frame:IsVisible() then
+        if type(frame) == "string" then
+            frame = _G[frame]
+        end
+        if frame and frame:IsVisible() then
             -- Avoid locking the camera stick on unscrollable text,
             -- including when effectively unscrollable but floating point
             -- error returns a tiny nonzero value here.

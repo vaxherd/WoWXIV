@@ -57,6 +57,7 @@ gamepad/menucursor/GenericTraitFrame.lua
 gamepad/menucursor/GossipFrame.lua
 gamepad/menucursor/InboxFrame.lua
 gamepad/menucursor/ItemInteractionFrame.lua
+gamepad/menucursor/ItemSocketingFrame.lua
 gamepad/menucursor/ItemUpgradeFrame.lua
 gamepad/menucursor/LFGDungeonReadyDialog.lua
 gamepad/menucursor/LFGListApplicationDialog.lua

@@ -151,6 +151,66 @@ local function SendToScrapper(bag, slot, info)
     C_ScrappingMachineUI.DropPendingScrapItemFromCursor(scrap_slot)
 end
 
+-- Send an item to a socket in the socketing interface.
+-- If the item with the sockets has multiple sockets open, the first
+-- free socket is chosen.  As a special case, for Circe's Circlet
+-- (three sockets each requiring a different gem type), gems are sent
+-- to the proper socket for that gem's type.
+-- Unfortunately, there doesn't seem to be any way to get the subtype
+-- of a nonstandard gem like the Singing Citrines, so we have to make
+-- our own item list...
+local GEM_TYPES = {
+    [228634] = "SingingThunder",  -- Thunderlord's Crackling Citrine
+    [228635] = "SingingWind",     -- Squall Sailor's Citrine
+    [228636] = "SingingSea",      -- Undersea Overseer's Citrine
+    [228638] = "SingingThunder",  -- Stormbringer's Runed Citrine
+    [228639] = "SingingSea",      -- Fathomdweller's Runed Citrine
+    [228640] = "SingingWind",     -- Windsinger's Runed Citrine
+    [228642] = "SingingThunder",  -- Storm Sewer's Citrine
+    [228643] = "SingingWind",     -- Old Salt's Bardic Citrine
+    [228644] = "SingingSea",      -- Mariner's Hallowed Citrine
+    [228646] = "SingingWind",     -- Legendary Skipper's Citrine
+    [228647] = "SingingSea",      -- Seabed Leviathan's Citrine
+    [228648] = "SingingThunder",  -- Roaring War-Queen's Citrine
+}
+local function SendToSocket(bag, slot, info)
+    ClearCursor()
+    assert(not GetCursorInfo())
+    if info.isLocked then
+        WoWXIV.Error("Item is locked.")
+        return
+    end
+    -- Find the first empty slot.  Gem removals (on supported items) are
+    -- always immediately applied, so we don't have to worry about the
+    -- case of a pending removal.
+    for i = 1, GetNumSockets() do
+        local current = GetExistingSocketInfo(i)
+        local pending = GetNewSocketInfo(i)
+        if not current and not pending then
+            local reject
+            local type = GetSocketTypes(i)
+            if type and strsub(type, 1, 7) == "Singing" then
+                if GEM_TYPES[info.itemID] ~= type then reject = true end
+            end
+            if not reject then
+                C_Container.PickupContainerItem(bag, slot)
+                local cursor_type, _, cursor_link = GetCursorInfo()
+                assert(cursor_type == "item" and cursor_link == info.hyperlink)
+                ClickSocketButton(i)
+                ClearCursor()  -- Looks like we have to do this manually.
+                return
+            end
+        end
+    end
+    local error
+    if GetNumSockets() > 1 then
+        error = "No empty sockets available."
+    else
+        error = "The socket is already filled."
+    end
+    WoWXIV.Error(error)
+end
+
 
 ---------------------------------------------------------------------------
 -- Menu handler for ContainerFrames
@@ -473,20 +533,27 @@ function InventoryItemSubmenu:__constructor()
         WoWXIV.UI.ItemSubmenuButton(self, "Read", true)
     self.menuitem_read:SetAttribute("type", "item")
 
+    self.menuitem_auction =
+        WoWXIV.UI.ItemSubmenuButton(self, "Auction", false)
+    self.menuitem_auction.ExecuteInsecure =
+        function(bag, slot, info)
+            SendToAuctionHouse(ItemLocation:CreateFromBagAndSlot(bag, slot))
+        end
+
     self.menuitem_sendtobank =
         WoWXIV.UI.ItemSubmenuButton(self, "Send to bank", false)
     self.menuitem_sendtobank.ExecuteInsecure =
-        function(bag, slot, info) self:DoSendToBank(bag, slot, info) end
+        function(bag, slot, info) SendToBank(bag, slot, info) end
 
     self.menuitem_sell =
         WoWXIV.UI.ItemSubmenuButton(self, "Sell", false)
     self.menuitem_sell.ExecuteInsecure =
-        function(bag, slot, info) self:DoSell(bag, slot, info) end
+        function(bag, slot, info) SellItem(bag, slot, info) end
 
-    self.menuitem_auction =
-        WoWXIV.UI.ItemSubmenuButton(self, "Auction", false)
-    self.menuitem_auction.ExecuteInsecure =
-        function(bag, slot, info) self:DoAuction(bag, slot, info) end
+    self.menuitem_socket =
+        WoWXIV.UI.ItemSubmenuButton(self, "Socket", false)
+    self.menuitem_socket.ExecuteInsecure =
+        function(bag, slot, info) SendToSocket(bag, slot, info) end
 
     self.menuitem_disenchant =
         WoWXIV.UI.ItemSubmenuButton(self, "Disenchant", true)
@@ -534,6 +601,11 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
             self.menuitem_sell:SetEnabled(not info.hasNoValue)
         end
 
+    elseif ItemSocketingFrame and ItemSocketingFrame:IsShown() then
+        if class == Enum.ItemClass.Gem then
+            self:AppendButton(self.menuitem_socket)
+        end
+
     else
         -- Don't show Equip/Use while at a special location because those
         -- may cause the "default behavior" invoked by those commands to
@@ -570,18 +642,6 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
 end
 
 -------- Individual menu option handlers
-
-function InventoryItemSubmenu:DoSendToBank(bag, slot, info)
-    SendToBank(bag, slot, info)
-end
-
-function InventoryItemSubmenu:DoSell(bag, slot, info)
-    SellItem(bag, slot, info)
-end
-
-function InventoryItemSubmenu:DoAuction(bag, slot, info)
-    SendToAuctionHouse(ItemLocation:CreateFromBagAndSlot(bag, slot))
-end
 
 function InventoryItemSubmenu:DoSplitStack(bag, slot, info, item_button)
     if info.stackCount <= 1 then return end
