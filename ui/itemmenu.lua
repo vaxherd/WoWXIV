@@ -18,8 +18,8 @@ function ItemSubmenu:__allocator()
 end
 
 function ItemSubmenu:__constructor()
-    self.BORDER = 4  -- Inset from frame edge to menu items.
     self.MIN_EDGE = 4  -- Don't get closer than this to the screen edge.
+    self.SPACING = 1   -- Vertical spacing between buttons.
     self.buttons = {}  -- List of buttons currently shown in the layout.
 
     self:Hide()
@@ -33,8 +33,9 @@ function ItemSubmenu:__constructor()
     end)
 
     self.background = self:CreateTexture(nil, "BACKGROUND")
-    self.background:SetAllPoints()
-    self.background:SetColorTexture(0, 0, 0)
+    self.background:SetPoint("TOPLEFT", -14, 11)
+    self.background:SetPoint("BOTTOMRIGHT", 14, -17)
+    self.background:SetAtlas("common-dropdown-bg")
 end
 
 -- Takes both the button itself and the bag/slot location parameters to
@@ -98,14 +99,14 @@ function ItemSubmenu:AppendLayout(element)
     if self.layout_prev then
         target = self.layout_prev
         ref = "BOTTOM"
-        offset = 0
+        offset = -self.SPACING
     else
         target = self
         ref = "TOP"
-        offset = self.BORDER
+        offset = 0
     end
     element:ClearAllPoints()
-    element:SetPoint("TOPLEFT", target, ref.."LEFT", offset, -offset)
+    element:SetPoint("TOPLEFT", target, ref.."LEFT", 0, offset)
     self.layout_width = max(self.layout_width, element:GetWidth())
     self.layout_height = self.layout_height + element:GetHeight()
     self.layout_prev = element
@@ -119,8 +120,7 @@ function ItemSubmenu:AppendButton(button)
 end
 
 function ItemSubmenu:FinishLayout()
-    self:SetSize(self.layout_width + 2*self.BORDER,
-                 self.layout_height + 2*self.BORDER)
+    self:SetSize(self.layout_width, self.layout_height)
     self.layout_prev = nil
 end
 
