@@ -327,6 +327,14 @@ end
 
 function BankFrameHandler:ClickItem()
     local _, bag, slot = self:GetTargetItem()
+    if not ItemLocation:CreateFromBagAndSlot(bag, slot):IsValid() then
+        -- Slot is empty, but allow the click anyway if the cursor is
+        -- holding something (it might be an item the player is trying
+        -- to drop).
+        if not GetCursorInfo() then
+            return
+        end
+    end
     C_Container.PickupContainerItem(bag, slot)
 end
 

@@ -449,6 +449,8 @@ function ContainerFrameHandler:ClickItem()
         -- the held item, so we rely on the game itself to handle errors
         -- in this case.
         C_Container.PickupContainerItem(bag, slot)
+    elseif not info then
+        return  -- Slot is empty.
     elseif info.isLocked then
         WoWXIV.Error("Item is locked.")
     elseif AuctionHouseFrame and AuctionHouseFrame:IsShown() then
