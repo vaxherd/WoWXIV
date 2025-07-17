@@ -94,6 +94,7 @@ end
 ---------------------------------------------------------------------------
 
 local BankFrameHandler = class(MenuCursor.StandardMenuFrame)
+MenuCursor.BankFrameHandler = BankFrameHandler  -- For exports.
 MenuCursor.Cursor.RegisterFrameHandler(BankFrameHandler)
 local BankItemSubmenuHandler = class(MenuCursor.StandardMenuFrame)
 
@@ -536,4 +537,16 @@ function BankItemSubmenu:DoDiscardConfirm(bag, slot, link)
         return
     end
     DeleteCursorItem()
+end
+
+
+---------------------------------------------------------------------------
+-- Exported functions
+---------------------------------------------------------------------------
+
+-- Open the bank item submenu for the given item button.  The bank frame
+-- is assumed to be open.  Used by ContainerFrame for bank bags (hopefully
+-- Blizzard moves those into the bank UI at some point).
+function BankFrameHandler.OpenBankItemSubmenu(item_button, bag, slot)
+    BankFrameHandler.instance.item_submenu:Open(item_button, bag, slot)
 end

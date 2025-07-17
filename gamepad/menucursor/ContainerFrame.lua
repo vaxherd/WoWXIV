@@ -495,7 +495,12 @@ function ContainerFrameHandler:OnAction(button)
     if InCombatLockdown() then return end
     if GetCursorInfo() then return end
     local item = self:GetTarget()
-    self.item_submenu:Open(item, item:GetBagID(), item:GetID())
+    local bag, slot = item:GetBagID(), item:GetID()
+    if bag >= Enum.BagIndex.BankBag_1 then
+        MenuCursor.BankFrameHandler.OpenBankItemSubmenu(item, bag, slot)
+    else
+        self.item_submenu:Open(item, bag, slot)
+    end
 end
 
 
@@ -742,7 +747,7 @@ end
 
 
 ---------------------------------------------------------------------------
--- Exported utility routines
+-- Exported functions
 ---------------------------------------------------------------------------
 
 -- Give input focus to ContainerFrameHandler if any container is open.
