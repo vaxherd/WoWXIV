@@ -113,17 +113,30 @@ local function SendToBank(bag, slot, info)
 end
 
 -- Sell an item to a merchant.
-local function SellItem(bag, slot, info)
+local function SellItem(item_button, bag, slot, info)
     ClearCursor()
     assert(not GetCursorInfo())
     if info.isLocked then
         WoWXIV.Error("Item is locked.")
         return
     end
-    C_Container.PickupContainerItem(bag, slot)
-    local cursor_type, _, cursor_link = GetCursorInfo()
-    assert(cursor_type == "item" and cursor_link == info.hyperlink)
-    SellCursorItem()
+    -- This function is somewhat misnamed; it doesn't return a string of
+    -- any sort, but shows the "refund this item?" popup and returns true
+    -- if the item can be refunded.  Ideally we'd have a separate function
+    -- which tells us whether it can be refunded, so we could show a
+    -- "Refund" menu item in place of "Sell"; we could potentially write
+    -- our own copy, but that would risk getting out of sync with upstream
+    -- code on a potentially player-harming action, so we accept the
+    -- awkwardness of keeping "Sell" even when a refund is possible (and
+    -- in fairness, the tooltip will indicate refundability).
+    if ContainerFrame_GetExtendedPriceString(item_button) then
+        -- Popup is already shown, do nothing.
+    else
+        C_Container.PickupContainerItem(bag, slot)
+        local cursor_type, _, cursor_link = GetCursorInfo()
+        assert(cursor_type == "item" and cursor_link == info.hyperlink)
+        SellCursorItem()
+    end
 end
 
 -- Send an item to the BfA scrapping machine.
@@ -468,7 +481,7 @@ function ContainerFrameHandler:ClickItem()
     elseif MerchantFrame and MerchantFrame:IsShown() then
         -- See notes at InventoryItemSubmenu:ConfigureForItem().
         if C_MerchantFrame.IsSellAllJunkEnabled() then
-            SellItem(bag, slot, info)
+            SellItem(item, bag, slot, info)
         end
     elseif ScrappingMachineFrame and ScrappingMachineFrame:IsShown() then
         SendToScrapper(bag, slot, info)
@@ -548,7 +561,9 @@ function InventoryItemSubmenu:__constructor()
     self.menuitem_sell =
         WoWXIV.UI.ItemSubmenuButton(self, "Sell", false)
     self.menuitem_sell.ExecuteInsecure =
-        function(bag, slot, info) SellItem(bag, slot, info) end
+        function(bag, slot, info)
+            SellItem(self.item_button, bag, slot, info)
+        end
 
     self.menuitem_socket =
         WoWXIV.UI.ItemSubmenuButton(self, "Socket", false)
