@@ -47,10 +47,8 @@ local function SendToBank(bag, slot, info)
         for i = 1, size do
             local info2 = C_Container.GetContainerItemInfo(bag_id, i)
             if info2 then
-                if info2.itemID == info.itemID then
-                    if info.stackCount + info2.stackCount <= limit then
-                        return bag_id, i
-                    end
+                if info2.itemID == info.itemID and info2.stackCount < limit then
+                    return bag_id, i, info2.stackCount
                 end
             else
                 if not empty_slot then
@@ -60,12 +58,12 @@ local function SendToBank(bag, slot, info)
         end
         return nil, empty_slot
     end
-    local target_bag, target_slot, empty_bag, empty_slot
+    local target_bag, target_slot, target_count, empty_bag, empty_slot
     if BankSlotsFrame:IsVisible() then
         for i = 0, 7 do
             local bag_id =
                 i==0 and Enum.BagIndex.Bank or (Enum.BagIndex.BankBag_1 + (i-1))
-            target_bag, target_slot = SearchBag(bag_id)
+            target_bag, target_slot, target_count = SearchBag(bag_id)
             if target_bag then break end
             if not empty_bag and target_slot then
                 empty_bag, empty_slot = bag_id, target_slot
@@ -77,7 +75,7 @@ local function SendToBank(bag, slot, info)
             return
         end
         local bag_id = Enum.BagIndex.Reagentbank
-        target_bag, target_slot = SearchBag(bag_id)
+        target_bag, target_slot, target_count = SearchBag(bag_id)
         if not target_bag and target_slot then
             empty_bag, empty_slot = bag_id, target_slot
         end
@@ -85,7 +83,7 @@ local function SendToBank(bag, slot, info)
         assert(AccountBankPanel:IsVisible())
         for i = 1, 5 do
             local bag_id = Enum.BagIndex.AccountBankTab_1 + (i-1)
-            target_bag, target_slot = SearchBag(bag_id)
+            target_bag, target_slot, target_count = SearchBag(bag_id)
             if target_bag then break end
             -- Standard game behavior is to take the first empty slot in
             -- the numerically first tab, but we choose to prioritize an
@@ -100,13 +98,17 @@ local function SendToBank(bag, slot, info)
     end
     if not target_bag then
         if empty_bag then
-            target_bag, target_slot = empty_bag, empty_slot
+            target_bag, target_slot, target_count = empty_bag, empty_slot, 0
         else
             WoWXIV.Error("No room in bank for item.")
             return
         end
     end
-    C_Container.PickupContainerItem(bag, slot)
+    if target_count + info.stackCount > limit then
+        C_Container.SplitContainerItem(bag, slot, limit - target_count)
+    else
+        C_Container.PickupContainerItem(bag, slot)
+    end
     local cursor_type, _, cursor_link = GetCursorInfo()
     assert(cursor_type == "item" and cursor_link == info.hyperlink)
     C_Container.PickupContainerItem(target_bag, target_slot)

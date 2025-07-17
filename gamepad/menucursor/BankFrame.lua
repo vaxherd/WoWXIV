@@ -19,8 +19,10 @@ local BankItemSubmenu = class(WoWXIV.UI.ItemSubmenu)
 -- Utility routines
 ---------------------------------------------------------------------------
 
--- Find an inventory bag and slot suitable for the given item.
-local function FindInventorySlot(info)
+-- Find an inventory bag and slot suitable for the given item.  If a count
+-- is also given, ensure that that many of the item can fit in the returned
+-- slot.
+local function FindInventorySlot(info, count)
     local function FindEmptySlot(bag_id)
         for i = 1, C_Container.GetContainerNumSlots(bag_id) do
             if not C_Container.GetContainerItemInfo(bag_id, i) then
@@ -30,20 +32,21 @@ local function FindInventorySlot(info)
         return nil
     end
 
+    -- If no count was given, we take any stack which isn't full.
+    count = count or 1
+
     -- First look for an existing stack we can add to.
     local max_stack, _, _, _, class, subclass =
         select(8, C_Item.GetItemInfo("item:"..info.itemID))
-    if info.stackCount < max_stack then
-        local NUM_TOTAL_BAG_FRAMES = Constants.InventoryConstants.NumBagSlots + Constants.InventoryConstants.NumReagentBagSlots
-        for bag_id = 0, NUM_TOTAL_BAG_FRAMES do
-            for i = 1, C_Container.GetContainerNumSlots(bag_id) do
-                local slot_info = C_Container.GetContainerItemInfo(bag_id, i)
-                if slot_info and slot_info.itemID == info.itemID
-                and info.stackCount + slot_info.stackCount < max_stack
-                then
-                    if not slot_info.isLocked then
-                        return bag_id, i
-                    end
+    local NUM_TOTAL_BAG_FRAMES = Constants.InventoryConstants.NumBagSlots + Constants.InventoryConstants.NumReagentBagSlots
+    for bag_id = 0, NUM_TOTAL_BAG_FRAMES do
+        for i = 1, C_Container.GetContainerNumSlots(bag_id) do
+            local slot_info = C_Container.GetContainerItemInfo(bag_id, i)
+            if slot_info and slot_info.itemID == info.itemID
+            and slot_info.stackCount + count <= max_stack
+            then
+                if not slot_info.isLocked then
+                    return bag_id, i, slot_info.stackCount
                 end
             end
         end
@@ -54,7 +57,7 @@ local function FindInventorySlot(info)
         for i = 1, Constants.InventoryConstants.NumReagentBagSlots do
             local reagent_bag = Constants.InventoryConstants.NumBagSlots + i
             local slot = FindEmptySlot(reagent_bag)
-            if slot then return reagent_bag, slot end
+            if slot then return reagent_bag, slot, 0 end
         end
     end
     -- It looks like item-to-bag filtering code is not exposed to Lua,
@@ -77,13 +80,13 @@ local function FindInventorySlot(info)
         for bag_id = 1, Constants.InventoryConstants.NumBagSlots do
             if C_Container.GetBagSlotFlag(bag_id, type_flag) then
                 local slot = FindEmptySlot(bag_id)
-                if slot then return bag_id, slot end
+                if slot then return bag_id, slot, 0 end
             end
         end
     end
     for bag_id = 0, Constants.InventoryConstants.NumBagSlots do
         local slot = FindEmptySlot(bag_id)
-        if slot then return bag_id, slot end
+        if slot then return bag_id, slot, 0 end
     end
     return nil
 end
@@ -431,19 +434,29 @@ function BankItemSubmenu:TakeAllOrSome(bag, slot, link, count)
         WoWXIV.Error("Item is locked.")
         return
     end
-    local target_bag, target_slot = FindInventorySlot(info)
+    -- If the player requested "take some" (and thus count is non-nil),
+    -- require that many to fit onto the target stack; otherwise, look for
+    -- any non-full stack and we'll split the stack ourselves if needed.
+    local target_bag, target_slot, target_count = FindInventorySlot(info, count)
     if not target_bag then
         WoWXIV.Error("No inventory slots available.")
         return
     end
-    if link then  -- "take some
+    if link then  -- "take some"
+        -- In this case we're coming here after a quantity input, so
+        -- check that the slot hasn't changed when we weren't looking.
         if info.hyperlink ~= link then
             WoWXIV.Error("Item could not be found.")
             return
         end
         C_Container.SplitContainerItem(bag, slot, count)
     else
-        C_Container.PickupContainerItem(bag, slot)
+        local limit = select(8, C_Item.GetItemInfo(info.itemID))
+        if target_count > 0 and target_count + info.stackCount > limit then
+            C_Container.SplitContainerItem(bag, slot, limit - target_count)
+        else
+            C_Container.PickupContainerItem(bag, slot)
+        end
     end
     C_Container.PickupContainerItem(target_bag, target_slot)
 end
