@@ -302,20 +302,15 @@ function CovenantMissionFrameFollowersHandler:SetTargets(redo)
     local function ClickFollower(target)
         local button = self:GetTargetFrame(target).Follower
         local is_mission = CovenantMissionFrame.MissionTab:IsVisible()
-        if is_mission and self.frame.ScrollBox.followerFrame.selectedFollower == button.id then
-            self.frame.ScrollBox.followerFrame.selectedFollower = nil
-            PlaySound(SOUNDKIT.UI_GARRISON_COMMAND_TABLE_SELECT_FOLLOWER_9_0)
-            self.frame:UpdateData()
+        -- Deliberately not :Click() because the button's OnClick script
+        -- calls _OnUserClick(), which checks IsModifiedClick() (which is
+        -- invalid in this context).  Note that the SL covenant UI shares
+        -- this "Garrison" function with other mission boards.
+        GarrisonFollowerListButton_OnClick(button, "LeftButton")
+        if is_mission then
+            CovenantMissionFrameHandler.instance_MissionTab:Activate(true)
         else
-            -- Deliberately not :Click() because the button's OnClick script
-            -- calls _OnUserClick(), which checks IsModifiedClick() (which is
-            -- invalid in this context).
-            GarrisonFollowerListButton_OnClick(button, "LeftButton")
-            if is_mission then
-                CovenantMissionFrameHandler.instance_MissionTab:Activate(true)
-            else
-                CovenantMissionFrameHandler.instance_FollowerTab:Activate()
-            end
+            CovenantMissionFrameHandler.instance_FollowerTab:Activate()
         end
     end
     local function AddTarget(elementdata, index)
