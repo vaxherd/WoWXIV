@@ -1035,9 +1035,17 @@ function WoWXIV.PartyList.Create()
         -- Technically not needed, but avoids tons and tons of taint errors:
         WoWXIV.HideBlizzardFrame(CompactPartyFrame)
         function CompactPartyFrame:RefreshMembers() end
+        -- We don't really want to touch arena frames, but they proc taint
+        -- on vehicle transitions via CompactUnitFrame_OnEvent().  We could
+        -- probably expand the party list to handle arena parties (if
+        -- there's in fact any difference), but that would require me to
+        -- care at all about PvP...
+        WoWXIV.HideBlizzardFrame(CompactArenaFrame)
+        function CompactArenaFrame:RefreshMembers() end
         for i = 1, 5 do
             WoWXIV.HideBlizzardFrame(_G["CompactPartyFrameMember"..i])
             WoWXIV.HideBlizzardFrame(_G["CompactPartyFramePet"..i])
+            WoWXIV.HideBlizzardFrame(_G["CompactArenaFrameMember"..i])
         end
     end
     if enable_raid then
