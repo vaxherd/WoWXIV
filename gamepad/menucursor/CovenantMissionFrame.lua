@@ -425,7 +425,20 @@ function MissionTabHandler:ClickFollowerSlot(follower)
                 end
             end)
         assert(info)
+        if follower:GetFollowerGUID() == selected then
+            return  -- Already in this slot, so nothing to do.
+        end
         self:LeaveTarget(follower)
+        -- We have to explicitly remove the follower from their current
+        -- slot if they're already in the party.  (Mouse control avoids
+        -- this by making the follower not draggable from the list if in
+        -- the party.  We could potentially implement our own floating
+        -- icon for a closer match to mouse behavior.)
+        for f in self.frame.MissionPage.Board:EnumerateFollowers() do
+            if f:GetFollowerGUID() == selected then
+                CovenantMissionFrame:RemoveFollowerFromMission(f)
+            end
+        end
         CovenantMissionFrame:AssignFollowerToMission(follower, info)
         self:EnterTarget(follower)
         followerFrame.selectedFollower = nil
