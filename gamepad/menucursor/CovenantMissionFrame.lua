@@ -370,6 +370,7 @@ function MissionTabHandler:__constructor()
     end
     self.has_Button3 = true  -- Used to switch to the follower list.
     self.has_Button4 = true  -- Used to remove followers from missions.
+    self.followers = {}  -- List of follower slots, for convenience.
 end
 
 -- Pass true for is_follower_placement when activating the frame for
@@ -415,6 +416,7 @@ function MissionTabHandler:SetTargets(prev_target, is_follower_placement)
         end
     end
     local follower_1
+    self.followers = {}
     for follower in page.Board:EnumerateFollowers() do
         self.targets[follower] = {
             send_enter_leave = true, is_follower = true,
@@ -422,6 +424,7 @@ function MissionTabHandler:SetTargets(prev_target, is_follower_placement)
         if not follower_1 or follower:GetLeft() < follower_1:GetLeft() then
             follower_1 = follower
         end
+        tinsert(self.followers, follower)
     end
     return prev_target or follower_1 or page.StartMissionButton
 end
@@ -445,7 +448,7 @@ function MissionTabHandler:ClickFollowerSlot(follower)
         -- this by making the follower not draggable from the list if in
         -- the party.  We could potentially implement our own floating
         -- icon for a closer match to mouse behavior.)
-        for f in self.frame.MissionPage.Board:EnumerateFollowers() do
+        for _, f in ipairs(self.followers) do
             if f:GetFollowerGUID() == selected then
                 CovenantMissionFrame:RemoveFollowerFromMission(f)
             end
@@ -454,7 +457,13 @@ function MissionTabHandler:ClickFollowerSlot(follower)
         self:EnterTarget(follower)
         followerFrame.selectedFollower = nil
         CovenantMissionFrameFollowers:UpdateData()
-        CovenantMissionFrameHandler.instance_Followers:Enable()
+        local full = WoWXIV.all(function(f) return f:GetFollowerGUID() end,
+                                unpack(self.followers))
+        if full then
+            self:SetTarget(self.frame.MissionPage.StartMissionButton)
+        else
+            CovenantMissionFrameHandler.instance_Followers:Enable()
+        end
     end
 end
 

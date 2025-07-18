@@ -269,6 +269,38 @@ function WoWXIV.SetUITexCoord(texture, u0, u1, v0, v1)
 end
 
 ------------------------------------------------------------------------
+-- Convenience operations
+------------------------------------------------------------------------
+
+-- Return true iff filter(arg) returns a true value for every argument.
+-- If the filter function does not return pure boolean values, the
+-- return value is undefined except in that its truth value is as
+-- described above.
+-- Essentially reduce(and, {...}).
+local function all(filter, ...)  -- Local declaration to optimize tail call.
+    if select("#", ...) == 0 then
+        return true  -- All zero arguments passed the filter.
+    end
+    local arg = ...
+    return filter(arg) and all(filter, select(2, ...))
+end
+WoWXIV.all = all
+
+-- Return true iff filter(arg) returns a true value for any argument.
+-- If the filter function does not return pure boolean values, the
+-- return value is undefined except in that its truth value is as
+-- described above.
+-- Essentially reduce(or, {...}).
+local function any(filter, ...)  -- Local declaration to optimize tail call.
+    if select("#", ...) == 0 then
+        return false  -- No argument passed the filter.
+    end
+    local arg = ...
+    return filter(arg) or any(filter, select(2, ...))
+end
+WoWXIV.any = any
+
+------------------------------------------------------------------------
 -- Miscellaneous
 ------------------------------------------------------------------------
 
