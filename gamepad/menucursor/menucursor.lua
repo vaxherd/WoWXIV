@@ -440,11 +440,15 @@ function Cursor:SetTargetForFrame(frame, target)
             local entry = stack[index]
             self:LeaveTarget()
             entry[2] = nil
-            -- If something changed the current focus (so we end up
-            -- skipping the UpdateCursor() call below), that will itself
-            -- have triggered an UpdateCursor() call, so we don't need to
-            -- add an extra call for that case.
-            return self:SetTargetForFrame(frame, target)
+            if target then
+                -- If something changed the current focus (so we end up
+                -- skipping the UpdateCursor() call below), that will
+                -- itself have triggered an UpdateCursor() call, so we
+                -- don't need to add an extra call for that case.
+                return self:SetTargetForFrame(frame, target)
+            else  -- Explicit clear of current target.
+                self:UpdateCursor()
+            end
         else
             stack[index][2] = target
             if is_focus then
