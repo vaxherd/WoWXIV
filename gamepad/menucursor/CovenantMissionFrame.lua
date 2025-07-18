@@ -429,7 +429,7 @@ end
 function MissionTabHandler:ClickFollowerSlot(follower)
     local followerFrame = CovenantMissionFrameFollowers.ScrollBox.followerFrame
     local selected = followerFrame.selectedFollower
-    if selected then
+    if selected and follower:GetFollowerGUID() ~= selected then
         local info
         CovenantMissionFrameFollowers.ScrollBox:ForEachElementData(
             function(data)
@@ -439,9 +439,6 @@ function MissionTabHandler:ClickFollowerSlot(follower)
                 end
             end)
         assert(info)
-        if follower:GetFollowerGUID() == selected then
-            return  -- Already in this slot, so nothing to do.
-        end
         self:LeaveTarget(follower)
         -- We have to explicitly remove the follower from their current
         -- slot if they're already in the party.  (Mouse control avoids
@@ -457,6 +454,7 @@ function MissionTabHandler:ClickFollowerSlot(follower)
         self:EnterTarget(follower)
         followerFrame.selectedFollower = nil
         CovenantMissionFrameFollowers:UpdateData()
+        CovenantMissionFrameHandler.instance_Followers:Enable()
     end
 end
 
