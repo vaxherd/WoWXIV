@@ -150,6 +150,10 @@ local ITEM_TARGET = {
     [187012] = "none",    -- Unbalanced Riftstone (63951: A Shady Place)
     [187128] = "none",    -- Find-A-Spy (64167: Pets Detective)
     [187186] = "target",  -- Orb of Deception (Torghast)
+    [187516] = "none",    -- Firim's Forge-Tap (64579: Hollow Efforts)
+    [187816] = "target",  -- Irresistible Goop (64960: Feed the Annelids)
+    [187820] = "none",    -- Piece of Goop (64960: Feed the Annelids)
+    [187908] = "none",    -- Firim's Spare Forge-Tap (Zereth Mortis)
     [187941] = "none",    -- Depleted Automa Core (64761: Core Competency)
     [187999] = "none",    -- Fishing Portal (65102: Fish Eyes)
     [188134] = "player",  -- Bronze Timepiece (65118: How to Glide with Your Dragon)
@@ -336,6 +340,16 @@ local QUEST_ITEM = {
             {180009, 5},  -- Resonating Anima Mote
         }
     },
+    -- Zereth Mortis world quest: Feed the Annelids
+    -- The quest properly switches its item as you progress, but we
+    -- add this entry to provide a count requirement for Piece of Goop.
+    [64960] = {
+        map = 1970,  -- Zereth Mortis
+        items = {
+            187816,       -- Irresistible Goop
+            {187820, 6},  -- Piece of Goop
+        }
+    },
     -- Waking Shores sidequest: Rapid Fire Plans
     [66439] = {
         map = 2022,  -- Waking Shores
@@ -366,6 +380,21 @@ local QUEST_ITEM = {
             229824,  -- Banana Peel
             229825,  -- Dented Can of Kaja'Cola
         }
+    },
+}
+
+-- Special cases for zone-specific items we always want to have available
+-- when in that zone.
+local ZONE_ITEM = {
+    ["Torghast"] = {  -- Special case because Torghast has so many maps.
+        168035,  -- Mawrat Harness
+        170498,  -- Deadsoul Hound Harness
+        170499,  -- Maw Seeker Harness
+        170540,  -- Ravenous Anima Cell
+        187186,  -- Orb of Deception
+    },
+    [1970] = {  -- Zereth Mortis
+        187908,  -- Firim's Spare Forge-Tap
     },
 }
 
@@ -633,6 +662,7 @@ end
 -- negative number whose arithmetic inverse is the spell ID.
 function QuestItemButton:IterateQuestItems(predicate)
     local index = 0
+    local player_map = C_Map.GetBestMapForUnit("player")
 
     if WoWXIV_config["questitem_scenario_action"] and ScenarioObjectiveTracker:IsShown() then
         for _, ability in ipairs(C_ZoneAbility.GetActiveAbilities()) do
@@ -652,25 +682,30 @@ function QuestItemButton:IterateQuestItems(predicate)
         end
     end
 
-    -- Special special cases for Torghast items
-    for _, item in ipairs({
-        168035,  -- Mawrat Harness
-        170498,  -- Deadsoul Hound Harness
-        170499,  -- Maw Seeker Harness
-        170540,  -- Ravenous Anima Cell
-        187186,  -- Orb of Deception
-    }) do
-        if GetItemCount(item) > 0 then
-            index = index + 1
-            if predicate and predicate(item) then
-                return item, index, true
+    for map, items in pairs(ZONE_ITEM) do
+        local on_map
+        if zone == "Torghast" then
+            -- Torghast items are deleted when leaving, so we can
+            -- unconditionally include them when in the inventory.
+            on_map = true
+        else
+            on_map = (player_map == map)
+        end
+        if on_map then
+            for _, item in ipairs(items) do
+                if GetItemCount(item) > 0 then
+                    index = index + 1
+                    if predicate and predicate(item) then
+                        return item, index, true
+                    end
+                end
             end
         end
     end
 
     for quest, info in pairs(QUEST_ITEM) do
         if C_QuestLog.IsOnQuest(quest) then
-            if C_Map.GetBestMapForUnit("player") == info.map then
+            if player_map == info.map then
                 for _, quest_item in ipairs(info.items) do
                     local amount = 1
                     if type(quest_item) == "table" then
