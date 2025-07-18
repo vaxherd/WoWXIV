@@ -425,6 +425,10 @@ function WoWXIV.TargetBar.Create()
             UIWidgetTopCenterContainerFrame:ClearAllPoints()
             UIWidgetTopCenterContainerFrame:SetPoint(
                 "BOTTOM", UIParent, "BOTTOM", offset_x, 15)
+            -- Seen in the Vigilant Guardian encounter in SL Sepulcher.
+            PlayerPowerBarAlt:ClearAllPoints()
+            PlayerPowerBarAlt:SetPoint(
+                "BOTTOM", UIParent, "BOTTOM", offset_x, 30)
         end
     end
 end
