@@ -284,6 +284,67 @@ function WoWXIV.UnitClassificationIcon(unit)
     return CLASS_ATLAS[UnitClassification(unit)]
 end
 
+-- Return whether the given item (given as a numeric ID) goes in the
+-- reagent back or bank reagent page.  (There doesn't seem to be a global
+-- API for this.)
+local REAGENT  -- Defined below.
+function WoWXIV.IsItemReagent(item)
+    return REAGENT[item]
+        or select(12, C_Item.GetItemInfo(item)) == Enum.ItemClass.Tradegoods
+end
+REAGENT = {
+    -- Mechagon Tinkering reagents
+    [166846] = true,  -- Spare Parts
+    [166970] = true,  -- Energy Cell
+    [166971] = true,  -- Empty Energy Cell
+    [168327] = true,  -- Chain Ignitercoil
+    [168832] = true,  -- Galvanic Oscillator
+    [169610] = true,  -- S.P.A.R.E. Crate
+    -- Protoform Synthesis (Zereth Mortis) reagents
+    [187633] = true,  -- Bufonid Lattice
+    [187634] = true,  -- Ambystan Lattice
+    [187635] = true,  -- Cervid Lattice
+    [187636] = true,  -- Aurelid Lattice
+    [188957] = true,  -- Genesis Mote
+    [189145] = true,  -- Helicid Lattice
+    [189146] = true,  -- Geomental Lattice
+    [189147] = true,  -- Leporid Lattice
+    [189148] = true,  -- Poultrid Lattice
+    [189149] = true,  -- Proto Avian Lattice
+    [189150] = true,  -- Raptora Lattice
+    [189151] = true,  -- Scarabid Lattice
+    [189152] = true,  -- Tarachnid Lattice
+    [189153] = true,  -- Unformed Lattice
+    [189154] = true,  -- Vespoid Lattice
+    [189155] = true,  -- Viperid Lattice
+    [189156] = true,  -- Vombata Lattice
+    [189157] = true,  -- Glimmer of Animation
+    [189158] = true,  -- Glimmer of Cunning
+    [189159] = true,  -- Glimmer of Discovery
+    [189160] = true,  -- Glimmer of Focus
+    [189161] = true,  -- Glimmer of Malice
+    [189162] = true,  -- Glimmer of Metamorphosis
+    [189163] = true,  -- Glimmer of Motion
+    [189164] = true,  -- Glimmer of Multiplicity
+    [189165] = true,  -- Glimmer of Predation
+    [189166] = true,  -- Glimmer of Renewal
+    [189167] = true,  -- Glimmer of Satisfaction
+    [189168] = true,  -- Glimmer of Serenity
+    [189169] = true,  -- Glimmer of Survival
+    [189170] = true,  -- Glimmer of Vigilance
+    [189171] = true,  -- Bauble of Pure Innovation
+    [189172] = true,  -- Crystallized Echo of the First Song
+    [189173] = true,  -- Eternal Ragepearl
+    [189174] = true,  -- Lens of Focused Intention
+    [189175] = true,  -- Mawforged Bridle
+    [189176] = true,  -- Protoform Sentience Crown
+    [189177] = true,  -- Revelation Key
+    [189178] = true,  -- Tools of Incomprehensible Experimentation
+    [189179] = true,  -- Unalloyed Bronze Ingot
+    [189180] = true,  -- Wind's Infinite Call
+    [190388] = true,  -- Lupine Lattice
+}
+
 -- Call a function with a specified environment, restoring the function's
 -- original environment afterward.  Only the first return value (if any)
 -- is passed up to the caller.  Note that as of 11.1.7, setting the

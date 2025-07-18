@@ -70,7 +70,7 @@ local function SendToBank(bag, slot, info)
             end
         end
     elseif ReagentBankFrame:IsVisible() then
-        if select(12, C_Item.GetItemInfo("item:"..info.itemID)) ~= Enum.ItemClass.Tradegoods then
+        if not WoWXIV.IsItemReagent(info.itemID) then
             WoWXIV.Error("That item doesn't go in that container.")
             return
         end

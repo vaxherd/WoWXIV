@@ -53,7 +53,7 @@ local function FindInventorySlot(info, count)
     end
 
     -- No viable stack found, so look for an appropriate empty slot.
-    if not target_bag and class == Enum.ItemClass.Tradegoods then
+    if not target_bag and WoWXIV.IsItemReagent(info.itemID) then
         for i = 1, Constants.InventoryConstants.NumReagentBagSlots do
             local reagent_bag = Constants.InventoryConstants.NumBagSlots + i
             local slot = FindEmptySlot(reagent_bag)
