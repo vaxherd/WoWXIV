@@ -255,7 +255,7 @@ end
 function CovenantMissionFrameFollowersHandler:__constructor()
     self:__super(CovenantMissionFrameFollowers)
     self.cancel_func = function() self:OnCancel() end
-    self.has_Button3 = true  -- Used to swap to the mission tab.
+    self.has_Button3 = true  -- Used to switch to the mission tab.
     self.has_Button4 = true  -- Used to add followers to missions.
     self.tab_handler = CovenantMissionFrameHandler.instance.tab_handler
 
@@ -364,22 +364,33 @@ end
 
 function MissionTabHandler:__constructor()
     self:__super(CovenantMissionFrame.MissionTab)
-    self.cancel_func = function() self:Disable() end
+    self.cancel_func = function()
+        -- Avoid Disable() to preserve cursor position.
+        CovenantMissionFrameHandler.instance_Followers:Enable()
+    end
+    self.has_Button3 = true  -- Used to switch to the follower list.
     self.has_Button4 = true  -- Used to remove followers from missions.
 end
 
+-- Pass true for is_follower_placement when activating the frame for
+-- placing a follower in the party; this forces the cursor to a party slot
+-- if it wasn't there already.
 function MissionTabHandler:Activate(is_follower_placement)
+    local cur_target = self:GetTarget()
     self:ClearTarget()
-    self:Enable(self:SetTargets(is_follower_placement))
+    self:Enable(self:SetTargets(cur_target, is_follower_placement))
 end
 
-function MissionTabHandler:SetTargets(is_follower_placement)
+function MissionTabHandler:SetTargets(prev_target, is_follower_placement)
     local page = self.frame.MissionPage
     self.targets = {
         [page.StartMissionButton] = {
             can_activate = true, lock_highlight = true,
             left = false, right = false},
     }
+    if is_follower_placement and prev_target == page.StartMissionButton then
+        prev_target = nil
+    end
     local left_x, top_y
     for enemy in page.Board:EnumerateEnemies() do
         self.targets[enemy] = {send_enter_leave = enemy:IsShown()}
@@ -391,6 +402,9 @@ function MissionTabHandler:SetTargets(is_follower_placement)
         if not top_y or y > top_y then
             top_y = y
         end
+        if is_follower_placement and prev_target == enemy then
+            prev_target = nil
+        end
     end
     for enemy in page.Board:EnumerateEnemies() do
         if enemy:GetTop() == top_y then
@@ -400,16 +414,16 @@ function MissionTabHandler:SetTargets(is_follower_placement)
             end
         end
     end
-    local first
+    local follower_1
     for follower in page.Board:EnumerateFollowers() do
         self.targets[follower] = {
             send_enter_leave = true, is_follower = true,
             on_click = function() self:ClickFollowerSlot(follower) end}
-        if not first or follower:GetLeft() < first:GetLeft() then
-            first = follower
+        if not follower_1 or follower:GetLeft() < follower_1:GetLeft() then
+            follower_1 = follower
         end
     end
-    return is_follower_placement and first or page.StartMissionButton
+    return prev_target or follower_1 or page.StartMissionButton
 end
 
 function MissionTabHandler:ClickFollowerSlot(follower)
@@ -447,13 +461,17 @@ function MissionTabHandler:ClickFollowerSlot(follower)
 end
 
 function MissionTabHandler:OnAction(button)
-    assert(button == "Button4")
-    local target = self:GetTarget()
-    if target and self.targets[target].is_follower then
-        self:LeaveTarget(target)
-        CovenantMissionFrame:RemoveFollowerFromMission(target)
-        self:EnterTarget(target)
-        PlaySound(SOUNDKIT.UI_ADVENTURES_ADVENTURER_UNSLOTTED)
+    if button == "Button3" then
+        CovenantMissionFrameHandler.instance_Followers:Enable()
+    else
+        assert(button == "Button4")
+        local target = self:GetTarget()
+        if target and self.targets[target].is_follower then
+            self:LeaveTarget(target)
+            CovenantMissionFrame:RemoveFollowerFromMission(target)
+            self:EnterTarget(target)
+            PlaySound(SOUNDKIT.UI_ADVENTURES_ADVENTURER_UNSLOTTED)
+        end
     end
 end
 
