@@ -416,20 +416,46 @@ end
 
 function BuyDialogHandler:__constructor()
     self:__super(AuctionHouseFrame.BuyDialog, MenuFrame.MODAL)
+    -- Hide cursor when buy/cancel buttons are replaced by spinning arrows.
+    self:HookShow(self.frame.LoadingSpinner,
+                  self.RefreshTargets, self.RefreshTargets)
+    -- Handle the case where "buy/cancel" is changed to "no longer available".
+    self:HookShow(self.frame.OkayButton,
+                  self.RefreshTargets, self.RefreshTargets)
+end
+
+function BuyDialogHandler:RefreshTargets()
+    if not self.frame:IsShown() then return end
+    self:ClearTarget()
+    self:SetTargets()
+    self:SetTarget(self:GetDefaultTarget())
 end
 
 function BuyDialogHandler:SetTargets()
     local frame = self.frame
-    self.targets = {
-        [frame.BuyNowButton] = {
-            can_activate = true, lock_highlight = true, is_default = true,
-            up = false, down = false,
-            left = frame.CancelButton, right = frame.CancelButton},
-        [frame.CancelButton] = {
-            can_activate = true, lock_highlight = true,
-            up = false, down = false,
-            left = frame.BuyNowButton, right = frame.BuyNowButton},
-    }
+    if frame.LoadingSpinner:IsShown() then
+        -- Buy/cancel buttons aren't actually hidden when the spinner appears,
+        -- so we have to explicitly check for this case.
+        self.targets = {}
+    elseif frame.OkayButton:IsShown() then  -- "no longer available" dialog
+        self.targets = {
+            [frame.OkayButton] = {
+                can_activate = true, lock_highlight = true, is_default = true,
+                up = false, down = false, left = false, right = false},
+        }
+    elseif frame.BuyNowButton:IsShown() then
+        assert(frame.CancelButton:IsShown())
+        self.targets = {
+            [frame.BuyNowButton] = {
+                can_activate = true, lock_highlight = true, is_default = true,
+                up = false, down = false,
+                left = frame.CancelButton, right = frame.CancelButton},
+            [frame.CancelButton] = {
+                can_activate = true, lock_highlight = true,
+                up = false, down = false,
+                left = frame.BuyNowButton, right = frame.BuyNowButton},
+        }
+    end
 end
 
 
