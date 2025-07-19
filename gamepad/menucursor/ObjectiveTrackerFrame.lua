@@ -15,10 +15,33 @@ function ObjectiveTrackerFrameHandler:__constructor()
     self.has_Button3 = true  -- Used to toggle quest tracking.
     self.has_Button4 = true  -- Used to open objective submenus.
     hooksecurefunc(self.frame, "Update", function() self:RefreshTargets() end)
+    -- Watch for any bags being opened and disable ourselves while we're
+    -- covered up.
+    self.is_covered = false
+    local function CheckContainerFrames() self:CheckContainerFrames() end
+    EventRegistry:RegisterCallback("ContainerFrame.OpenBag",
+                                   CheckContainerFrames)
+    EventRegistry:RegisterCallback("ContainerFrame.CloseBag",
+                                   CheckContainerFrames)
+end
+
+local BAGS = WoWXIV.maptn("ContainerFrame%n", 13)
+function ObjectiveTrackerFrameHandler:CheckContainerFrames()
+    local function IsShown(name) return _G[name]:IsShown() end
+    self.is_covered = WoWXIV.any(IsShown, unpack(BAGS))
+    if self.is_covered then
+        self:Disable()
+    elseif self.frame:IsShown() then
+        if not self:IsEnabled() then
+            self:OnShow()
+        end
+    end
 end
 
 function ObjectiveTrackerFrameHandler:OnShow()
-    if not self.frame:IsVisible() then return end
+    -- Deliberately IsShown() rather than IsVisible() to avoid edge cases
+    -- when a cinematic or other fullscreen frame is hiding the tracker.
+    if not self.frame:IsShown() or self.is_covered then return end
     if self:GetTarget() then
         -- If we already have a target, this must be a redundant Show()
         -- with the frame already visible, so don't change current state.

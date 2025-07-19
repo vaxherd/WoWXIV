@@ -291,6 +291,13 @@ function Cursor:InternalRemoveFrameFromStack(frame, stack, is_top_stack)
     end
 end
 
+-- Return whether any focus stack has the given frame.
+function Cursor:HasFrame(frame)
+    local function Match(entry) return entry and entry[1]==frame end
+    return WoWXIV.any(Match, self.focus_stack)
+        or WoWXIV.any(Match, self.modal_stack)
+end
+
 -- Internal helper to get the topmost stack (modal or normal).
 function Cursor:InternalGetFocusStack()
     local modal_stack = self.modal_stack
@@ -1463,6 +1470,12 @@ end
 -- Disable cursor input for this frame.
 function MenuFrame:Disable()
     global_cursor:RemoveFrame(self)
+end
+
+-- Return whether this frame has cursor input enabled, regardless of
+-- whether it has the input focus.
+function MenuFrame:IsEnabled()
+    return global_cursor:HasFrame(self)
 end
 
 -- Move this frame to the top of the input focus stack.  If the frame is
