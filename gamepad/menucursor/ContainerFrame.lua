@@ -761,7 +761,7 @@ end
 -- Give input focus to ContainerFrameHandler if any container is open.
 function ContainerFrameHandler.FocusIfOpen()
     local instance = ContainerFrameHandler.instance
-    if instance:GetTarget() then  -- will be non-nil iff a bag is open
+    if instance:IsEnabled() then
         instance:Focus()
     end
 end

@@ -99,7 +99,7 @@ end
 -- action button.  The frame is assumed to be open.
 function ItemInteractionFrameHandler.FocusActionButton()
     local instance = ItemInteractionFrameHandler.instance
-    assert(instance:GetTarget())  -- i.e., the frame is open
+    assert(instance:IsEnabled())
     instance:SetTarget(ItemInteractionFrame.ButtonFrame.ActionButton)
     instance:Focus()
 end

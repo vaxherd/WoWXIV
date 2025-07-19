@@ -121,7 +121,7 @@ end
 -- button.  The frame is assumed to be open.
 function ItemUpgradeFrameHandler.FocusUpgradeButton()
     local instance = ItemUpgradeFrameHandler.instance
-    assert(instance:GetTarget())  -- i.e., the frame is open
+    assert(instance:IsEnabled())
     instance:SetTarget(ItemUpgradeFrame.UpgradeButton)
     instance:Focus()
 end

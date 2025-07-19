@@ -42,9 +42,9 @@ function ObjectiveTrackerFrameHandler:OnShow()
     -- Deliberately IsShown() rather than IsVisible() to avoid edge cases
     -- when a cinematic or other fullscreen frame is hiding the tracker.
     if not self.frame:IsShown() or self.is_covered then return end
-    if self:GetTarget() then
-        -- If we already have a target, this must be a redundant Show()
-        -- with the frame already visible, so don't change current state.
+    if self:IsEnabled() then
+        -- This must be a redundant Show() with the frame already visible,
+        -- so don't change current state.
         -- (FIXME: we should probably handle this case at a lower level)
         return
     end
