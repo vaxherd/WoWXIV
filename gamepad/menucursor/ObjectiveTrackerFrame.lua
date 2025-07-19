@@ -29,6 +29,11 @@ function ObjectiveTrackerFrameHandler:OnShow()
     self:EnableBackground(self:SetTargets())
 end
 
+function ObjectiveTrackerFrameHandler:OnFocus()
+    -- Always reset to the top when receiving focus.
+    self:SetTarget(self:GetDefaultTarget())
+end
+
 function ObjectiveTrackerFrameHandler:RefreshTargets()
     local target = self:GetTarget()
     self:SetTarget(nil)
@@ -94,6 +99,7 @@ function ObjectiveTrackerFrameHandler:SetTargets(old_target)
     if first then
         self.targets[last].down = first
         self.targets[first].up = last
+        self.targets[first].is_default = true
     end
     if old_target and not self.targets[old_target] then
         old_target = nil
