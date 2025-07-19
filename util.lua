@@ -273,32 +273,28 @@ end
 ------------------------------------------------------------------------
 
 -- Return true iff filter(arg) returns a true value for every argument.
--- If the filter function does not return pure boolean values, the
--- return value is undefined except in that its truth value is as
--- described above.
--- Essentially reduce(and, {...}).
-local function all(filter, ...)  -- Local declaration to optimize tail call.
-    if select("#", ...) == 0 then
-        return true  -- All zero arguments passed the filter.
+-- If the filter function does not return pure boolean values, the return
+-- value is undefined except in that its truth value is as described above.
+-- Essentially reduce(and, map(filter, ...)).
+function WoWXIV.all(filter, ...)
+    for i = 1, select("#", ...) do
+        local arg = select(i, ...)  -- Isolate the single argument.
+        if not filter(arg) then return false end
     end
-    local arg = ...
-    return filter(arg) and all(filter, select(2, ...))
+    return true
 end
-WoWXIV.all = all
 
 -- Return true iff filter(arg) returns a true value for any argument.
--- If the filter function does not return pure boolean values, the
--- return value is undefined except in that its truth value is as
--- described above.
--- Essentially reduce(or, {...}).
-local function any(filter, ...)  -- Local declaration to optimize tail call.
-    if select("#", ...) == 0 then
-        return false  -- No argument passed the filter.
+-- If the filter function does not return pure boolean values, the return
+-- value is undefined except in that its truth value is as described above.
+-- Essentially reduce(or, map(filter, ...)).
+function WoWXIV.any(filter, ...)
+    for i = 1, select("#", ...) do
+        local arg = select(i, ...)  -- Isolate the single argument.
+        if filter(arg) then return true end
     end
-    local arg = ...
-    return filter(arg) or any(filter, select(2, ...))
+    return false
 end
-WoWXIV.any = any
 
 ------------------------------------------------------------------------
 -- Miscellaneous
