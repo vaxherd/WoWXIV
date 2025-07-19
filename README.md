@@ -55,7 +55,7 @@ WoWXIV was developed with an intended audience of one, namely me.  I've
 put it online in case anyone else finds it useful, but many things I
 would not consider changing are hardcoded (as mentioned above), and in
 particular, UI element layout and sizing is designed around my specific
-windowing setup (2560x1440 with UI scaling disabled), so the layout will
+windowing setup (2560x1440 with default UI scaling), so the layout will
 probably break at different resolutions or UI scale factors.  I'll try
 to respond to feature requests or bug reports as time permits, but if
 you're interested in significantly expanding this addon, you'll probably
