@@ -103,6 +103,9 @@ function Cursor:__constructor()
     held:SetPoint("TOPLEFT", 15, -8)
 end
 
+
+-------- Frame handler interface (methods intended for use by frame handlers)
+
 -- Register a frame handler class.  The handler's Initialize() class method
 -- will be called when the global cursor instance is created, with the
 -- signature:
@@ -144,46 +147,6 @@ function Cursor:RegisterFrameEvent(handler, event, event_arg)
     end
     self[handler_name] = wrapper
     self:RegisterEvent(event)
-end
-
--- Generic event handler.  Forwards events to same-named methods, optionally
--- with the first argument appended to the method name.
-function Cursor:OnEvent(event, arg1, ...)
-    -- Use a double underscore to ensure no collisions with event names
-    -- (mostly on principle, since it probably wouldn't be a problem in
-    -- actual usage).
-    local event__arg1 = event .. "__" .. tostring(arg1)
-    if self[event__arg1] then
-        self[event__arg1](self, ...)
-    elseif self[event] then
-        self[event](self, arg1, ...)
-    end
-end
-
--- Handler for input type changes.
-function Cursor:GAME_PAD_ACTIVE_CHANGED(active)
-    self.gamepad_active = active
-    self:UpdateCursor()
-end
-
--- Handler for cursor state changes.
-function Cursor:CURSOR_CHANGED(active)
-    self:UpdateCursor()
-end
-
--- Handlers for entering and leaving combat.
-function Cursor:PLAYER_REGEN_DISABLED()
-    self:UpdateCursor(true)
-end
-function Cursor:PLAYER_REGEN_ENABLED()
-    self:UpdateCursor(false)
-end
-
--- Return whether the cursor can currently be shown.  The cursor can be
--- shown if (1) the game is in gamepad input mode and (2) the player is
--- not in combat.
-function Cursor:CanShow()
-    return 
 end
 
 -- Add the given frame (a MenuFrame instance) to the focus stack, set its
@@ -271,37 +234,11 @@ function Cursor:RemoveFrame(frame)
     end
 end
 
--- Internal helper for RemoveFrame().
-function Cursor:InternalRemoveFrameFromStack(frame, stack, is_top_stack)
-    for i, v in ipairs(stack) do
-        if v and v[1] == frame then
-            local is_focus = is_top_stack and i == #stack
-            if is_focus then
-                self:LeaveTarget()
-                self:SendUnfocus()
-            end
-            tremove(stack, i)
-            if is_focus then
-                self:SendFocus()
-                self:EnterTarget()
-            end
-            self:UpdateCursor()
-            return
-        end
-    end
-end
-
 -- Return whether any focus stack has the given frame.
 function Cursor:HasFrame(frame)
     local function Match(entry) return entry and entry[1]==frame end
     return WoWXIV.any(Match, self.focus_stack)
         or WoWXIV.any(Match, self.modal_stack)
-end
-
--- Internal helper to get the topmost stack (modal or normal).
-function Cursor:InternalGetFocusStack()
-    local modal_stack = self.modal_stack
-    return #modal_stack > 0 and modal_stack or self.focus_stack
 end
 
 -- Return the MenuFrame which currently has focus, or nil if none.
@@ -353,6 +290,122 @@ function Cursor:SetFocus(frame)
         end
     end
     error("SetFocus for frame ("..tostring(frame)..") not in focus stack")
+end
+
+-- Return the input element most recently selected in the given frame.
+-- Returns nil if the given frame is not in the focus stack.
+function Cursor:GetTargetForFrame(frame)
+    local stack, index = self:InternalFindFrame(frame)
+    return stack and stack[index][2] or nil
+end
+
+-- Set the menu cursor target for a specific frame.  If the frame is
+-- topmost on the focus stack, also sends the appropriate LeaveTarget()
+-- and EnterTarget() calls for the old and new targets.  Does nothing if
+-- the given frame is not on the focus stack.
+function Cursor:SetTargetForFrame(frame, target)
+    local stack, index = self:InternalFindFrame(frame)
+    if stack then
+        local is_focus =
+            stack == self:InternalGetFocusStack() and index == #stack
+        if target == stack[index][2] then
+            return  -- No change.
+        elseif is_focus and stack[index][2] then
+            -- We're changing the target of the focused frame, so send a
+            -- LeaveTarget() to the current target.  This could trigger a
+            -- change of input focus or even remove the current frame, so
+            -- we have to be careful here.
+            local entry = stack[index]
+            self:LeaveTarget()
+            entry[2] = nil
+            if target then
+                -- If something changed the current focus (so we end up
+                -- skipping the UpdateCursor() call below), that will
+                -- itself have triggered an UpdateCursor() call, so we
+                -- don't need to add an extra call for that case.
+                return self:SetTargetForFrame(frame, target)
+            else  -- Explicit clear of current target.
+                self:UpdateCursor()
+            end
+        else
+            stack[index][2] = target
+            if is_focus then
+                if target then
+                    self:EnterTarget()
+                end
+                self:UpdateCursor()
+            end
+        end
+    end
+end
+
+
+-------- Internal implementation methods (should not be called externally)
+
+-- Generic event handler.  Forwards events to same-named methods, optionally
+-- with the first argument appended to the method name.
+function Cursor:OnEvent(event, arg1, ...)
+    -- Use a double underscore to ensure no collisions with event names
+    -- (mostly on principle, since it probably wouldn't be a problem in
+    -- actual usage).
+    local event__arg1 = event .. "__" .. tostring(arg1)
+    if self[event__arg1] then
+        self[event__arg1](self, ...)
+    elseif self[event] then
+        self[event](self, arg1, ...)
+    end
+end
+
+-- Handler for input type changes.
+function Cursor:GAME_PAD_ACTIVE_CHANGED(active)
+    self.gamepad_active = active
+    self:UpdateCursor()
+end
+
+-- Handler for cursor state changes.
+function Cursor:CURSOR_CHANGED(active)
+    self:UpdateCursor()
+end
+
+-- Handlers for entering and leaving combat.
+function Cursor:PLAYER_REGEN_DISABLED()
+    self:UpdateCursor(true)
+end
+function Cursor:PLAYER_REGEN_ENABLED()
+    self:UpdateCursor(false)
+end
+
+-- Return whether the cursor can currently be shown.  The cursor can be
+-- shown if (1) the game is in gamepad input mode and (2) the player is
+-- not in combat.
+function Cursor:CanShow()
+    return 
+end
+
+-- Internal helper for RemoveFrame().
+function Cursor:InternalRemoveFrameFromStack(frame, stack, is_top_stack)
+    for i, v in ipairs(stack) do
+        if v and v[1] == frame then
+            local is_focus = is_top_stack and i == #stack
+            if is_focus then
+                self:LeaveTarget()
+                self:SendUnfocus()
+            end
+            tremove(stack, i)
+            if is_focus then
+                self:SendFocus()
+                self:EnterTarget()
+            end
+            self:UpdateCursor()
+            return
+        end
+    end
+end
+
+-- Internal helper to get the topmost stack (modal or normal).
+function Cursor:InternalGetFocusStack()
+    local modal_stack = self.modal_stack
+    return #modal_stack > 0 and modal_stack or self.focus_stack
 end
 
 -- Send an OnFocus event to the currently focused MenuFrame.
@@ -418,54 +471,10 @@ function Cursor:InternalFindFrame(frame)
     return nil, nil
 end
 
--- Return the input element most recently selected in the given frame.
--- Returns nil if the given frame is not in the focus stack.
-function Cursor:GetTargetForFrame(frame)
-    local stack, index = self:InternalFindFrame(frame)
-    return stack and stack[index][2] or nil
-end
-
--- Set the menu cursor target for a specific frame.  If the frame is
--- topmost on the focus stack, also sends the appropriate LeaveTarget()
--- and EnterTarget() calls for the old and new targets.  Does nothing if
--- the given frame is not on the focus stack.
-function Cursor:SetTargetForFrame(frame, target)
-    local stack, index = self:InternalFindFrame(frame)
-    if stack then
-        local is_focus =
-            stack == self:InternalGetFocusStack() and index == #stack
-        if target == stack[index][2] then
-            return  -- No change.
-        elseif is_focus and stack[index][2] then
-            -- We're changing the target of the focused frame, so send a
-            -- LeaveTarget() to the current target.  This could trigger a
-            -- change of input focus or even remove the current frame, so
-            -- we have to be careful here.
-            local entry = stack[index]
-            self:LeaveTarget()
-            entry[2] = nil
-            if target then
-                -- If something changed the current focus (so we end up
-                -- skipping the UpdateCursor() call below), that will
-                -- itself have triggered an UpdateCursor() call, so we
-                -- don't need to add an extra call for that case.
-                return self:SetTargetForFrame(frame, target)
-            else  -- Explicit clear of current target.
-                self:UpdateCursor()
-            end
-        else
-            stack[index][2] = target
-            if is_focus then
-                if target then
-                    self:EnterTarget()
-                end
-                self:UpdateCursor()
-            end
-        end
-    end
-end
-
 -- Update the cursor's display state and input bindings.
+-- This method is primarily intended for internal use, but frame handlers
+-- may call it with no argument to force a resync if any state has changed
+-- outside the control of the cursor.
 function Cursor:UpdateCursor(in_combat)
     local entering_combat = in_combat  -- Passed as true only in this case.
     if in_combat == nil then
@@ -524,14 +533,14 @@ function Cursor:UpdateCursor(in_combat)
             if info[1] == "item" then
                 item_texture = select(10, C_Item.GetItemInfo(info[2]))
             end
-        if item_texture then
-            self.held_item_icon:SetTexture(item_texture)
-            self.held_item_icon:Show()
-        else
-            self.held_item_icon:Hide()
+            if item_texture then
+                self.held_item_icon:SetTexture(item_texture)
+                self.held_item_icon:Show()
+            else
+                self.held_item_icon:Hide()
+            end
         end
     end
-end
 
     if in_combat and not entering_combat then return end
 
