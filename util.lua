@@ -2,6 +2,7 @@ local _, WoWXIV = ...
 
 local floor = math.floor
 local max = math.max
+local strgsub = string.gsub
 
 ------------------------------------------------------------------------
 -- Timing routines
@@ -228,6 +229,8 @@ end
 --    * Normalized red, green, and blue component values
 --    * A table of normalized component values ({red, green, blue})
 --    * A 6-digit hexadecimal string of component values ("RRGGBB")
+-- Equivalent to the WrapTextInColorCode() method on predefined color
+-- objects like RED_FONT_COLOR.
 function WoWXIV.FormatColoredText(text, r, g, b)
     local hex
     if type(r) == "string" then
@@ -272,28 +275,74 @@ end
 -- Convenience operations
 ------------------------------------------------------------------------
 
--- Return true iff filter(arg) returns a true value for every argument.
--- If the filter function does not return pure boolean values, the return
--- value is undefined except in that its truth value is as described above.
--- Essentially reduce(and, map(filter, ...)).
-function WoWXIV.all(filter, ...)
+-- Return true iff func(arg) returns a true value for every argument.
+-- If the function does not return pure boolean values, the return value
+-- is undefined except in that its truth value is as described above.
+-- Essentially reduce(and, map(func, ...)).
+function WoWXIV.all(func, ...)
     for i = 1, select("#", ...) do
         local arg = select(i, ...)  -- Isolate the single argument.
-        if not filter(arg) then return false end
+        if not func(arg) then return false end
     end
     return true
 end
 
--- Return true iff filter(arg) returns a true value for any argument.
--- If the filter function does not return pure boolean values, the return
--- value is undefined except in that its truth value is as described above.
--- Essentially reduce(or, map(filter, ...)).
-function WoWXIV.any(filter, ...)
+-- Return true iff func(arg) returns a true value for any argument.
+-- If the function does not return pure boolean values, the return value
+-- is undefined except in that its truth value is as described above.
+-- Essentially reduce(or, map(func, ...)).
+function WoWXIV.any(func, ...)
     for i = 1, select("#", ...) do
         local arg = select(i, ...)  -- Isolate the single argument.
-        if filter(arg) then return true end
+        if func(arg) then return true end
     end
     return false
+end
+
+-- Return the return value of the given function applied to each argument.
+function WoWXIV.map(func, ...)
+    -- Lua can't manage the functional-style tail-recursive approach
+    -- without quadratic-time lossage, so we just pack and unpack.
+    -- As a corollary, if the values are in a table to begin with, it's
+    -- faster to call mapt() and unpack the result than to unpack the
+    -- input table as arguments to this function.
+    return unpack(WoWXIV.mapt(func, {...}))
+end
+
+-- Return a table containing the return value of the given function
+-- applied to each element of the input table.
+function WoWXIV.mapt(func, table)
+    local result = {}
+    for k, v in pairs(table) do
+        result[k] = func(v)
+    end
+    return result
+end
+
+-- Return a table containing the return value of the given function
+-- applied to each integer in the given range.  |range| may be specified
+-- one of two ways:
+--    maptn(func, start, end)  -- iterates from start to end inclusive
+--    maptn(func, end)         -- equivalent to maptn(func, 1, end)
+-- As a special case, if |func| is a string, each entry in the returned
+-- table is that string with all occurrences of "%n" replaced by the key.
+-- Analogous to the Perl idiom "map {&func($_)} ($start..$end)".
+function WoWXIV.maptn(func, range, ...)
+    if type(func) == "string" then
+        local s = func
+        func = function(n) return strgsub(s, "%%n", n) end
+    end
+    local startval, endval = range, ...
+    if not endval then
+        startval, endval = 1, range
+    end
+    -- Note that even for the case of startval==1, there's no measurable
+    -- performance benefit to preallocating the array with table.create().
+    local result = {}
+    for i = startval, endval do
+        result[i] = func(i)
+    end
+    return result
 end
 
 ------------------------------------------------------------------------
