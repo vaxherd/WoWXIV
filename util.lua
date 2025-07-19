@@ -287,6 +287,14 @@ function WoWXIV.all(func, ...)
     return true
 end
 
+-- Equivalent of all(), accepting a table instead of a varargs list.
+function WoWXIV.allt(func, table)
+    for _, value in pairs(table) do
+        if not func(value) then return false end
+    end
+    return true
+end
+
 -- Return true iff func(arg) returns a true value for any argument.
 -- If the function does not return pure boolean values, the return value
 -- is undefined except in that its truth value is as described above.
@@ -295,6 +303,14 @@ function WoWXIV.any(func, ...)
     for i = 1, select("#", ...) do
         local arg = select(i, ...)  -- Isolate the single argument.
         if func(arg) then return true end
+    end
+    return false
+end
+
+-- Equivalent of any(), accepting a table instead of a varargs list.
+function WoWXIV.anyt(func, table)
+    for _, value in pairs(table) do
+        if func(value) then return true end
     end
     return false
 end

@@ -9,9 +9,13 @@ local Frame = WoWXIV.Frame
 local strformat = string.format
 local strsub = string.sub
 local tinsert = tinsert
+local yield = coroutine.yield
 
 
 assert(WoWXIV.UI.ItemSubmenu)  -- Ensure proper load order.
+
+-- Declared early to make available to utility routines.
+local ContainerFrameHandler = class(MenuCursor.MenuFrame)
 
 -- Class implementing the item submenu for inventory items.  We roll our
 -- own rather than using the standard DropdownMenuButton so we can include
@@ -32,14 +36,20 @@ local function SendToAuctionHouse(item_loc)
     MenuCursor.AuctionHouseFrameHandler.FocusSellFrame()
 end
 
--- Send an item to the currently active bank frame.
+-- Send an item to the currently active bank frame.  May start a locked
+-- sequence in order to split the source stack among multiple bank slots.
+local SendToBankInternal  -- Forward declaration.
 local function SendToBank(bag, slot, info)
-    ClearCursor()
-    assert(not GetCursorInfo())
     if info.isLocked then
         WoWXIV.Error("Item is locked.")
         return
     end
+    ContainerFrameHandler.instance:RunUnderLock(
+        SendToBankInternal, bag, slot, info)
+end
+function SendToBankInternal(bag, slot, info)
+    ClearCursor()
+    assert(not GetCursorInfo())
     local limit = select(8, C_Item.GetItemInfo("item:"..info.itemID)) or 0
     local function SearchBag(bag_id)
         local size = C_Container.GetContainerNumSlots(bag_id) or 0
@@ -104,14 +114,34 @@ local function SendToBank(bag, slot, info)
             return
         end
     end
+    local is_partial
     if target_count + info.stackCount > limit then
-        C_Container.SplitContainerItem(bag, slot, limit - target_count)
+        local split_count = limit - target_count
+        C_Container.SplitContainerItem(bag, slot, split_count)
+        is_partial = true
     else
         C_Container.PickupContainerItem(bag, slot)
     end
     local cursor_type, _, cursor_link = GetCursorInfo()
     assert(cursor_type == "item" and cursor_link == info.hyperlink)
     C_Container.PickupContainerItem(target_bag, target_slot)
+    if is_partial then
+        info.isLocked = true  -- Because we just picked it up.
+        local item_loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
+        local guid = C_Item.GetItemGUID(item_loc)
+        while info.isLocked do
+            if not yield(true) then
+                WoWXIV.Error("Item transfer interrupted.")
+                return
+            end
+            info = C_Container.GetContainerItemInfo(bag, slot)
+        end
+        if C_Item.GetItemGUID(item_loc) ~= guid then
+            WoWXIV.Error("Item transfer interrupted due to inventory change.")
+            return
+        end
+        return SendToBankInternal(bag, slot, info)
+    end
 end
 
 -- Sell an item to a merchant.
@@ -231,7 +261,6 @@ end
 -- Menu handler for ContainerFrames
 ---------------------------------------------------------------------------
 
-local ContainerFrameHandler = class(MenuCursor.MenuFrame)
 MenuCursor.ContainerFrameHandler = ContainerFrameHandler  -- For exports.
 MenuCursor.Cursor.RegisterFrameHandler(ContainerFrameHandler)
 local InventoryItemSubmenuHandler = class(MenuCursor.StandardMenuFrame)
@@ -293,10 +322,10 @@ function ContainerFrameHandler:OnCancel()
     end
 end
 
-function ContainerFrameHandler:OnShow(frame)
+function ContainerFrameHandler:OnShow(shown_frame)
     local cur_target = self:GetTarget()
     if not cur_target then
-        self.current_bag = frame:GetBagID()
+        self.current_bag = shown_frame:GetBagID()
         self.current_slot = 1
         local target, frame = self:SetTargets()
         self.frame = frame
