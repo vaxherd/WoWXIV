@@ -392,14 +392,17 @@ function MissionTabHandler:SetTargets(prev_target, is_follower_placement)
     if is_follower_placement and prev_target == page.StartMissionButton then
         prev_target = nil
     end
-    local left_x, top_y
+
+    local left_x, right_x, top_y
     for enemy in page.Board:EnumerateEnemies() do
         self.targets[enemy] = {send_enter_leave = enemy:IsShown()}
-        local x = enemy:GetLeft()
+        local x, y = enemy:GetLeft(), enemy:GetTop()
         if not left_x or x < left_x then
             left_x = x
         end
-        local y = enemy:GetTop()
+        if not right_x or x > right_x then
+            right_x = x
+        end
         if not top_y or y > top_y then
             top_y = y
         end
@@ -407,26 +410,78 @@ function MissionTabHandler:SetTargets(prev_target, is_follower_placement)
             prev_target = nil
         end
     end
+    local e11, e14, e21, e24
     for enemy in page.Board:EnumerateEnemies() do
-        if enemy:GetTop() == top_y then
+        local x, y = enemy:GetLeft(), enemy:GetTop()
+        if y == top_y then
             self.targets[enemy].up = page.StartMissionButton
-            if enemy:GetLeft() == left_x then
-                self.targets[page.StartMissionButton].down = enemy
+            if x == left_x then
+                e11 = enemy
+            elseif x == right_x then
+                e14 = enemy
+            end
+        else
+            if x == left_x then
+                e21 = enemy
+            elseif x == right_x then
+                e24 = enemy
             end
         end
     end
-    local follower_1
-    self.followers = {}
+    self.targets[page.StartMissionButton].down = e11
+    self.targets[e11].left = e14
+    self.targets[e14].right = e11
+    self.targets[e21].left = e24
+    self.targets[e24].right = e21
+
+    local f11, f12, f13, f21, f22
     for follower in page.Board:EnumerateFollowers() do
         self.targets[follower] = {
             send_enter_leave = true, is_follower = true,
             on_click = function() self:ClickFollowerSlot(follower) end}
-        if not follower_1 or follower:GetLeft() < follower_1:GetLeft() then
-            follower_1 = follower
+        local x, y = follower:GetLeft(), follower:GetTop()
+        if not f11 then
+            f11 = follower
+        elseif y > f11:GetTop() then
+            assert(not f13)
+            f21, f22 = f11, f12
+            f11, f12 = follower, nil
+        elseif y < f11:GetTop() then
+            if not f21 then
+                f21 = follower
+            else
+                assert(not f22)
+                assert(y == f21:GetTop())
+                if x > f21:GetLeft() then
+                    f22 = follower
+                else
+                    f21, f22 = follower, f21
+                end
+            end
+        elseif not f12 then
+            if x > f11:GetLeft() then
+                f12 = follower
+            else
+                f11, f12 = follower, f11
+            end
+        else
+            assert(not f13)
+            if x > f12:GetLeft() then
+                f13 = follower
+            elseif x > f11:GetLeft() then
+                f12, f13 = follower, f12
+            else
+                f11, f12, f13 = follower, f11, f12
+            end
         end
-        tinsert(self.followers, follower)
     end
-    return prev_target or follower_1 or page.StartMissionButton
+    self.followers = {f11, f12, f13, f21, f22}
+    for i, follower in ipairs(self.followers) do
+        self.targets[follower].left = self.followers[i==1 and 5 or i-1]
+        self.targets[follower].right = self.followers[i==5 and 1 or i+1]
+    end
+
+    return prev_target or self.followers[1] or page.StartMissionButton
 end
 
 function MissionTabHandler:ClickFollowerSlot(follower)
