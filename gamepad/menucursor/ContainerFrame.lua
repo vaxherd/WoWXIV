@@ -302,7 +302,11 @@ function ContainerFrameHandler:OnShow(frame)
         self.frame = frame
         -- Various UIs automatically open the inventory alongside them,
         -- so don't steal focus from any other frame that's already open.
-        self:EnableBackground(target)
+        if self.cursor:GetFocus() then
+            self:EnableBackground(target)
+        else
+            self:Enable(target)
+        end
     else
         local target, frame = self:SetTargets()
         assert(target == cur_target)

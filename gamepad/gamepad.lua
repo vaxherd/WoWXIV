@@ -197,6 +197,7 @@ function GamePadListener:OnGamePadStick(stick, x, y)
         ItemTextScrollFrame,
         OpenMailScrollFrame,
         QuestDetailScrollFrame,
+        QuestMapDetailsScrollFrame,
         QuestRewardScrollFrame,
         "ItemSocketingScrollFrame",
     }

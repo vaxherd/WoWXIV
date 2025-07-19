@@ -234,14 +234,14 @@ function Cursor:AddFrame(frame, modal, target, focus)
             break
         end
     end
-    -- Always focus the frame if it's the only one active, or if it's
-    -- the only one in the modal stack (regardless of non-modal frames)
-    if not self:GetFocus() or (modal and #stack == 0) then
+    -- If this is a modal frame and it's the only one in the stack, it
+    -- gets input focus regardless of whether it requested focus.
+    if modal and #stack == 0 then
         focus = true
     end
     if focus then
         self:LeaveTarget()
-        self:SendBlur()
+        self:SendUnfocus()
         target = target or frame:GetDefaultTarget()
         tinsert(stack, {frame, target})
         if target then
@@ -253,10 +253,7 @@ function Cursor:AddFrame(frame, modal, target, focus)
     else
         assert(not found)  -- Must be the case when not focusing.
         target = target or frame:GetDefaultTarget()
-        -- Don't put it underneath the no-input entry if that entry is
-        -- on the bottom of the stack
-        local index = stack[1] and 1 or 2
-        tinsert(stack, index, {frame, target})
+        tinsert(stack, 1, {frame, target})
         frame:ScrollToTarget(target)
     end
 end
@@ -281,7 +278,7 @@ function Cursor:InternalRemoveFrameFromStack(frame, stack, is_top_stack)
             local is_focus = is_top_stack and i == #stack
             if is_focus then
                 self:LeaveTarget()
-                self:SendBlur()
+                self:SendUnfocus()
             end
             tremove(stack, i)
             if is_focus then
@@ -339,7 +336,7 @@ function Cursor:SetFocus(frame)
         if (frame and v and v[1] == frame) or (not frame and not v) then
             if i < top then
                 self:LeaveTarget()
-                self:SendBlur()
+                self:SendUnfocus()
                 tinsert(stack, tremove(stack, i))
                 self:SendFocus()
                 self:EnterTarget()
@@ -357,10 +354,10 @@ function Cursor:SendFocus()
     if focus then focus:OnFocus() end
 end
 
--- Send an OnBlur event to the currently focused MenuFrame.
-function Cursor:SendBlur()
+-- Send an OnUnfocus event to the currently focused MenuFrame.
+function Cursor:SendUnfocus()
     local focus = self:GetFocus()
-    if focus then focus:OnBlur() end
+    if focus then focus:OnUnfocus() end
 end
 
 -- Call the enter-target callback for the currently active target, if any.
@@ -690,7 +687,7 @@ function Cursor:OnClick(button, down, is_repeat)
             local top = #stack
             if top > 1 then
                 self:LeaveTarget()
-                self:SendBlur()
+                self:SendUnfocus()
                 tinsert(stack, 1, tremove(stack, top))
                 assert(#stack == top)
                 self:SendFocus()
@@ -1313,7 +1310,7 @@ end
 
 -- Focus-out event handler.  Called when the frame loses focus,
 -- immediately after LeaveTarget() is called for the current target (if any).
-function MenuFrame:OnBlur()
+function MenuFrame:OnUnfocus()
 end
 
 -- Confirm input event handler, called from Cursor:OnClick() for confirm
@@ -1458,9 +1455,9 @@ function MenuFrame:Enable(initial_target)
     global_cursor:AddFrame(self, self.modal, initial_target, true)
 end
 
--- Enable cursor input for this frame, but do not set it as the input focus
--- unless there is currently no frame focused.  If initial_target is not
--- nil, the frame's current cursor target will be set to that target.
+-- Enable cursor input for this frame, but do not set it as the input focus.
+-- If initial_target is not nil, the frame's current cursor target will be
+-- set to that target.
 function MenuFrame:EnableBackground(initial_target)
     global_cursor:AddFrame(self, self.modal, initial_target, false)
 end
