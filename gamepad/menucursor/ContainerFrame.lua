@@ -9,6 +9,7 @@ local Frame = WoWXIV.Frame
 local strformat = string.format
 local strsub = string.sub
 local tinsert = tinsert
+local tremove = tremove
 local yield = coroutine.yield
 
 
@@ -38,16 +39,16 @@ end
 
 -- Send an item to the currently active bank frame.  May start a locked
 -- sequence in order to split the source stack among multiple bank slots.
-local SendToBankInternal  -- Forward declaration.
+local InternalSendToBank  -- Forward declaration.
 local function SendToBank(bag, slot, info)
     if info.isLocked then
         WoWXIV.Error("Item is locked.")
         return
     end
     ContainerFrameHandler.instance:RunUnderLock(
-        SendToBankInternal, bag, slot, info)
+        InternalSendToBank, bag, slot, info)
 end
-function SendToBankInternal(bag, slot, info)
+function InternalSendToBank(bag, slot, info)
     ClearCursor()
     assert(not GetCursorInfo())
     local limit = select(8, C_Item.GetItemInfo(info.itemID)) or 0
@@ -129,18 +130,23 @@ function SendToBankInternal(bag, slot, info)
         info.isLocked = true  -- Because we just picked it up.
         local item_loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
         local guid = C_Item.GetItemGUID(item_loc)
+        local status
         while info.isLocked do
-            if not yield(true) then
+            status = yield(true)
+            if status == MenuCursor.MenuFrame.RUNUNDERLOCK_ABORT then
                 WoWXIV.Error("Item transfer interrupted.")
                 return
             end
             info = C_Container.GetContainerItemInfo(bag, slot)
         end
+        if status == MenuCursor.MenuFrame.RUNUNDERLOCK_CANCEL then
+            return
+        end
         if C_Item.GetItemGUID(item_loc) ~= guid then
             WoWXIV.Error("Item transfer interrupted due to inventory change.")
             return
         end
-        return SendToBankInternal(bag, slot, info)
+        return InternalSendToBank(bag, slot, info)
     end
 end
 
@@ -254,6 +260,248 @@ local function SendToSocket(bag, slot, info)
         error = "The socket is already filled."
     end
     WoWXIV.Error(error)
+end
+
+-- Start an auto-deposit operation.
+-- This displays a confirmation dialog, which when confirmed will start
+-- the actual auto-deposit sequence.
+local AutoDeposit  -- Forward declarations.
+local function StartAutoDeposit()
+    local text =
+        "Deposit all stackable items which already have stacks in the bank?"
+    local function RunAutoDeposit()
+        ContainerFrameHandler.instance:RunUnderLock(AutoDeposit)
+    end
+    WoWXIV.ShowConfirmation(text, nil, "Deposit", "Cancel", RunAutoDeposit)
+end
+function AutoDeposit(prev_bag, prev_slot)
+    local INVENTORY_BAGS = {Enum.BagIndex.Backpack, Enum.BagIndex.Bag_1,
+                            Enum.BagIndex.Bag_2, Enum.BagIndex.Bag_3,
+                            Enum.BagIndex.Bag_4, Enum.BagIndex.ReagentBag}
+    -- We list Reagentbank first so reagents will preferentially be sent there.
+    local BANK_BAGS = {Enum.BagIndex.Reagentbank, Enum.BagIndex.Bank,
+                       Enum.BagIndex.BankBag_1, Enum.BagIndex.BankBag_2,
+                       Enum.BagIndex.BankBag_3, Enum.BagIndex.BankBag_4,
+                       Enum.BagIndex.BankBag_5, Enum.BagIndex.BankBag_6,
+                       Enum.BagIndex.BankBag_7,
+                       Enum.BagIndex.AccountBankTab_1,
+                       Enum.BagIndex.AccountBankTab_2,
+                       Enum.BagIndex.AccountBankTab_3,
+                       Enum.BagIndex.AccountBankTab_4,
+                       Enum.BagIndex.AccountBankTab_5}
+
+    -- First look up stackable items in the bank, so we know which to send.
+    -- Also record where those items are stored for later lookup, along with
+    -- sets of empty slots for each bank bag.
+    local target_items = {}  -- Mapping from item ID to "is target" flag.
+    local target_bags = {}   -- Mapping from item ID to bag list.
+    local target_slots = {}  -- Mapping from item ID to {bag,slot,space} list.
+    local empty_slots = {}   -- Mapping from bag ID to slot index list.
+    local max_stack = {}     -- Mapping from item ID to max stack size.
+    for _, bag in ipairs(BANK_BAGS) do
+        local size = C_Container.GetContainerNumSlots(bag) or 0
+        empty_slots[bag] = {}
+        for slot = 1, size do
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            if info then
+                id = info.itemID
+                if target_items[id] == nil then
+                    if not max_stack[id] then
+                        max_stack[id] = select(8, C_Item.GetItemInfo(id)) or 0
+                    end
+                    target_items[id] = (max_stack[id] > 1)
+                end
+                if target_items[id] then
+                    target_bags[id] = target_bags[id] or {}
+                    -- For now, we create target_bags as a set for simplicity.
+                    -- We rewrite it to a list when we're all done.
+                    target_bags[id][bag] = true
+                    target_slots[id] = target_slots[id] or {}
+                    local space = max_stack[id] - info.stackCount
+                    assert(space >= 0)
+                    if space > 0 then
+                        tinsert(target_slots[id], {bag, slot, space})
+                    end
+                end
+            else
+                tinsert(empty_slots[bag], slot)
+            end
+        end
+    end
+    -- Turn target bag sets into lists sorted in BANK_BAGS order.
+    for id, bag_set in pairs(target_bags) do
+        local bag_list = {}
+        for _, bag in ipairs(BANK_BAGS) do
+            if bag_set[bag] then
+                tinsert(bag_list, bag)
+            end
+        end
+        target_bags[id] = bag_list
+    end
+
+    -- Next iterate over inventory bags, recording slots with sendable items.
+    local source_slots = {}  -- List of {bag,slot,item} for each slot.
+    for _, bag in ipairs(INVENTORY_BAGS) do
+        local size = C_Container.GetContainerNumSlots(bag) or 0
+        for slot = 1, size do
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            if info and target_items[info.itemID] then
+                tinsert(source_slots, {bag, slot, info.itemID})
+            end
+        end
+    end
+    if #source_slots == 0 then
+        print(YELLOW_FONT_COLOR:WrapTextInColorCode(
+            "Nothing found to auto-deposit."))
+        return
+    end
+
+    -- Now start the actual move sequence.  Rather than simply sending all
+    -- source slots in order, we batch as many nonconflicting moves as we
+    -- can, then come back after slot locks clear to resolve remaining moves.
+    ClearCursor()
+    assert(not GetCursorInfo())
+    local full_items = {}  -- Set of items we ran out of space for.
+    while #source_slots > 0 do
+        local unresolved = {}  -- List of unresolved slots for the next cycle.
+        local pending_items = {}  -- Set of items we processed this cycle.
+        local throttled = false  -- Did we fail a cursor operation?
+        for i = 1, #source_slots do
+            local bag, slot, id = unpack(source_slots[i])
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            if not info or info.itemID ~= id then
+                WoWXIV.Error("Inventory consistency error, aborting deposit.")
+                return
+            end
+            if throttled or info.isLocked or pending_items[id] then
+                -- Avoid the risk of colliding move operations by only
+                -- processing one stack of each source item each cycle.
+                tinsert(unresolved, source_slots[i])
+            elseif not full_items[id] then
+                local limit = max_stack[id]
+                local target_bag, target_slot, target_count
+                -- Send to the first existing stack with space, if any.
+                -- (Note that we don't try to skip over locked slots;
+                -- we prefer consistent behavior over speed.)
+                local is_merge
+                if #target_slots[id] > 0 then
+                    local space
+                    target_bag, target_slot, space = unpack(target_slots[id][1])
+                    assert(space > 0)
+                    target_count = min(info.stackCount, space)
+                    is_merge = true
+                else
+                    -- Otherwise, pick the first empty slot found in any bag
+                    -- which already had a stack of this item.  (We enforce
+                    -- this "same-bag" restriction partly to avoid items
+                    -- getting pseudo-randomly scattered across bank bags and
+                    -- partly to avoid having to check item restrictions on
+                    -- reagent and account bank bags.)
+                    for _, bag in ipairs(target_bags[id]) do
+                        if #empty_slots[bag] > 0 then
+                            target_bag, target_slot = bag, empty_slots[bag][1]
+                            target_count = info.stackCount
+                        end
+                    end
+                end
+                if target_bag then
+                    local target_info = C_Container.GetContainerItemInfo(
+                        target_bag, target_slot)
+                    if target_info and target_info.isLocked then
+                        tinsert(unresolved, source_slots[i])
+                    else
+                        -- Actually perform the move!
+                        if target_count < info.stackCount then
+                            C_Container.SplitContainerItem(bag, slot,
+                                                           target_count)
+                        else
+                            C_Container.PickupContainerItem(bag, slot)
+                        end
+                        local cursor_type, cursor_id = GetCursorInfo()
+                        if not (cursor_type == "item" and cursor_id == id) then
+                            if cursor_type then
+                                -- Probably the player tried to do something
+                                -- else while auto-deposit was in progress.
+                                WoWXIV.Error("Auto-deposit aborted due to cursor error.")
+                                return
+                            else
+                                -- If the cursor is empty, we probably hit
+                                -- a throttling threshold or the like.
+                                -- Exit this cycle now and try again later.
+                                throttled = true
+                            end
+                        else
+                            -- We've verified that the cursor has our item,
+                            -- so drop it in the target slot and verify.
+                            C_Container.PickupContainerItem(
+                                target_bag, target_slot)
+                            if GetCursorInfo() then
+                                -- Again, presumably throttled.  Clear the
+                                -- cursor so as not to confuse the next cycle.
+                                throttled = true
+                                ClearCursor()
+                                if GetCursorInfo() then  -- Should be impossible?
+                                    WoWXIV.Error("Auto-deposit aborted due to unexpected cursor error.")
+                                    return
+                                end
+                            end
+                        end
+                        if throttled then
+                            -- Retry this deposit next cycle.
+                            tinsert(unresolved, source_slots[i])
+                        else
+                            -- The cursor is empty, so we assume the move
+                            -- succeeded.  Update item tables as appropriate.
+                            if is_merge then
+                                local entry = target_slots[id][1]
+                                assert(target_bag == entry[1])
+                                assert(target_slot == entry[2])
+                                entry[3] = entry[3] - target_count
+                                assert(entry[3] >= 0)
+                                if entry[3] == 0 then
+                                    tremove(target_slots[id], 1)
+                                end
+                            else
+                                assert(target_slot == empty_slots[target_bag][1])
+                                tremove(empty_slots[target_bag], 1)
+                                local space = limit - target_count
+                                if space > 0 then
+                                    -- If we used an empty slot for this move,
+                                    -- there must not have been any partial
+                                    -- stacks left in the bank.
+                                    assert(#target_slots[id] == 0)
+                                    target_slots[id][1] =
+                                        {target_bag, target_slot, space}
+                                end
+                            end
+                            if target_count < info.stackCount then
+                                -- There's more to deposit next cycle.
+                                tinsert(unresolved, source_slots[i])
+                            end
+                        end
+                    end
+                else
+                    local name = C_Item.GetItemInfo(id)
+                    WoWXIV.Error("No space in bank for "..name..".", false)
+                    full_items[id] = true
+                end
+            end
+        end
+        source_slots = unresolved
+        local status = yield(true)
+        if status == MenuCursor.MenuFrame.RUNUNDERLOCK_ABORT then
+            WoWXIV.Error("Auto-deposit interrupted.")
+            return
+        elseif status == MenuCursor.MenuFrame.RUNUNDERLOCK_CANCEL then
+            -- Rather than waiting for all pending locks to resolve, which
+            -- may take a while depending on how many moves are in flight,
+            -- we stop immediately and return control to the player.
+            WoWXIV.Error("Auto-deposit cancelled.", false)
+            return
+        end
+    end
+
+    print(YELLOW_FONT_COLOR:WrapTextInColorCode("Auto-deposit completed."))
 end
 
 
@@ -600,6 +848,10 @@ function InventoryItemSubmenu:__constructor()
     self.menuitem_sendtobank.ExecuteInsecure =
         function(bag, slot, info) SendToBank(bag, slot, info) end
 
+    self.menuitem_autodeposit =
+        WoWXIV.UI.ItemSubmenuButton(self, "Auto-deposit", false)
+    self.menuitem_autodeposit.ExecuteInsecure = StartAutoDeposit
+
     self.menuitem_sell =
         WoWXIV.UI.ItemSubmenuButton(self, "Sell", false)
     self.menuitem_sell.ExecuteInsecure =
@@ -644,6 +896,7 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
 
     elseif BankFrame and BankFrame:IsShown() then
         self:AppendButton(self.menuitem_sendtobank)
+        self:AppendButton(self.menuitem_autodeposit)
 
     elseif MerchantFrame and MerchantFrame:IsShown() then
         -- We assume this tracks the "does merchant accept selling" state

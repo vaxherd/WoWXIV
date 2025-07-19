@@ -452,8 +452,11 @@ function WoWXIV.envcall(env, fn, ...)
     return retval
 end
 
--- Display an error message.
-function WoWXIV.Error(text)
-    PlaySound(SOUNDKIT.IG_QUEST_LOG_ABANDON_QUEST)  -- generic error sound
+-- Display an error message, optionally with an error sound.
+-- with_sound defaults to true if not specified.
+function WoWXIV.Error(text, with_sound)
+    if with_sound ~= false then
+        PlaySound(SOUNDKIT.IG_QUEST_LOG_ABANDON_QUEST)  -- generic error sound
+    end
     print(WoWXIV.FormatColoredText(text, RED_FONT_COLOR:GetRGB()))
 end

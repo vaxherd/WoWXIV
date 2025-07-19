@@ -66,6 +66,8 @@ function Cursor:__constructor()
     self.lock_frame = nil
     -- Recursive lock depth for the current cursor lock.
     self.lock_depth = 0
+    -- True if the cancel button was pressed during cursor lock.
+    self.pending_cancel = false
     -- Button currently being auto-repeated ("DPadUp" etc.), nil if none.
     self.repeat_button = nil
     -- GetTime() timestamp of next auto-repeat.
@@ -338,6 +340,11 @@ end
 --        self:UnlockCursor()
 --    end
 --
+-- Ordinary cursor input will be suppressed while the cursor is locked, but
+-- the cursor will record whether the cancel button has been pressed; this
+-- state can be retrieved with IsPendingCancel().  The locking frame can
+-- use this information to abort its operation early, for example.
+--
 -- Locks may be nested; Unlock() must be called the same number of times
 -- as Lock() was called in order to unlock the cursor.
 --
@@ -364,6 +371,7 @@ function Cursor:Lock(frame)
         end
         self.lock_frame = frame
         self.lock_depth = 1
+        self.pending_cancel = false  -- Should already be false, but be safe.
         if cur_focus ~= frame then
             self:SendFocus()
         end
@@ -380,9 +388,15 @@ function Cursor:Unlock(frame)
     assert(self.lock_depth > 0)
     self.lock_depth = self.lock_depth - 1
     if self.lock_depth <= 0 then
-        self.lock_frame = nil
+        self:ClearLock()
         self:UpdateCursor()
     end
+end
+
+-- Return whether the cancel button was pressed while the cursor was locked.
+-- Always returns false if the cursor is not locked.
+function Cursor:IsPendingCancel()
+    return self.pending_cancel
 end
 
 
@@ -434,7 +448,7 @@ function Cursor:InternalRemoveFrameFromStack(frame, stack, is_top_stack)
         if v and v[1] == frame then
             local had_lock = (self.lock_frame == frame)
             if had_lock then
-                self.lock_frame = nil
+                self:ClearLock()
             end
             local is_focus = had_lock or (is_top_stack and i == #stack)
             if is_focus then
@@ -544,6 +558,13 @@ function Cursor:InternalFindFrame(frame)
     return nil, nil
 end
 
+-- Clear state related to cursor locking.  Should be called when the lock
+-- is released.
+function Cursor:ClearLock()
+    self.lock_frame = nil
+    self.pending_cancel = false
+end
+
 -- Update the cursor's display state and input bindings.
 -- This method is primarily intended for internal use, but frame handlers
 -- may call it with no argument to force a resync if any state has changed
@@ -629,7 +650,10 @@ function Cursor:UpdateCursor(in_combat)
                            WoWXIV.Config.GamePadCycleFocusButton(),
                            "CLICK WoWXIV_MenuCursor:CycleFocus")
     end
-    if focus and not self.lock_frame and not entering_combat then
+    if self.lock_frame and not entering_combat then
+        SetOverrideBinding(self, true, WoWXIV.Config.GamePadCancelButton(),
+                           "CLICK WoWXIV_MenuCursor:CancelLock")
+    elseif focus and not entering_combat then
         SetOverrideBinding(self, true, "PADDUP",
                            "CLICK WoWXIV_MenuCursor:DPadUp")
         SetOverrideBinding(self, true, "PADDDOWN",
@@ -838,6 +862,9 @@ function Cursor:OnClick(button, down, is_repeat)
         -- as a separate event, so we only get here in the no-passthrough
         -- case.
         focus:OnCancel()
+    elseif button == "CancelLock" then
+        assert(self.lock_frame)
+        self.pending_cancel = true
     elseif button == "Button3" or button == "Button4" then
         focus:OnAction(button)
     elseif button == "PrevPage" then
@@ -1398,14 +1425,26 @@ end
 function MenuFrame:OnUpdate(target_frame, dt)
     if self.lock_coroutine then
         local has_focus = self:HasFocus()
-        local noerror, running =
-            coroutine.resume(self.lock_coroutine, has_focus)
+        local status
+        if not has_focus then
+            status = MenuFrame.RUNUNDERLOCK_ABORT
+        elseif global_cursor:IsPendingCancel() then
+            status = MenuFrame.RUNUNDERLOCK_CANCEL
+        else
+            status = MenuFrame.RUNUNDERLOCK_CONTINUE
+        end
+        local noerror, running = coroutine.resume(self.lock_coroutine, status)
         if not noerror or not running then
             self.lock_coroutine = nil
             self:UnlockCursor()
-        end
-        if not has_focus and running then
-            error("Interrupted coroutine did not complete immediately")
+            if not noerror then
+                local error_text = running
+                error(error_text)
+            end
+        elseif not has_focus and running then
+            -- Cursor was already unlocked by the loss of focus.
+            self.lock_coroutine = nil
+            error("Aborted coroutine did not complete immediately")
         end
     end
 end
@@ -1617,10 +1656,20 @@ end
 -- Lock the cursor for the execution of the given function.  The function
 -- must be written as a coroutine, and should yield(true) to wait before
 -- completion; any return values will be ignored, and the cursor will be
--- unlocked after the function returns.  If the frame ever loses focus
--- (such as because it is hidden), the function will be resumed with a
--- value of false, in which case it should immediately clean up and return.
--- Only one coroutine at a time may be run using this interface.
+-- unlocked after the function returns.  Only one function at a time may
+-- be run using this interface.
+--
+-- When the function resumes from a yield, it will be passed one of the
+-- following values indicating whether the function should continue
+-- processing:
+--     MenuFrame.RUNUNDERLOCK_CONTINUE: Processing may continue normally.
+--     MenuFrame.RUNUNDERLOCK_CANCEL: The user pressed the cancel button;
+--         the function should end processing as soon as feasible.
+--     MenuFrame.RUNUNDERLOCK_ABORT: The frame lost input focus (such as
+--         because it waqs hidden); the function must return immediately.
+-- Particularly in the case of RUNUNDERLOCK_ABORT, the function will not
+-- be resumed even if it attempts to resume again (a Lua error will be
+-- raised in this case).
 --
 -- This method will perform an initial call to the function; if the
 -- function completes immediately (returning false), no locking will be
@@ -1635,12 +1684,19 @@ function MenuFrame:RunUnderLock(func, ...)
     local co = coroutine.create(func)
     local noerror, running = coroutine.resume(co, ...)
     if not noerror or not running then
+        if not noerror then
+            local error_text = running
+            error(error_text)
+        end
         return  -- Function returned immediately, nothing else to do.
     end
     self:LockCursor()
     self.lock_coroutine = co
     -- Coroutine will be resumed at the next OnUpdate() call.
 end
+MenuFrame.RUNUNDERLOCK_CONTINUE = 0
+MenuFrame.RUNUNDERLOCK_CANCEL = 1
+MenuFrame.RUNUNDERLOCK_ABORT = 2
 
 -- Return the current cursor target for this frame, or nil if the frame has
 -- not been enabled for cursor input.
