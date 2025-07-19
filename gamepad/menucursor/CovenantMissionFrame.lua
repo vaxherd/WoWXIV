@@ -133,9 +133,7 @@ end
 
 function CovenantMissionFrameMissionsHandler:RefreshTargets()
     local target = self:GetTarget()
-    if not target then
-        target = self.current
-    elseif self.targets[target].is_scroll_box then
+    if self.targets[target].is_scroll_box then
         target = self.targets[target].id
     end
     self:ClearTarget()
@@ -145,6 +143,10 @@ end
 function CovenantMissionFrameMissionsHandler:SetTargets(last_target)
     local f = self.frame
     self.targets = {}
+
+    if not last_target then
+        last_target = self.current
+    end
 
     local function ClickMission(target)
         local button = self:GetTargetFrame(target)
