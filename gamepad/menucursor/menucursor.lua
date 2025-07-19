@@ -501,13 +501,11 @@ function Cursor:UpdateCursor(in_combat)
         self:SetAttribute("clickbutton2", focus:GetCancelButton())
         if not self:IsShown() then
             self:Show()
-            focus:EnterTarget(target)
+            self:EnterTarget()
         end
     else
         if self:IsShown() then
-            if target then
-                focus:LeaveTarget(target)
-            end
+            self:LeaveTarget()
             self:Hide()
         end
     end
