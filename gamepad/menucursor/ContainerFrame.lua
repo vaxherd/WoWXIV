@@ -50,7 +50,7 @@ end
 function SendToBankInternal(bag, slot, info)
     ClearCursor()
     assert(not GetCursorInfo())
-    local limit = select(8, C_Item.GetItemInfo("item:"..info.itemID)) or 0
+    local limit = select(8, C_Item.GetItemInfo(info.itemID)) or 0
     local function SearchBag(bag_id)
         local size = C_Container.GetContainerNumSlots(bag_id) or 0
         local empty_slot
@@ -736,7 +736,7 @@ function InventoryItemSubmenu:DoSplitStackConfirm(bag, slot, link, count)
 end
 
 function InventoryItemSubmenu:DoDiscard(bag, slot, info)
-    local class = select(12, C_Item.GetItemInfo("item:"..info.itemID))
+    local class = select(12, C_Item.GetItemInfo(info.itemID))
     local text, check_text
     if class == Enum.ItemClass.Questitem then
         text = "Discard |W%s,|w abandoning any related quests?"

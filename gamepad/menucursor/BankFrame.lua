@@ -37,7 +37,7 @@ local function FindInventorySlot(info, count)
 
     -- First look for an existing stack we can add to.
     local max_stack, _, _, _, class, subclass =
-        select(8, C_Item.GetItemInfo("item:"..info.itemID))
+        select(8, C_Item.GetItemInfo(info.itemID))
     local NUM_TOTAL_BAG_FRAMES = Constants.InventoryConstants.NumBagSlots + Constants.InventoryConstants.NumReagentBagSlots
     for bag_id = 0, NUM_TOTAL_BAG_FRAMES do
         for i = 1, C_Container.GetContainerNumSlots(bag_id) do
@@ -514,7 +514,7 @@ function BankItemSubmenu:DoSplitStackConfirm(bag, slot, link, count)
 end
 
 function BankItemSubmenu:DoDiscard(bag, slot, info)
-    local class = select(12, C_Item.GetItemInfo("item:"..info.itemID))
+    local class = select(12, C_Item.GetItemInfo(info.itemID))
     local text, check_text
     if class == Enum.ItemClass.Questitem then
         text = "Discard |W%s,|w abandoning any related quests?"
