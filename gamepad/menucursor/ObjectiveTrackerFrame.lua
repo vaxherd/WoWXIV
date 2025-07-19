@@ -94,8 +94,8 @@ function ObjectiveTrackerFrameHandler:SetTargets(old_target)
             first = first or block
             last = block
             block = block.nextBlock
-        end
-    end)  -- ForEachModule
+        end  -- for each block
+    end)  -- for each module
     if first then
         self.targets[last].down = first
         self.targets[first].up = last
