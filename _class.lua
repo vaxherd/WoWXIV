@@ -26,8 +26,9 @@ Instances of the class can then be created with:
 
     instance = MyClass()
 
-and called as usual for Lua instances:
+and manipulated as usual for Lua instances:
 
+    instance.instance_variable = instance.CLASS_CONSTANT
     instance.StaticMethod(...)
     instance:InstanceMethod(...)
 
@@ -102,20 +103,16 @@ The allocator must return a table value (it is not allowed to fail).
 The method should raise an error under any condition which would prevent
 it from creating a new instance.
 
-Any metatable set on the returned instance will be preserved, except
-that the __index field will be set appropriately for class member lookup
-as is done by the default allocator.  If no metatable is set, a new one
-will be created.
+Any metatable set on the returned instance will be preserved.  If no
+metatable is set, a new one will be created.  Note that If the allocator
+sets an instance metatable which includes an __index field, the value of
+that field will replace the normal __index which redirects to the class
+definition; this will prevent ordinary use of the table as a class
+instance unless special care is taken, and should normally not be done.
 
-If the allocator sets an instance metatable which includes an __index
-field, the value of that field will replace the normal __index which
-redirects to the class definition.  This will prevent ordinary use of
-the table as a class instance unless special care is taken, and should
-normally not be done.
-
-__super() is not supported in allocators; an overriding allocator wishing
-to call its base class's implementation must explicitly name the base
-class:
+__super() is not supported in allocators; an overriding allocator
+wishing to call its base class's implementation must explicitly name
+the base class:
 
     MyClass = class()
     function MyClass.__allocator(class, ...)
@@ -130,7 +127,7 @@ class:
         return instance
     end
 
-]]
+]]--
 
 ------------------------------------------------------------------------
 -- Implementation
@@ -140,23 +137,23 @@ local _, module = ...
 module = module or {} -- so the file can also be loaded with a simple require()
 
 -- Error messages are defined as constants for testing convenience.
-local parent_type_error_msg = "Parent class must be a table"
-local super_error_msg = "__super() called from class with no superclass"
-local constr_type_error_msg = "__constructor must be a function"
-local alloc_result_error_msg = "__allocator() must return a table"
+local PARENT_TYPE_ERROR_MSG = "Parent class must be a table"
+local SUPER_ERROR_MSG = "__super() called from class with no superclass"
+local CONSTR_TYPE_ERROR_MSG = "__constructor must be a function"
+local ALLOC_RESULT_ERROR_MSG = "__allocator() must return a table"
 
 local function call_super(...)
     local super = getmetatable(getfenv(2)).parent
     if super then
         super.__constructor(...)
     else
-        error(super_error_msg)
+        error(SUPER_ERROR_MSG)
     end
 end
 
 function module.class(parent)
     if parent and type(parent) ~= "table" then
-        error(parent_type_error_msg)
+        error(PARENT_TYPE_ERROR_MSG)
     end
     local classdef = {__super = call_super}
     local instance_metatable = {__index = classdef}
@@ -165,7 +162,7 @@ function module.class(parent)
         local instance
         if thisclass.__allocator then
             instance = thisclass.__allocator(thisclass, ...)
-            assert(type(instance) == "table", alloc_result_error_msg)
+            assert(type(instance) == "table", ALLOC_RESULT_ERROR_MSG)
             local metatable = getmetatable(instance) or {}
             -- Avoid directly referencing classdef for consistency.
             metatable.__index = metatable.__index or instance_metatable.__index
@@ -182,7 +179,7 @@ function module.class(parent)
         if k == "__constructor" then
             assert(t == classdef)
             if type(v) ~= "function" then
-                error(constr_type_error_msg)
+                error(CONSTR_TYPE_ERROR_MSG)
             end
             -- We need to attach the parent class to the function
             -- definition itself, since each constructor in an inheritance
@@ -301,7 +298,7 @@ local tests = {
         end
         local result, errmsg = pcall(f)
         assert(result == false)
-        assert(errmsg:find(constr_type_error_msg, 1, true))
+        assert(errmsg:find(CONSTR_TYPE_ERROR_MSG, 1, true))
     end,
 
     ConstructorArgs = function()
@@ -384,14 +381,14 @@ local tests = {
         local function f() return Class() end
         local result, errmsg = pcall(f)
         assert(result == false)
-        assert(errmsg:find(alloc_result_error_msg, 1, true))
+        assert(errmsg:find(ALLOC_RESULT_ERROR_MSG, 1, true))
     end,
 
     InvalidParentType = function()
         local function f() return class("foo") end
         local result, errmsg = pcall(f)
         assert(result == false)
-        assert(errmsg:find(parent_type_error_msg, 1, true))
+        assert(errmsg:find(PARENT_TYPE_ERROR_MSG, 1, true))
     end,
 
     InheritConstant = function()
@@ -564,7 +561,7 @@ local tests = {
         local function f() return Class() end
         local result, errmsg = pcall(f)
         assert(result == false)
-        assert(errmsg:find(super_error_msg, 1, true))
+        assert(errmsg:find(SUPER_ERROR_MSG, 1, true))
     end,
 
     InheritAllocator = function()

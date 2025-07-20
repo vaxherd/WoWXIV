@@ -4,7 +4,7 @@ Extends class() from _class.lua to work with WoW Frame instances.
 
 This file implements class()-style classes for the WoW "Frame" type and
 certain derived types, allowing custom classes to inherit from them in
-the same way they would for any class defined with  class().  Instances
+the same way they would for any class defined with class().  Instances
 of Frame-derived classes can be passed to WoW API functions just like
 ordinary frames.
 
@@ -48,7 +48,7 @@ The following native frame types are supported:
    - Button
    - Frame
 
---]]
+]]--
 
 local _, module = ...
 assert(module.class, "_class.lua must be loaded first")
