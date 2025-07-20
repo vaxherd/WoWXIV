@@ -111,6 +111,11 @@ function ClassIcon:SetAnchor(anchor, x, y, tooltip_anchor)
     self.tooltip_anchor = tooltip_anchor
 end
 
+if select(4, GetBuildInfo()) >= 110200 then  -- FIXME: 11.2.0
+local GetSpecialization = C_SpecializationInfo.GetSpecialization
+local GetSpecializationInfo = C_SpecializationInfo.GetSpecializationInfo
+end
+
 -- Returns detected role (ROLE_* constant) and class ("PRIEST" etc) or nil.
 function ClassIcon:Set(unit)
     local role_name, role_id, class_name, class, spec_name
