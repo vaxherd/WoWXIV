@@ -148,10 +148,25 @@ function BagGetter:Name()
 end
 
 
+local BankBagGetter  -- FIXME: 11.2.0 bank revamp
 local AccountBagGetter  -- FIXME: 11.2.0 bank revamp
 local VoidGetter  -- FIXME: 11.2.0 bank revamp
 local BankTabGetter  -- FIXME: 11.2.0 bank revamp
 if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
+-- Specialization of BagGetter for bank bags.
+--local
+ BankBagGetter = class(BagGetter)
+function BankBagGetter:Size()
+    -- If not at a bank, GetContainerNumSlots() will return positive values
+    -- for the main and reagent bank bags but GetContainerItemInfo() will
+    -- not return any data, making it look like the bags are empty, so we
+    -- suppress all data when the bank frame is not open.  The bank revamp
+    -- in 11.2.0 will make this all moot anyway.
+    if not BankFrame:IsShown() then return 0 end
+    return BagGetter.Size(self)
+end
+
+
 -- Specialization of BagGetter for account bank tabs.
 --local
  AccountBagGetter = class(BagGetter)
@@ -259,14 +274,14 @@ if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
     BAGDEF(BagGetter(Enum.BagIndex.Bag_4, "Bag 4", true), nil, true),
     BAGDEF(BagGetter(Enum.BagIndex.ReagentBag, "Reagent Bag", false)),
     BAGDEF(BagGetter(Enum.BagIndex.Bank, "Bank", false), "bank0"),
-    BAGDEF(BagGetter(Enum.BagIndex.BankBag_1, "Bank Bag 1", true), "bank1"),
-    BAGDEF(BagGetter(Enum.BagIndex.BankBag_2, "Bank Bag 2", true), "bank2"),
-    BAGDEF(BagGetter(Enum.BagIndex.BankBag_3, "Bank Bag 3", true), "bank3"),
-    BAGDEF(BagGetter(Enum.BagIndex.BankBag_4, "Bank Bag 4", true), "bank4"),
-    BAGDEF(BagGetter(Enum.BagIndex.BankBag_5, "Bank Bag 5", true), "bank5"),
-    BAGDEF(BagGetter(Enum.BagIndex.BankBag_6, "Bank Bag 6", true), "bank6"),
-    BAGDEF(BagGetter(Enum.BagIndex.BankBag_7, "Bank Bag 7", true), "bank7"),
-    BAGDEF(BagGetter(Enum.BagIndex.Reagentbank, "Bank Reagent Bag", false), "bankR"),
+    BAGDEF(BankBagGetter(Enum.BagIndex.BankBag_1, "Bank Bag 1", true), "bank1"),
+    BAGDEF(BankBagGetter(Enum.BagIndex.BankBag_2, "Bank Bag 2", true), "bank2"),
+    BAGDEF(BankBagGetter(Enum.BagIndex.BankBag_3, "Bank Bag 3", true), "bank3"),
+    BAGDEF(BankBagGetter(Enum.BagIndex.BankBag_4, "Bank Bag 4", true), "bank4"),
+    BAGDEF(BankBagGetter(Enum.BagIndex.BankBag_5, "Bank Bag 5", true), "bank5"),
+    BAGDEF(BankBagGetter(Enum.BagIndex.BankBag_6, "Bank Bag 6", true), "bank6"),
+    BAGDEF(BankBagGetter(Enum.BagIndex.BankBag_7, "Bank Bag 7", true), "bank7"),
+    BAGDEF(BankBagGetter(Enum.BagIndex.Reagentbank, "Bank Reagent Bag", false), "bankR"),
     BAGDEF(AccountBagGetter(1, "Warband Bank Tab 1", false), "warbank1"),
     BAGDEF(AccountBagGetter(2, "Warband Bank Tab 2", false), "warbank2"),
     BAGDEF(AccountBagGetter(3, "Warband Bank Tab 3", false), "warbank3"),
@@ -419,7 +434,11 @@ function isearch_event_frame:BAG_UPDATE(bag_id)
     end
 end
 
+if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
+BankFrame:HookScript("OnShow", function() isearch_event_frame:BANKFRAME_OPENED() end)  -- BANKFRAME_OPENED fires before OnShow() and our bank bag hack looks for :IsShown().
+else
 isearch_event_frame:RegisterEvent("BANKFRAME_OPENED")
+end
 function isearch_event_frame:BANKFRAME_OPENED()
     self.bankframe_open = true
     for _, bag in ipairs(BAGS) do
