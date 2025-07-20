@@ -159,6 +159,7 @@ local ITEM_TARGET = {
     [188134] = "player",  -- Bronze Timepiece (65118: How to Glide with Your Dragon)
     [188139] = "player",  -- Bronze Timepiece (65120: How to Dive with Your Dragon)
     [188169] = "player",  -- Bronze Timepiece (65133: How to Use Momentum with Your Dragon)
+    [188170] = "none",    -- Portal Initiator (65142: Portal Play)
     [188788] = "none",    -- Zephyreal Generator (65268: Bzzzzt!)
     [189384] = "target",  -- Ornithological Medical Kit (66071: Flying Rocs)
     [189454] = "target",  -- Feather-Plucker 3300 (65374: It's Plucking Time)
