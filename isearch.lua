@@ -3,7 +3,6 @@ local module_name, WoWXIV = ...
 local class = WoWXIV.class
 local strfind = string.find
 local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
-local strsub = string.sub
 local tinsert = tinsert
 
 local FCT = function(...)
@@ -15,9 +14,11 @@ local function Yellow(s) return FCT(s, YELLOW_FONT_COLOR:GetRGB())     end
 local function Green(s)  return FCT(s, GREEN_FONT_COLOR:GetRGB())      end
 local function Blue(s)   return FCT(s, BRIGHTBLUE_FONT_COLOR:GetRGB()) end
 
+local VOID_MAX_TABS,VOID_MAX_SLOTS if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
 -- Void storage constants which don't seem to be available via the API.
-local VOID_MAX_TABS = 2
-local VOID_MAX_SLOTS = 80  -- per tab
+--[[local]] VOID_MAX_TABS = 2
+--[[local]] VOID_MAX_SLOTS = 80  -- per tab
+end  -- FIXME: 11.2.0 bank revamp
 
 
 -- Maximum number of results to return in a single call.
@@ -35,15 +36,16 @@ local isearch_cache_uptodate = {}
 -- Helper routines
 --------------------------------------------------------------------------
 
--- Return the stack count of an inventory slot specified by item location,
+-- Returns the stack count of an inventory slot specified by item location,
 -- or 0 if unknown.  If the slot contains a single item with multiple
--- charges, the negative of the charge count is returned.
-local function GetItemCountOrCharges(loc)
+-- charges, the negative of the charge count is returned.  If the
+-- container item info is already available, pass it in |info|.
+local function GetItemCountOrCharges(loc, info)
     local link = C_Item.GetItemLink(loc)
     local count
     if loc:IsBagAndSlot() then
-        local slot_info = C_Container.GetContainerItemInfo(loc:GetBagAndSlot())
-        count = slot_info and slot_info.stackCount or 0
+        info = info or C_Container.GetContainerItemInfo(loc:GetBagAndSlot())
+        count = info and info.stackCount or 0
     else
         count = C_Item.GetItemCount(link)
     end
@@ -67,6 +69,11 @@ end
 
 local ContainerGetter = class()
 
+-- Constructor.  Pass the C_Container bag ID (an Enum.BagIndex value).
+function ContainerGetter:__constructor(bag_id)
+    self.bag_id = bag_id
+end
+
 -- Returns the name of the container, for use in /itemsearch results.
 function ContainerGetter:Name()
     return ""
@@ -77,7 +84,7 @@ end
 -- Contents() returns a table, the table will contain exactly this number
 -- of elements, with keys numbered consecutively from 1.
 function ContainerGetter:Size()
-    return 0
+    return C_Container.GetContainerNumSlots(self.bag_id) or 0
 end
 
 -- Returns a list {item ID, count, link} for a single slot in the container,
@@ -86,7 +93,13 @@ end
 -- <0 for a single item with charges (the charge count is the negative of
 -- the value); 0 indicates that the stack or charge count is unavailable.
 function ContainerGetter:Item(slot)
-    return nil
+    local info = C_Container.GetContainerItemInfo(self.bag_id, slot)
+    if info then
+        local loc = ItemLocation:CreateFromBagAndSlot(self.bag_id, slot)
+        return {info.itemID, GetItemCountOrCharges(loc, info), info.hyperlink}
+    else
+        return nil
+    end
 end
 
 -- Returns the content of all slots in a container in a table, or nil if
@@ -114,48 +127,36 @@ end
 
 -- Returns the bag ID for use in WoW API C_Container calls, or nil if none.
 function ContainerGetter:BagID()
-    return nil
+    return self.bag_id
 end
 
 
--- Getter for inventory and bank bags.
+-- Getter for inventory bags.
 local BagGetter = class(ContainerGetter)
 function BagGetter:__constructor(bag_id, name, append_bagname)
-    self.id = bag_id
+    self:__super(bag_id)
     self.name = name
     self.append_bagname = append_bagname
 end
 function BagGetter:Name()
     local name = self.name
     if self.append_bagname then
-        local item_name = C_Container.GetBagName(self.id)
+        local item_name = C_Container.GetBagName(self.bag_id)
         name = name .. " (" .. (item_name or "???") .. ")"
     end
     return name
 end
-function BagGetter:Size()
-    return C_Container.GetContainerNumSlots(self.id) or 0
-end
-function BagGetter:Item(slot)
-    local loc = ItemLocation:CreateFromBagAndSlot(self.id, slot)
-    if loc and loc:IsValid() then
-        return {C_Item.GetItemID(loc), GetItemCountOrCharges(loc),
-                C_Item.GetItemLink(loc)}
-    else
-        return nil
-    end
-end
-function BagGetter:BagID()
-    return self.id
-end
 
 
+local AccountBagGetter  -- FIXME: 11.2.0 bank revamp
+local VoidGetter  -- FIXME: 11.2.0 bank revamp
+local BankTabGetter  -- FIXME: 11.2.0 bank revamp
+if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
 -- Specialization of BagGetter for account bank tabs.
-local AccountBagGetter = class(BagGetter)
+--local
+ AccountBagGetter = class(BagGetter)
 function AccountBagGetter:__constructor(tab_index, name)
-    self.id = Enum.BagIndex.AccountBankTab_1 + (tab_index - 1)
-    self.name = name
-    self.append_bagname = true
+    self:__super(Enum.BagIndex.AccountBankTab_1 + (tab_index - 1), name, true)
 end
 function AccountBagGetter:Name()
     local name = self.name
@@ -164,7 +165,7 @@ function AccountBagGetter:Name()
         local data = C_Bank.FetchPurchasedBankTabData(Enum.BankType.Account)
         if data then
             for _, tab_info in ipairs(data) do
-                if tab_info.ID == self.id then
+                if tab_info.ID == self.bag_id then
                     tab_name = tab_info.name
                     break
                 end
@@ -177,8 +178,10 @@ end
 
 
 -- Getter for void storage tabs.
-local VoidGetter = class(ContainerGetter)
+--local
+ VoidGetter = class(ContainerGetter)
 function VoidGetter:__constructor(tab_index)
+    self:__super(nil)
     self.tab = tab_index
 end
 function VoidGetter:Name()
@@ -188,7 +191,7 @@ function VoidGetter:Size()
     return IsVoidStorageReady() and VOID_MAX_SLOTS or 0
 end
 function VoidGetter:Item(slot)
-    -- Void storage strips all item paramters, so we can just get the
+    -- Void storage strips all item parameters, so we can just get the
     -- standard link from the item ID.
     local item = GetVoidItemInfo(self.tab, slot)
     if item then
@@ -198,6 +201,40 @@ function VoidGetter:Item(slot)
         return nil
     end
 end
+function VoidGetter:BagID()
+    return nil
+end
+else  -- FIXME: 11.2.0 bank revamp
+-- Getter for bank tabs.
+--local
+ BankTabGetter = class(ContainerGetter)
+function BankTabGetter:__constructor(bank_type, tab_index, name)
+    local bag_id_base
+    if bank_type == Enum.BankType.Character then
+        bag_id_base = Enum.BagIndex.CharacterBankTab_1
+    else
+        assert(bank_type == Enum.BankType.Account)
+        bag_id_base = Enum.BagIndex.AccountBankTab_1
+    end
+    self:__super(bag_id_base + (tab_index - 1))
+    self.bank_type = bank_type
+    self.name = name
+end
+function BankTabGetter:Name()
+    local name = self.name
+    local tab_name = "???"
+    local data = C_Bank.FetchPurchasedBankTabData(self.bank_type)
+    if data then
+        for _, tab_info in ipairs(data) do
+            if tab_info.ID == self.bag_id then
+                tab_name = tab_info.name
+                break
+            end
+        end
+    end
+    return name .. " (" .. tab_name .. ")"
+end
+end  -- FIXME: 11.2.0 bank revamp
 
 --------------------------------------------------------------------------
 -- Other local data and utility routines
@@ -205,13 +242,16 @@ end
 
 -- WoW provides the C_Container.GetBagName() API to get the bag item name
 -- for a bag slot, but (1) that doesn't let us differentiate between
--- multiple bags of the same name and (2) it doesn't work for special bags
--- like the main bank bag, so we use our own names here (but still append
--- the bag item name for player-created bags).
+-- multiple bags of the same name and (2) it doesn't work for bank tabs,
+-- so we use our own names here (but still append the bag item name for
+-- player-created bags).
 local function BAGDEF(getter, cache_id, in_combined)
     return {getter = getter, cache_id = cache_id, in_combined = in_combined}
 end
-local BAGS = {
+local BAGS  -- FIXME: 11.2.0 bank revamp
+if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
+--local
+ BAGS = {
     BAGDEF(BagGetter(Enum.BagIndex.Backpack, "Backpack", false), nil, true),
     BAGDEF(BagGetter(Enum.BagIndex.Bag_1, "Bag 1", true), nil, true),
     BAGDEF(BagGetter(Enum.BagIndex.Bag_2, "Bag 2", true), nil, true),
@@ -236,6 +276,28 @@ local BAGS = {
 for tab = 1, VOID_MAX_TABS do
     tinsert(BAGS, BAGDEF(VoidGetter(tab), "void"..tab))
 end
+else  -- FIXME: 11.2.0 bank revamp
+--local
+ BAGS = {
+    BAGDEF(BagGetter(Enum.BagIndex.Backpack, "Backpack", false), nil, true),
+    BAGDEF(BagGetter(Enum.BagIndex.Bag_1, "Bag 1", true), nil, true),
+    BAGDEF(BagGetter(Enum.BagIndex.Bag_2, "Bag 2", true), nil, true),
+    BAGDEF(BagGetter(Enum.BagIndex.Bag_3, "Bag 3", true), nil, true),
+    BAGDEF(BagGetter(Enum.BagIndex.Bag_4, "Bag 4", true), nil, true),
+    BAGDEF(BagGetter(Enum.BagIndex.ReagentBag, "Reagent Bag", false)),
+    BAGDEF(BankTabGetter(Enum.BankType.Character, 1, "Bank Tab 1"), "bank1"),
+    BAGDEF(BankTabGetter(Enum.BankType.Character, 2, "Bank Tab 2"), "bank2"),
+    BAGDEF(BankTabGetter(Enum.BankType.Character, 3, "Bank Tab 3"), "bank3"),
+    BAGDEF(BankTabGetter(Enum.BankType.Character, 4, "Bank Tab 4"), "bank4"),
+    BAGDEF(BankTabGetter(Enum.BankType.Character, 5, "Bank Tab 5"), "bank5"),
+    BAGDEF(BankTabGetter(Enum.BankType.Character, 6, "Bank Tab 6"), "bank6"),
+    BAGDEF(BankTabGetter(Enum.BankType.Account, 1, "Warband Bank Tab 1"), "warbank1"),
+    BAGDEF(BankTabGetter(Enum.BankType.Account, 2, "Warband Bank Tab 2"), "warbank2"),
+    BAGDEF(BankTabGetter(Enum.BankType.Account, 3, "Warband Bank Tab 3"), "warbank3"),
+    BAGDEF(BankTabGetter(Enum.BankType.Account, 4, "Warband Bank Tab 4"), "warbank4"),
+    BAGDEF(BankTabGetter(Enum.BankType.Account, 5, "Warband Bank Tab 5"), "warbank5"),
+}
+end  -- FIXME: 11.2.0 bank revamp
 
 -- For equipment, names are available as global constants, but again they
 -- don't provide a way to distinguish between multiple slots of the same type.
@@ -362,7 +424,7 @@ function isearch_event_frame:BANKFRAME_OPENED()
     self.bankframe_open = true
     for _, bag in ipairs(BAGS) do
         local cache_id = bag.cache_id
-        if cache_id and strsub(cache_id, 1, 4) == "bank" then
+        if cache_id and strstr(cache_id, "bank") then
             local bag_name, size, content = bag.getter:Get()
             if size > 0 then
                 WoWXIV_isearch_cache[cache_id] = content
@@ -388,6 +450,7 @@ function isearch_event_frame:PLAYERBANKSLOTS_CHANGED(slot)
     self:BAG_UPDATE(Enum.BagIndex.Bank)
 end
 
+if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
 isearch_event_frame:RegisterEvent("PLAYERREAGENTBANKSLOTS_CHANGED")
 function isearch_event_frame:PLAYERREAGENTBANKSLOTS_CHANGED(slot)
     for _, bag in ipairs(BAGS) do
@@ -432,7 +495,7 @@ isearch_event_frame:RegisterEvent("VOID_STORAGE_UPDATE")
 function isearch_event_frame:VOID_STORAGE_UPDATE()
     for _, bag in ipairs(BAGS) do
         local cache_id = bag.cache_id
-        if cache_id and strsub(cache_id, 1, 4) == "void" then
+        if cache_id and string.sub(cache_id, 1, 4) == "void" then
             local bag_name, size, content = bag.getter:Get()
             if size > 0 then
                 WoWXIV_isearch_cache[cache_id] = content
@@ -455,13 +518,27 @@ isearch_event_frame.VOID_STORAGE_CONTENTS_UPDATE =
 isearch_event_frame:RegisterEvent("VOID_TRANSFER_DONE")
 isearch_event_frame.VOID_TRANSFER_DONE =
     isearch_event_frame.VOID_STORAGE_UPDATE
+end  -- FIXME: 11.2.0 bank revamp
 
 isearch_event_frame:RegisterEvent("ADDON_LOADED")
 function isearch_event_frame:ADDON_LOADED(name)
     if name == module_name then
+if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
         if IsVoidStorageReady() then
             self:VOID_STORAGE_UPDATE()
         end
+else  -- FIXME: 11.2.0 bank revamp
+        if WoWXIV_isearch_cache.bank0 then
+            -- Delete cache data from pre-11.2.0 bank bags and void storage.
+            local tags = {"bank0", "bank1", "bank2", "bank3", "bank4", "bank5",
+                          "bank6", "bank7", "bankR", "void1", "void2"}
+            for _, tag in ipairs(tags) do
+                WoWXIV_isearch_cache[tag] = nil
+                WoWXIV_isearch_cache[tag.."_name"] = nil
+                WoWXIV_isearch_cache[tag.."_size"] = nil
+            end
+        end
+end  -- FIXME: 11.2.0 bank revamp
     end
 end
 

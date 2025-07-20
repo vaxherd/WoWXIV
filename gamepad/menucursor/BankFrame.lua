@@ -116,6 +116,7 @@ function BankFrameHandler:__constructor()
     self.has_Button4 = true  -- Used to display item operation submenu.
     self.on_prev_page = function() self:OnPageCycle(-1) end
     self.on_next_page = function() self:OnPageCycle(1) end
+if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
     self.tab_handler = function(direction) self:OnTabCycle(direction) end
 
     self.current_subframe = nil  -- Currently active subframe.
@@ -123,6 +124,11 @@ function BankFrameHandler:__constructor()
     for _, subframe in ipairs(self.subframes) do
         self:HookShow(subframe, self.OnSubframeChange, self.OnSubframeChange)
     end
+else  -- FIXME: 11.2.0 bank revamp
+    self:SetTabSystem(self.frame.TabSystem)
+    BankPanel:RegisterCallback(BankPanelMixin.Event.NewBankTabSelected,
+                               function() self:RefreshTargets() end)
+end  -- FIXME: 11.2.0 bank revamp
 end
 
 function BankFrameHandler:OnCancel()
@@ -133,6 +139,7 @@ function BankFrameHandler:OnCancel()
     end
 end
 
+if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
 function BankFrameHandler:OnTabCycle(direction)
     local new_index =
         (PanelTemplates_GetSelectedTab(self.frame) or 0) + direction
@@ -167,11 +174,36 @@ function BankFrameHandler:OnPageCycle(direction)
         end
     end
 end
+else  -- FIXME: 11.2.0 bank revamp
+function BankFrameHandler:OnPageCycle(direction)
+    local tabs = {}
+    for tab in BankPanel.bankTabPool:EnumerateActive() do
+        tinsert(tabs, tab)
+    end
+    table.sort(tabs, function(a,b) return a.tabData.ID < b.tabData.ID end)
+    if BankPanel.PurchaseTab:IsShown() then
+        tinsert(tabs, BankPanel.PurchaseTab)
+    end
+    for i, tab in ipairs(tabs) do
+        if tab:IsSelected() then
+            local target = i + direction
+            if target < 1 then target = #tabs end
+            if target > #tabs then target = 1 end
+            target = tabs[target]
+            target:GetScript("OnClick")(target, "LeftButton", true)
+            return
+        end
+    end
+end
+end  -- FIXME: 11.2.0 bank revamp
 
 function BankFrameHandler:OnHide()
     MenuCursor.CoreMenuFrame.OnHide(self)
+if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
     self.current_subframe = nil
+end  -- FIXME: 11.2.0 bank revamp
 end
+if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
 
 function BankFrameHandler:OnSubframeChange()
     local active = self:GetActiveSubframe()
@@ -188,12 +220,14 @@ function BankFrameHandler:GetActiveSubframe()
     end
     return nil
 end
+end  -- FIXME: 11.2.0 bank revamp
 
 function BankFrameHandler:RefreshTargets()
     self:SetTarget(nil)
     self:SetTarget(self:SetTargets())
 end
 
+if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
 function BankFrameHandler:SetTargets()
     self.current_subframe = self:GetActiveSubframe()
     local f = self.current_subframe
@@ -324,6 +358,42 @@ function BankFrameHandler:SetTargets()
         return items[1]
     end
 end
+else  -- FIXME: 11.2.0 bank revamp
+function BankFrameHandler:SetTargets()
+    self.targets = {}
+    local f = BankPanel
+    local bag_id = f.selectedTabID
+    if bag_id == -1 then  -- "Purchase new tab" tab
+        local button = f.PurchasePrompt.TabCostFrame.PurchaseButton
+        self.targets[button] = {can_activate = true, lock_highlight = true}
+        return button
+    end
+    local bag_size = C_Container.GetContainerNumSlots(bag_id)
+    assert(bag_size == 98)  -- Currently true for all bank tabs.
+    local items = {}
+    for item in f.itemButtonPool:EnumerateActive() do
+        items[item.containerSlotID] = item
+    end
+    if #items == 0 then  -- Frame is still being set up.
+        RunNextFrame(function() self:RefreshTargets() end)
+        return nil
+    end
+    assert(#items == bag_size)
+    for i = 1, 98 do
+        local item = items[i]
+        local col = floor((i-1)/7)
+        local up = i==1 and items[98] or items[i-1]
+        local down = i==98 and items[1] or items[i+1]
+        local left = col==0 and items[i+91] or items[i-7]
+        local right = col==13 and items[i-91] or items[i+7]
+        self.targets[item] = {
+            is_item = true, on_click = function() self:ClickItem(item) end,
+            send_enter_leave = true,
+            up = up, down = down, left = left, right = right}
+    end
+    return items[1]
+end
+end  -- FIXME: 11.2.0 bank revamp
 
 function BankFrameHandler:ClickItem()
     local _, bag, slot = self:GetTargetItem()

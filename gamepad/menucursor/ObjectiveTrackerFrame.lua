@@ -25,7 +25,7 @@ function ObjectiveTrackerFrameHandler:__constructor()
                                    CheckContainerFrames)
 end
 
-local BAGS = WoWXIV.maptn("ContainerFrame%n", 13)
+local BAGS = WoWXIV.maptn("ContainerFrame%n", 6)
 function ObjectiveTrackerFrameHandler:CheckContainerFrames()
     local function IsShown(name) return _G[name]:IsShown() end
     self.is_covered = WoWXIV.any(IsShown, unpack(BAGS))

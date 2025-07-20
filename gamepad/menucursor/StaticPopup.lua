@@ -56,6 +56,16 @@ function StaticPopupHandler:SetTargets()
         end
         assert(button)
         if button:IsShown() then
+            -- In rare cases, it seems that buttons can be shown (and even
+            -- "visible", as returned by IsVisible()) but not be laid out.
+            -- If that happens, just try again next frame.
+            if not button:GetLeft() then
+                RunNextFrame(function()
+                    self:SetTargets()
+                    self:SetTarget(self:GetDefaultTarget())
+                end)
+                return nil
+            end
             self.targets[button] = {can_activate = true, lock_highlight = true}
             if not leftmost or button:GetLeft() < leftmost:GetLeft() then
                 leftmost = button
@@ -71,8 +81,17 @@ function StaticPopupHandler:SetTargets()
         self.targets[leftmost].left = rightmost
         self.targets[rightmost].right = leftmost
         if button2 then
-            -- FIXME: 11.2.0 complains because this passes down a right button click (instead of left button)
-            self.cancel_button = button2
+            -- HACK: 11.2.0's StaticPopup buttons include an assertion check
+            -- that the click they receive is a left click (see SetupButton()
+            -- in GameDialog.lua), which is violated if we use cancel_button
+            -- because that will send a right-click (on account of having to
+            -- use RightButton for secure passthrough).  We instead use the
+            -- insecure cancel_func on the assumption that cancelling a dialog
+            -- will never be a secure operation.
+            --self.cancel_button = button2
+            self.cancel_func = function()
+                button2:Click("LeftButton", false)
+            end
         end
     end
 
