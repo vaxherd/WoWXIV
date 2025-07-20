@@ -420,7 +420,7 @@ local QuestItemButton = Gamepad.QuestItemButton
 function QuestItemButton:__allocator()
     return Gamepad.GamepadBoundButton:__allocator(
         "WoWXIV_QuestItemButton",
-        "SecureActionButtonTemplate, FadeableFrameTemplate")
+        "SecureActionButtonTemplate, WoWXIV_FadeableFrameTemplate")
 end
 
 function QuestItemButton:__constructor()

@@ -23,7 +23,7 @@ function PlayerBuffBar:__constructor(parent, x, y)
 
     local f = CreateFrame("Frame", nil, parent, "SecureAuraHeaderTemplate")
     self.frame = f
-    f:SetAttribute("template", "PlayerBuffTemplate")
+    f:SetAttribute("template", "WoWXIV_PlayerBuffTemplate")
     f:SetAttribute("unit", "player")
     f:SetAttribute("filter", "HELPFUL")
     f:SetAttribute("sortMethod", "TIME")
