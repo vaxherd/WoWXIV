@@ -223,10 +223,15 @@ function CommandMenuColumn:Close()
     self.close_time = GetTime()
 end
 
-function CommandMenuColumn:Scroll(direction)
+function CommandMenuColumn:Scroll(direction, is_repeat)
     local target = self.position + direction
-    if target < 1 then target = #self.items end
-    if target > #self.items then target = 1 end
+    if target < 1 then
+        if is_repeat then return end
+        target = #self.items
+    elseif target > #self.items then
+        if is_repeat then return end
+        target = 1
+    end
     self.position = target
     self.scroll_from_offset = self.menu_offset
     self.scroll_time = GetTime()
@@ -597,16 +602,16 @@ function CommandMenu:OnInputDown(input, is_repeat)
             end
         elseif input == "PADDUP" or input == "UP" then
             self.brm:StartRepeat(input)
-            self:ScrollColumn(-1)
+            self:ScrollColumn(-1, is_repeat)
         elseif input == "PADDDOWN" or input == "DOWN" then
             self.brm:StartRepeat(input)
-            self:ScrollColumn(1)
+            self:ScrollColumn(1, is_repeat)
         elseif input == "PADDLEFT" or input == "LEFT" then
             self.brm:StartRepeat(input)
-            self:SwitchColumn(-1)
+            self:SwitchColumn(-1, is_repeat)
         elseif input == "PADDRIGHT" or input == "RIGHT" then
             self.brm:StartRepeat(input)
-            self:SwitchColumn(1)
+            self:SwitchColumn(1, is_repeat)
         else
             handled = false
         end
@@ -623,16 +628,21 @@ function CommandMenu:OnInputUp(input)
     end
 end
 
-function CommandMenu:ScrollColumn(direction)
-    self.columns[self.cur_column]:Scroll(direction)
+function CommandMenu:ScrollColumn(direction, is_repeat)
+    self.columns[self.cur_column]:Scroll(direction, is_repeat)
     self:UpdateCommand()
 end
 
-function CommandMenu:SwitchColumn(direction)
-    self.columns[self.cur_column]:Close()
+function CommandMenu:SwitchColumn(direction, is_repeat)
     local new_column = self.cur_column + direction
-    if new_column < 1 then new_column = #self.columns end
-    if new_column > #self.columns then new_column = 1 end
+    if new_column < 1 then
+        if is_repeat then return end
+        new_column = is_repeat and 1 or #self.columns
+    elseif new_column > #self.columns then
+        if is_repeat then return end
+        new_column = is_repeat and #self.columns or 1
+    end
+    self.columns[self.cur_column]:Close()
     self.cur_column = new_column
     self.columns[self.cur_column]:Open()
     self:UpdateCommand()
