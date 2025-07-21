@@ -67,7 +67,7 @@ function ObjectiveTrackerFrameHandler:SetTargets(old_target)
     self.targets = {}
     -- Modules are ObjectiveTrackerModuleTemplate instances,
     -- e.g. ScenarioObjectiveTracker.
-    local first, prev, last
+    local first, last
     if not self.frame.modules then return end  -- work around Blizzard bug
     self.frame:ForEachModule(function(module)
         -- module:EnumerateActiveBlocks() is not useful because it doesn't
@@ -79,7 +79,7 @@ function ObjectiveTrackerFrameHandler:SetTargets(old_target)
                  -- FIXME: we need to roll our own because this pops up in the middle of the screen
                  --on_button4 = function(blk) blk:OnHeaderClick("RightButton") end,
                  send_enter_leave = true,
-                 up = prev, left = false, right = false}
+                 up = last, left = false, right = false}
             self.targets[block] = params
             -- For quests, position the cursor at the PoI button
             -- rather than the middle of the block (which ends up
@@ -96,6 +96,17 @@ function ObjectiveTrackerFrameHandler:SetTargets(old_target)
                 params.x_offset = px - bx
                 params.y_offset = py - by
             end
+            -- If there's a quest item button, add it in as well, and
+            -- save the reference for movement linking.
+            if block.ItemButton then
+                params.item = block.ItemButton
+                params.left = block.ItemButton
+                params.right = block.ItemButton
+                self.targets[block.ItemButton] =
+                    {can_activate = true, --lock_highlight = true,
+                     send_enter_leave = true, left = block, right = block,
+                     up = last and (self.targets[last].item or last)}
+            end
             -- Quest popups in the objective tracker need their own
             -- button handling.
             if block.template == "AutoQuestPopUpBlockTemplate" then
@@ -111,8 +122,12 @@ function ObjectiveTrackerFrameHandler:SetTargets(old_target)
                     params.x_offset = 9
                 end
             end
-            if prev then
-                self.targets[prev].down = block
+            if last then
+                self.targets[last].down = block
+                if self.targets[last].item then
+                    self.targets[self.targets[last].item].down =
+                        params.item or block
+                end
             end
             first = first or block
             last = block
@@ -121,7 +136,15 @@ function ObjectiveTrackerFrameHandler:SetTargets(old_target)
     end)  -- for each module
     if first then
         self.targets[last].down = first
+        if self.targets[last].item then
+            self.targets[self.targets[last].item].down =
+                self.targets[first].item or first
+        end
         self.targets[first].up = last
+        if self.targets[first].item then
+            self.targets[self.targets[first].item].up =
+                self.targets[last].item or last
+        end
         self.targets[first].is_default = true
     end
     if old_target and not self.targets[old_target] then

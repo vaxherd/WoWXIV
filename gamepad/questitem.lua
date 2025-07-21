@@ -165,6 +165,7 @@ local ITEM_TARGET = {
     [189454] = "target",  -- Feather-Plucker 3300 (65374: It's Plucking Time)
     [189554] = "none",    -- Proto Wrangler Rope (65264: Operation: Relocation)
     [190188] = "player",  -- The Chirpsnide Auto-Excre-Collector (65490: Explosive Excrement)
+    [191029] = "none",    -- Lilian's Hearthstone (65666: Return to Brill)
     [191160] = "none",    -- Sweetsuckle Bloom (66020: Omens and Incense)
     [191681] = "player",  -- Im-PECK-able Screechflight Disguise (65778: Screechflight Potluck)
     [191763] = "player",  -- Im-PECK-able Screechflight Disguise v2 (66299: The Awaited Egg-splosion)
