@@ -122,10 +122,13 @@ the base class:
     end
     MySubClass = class(MyClass)
     function MySubClass.__allocator(class, ...)
-        local instance = MyClass:__allocator(...)
+        local instance = MyClass.__allocator(class, ...)
         -- ...
         return instance
     end
+
+When inheriting a base class's __allocator(), the inherited method
+receives the subclass as its implicit argument, not the base class.
 
 ]]--
 
@@ -567,10 +570,12 @@ local tests = {
     InheritAllocator = function()
         local Class = class()
         local fixed_instance = {}
-        function Class:__allocator()
+        local SubClass
+        function Class.__allocator(thisclass)
+            assert(thisclass == SubClass)
             return fixed_instance
         end
-        local SubClass = class(Class)
+        SubClass = class(Class)
         local instance = SubClass()
         assert(instance == fixed_instance)
     end,
@@ -578,12 +583,14 @@ local tests = {
     OverrideAllocator = function()
         local Class = class()
         local fixed_instance = {}
-        function Class:__allocator()
+        function Class.__allocator(thisclass)
+            assert(thisclass == Class)
             return fixed_instance
         end
         local SubClass = class(Class)
         local fixed_instance2 = {}
-        function SubClass:__allocator()
+        function SubClass.__allocator(thisclass)
+            assert(thisclass == SubClass)
             return fixed_instance2
         end
         local instance = SubClass()
@@ -701,11 +708,13 @@ local tests = {
     NestedInheritAllocator = function()
         local Class = class()
         local fixed_instance = {}
-        function Class:__allocator()
+        local SubSubClass
+        function Class.__allocator(thisclass)
+            assert(thisclass == SubSubClass)
             return fixed_instance
         end
         local SubClass = class(Class)
-        local SubSubClass = class(SubClass)
+        SubSubClass = class(SubClass)
         local instance = SubSubClass()
         assert(instance == fixed_instance)
     end,
@@ -713,13 +722,16 @@ local tests = {
     NestedOverrideAllocator = function()
         local Class = class()
         local fixed_instance = {}
-        function Class:__allocator()
+        local SubClass
+        function Class.__allocator(thisclass)
+            assert(thisclass == Class or thisclass == SubClass)
             return fixed_instance
         end
-        local SubClass = class(Class)
+        SubClass = class(Class)
         local SubSubClass = class(Class)
         local fixed_instance2 = {}
-        function SubSubClass:__allocator()
+        function SubSubClass.__allocator(thisclass)
+            assert(thisclass == SubSubClass)
             return fixed_instance2
         end
         local instance = SubSubClass()
@@ -769,6 +781,37 @@ local tests = {
         local instance = SubClass()
         assert(instance.x == 280)
         assert(instance.y == 281)
+    end,
+
+    DeclareSuperAllocatorAfterSubclass = function()
+        local Class = class()
+        local SubClass = class(Class)
+        local fixed_instance = {}
+        function Class.__allocator(thisclass)
+            assert(thisclass == SubClass)
+            return fixed_instance
+        end
+        local instance = SubClass()
+        assert(instance == fixed_instance)
+    end,
+
+    DeclareSuperAllocatorAfterSubclassAllocator = function()
+        local Class = class()
+        local SubClass = class(Class)
+        local fixed_instance = {}
+        local fixed_instance2 = {}
+        function SubClass.__allocator(thisclass)
+            assert(thisclass == SubClass)
+            return fixed_instance2
+        end
+        function Class.__allocator(thisclass)
+            assert(thisclass == Class)
+            return fixed_instance
+        end
+        local instance = Class()
+        assert(instance == fixed_instance)
+        local instance2 = SubClass()
+        assert(instance2 == fixed_instance2)
     end,
 }
 

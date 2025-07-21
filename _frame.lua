@@ -72,7 +72,7 @@ for _, frame_type in ipairs(SUPPORTED_CLASSES) do
 
     frame_class.__allocator = function(arg1, ...)
         local instance
-        if arg1 == frame_class then
+        if type(arg1) == "table" then
             instance = CreateFrame(frame_type)
         else
             assert(arg1 == frame_type)
