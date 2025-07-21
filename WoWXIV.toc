@@ -32,6 +32,7 @@ ui/castbar.lua
 ui/gauge.lua
 ui/itemmenu.lua
 
+gamepad/commandmenu.lua
 gamepad/gamepad.lua
 gamepad/leavevehicle.lua
 gamepad/questitem.lua

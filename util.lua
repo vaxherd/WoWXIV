@@ -1,5 +1,7 @@
 local _, WoWXIV = ...
 
+local class = WoWXIV.class
+
 local floor = math.floor
 local max = math.max
 local strgsub = string.gsub
@@ -100,6 +102,54 @@ end
 
 -- Perform an initial call to kickstart the offset estimation.
 local _ = WoWXIV.timePrecise()
+
+------------------------------------------------------------------------
+-- Button auto-repeat manager class
+------------------------------------------------------------------------
+
+-- Auto-repeat delay and period, in seconds.
+local CURSOR_REPEAT_DELAY = 300/1000
+local CURSOR_REPEAT_PERIOD = 50/1000
+
+local ButtonRepeatManager = class()
+WoWXIV.ButtonRepeatManager = ButtonRepeatManager
+
+-- Set auto-repeat state for a newly pressed button.  Does nothing if the
+-- button is already being repeated, so that the caller does not need to
+-- distinguish between an initial press and a repeated press.
+function ButtonRepeatManager:StartRepeat(button)
+    if self.repeat_button ~= button then
+        self.repeat_button = button
+        self.repeat_next = GetTime() + CURSOR_REPEAT_DELAY
+    end
+end
+
+-- Clear auto-repeat state.
+function ButtonRepeatManager:StopRepeat()
+    self.repeat_button = nil
+end
+
+-- Return the button currently being auto-repeated, nil if none.
+function ButtonRepeatManager:GetRepeatButton()
+    return self.repeat_button
+end
+
+-- Check for button auto-repeat.  If an auto-repeat input has been
+-- generated, call the given callback function, passing the button name
+-- as the sole argument.
+function ButtonRepeatManager:CheckRepeat(callback)
+    if self.repeat_button then
+        local now = GetTime()
+        if now >= self.repeat_next then
+            -- Note that we add the period to the nominal timestamp of the
+            -- repeat event, not the actual current timestamp, to ensure a
+            -- consistent average interval regardless of fluctuations in
+            -- the game's refresh rate.
+            self.repeat_next = self.repeat_next + CURSOR_REPEAT_PERIOD
+            callback(self.repeat_button)
+        end
+    end
+end
 
 ------------------------------------------------------------------------
 -- Frame management routines
@@ -293,18 +343,26 @@ end
 
 -- Set the given Texture instance to reference the shared UI texture,
 -- and optionally set the texture coordinates (as for SetUITexCoord()).
-function WoWXIV.SetUITexture(texture, u0, u1, v0, v1)
+function WoWXIV.SetUITexture(texture, ...)
     texture:SetTexture("Interface/Addons/WowXIV/textures/ui.png")
-    if v1 then
-        texture:SetTexCoord(u0/256.0, u1/256.0, v0/256.0, v1/256.0)
+    if select("#", ...) >= 4 then
+        WoWXIV.SetUITexCoord(texture, ...)
     end
 end
 
 -- Set the texture coordinate range for the given Texture instance,
 -- assuming that the shared UI texture is in used.  Texture coordinates
 -- are given in texels based on a 256x256-sized texture.
-function WoWXIV.SetUITexCoord(texture, u0, u1, v0, v1)
-    texture:SetTexCoord(u0/256.0, u1/256.0, v0/256.0, v1/256.0)
+function WoWXIV.SetUITexCoord(texture, ...)
+    local w = 256.0
+    local h = 256.0
+    if select("#", ...) == 8 then
+        local u0, v0, u1, v1, u2, v2, u3, v3 = ...
+        texture:SetTexCoord(u0/w, v0/h, u1/w, v1/h, u2/w, v2/h, u3/w, v3/h)
+    else
+        local u0, u1, v0, v1 = ...
+        texture:SetTexCoord(u0/w, u1/w, v0/h, v1/h)
+    end
 end
 
 ------------------------------------------------------------------------

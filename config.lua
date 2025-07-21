@@ -43,6 +43,8 @@ local CONFIG_DEFAULT = {
     gamepad_menu_next_window = "PADBACK",
 ]]--
 
+    -- Gamepad binding: open plus menu
+    gamepad_open_menu = "PADFORWARD",
     -- Gamepad binding: use quest item
     gamepad_use_quest_item = "CTRL-PADLSTICK",
     -- Gamepad binding: select active quest item
@@ -855,7 +857,7 @@ local function DecodeButtonID(button)
     if button ==  6 then return "PAD6" end
     if button ==  7 then return "PADSYSTEM" end
     if button ==  8 then return "PADBACK" end
-    if button ==  9 then return "PADSTART" end
+    if button ==  9 then return "PADFORWARD" end
     if button == 10 then return "PADLSHOULDER" end
     if button == 11 then return "PADRSHOULDER" end
     if button == 12 then return "PADLTRIGGER" end
@@ -876,7 +878,7 @@ local function EncodeButtonID(button)
     if button == "PAD6"         then return  6 end
     if button == "PADSYSTEM"    then return  7 end
     if button == "PADBACK"      then return  8 end
-    if button == "PADSTART"     then return  9 end
+    if button == "PADFORWARD"   then return  9 end
     if button == "PADLSHOULDER" then return 10 end
     if button == "PADRSHOULDER" then return 11 end
     if button == "PADLTRIGGER"  then return 12 end

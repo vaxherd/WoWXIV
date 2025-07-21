@@ -19,10 +19,6 @@ local tremove = tremove
 -- Static reference to the singleton MenuCursor instance.
 local global_cursor = nil
 
--- Cursor auto-repeat delay and period, in seconds.
-local CURSOR_REPEAT_DELAY = 300/1000
-local CURSOR_REPEAT_PERIOD = 50/1000
-
 
 ---------------------------------------------------------------------------
 -- Core implementation
@@ -68,10 +64,8 @@ function Cursor:__constructor()
     self.lock_depth = 0
     -- True if the cancel button was pressed during cursor lock.
     self.pending_cancel = false
-    -- Button currently being auto-repeated ("DPadUp" etc.), nil if none.
-    self.repeat_button = nil
-    -- GetTime() timestamp of next auto-repeat.
-    self.repeat_next = nil
+    -- Button auto-repeat manager.
+    self.brm = WoWXIV.ButtonRepeatManager()
 
     self:Hide()
     self:SetFrameStrata("TOOLTIP")  -- Make sure it stays on top.
@@ -724,7 +718,7 @@ end
 -- re-shown before the button is released).
 function Cursor:OnHide()
     self:SetScript("OnUpdate", nil)
-    self:StopRepeat()
+    self.brm:StopRepeat()
 end
 
 -- Per-frame update routine.  This serves two purposes: to implement
@@ -742,11 +736,11 @@ function Cursor:OnUpdate(dt)
         error("Invalid target frame ("..tostring(target_frame)..") for target "..tostring(target))
     end
     if not target_frame then
-        self:StopRepeat()
+        self.brm:StopRepeat()
         return
     end
 
-    self:CheckRepeat()
+    self.brm:CheckRepeat(function(button) self:OnClick(button, true, true) end)
 
     --[[
          Calling out to fetch the target's position and resetting the
@@ -784,12 +778,12 @@ end
 -- Click event handler; handles all events other than secure click passthrough.
 function Cursor:OnClick(button, down, is_repeat)
     if not down then
-        self:StopRepeat()
+        self.brm:StopRepeat()
         return
     end
 
-    if button ~= self.repeat_button then
-        self:StopRepeat()
+    if button ~= self.brm:GetRepeatButton() then
+        self.brm:StopRepeat()
     end
 
     if button == "CycleFocus" then
@@ -819,7 +813,7 @@ function Cursor:OnClick(button, down, is_repeat)
         else
             self:Move(dir)
         end
-        self:StartRepeat(button)
+        self.brm:StartRepeat(button)
     elseif button == "LeftButton" then  -- i.e., confirm
         if is_repeat and target and focus:IsTargetClickable(target) then
             -- Repeated clicks naturally don't get forwarded, so we have to
@@ -851,11 +845,11 @@ function Cursor:OnClick(button, down, is_repeat)
             repeatable = target and focus:IsTargetRepeatable(target)
         end
         if repeatable then
-            self:StartRepeat(button)
+            self.brm:StartRepeat(button)
         else
             -- This could be the result of a repeated confirm action
             -- changing the target, so we have to make sure to stop it!
-            self:StopRepeat(button)
+            self.brm:StopRepeat(button)
         end
     elseif button == "Cancel" then
         -- If the frame declared a cancel button, the click is passed down
@@ -913,36 +907,6 @@ function Cursor:Move(dir)
             if focus.OnMove then
                 focus:OnMove(target, new_target)
             end
-        end
-    end
-end
-
--- Set auto-repeat state for a newly pressed button.  Does nothing if the
--- button is already being repeated, so that the caller does not need to
--- distinguish between an initial press and a repeated press.
-function Cursor:StartRepeat(button)
-    if self.repeat_button ~= button then
-        self.repeat_button = button
-        self.repeat_next = GetTime() + CURSOR_REPEAT_DELAY
-    end
-end
-
--- Clear auto-repeat state.
-function Cursor:StopRepeat()
-    self.repeat_button = nil
-end
-
--- Check for button auto-repeat and generate a click event if appropriate.
-function Cursor:CheckRepeat()
-    if self.repeat_button then
-        local now = GetTime()
-        if now >= self.repeat_next then
-            -- Note that we add the period to the nominal timestamp of the
-            -- repeat event, not the actual current timestamp, to ensure a
-            -- consistent average interval regardless of fluctuations in
-            -- the game's refresh rate.
-            self.repeat_next = self.repeat_next + CURSOR_REPEAT_PERIOD
-            self:OnClick(self.repeat_button, true, true)
         end
     end
 end

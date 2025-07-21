@@ -580,7 +580,7 @@ function PartyCursor:__constructor(frame_level)
     local texture = f:CreateTexture(nil, "OVERLAY")
     self.texture = texture
     texture:SetAllPoints()
-    WoWXIV.SetUITexture(texture, 160, 208, 16, 64)
+    WoWXIV.SetUITexture(texture, 160, 208, 15, 63)
     texture:SetTextureSliceMargins(12, 12, 12, 12)
 
     f:SetAttribute("type", "target")
