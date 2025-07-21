@@ -164,10 +164,11 @@ function CommandMenuColumn:AddItem(name, help, func, is_default)
     return index
 end
 
-function CommandMenuColumn:SetItemEnabled(name, enabled)
+function CommandMenuColumn:SetItemEnabled(name, enabled, disabled_reason)
     for _, item in ipairs(self.items) do
         if item.name == name then
             item.button:SetEnabled(enabled)
+            item.help_suffix = not enabled and disabled_reason or nil
             return
         end
     end
@@ -242,7 +243,11 @@ function CommandMenuColumn:GetCommandButton()
 end
 
 function CommandMenuColumn:GetCommandHelp()
-    return self.items[self.position].help
+    local text = self.items[self.position].help
+    if self.items[self.position].help_suffix then
+        text = text .. " " .. RED_FONT_COLOR:WrapTextInColorCode(self.items[self.position].help_suffix)
+    end
+    return text
 end
 
 -- Internal update routine.
@@ -365,8 +370,9 @@ end
 
 function ContentColumn:Open()
     -- Same check as in RaidFrame_OnShow().
-    self:SetItemEnabled(
-        "Raid Info", GetNumSavedInstances() + GetNumSavedWorldBosses() > 0)
+    self:SetItemEnabled("Raid Info",
+                        GetNumSavedInstances() + GetNumSavedWorldBosses() > 0,
+                        "(You do not have any saved instances.)")
     CommandMenuColumn.Open(self)
 end
 
@@ -435,24 +441,46 @@ function SystemColumn:__constructor(parent)
                  "Enable Edit Mode to adjust the user interface layout.",
                  function() ShowUIPanel(EditModeManagerFrame) end)
     self:AddItem("Shop",
-                 "Visit the World of Warcraft online shop. (This can only be opened from the mouse menu.)",
+                 "Visit the World of Warcraft online shop.",
                  ToggleStoreUI)
-    self:SetItemEnabled("Shop", false)
+    self:SetItemEnabled("Shop", false,
+                        "(This can only be opened from the mouse menu.)")
     self:AddItem("Log out",
-                 "Log out from your character and return to the character list. (This can only be done from the mouse menu.)",
+                 "Log out from your character and return to the character list.",
                  Logout)
-    self:SetItemEnabled("Log out", false)
-    self:AddItem("Exit game",
-                 "Log out from your character and close World of Warcraft. (This can only be done from the mouse menu.)",
+    self:SetItemEnabled("Log out", false,
+                        "(This can only be done from the mouse menu.)")
+    self:AddItem("Exit Game",
+                 "Log out from your character and close World of Warcraft.",
                  Quit)
-    self:SetItemEnabled("Exit game", false)
+    self:SetItemEnabled("Exit Game",
+                        false, "(This can only be done from the mouse menu.)")
 end
 
 function SystemColumn:Open()
     -- These checks mirror the ones found in GameMenuFrameMixin:InitButtons().
+    -- We skip the Kiosk.IsEnabled() test because we could never run in that
+    -- environment anyway.
     self:SetItemEnabled("What's New", (C_SplashScreen.CanViewSplashScreen()
                                        and not IsCharacterNewlyBoosted()))
     self:SetItemEnabled("Edit Mode", EditModeManagerFrame:CanEnterEditMode())
+
+    -- If we find a way to make the shop/quit/exit buttons work, these
+    -- checks are also needed:
+    --[[
+    local shop_reason
+    if not C_StorePublic.IsEnabled() then
+        shop_reason = "(Not available in this version.)"
+    elseif C_StorePublic.IsDisabledByParentalControls() then
+        shop_reason = "("..BLIZZARD_STORE_ERROR_PARENTAL_CONTROLS..")"
+    end
+    self:SetItemEnabled("Shop", not shop_reason, shop_reason)
+    local exit_disabled = (StaticPopup_Visible("CAMP") or
+                           StaticPopup_Visible("PLUNDERSTORM_LEAVE") or
+                           StaticPopup_Visible("QUIT"))
+    self:setItemEnabled("Quit", not exit_disabled)
+    self:setItemEnabled("Exit game", not exit_disabled)
+    ]]--
 
     CommandMenuColumn.Open(self)
 end
