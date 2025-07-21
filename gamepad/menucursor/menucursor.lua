@@ -575,6 +575,17 @@ function Cursor:UpdateCursor(in_combat)
         focus, target = self:GetFocusAndTarget()
     end
 
+    -- We update the parent regardless of whether the cursor should be
+    -- shown or not, because the reparenting may be required to get
+    -- input events in the first place.
+    if not in_combat then
+        local new_parent =
+            (focus and focus:GetCursorParentOverride()) or UIParent
+        if self:GetParent() ~= new_parent then
+            self:SetParent(new_parent)
+        end
+    end
+
     local should_show = self.gamepad_active and not in_combat
 
     local target_frame
@@ -772,7 +783,8 @@ function Cursor:SetCursorPoint(focus, target)
     --self:SetPoint("TOPRIGHT", target, "LEFT")
     local x, y = focus:GetTargetPosition(target)
     if not x or not y then return end
-    self:SetPoint("TOPRIGHT", UIParent, "TOPLEFT", x, y-UIParent:GetHeight())
+    local parent = self:GetParent()
+    self:SetPoint("TOPRIGHT", parent, "TOPLEFT", x, y-parent:GetHeight())
 end
 
 -- Click event handler; handles all events other than secure click passthrough.
@@ -1051,6 +1063,10 @@ function MenuFrame:__constructor(frame, modal)
     -- direction, -1 (previous) or 1 (next).  Must not be changed while the
     -- frame is enabled for input.
     self.tab_handler = nil
+    -- Alternate parent for the Cursor frame.  This should normally not be
+    -- touched; its primary use is in keeping the cursor visible for the
+    -- cinematic cancel dialog.
+    self.cursor_parent_override = nil
 
     -------- Internal data (specializations should not touch these):
 
@@ -1076,6 +1092,11 @@ end
 -- or nil if none.
 function MenuFrame:GetTabHandler()
     return self.tab_handler
+end
+
+-- Return the parent override frame for the cursor, if any.
+function MenuFrame:GetCursorParentOverride()
+    return self.cursor_parent_override
 end
 
 -- Return the WoW Button instance of the cancel button for this frame, or
@@ -1159,8 +1180,8 @@ function MenuFrame:GetTargetEffectiveScale(target)
     return frame:GetEffectiveScale()
 end
 
--- Return the position (relative to UIParent) at which the cursor should be
--- displayed for the given target.
+-- Return the position (relative to the cursor's parent frame, usually
+-- UIParent) at which the cursor should be displayed for the given target.
 function MenuFrame:GetTargetPosition(target)
     local params = self.targets[target]
     if not params then return end
@@ -1170,7 +1191,8 @@ function MenuFrame:GetTargetPosition(target)
                                                or frame:GetLeft()
     local _, y = frame:GetCenter()
     if not x or not y then return end
-    local scale = frame:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    local scale = (frame:GetEffectiveScale()
+                   / global_cursor:GetParent():GetEffectiveScale())
     x = (x + (params.x_offset or 0)) * scale
     y = (y + (params.y_offset or 0)) * scale
     return x, y
@@ -1201,7 +1223,7 @@ function MenuFrame:NextTarget(target, dir)
         return explicit_next or nil
     end
 
-    local global_scale = UIParent:GetEffectiveScale()
+    local global_scale = global_cursor:GetParent():GetEffectiveScale()
     local cur_x0, cur_y0, cur_w, cur_h = self:GetTargetRect(target)
     local cur_scale = self:GetTargetEffectiveScale(target) / global_scale
     cur_x0 = cur_x0 * cur_scale

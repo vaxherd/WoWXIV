@@ -44,6 +44,7 @@ gamepad/menucursor/AuctionHouseFrame.lua
 gamepad/menucursor/BankFrame.lua
 gamepad/menucursor/BonusRollFrame.lua
 gamepad/menucursor/CharacterFrame.lua
+gamepad/menucursor/CinematicFrame.lua
 gamepad/menucursor/ClassTrainerFrame.lua
 gamepad/menucursor/ContainerFrame.lua
 gamepad/menucursor/ContributionCollectionFrame.lua
@@ -65,6 +66,7 @@ gamepad/menucursor/LFGListApplicationDialog.lua
 gamepad/menucursor/LFGListInviteDialog.lua
 gamepad/menucursor/MajorFactionRenownFrame.lua
 gamepad/menucursor/MerchantFrame.lua
+gamepad/menucursor/MovieFrame.lua
 gamepad/menucursor/ObjectiveTrackerFrame.lua
 gamepad/menucursor/OpenMailFrame.lua
 gamepad/menucursor/OrderHallMissionFrame.lua
