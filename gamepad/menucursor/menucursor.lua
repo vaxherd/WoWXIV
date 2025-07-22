@@ -583,6 +583,10 @@ function Cursor:UpdateCursor(in_combat)
             (focus and focus:GetCursorParentOverride()) or UIParent
         if self:GetParent() ~= new_parent then
             self:SetParent(new_parent)
+            -- Looks like we need to refresh this when reparenting.
+            if new_parent == UIParent then
+                self:SetFrameStrata("TOOLTIP")
+            end
         end
     end
 
