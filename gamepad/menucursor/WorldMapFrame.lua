@@ -52,7 +52,7 @@ function WorldMapFrameHandler:__constructor()
         "OnEvent", function(_, ...) self:OnEnterCombat() end)
     self.cursor_frame:RegisterEvent("PLAYER_REGEN_DISABLED")
     self.targets = {
-        [self.cursor_frame] = {cursor_type = "static", dpad_override = true,
+        [self.cursor_frame] = {cursor_type = "map", dpad_override = true,
                                on_click = function() self:OnClickMap() end,
                                is_default = true},
     }

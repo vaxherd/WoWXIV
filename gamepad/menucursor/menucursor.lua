@@ -64,6 +64,8 @@ function Cursor:__constructor()
     self.lock_depth = 0
     -- True if the cancel button was pressed during cursor lock.
     self.pending_cancel = false
+    -- Current cursor display type.
+    self.cursor_type = "default"
     -- Button auto-repeat manager.
     self.brm = WoWXIV.ButtonRepeatManager()
 
@@ -92,9 +94,7 @@ function Cursor:__constructor()
     local texture = self:CreateTexture(nil, "ARTWORK")
     self.texture = texture
     texture:SetAllPoints()
-    texture:SetTexture("Interface/CURSOR/Point")  -- Default mouse cursor image
-    -- Flip it horizontally to distinguish it from the mouse cursor.
-    texture:SetTexCoord(1, 0, 0, 1)
+    self:SetCursorTexture()
 
     -- Icon holder for an item held by the game cursor.
     local held = self:CreateTexture(nil, "ARTWORK", nil, -1)
@@ -307,9 +307,7 @@ function Cursor:SetTargetForFrame(frame, target)
         else
             stack[index][2] = target
             if is_focus then
-                if target then
-                    self:EnterTarget()
-                end
+                self:EnterTarget()
                 self:UpdateCursor()
             end
         end
@@ -429,11 +427,18 @@ function Cursor:PLAYER_REGEN_ENABLED()
     self:UpdateCursor(false)
 end
 
--- Return whether the cursor can currently be shown.  The cursor can be
--- shown if (1) the game is in gamepad input mode and (2) the player is
--- not in combat.
-function Cursor:CanShow()
-    return 
+-- Set the appropriate cursor texture for the current cursor type.
+function Cursor:SetCursorTexture()
+    local texture = self.texture
+    if self.cursor_type == "map" then
+        WoWXIV.SetUITexture(texture, 0, 40, 80, 120)
+    else
+        assert(self.cursor_type == "default")
+        -- Use the default mouse cursor image (pointing gauntlet), but
+        -- flip it horizontally to distinguish it from the mouse cursor.
+        texture:SetTexture("Interface/CURSOR/Point")
+        texture:SetTexCoord(1, 0, 0, 1)
+    end
 end
 
 -- Internal helper for RemoveFrame().
@@ -501,23 +506,28 @@ function Cursor:SendUnfocus()
      end
 end
 
--- Call the enter-target callback for the currently active target, if any.
--- Does nothing if the cursor is not currently shown.
+-- Perform all actions appropriate to the cursor entering a target.
+-- Does nothing if the cursor does not currently have a target.
 function Cursor:EnterTarget()
-    if self:IsShown() then
-        local focus, target = self:GetFocusAndTarget()
-        if target then
+    local focus, target = self:GetFocusAndTarget()
+    if target then
+        local cursor_type = focus:GetTargetCursorType(target) or "default"
+        if cursor_type ~= self.cursor_type then
+            self.cursor_type = cursor_type
+            self:SetCursorTexture()
+        end
+        if self:IsShown() then
             focus:EnterTarget(target)
         end
     end
 end
 
--- Call the leave-target callback for the currently active target, if any.
--- Does nothing if the cursor is not currently shown.
+-- Perform all actions appropriate to the cursor leaving a target.
+-- Does nothing if the cursor does not currently have a target.
 function Cursor:LeaveTarget()
-    if self:IsShown() then
-        local focus, target = self:GetFocusAndTarget()
-        if target then
+    local focus, target = self:GetFocusAndTarget()
+    if target then
+        if self:IsShown() then
             focus:LeaveTarget(target)
         end
     end
@@ -769,8 +779,7 @@ function Cursor:OnUpdate(dt)
     self:SetCursorPoint(focus, target)
 
     self.texture:ClearPointsOffset()
-    local cursor_type = focus:GetTargetCursorType(target)
-    if not cursor_type or cursor_type == "default" then
+    if self.cursor_type == "default" then
         local t = GetTime()
         t = t - floor(t)
         local xofs = -4 * math.sin(t * math.pi)
@@ -988,7 +997,7 @@ function MenuFrame:__constructor(frame, modal)
     --         the cursor image.
     --    - cursor_type: Sets the cursor type for this target, one of:
     --         - "default" (or nil): Default bouncing finger pointer.
-    --         - "static": Unmoving finger pointer.
+    --         - "map": Circle with internal crosshairs.
     --    - dpad_override: If true, while the cursor is on this element,
     --         all directional pad inputs will be passed to the OnDPad()
     --         method rather than performing their normal cursor movement
