@@ -786,6 +786,8 @@ function Cursor:OnUpdate(dt)
         self.texture:AdjustPointsOffset(xofs, 0)
     end
 
+    self:SetAlpha(target_frame and target_frame:GetAlpha() or 1)
+
     focus:OnUpdate(target_frame, dt)
 end
 
