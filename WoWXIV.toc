@@ -74,11 +74,11 @@ gamepad/menucursor/OrderHallTalentFrame.lua
 gamepad/menucursor/PVEFrame.lua
 gamepad/menucursor/PetBattleFrame.lua
 gamepad/menucursor/PlayerChoiceFrame.lua
+gamepad/menucursor/PlayerSpellsFrame.lua
 gamepad/menucursor/ProfessionsBookFrame.lua
 gamepad/menucursor/ProfessionsFrame.lua
 gamepad/menucursor/QuestFrame.lua
 gamepad/menucursor/ScrappingMachineFrame.lua
-gamepad/menucursor/SpellBookFrame.lua
 gamepad/menucursor/SplashFrame.lua
 gamepad/menucursor/StackSplitFrame.lua
 gamepad/menucursor/StaticPopup.lua

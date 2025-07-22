@@ -10,64 +10,141 @@ local tinsert = tinsert
 
 ---------------------------------------------------------------------------
 
--- The old SpellBookFrame has been subsumed into the new PlayerSpellsFrame
--- which also covers specializations and talents, but we only handle the
--- actual spell list for now.
+local PlayerSpellsFrameHandler = class(MenuCursor.MenuFrame)
+MenuCursor.Cursor.RegisterFrameHandler(PlayerSpellsFrameHandler)
+local SpecFrameHandler = class(MenuCursor.StandardMenuFrame)
+local TalentsFrameHandler = class(MenuCursor.StandardMenuFrame)
+local SpellBookFrameHandler = class(MenuCursor.StandardMenuFrame)
 
-local SpellBookFrameHandler = class(MenuCursor.MenuFrame)
-MenuCursor.Cursor.RegisterFrameHandler(SpellBookFrameHandler)
 
-function SpellBookFrameHandler.Initialize(class, cursor)
+function PlayerSpellsFrameHandler.Initialize(class, cursor)
+    class.cursor = cursor
     class:RegisterAddOnWatch("Blizzard_PlayerSpells")
 end
 
-function SpellBookFrameHandler.OnAddOnLoaded(class)
-    local instance = class()
-    class.instance = instance
-    instance:HookShow(PlayerSpellsFrame)
+function PlayerSpellsFrameHandler.OnAddOnLoaded(class)
+    class.instance = class()
+    class.instance_SpecFrame = SpecFrameHandler()
+    class.instance_TalentsFrame = TalentsFrameHandler()
+    class.instance_SpellBookFrame = SpellBookFrameHandler()
+end
 
-    local sbf = PlayerSpellsFrame.SpellBookFrame
-    instance:HookShow(sbf, instance.OnShowSpellBookTab, instance.OnHide)
-    EventRegistry:RegisterCallback(
-        "PlayerSpellsFrame.SpellBookFrame.DisplayedSpellsChanged",
-        function()
-            if PlayerSpellsFrame.SpellBookFrame:IsVisible() then
-                instance:SetTarget(instance:RefreshTargets())
-            end
-        end)
-    local pc = sbf.PagedSpellsFrame.PagingControls
-    local buttons = {pc.PrevPageButton, pc.NextPageButton}
-    for _, tab in ipairs(sbf.CategoryTabSystem.tabs) do
-        tinsert(buttons, tab)
-    end
-    for _, button in ipairs(buttons) do
-        hooksecurefunc(button, "Click", function()
-            instance:SetTarget(instance:RefreshTargets())
-        end)
+function PlayerSpellsFrameHandler:__constructor()
+    -- Same pattern as e.g. CharacterFrame.
+    self:__super(PlayerSpellsFrame)
+    self:HookShow(self.frame)
+    self:SetTabSystem(self.frame.TabSystem)
+end
+
+function PlayerSpellsFrameHandler.CancelMenu()  -- Static method.
+    HideUIPanel(PlayerSpellsFrame)
+end
+
+function PlayerSpellsFrameHandler:OnShow()
+    local f = self.frame
+    if f.SpecFrame:IsShown() then
+        PlayerSpellsFrameHandler.instance_SpecFrame:OnShow()
+    elseif f.TalentsFrame:IsShown() then
+        PlayerSpellsFrameHandler.instance_TalentsFrame:OnShow()
+    elseif f.SpellBookFrame:IsShown() then
+        PlayerSpellsFrameHandler.instance_SpellBookFrame:OnShow()
     end
 end
+
+function PlayerSpellsFrameHandler:OnHide()
+    local f = self.frame
+    if f.SpecFrame:IsShown() then
+        PlayerSpellsFrameHandler.instance_SpecFrame:OnHide()
+    elseif f.TalentsFrame:IsShown() then
+        PlayerSpellsFrameHandler.instance_TalentsFrame:OnHide()
+    elseif f.SpellBookFrame:IsShown() then
+        PlayerSpellsFrameHandler.instance_SpellBookFrame:OnHide()
+    end
+end
+
+
+function SpecFrameHandler:__constructor()
+    self:__super(PlayerSpellsFrame.SpecFrame)
+    self.cancel_func = PlayerSpellsFrameHandler.CancelMenu
+    self.tab_handler = PlayerSpellsFrameHandler.instance.tab_handler
+    self:HookShow(self.frame.DisabledOverlay,
+                  self.OnOverlaySetShown, self.OnOverlaySetShown)
+end
+
+function SpecFrameHandler:OnOverlaySetShown()
+    self:SetTarget(nil)
+    self:SetTarget(self:SetTargets())
+end
+
+function SpecFrameHandler:SetTargets()
+    local f = self.frame
+
+    self.targets = {}
+
+    if f.DisabledOverlay:IsShown() then
+        return nil  -- Spec is currently changing.
+    end
+
+    local activates = {}
+    local spells = {}
+    for specf in self.frame.SpecContentFramePool:EnumerateActive() do
+        local activate = specf.ActivateButton
+        if activate:IsShown() then  -- Not shown for active spec.
+            tinsert(activates, activate)
+        end
+        for spell in specf.SpellButtonPool:EnumerateActive() do
+            tinsert(spells, spell)
+        end
+    end
+    local function CompareX(a,b) return a:GetLeft() < b:GetLeft() end
+    table.sort(activates, CompareX)
+    table.sort(spells, CompareX)
+
+    for i, button in ipairs(activates) do
+        self.targets[button] = {can_activate = true, lock_highlight = true,
+                                left = activates[i==1 and #activates or i-1],
+                                right = activates[i==#activates and 1 or i+1]}
+    end
+    for i, icon in ipairs(spells) do
+        self.targets[icon] = {send_enter_leave = true,
+                              left = spells[i==1 and #spells or i-1],
+                              right = spells[i==#spells and 1 or i+1]}
+    end
+
+    return activates[1]
+end
+
+
+function TalentsFrameHandler:__constructor()
+    self:__super(PlayerSpellsFrame.TalentsFrame)
+    self.cancel_func = PlayerSpellsFrameHandler.CancelMenu
+    self.tab_handler = PlayerSpellsFrameHandler.instance.tab_handler
+end
+
 
 function SpellBookFrameHandler:__constructor()
     self:__super(PlayerSpellsFrame.SpellBookFrame)
-    self.cancel_func = function()
-        HideUIPanel(PlayerSpellsFrame)
+    self.cancel_func = PlayerSpellsFrameHandler.CancelMenu
+    self.tab_handler = PlayerSpellsFrameHandler.instance.tab_handler
+    self.on_prev_page = self.frame.PagedSpellsFrame.PagingControls.PrevPageButton
+    self.on_next_page = self.frame.PagedSpellsFrame.PagingControls.NextPageButton
+
+    EventRegistry:RegisterCallback(
+        "PlayerSpellsFrame.SpellBookFrame.DisplayedSpellsChanged",
+        function()
+            if self.frame:IsVisible() then
+                self:SetTarget(self:RefreshTargets())
+            end
+        end)
+    for _, button in ipairs({self.on_prev_page, self.on_next_page}) do
+        hooksecurefunc(button, "Click", function()
+            self:SetTarget(self:RefreshTargets())
+        end)
     end
-    self.on_prev_page = PlayerSpellsFrame.SpellBookFrame.PagedSpellsFrame.PagingControls.PrevPageButton
-    self.on_next_page = PlayerSpellsFrame.SpellBookFrame.PagedSpellsFrame.PagingControls.NextPageButton
 end
 
 function SpellBookFrameHandler:OnShow()
-    if PlayerSpellsFrame.SpellBookFrame:IsShown() then
-        self:OnShowSpellBookTab()
-    end
-end
-
-function SpellBookFrameHandler:OnHide()
-    self:Disable()
-end
-
-function SpellBookFrameHandler:OnShowSpellBookTab()
-    if not PlayerSpellsFrame:IsShown() then return end
+    if not self.frame:IsVisible() then return end
     local target = self:RefreshTargets()
     self:Enable(target)
 end
@@ -123,7 +200,11 @@ end
 
 -- Returns the new cursor target.
 function SpellBookFrameHandler:RefreshTargets()
-    local sbf = PlayerSpellsFrame.SpellBookFrame
+    local old_target = self:GetTarget()
+    self:SetTarget(nil)
+
+    local sbf = self.frame
+    local pc = sbf.PagedSpellsFrame.PagingControls
 
     --[[
         Movement layout:
@@ -138,8 +219,7 @@ function SpellBookFrameHandler:RefreshTargets()
              ↑↓                   ↑↓                   ↑↓
         Bottom left spell ←→ ................ ←→ Bottom right spell
               ↑                                           ↑↓
-              ↓                               ↓→ Page N/M [<] ←→ [>]
-        [Specialization] [Talents] [Spellbook] ←
+                                              Page N/M [<] ←→ [>]
     ]]--
 
     self.targets = {}
@@ -150,7 +230,8 @@ function SpellBookFrameHandler:RefreshTargets()
     for _, tab in ipairs(sbf.CategoryTabSystem.tabs) do
         if tab:IsShown() then
             self.targets[tab] = {can_activate = true, send_enter_leave = true,
-                                 up = bottom, down = top}
+                                 up = pc.PrevPageButton,
+                                 down = pc.PrevPageButton}
             -- HACK: breaking encapsulation to access tab selected state
             if not default_page_tab or tab.isSelected then
                 default_page_tab = tab
@@ -166,37 +247,20 @@ function SpellBookFrameHandler:RefreshTargets()
     self.targets[left_page_tab].left = right_page_tab
     self.targets[right_page_tab].right = left_page_tab
 
-    local default_book_tab = nil
-    local right_book_tab = nil
-    for _, tab in ipairs(PlayerSpellsFrame.TabSystem.tabs) do
-        if tab:IsShown() then
-            self.targets[tab] = {can_activate = true, send_enter_leave = true,
-                                 down = default_page_tab}
-            -- HACK: breaking encapsulation to access tab selected state
-            if not default_book_tab or tab.isSelected then
-                default_book_tab = tab
-            end
-            if not right_book_tab or tab:GetLeft() > right_book_tab:GetLeft() then
-                right_book_tab = tab
-            end
-        end
-    end
-    for _, tab in ipairs(sbf.CategoryTabSystem.tabs) do
-        if tab:IsShown() then
-            self.targets[tab].up = default_book_tab
-        end
-    end
-
-    local pc = sbf.PagedSpellsFrame.PagingControls
     local page_buttons = {pc.PrevPageButton, pc.NextPageButton}
     for _, button in ipairs(page_buttons) do
         self.targets[button] = {can_activate = true, lock_highlight = true,
-                                up = right_page_tab,
-                                down = right_book_tab}
+                                up = right_page_tab, down = right_page_tab}
     end
-    self.targets[right_book_tab].right = pc.PrevPageButton
-    self.targets[pc.PrevPageButton].left = right_book_tab
-    self.targets[pc.NextPageButton].right = false
+    self.targets[pc.PrevPageButton].left = pc.NextPageButton
+    self.targets[pc.NextPageButton].right = pc.PrevPageButton
+
+    -- If the cursor was previously on a spell button, the button might
+    -- have disappeared or been reused in a different position, so reset
+    -- to the top of the page.
+    if not self.targets[old_target] then
+        old_target = nil
+    end
 
     local first_spell = nil
     local columns = {}
@@ -220,8 +284,7 @@ function SpellBookFrameHandler:RefreshTargets()
         local is_left_half = ((x_index-1) < 0.5*(#column_x-1))
         local top_target =
             is_left_half and default_page_tab or right_page_tab
-        local bottom_target =
-            is_left_half and default_book_tab or pc.PrevPageButton
+        local bottom_target = pc.PrevPageButton
         local column = columns[x]
         for i, button_pair in ipairs(column) do
             local button, y = button_pair[1], button_pair[2]
@@ -251,16 +314,9 @@ function SpellBookFrameHandler:RefreshTargets()
 
     for _, tab in ipairs(sbf.CategoryTabSystem.tabs) do
         if tab:IsShown() then
-            self.targets[tab].down = first_spell or default_book_tab
+            self.targets[tab].down = first_spell
         end
     end
 
-    -- If the cursor was previously on a spell button, the button might
-    -- have disappeared, so reset to the top of the page.
-    local cur_target = self:GetTarget()
-    if not self.targets[cur_target] then
-        cur_target = nil
-    end
-
-    return cur_target or first_spell or default_page_tab
+    return old_target or first_spell or default_page_tab
 end
