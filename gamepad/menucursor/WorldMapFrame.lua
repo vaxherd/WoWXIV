@@ -70,7 +70,8 @@ function WorldMapFrameHandler:OnShow()
 end
 
 function WorldMapFrameHandler:OnGamePadButton(button, down)
-    if self:HasFocus() and not InCombatLockdown() then
+    local is_modified = IsShiftKeyDown() or IsControlKeyDown() or IsAltKeyDown()
+    if not is_modified and self:HasFocus() and not InCombatLockdown() then
         if button == "PADDLEFT" or button == "PADDRIGHT" then
             self.cursor_dx = down and (button=="PADDLEFT" and -1 or 1) or 0
             -- It seems we have to explicitly toggle this flag on every event.
