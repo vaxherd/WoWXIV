@@ -63,94 +63,93 @@ function ObjectiveTrackerFrameHandler:RefreshTargets()
     self:SetTarget(self:SetTargets(target))
 end
 
+local function ClickHeaderButton(block)
+    local button = block.HeaderButton
+    button:GetScript("OnClick")(button, "LeftButton")
+end
+
+local function ClickPOIButton(block)
+    local button = block.poiButton
+    button:GetScript("OnClick")(button, "LeftButton")
+end
+
 function ObjectiveTrackerFrameHandler:SetTargets(old_target)
     self.targets = {}
     -- Modules are ObjectiveTrackerModuleTemplate instances,
     -- e.g. ScenarioObjectiveTracker.
-    local first, last
     if not self.frame.modules then return end  -- work around Blizzard bug
+    local blocks = {}
     self.frame:ForEachModule(function(module)
         -- module:EnumerateActiveBlocks() is not useful because it doesn't
         -- give the blocks in order, so we iterate manually.
         local block = module.firstBlock
         while block do
-            local params =
-                {on_click = function(blk) blk:OnHeaderClick("LeftButton") end,
-                 -- FIXME: we need to roll our own because this pops up in the middle of the screen
-                 --on_button4 = function(blk) blk:OnHeaderClick("RightButton") end,
-                 send_enter_leave = true,
-                 up = last, left = false, right = false}
-            self.targets[block] = params
-            -- For quests, position the cursor at the PoI button
-            -- rather than the middle of the block (which ends up
-            -- being under the PoI button and a bit confusing).
-            if block.poiButton and block.poiButton:IsShown() then
-                params.on_button3 = function(blk)
-                    blk.poiButton:GetScript("OnClick")(
-                        blk.poiButton, "LeftButton", true)
-                end
-                local bx, by, _, bh = block:GetRect()
-                local px, py, _, ph = block.poiButton:GetRect()
-                by = by + bh/2
-                py = py + ph/2
-                params.x_offset = px - bx
-                params.y_offset = py - by
+            -- Exclude unclickable blocks.  FIXME: are there any other types?
+            if block.parentModule ~= ScenarioObjectiveTracker then
+                tinsert(blocks, block)
             end
-            -- If there's a quest item button, add it in as well, and
-            -- save the reference for movement linking.
-            if block.ItemButton then
-                params.item = block.ItemButton
-                params.left = block.ItemButton
-                params.right = block.ItemButton
-                self.targets[block.ItemButton] =
-                    {can_activate = true, --lock_highlight = true,
-                     send_enter_leave = true, left = block, right = block,
-                     up = last and (self.targets[last].item or last)}
-            end
-            -- Quest popups in the objective tracker need their own
-            -- button handling.
-            if block.template == "AutoQuestPopUpBlockTemplate" then
-                params.on_click =
-                    function(blk) blk:OnMouseUp("LeftButton", true) end
-                params.on_button4 = nil
-            end
-            -- Tweak cursor position for various block types.
-            if module == QuestObjectiveTracker then
-                if block.poiButton then
-                    params.x_offset = params.x_offset - 4
-                elseif block.template == "AutoQuestPopUpBlockTemplate" then
-                    params.x_offset = 9
-                end
-            end
-            if last then
-                self.targets[last].down = block
-                if self.targets[last].item then
-                    self.targets[self.targets[last].item].down =
-                        params.item or block
-                end
-            end
-            first = first or block
-            last = block
             block = block.nextBlock
-        end  -- for each block
-    end)  -- for each module
-    if first then
-        self.targets[last].down = first
-        if self.targets[last].item then
-            self.targets[self.targets[last].item].down =
-                self.targets[first].item or first
         end
-        self.targets[first].up = last
-        if self.targets[first].item then
-            self.targets[self.targets[first].item].up =
-                self.targets[last].item or last
+    end)
+    for i, block in ipairs(blocks) do
+        local params =
+            {on_click = ClickHeaderButton, is_default = (i==1),
+             -- FIXME: we need to roll our own because this pops up in the middle of the screen
+             --on_button4 = function(blk) blk:OnHeaderClick("RightButton") end,
+             send_enter_leave = true, left = false, right = false,
+             up = blocks[i==1 and #blocks or i-1],
+             down = blocks[i==#blocks and 1 or i+1]}
+        self.targets[block] = params
+        -- For quests, position the cursor at the PoI button
+        -- rather than the middle of the block (which ends up
+        -- being under the PoI button and a bit confusing).
+        if block.poiButton and block.poiButton:IsShown() then
+            params.on_button3 = ClickPOIButton
+            local bx, by, _, bh = block:GetRect()
+            local px, py, _, ph = block.poiButton:GetRect()
+            by = by + bh/2
+            py = py + ph/2
+            params.x_offset = px - bx
+            params.y_offset = py - by
         end
-        self.targets[first].is_default = true
+        -- If there's a quest item button, add it in as well.
+        local function GetItemButton(b)
+            return b.ItemButton      -- quests
+                or b.rightEdgeFrame  -- bonus objectives, world quests
+        end
+	local item = GetItemButton(block)
+        if item then
+            params.left = item
+            params.right = item
+            local item_params =
+                {can_activate = true, --lock_highlight = true,
+                 send_enter_leave = true, left = block, right = block}
+            local up = blocks[i==1 and #blocks or i-1]
+            local down = blocks[i==#blocks and 1 or i+1]
+            item_params.up = GetItemButton(up) or up
+            item_params.down = GetItemButton(down) or down
+            self.targets[item] = item_params
+        end
+        -- Quest popups in the objective tracker need their own
+        -- button handling.
+        if block.template == "AutoQuestPopUpBlockTemplate" then
+            params.on_click =
+                function(blk) blk:OnMouseUp("LeftButton", true) end
+            params.on_button4 = nil
+        end
+        -- Tweak cursor position for various block types.
+        if module == QuestObjectiveTracker then
+            if block.poiButton then
+                params.x_offset = params.x_offset - 4
+            elseif block.template == "AutoQuestPopUpBlockTemplate" then
+                params.x_offset = 9
+            end
+        end
     end
     if old_target and not self.targets[old_target] then
         old_target = nil
     end
-    return old_target or first
+    return old_target or blocks[1]
 end
 
 function ObjectiveTrackerFrameHandler:OnAction(button)
