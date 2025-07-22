@@ -198,6 +198,7 @@ function Aura:UpdateTimeLeft()
         else
             time_left = 0
         end
+        time_left = time_left / self.time_rate
         local time_rounded = math.floor(time_left + 0.5)
         if time_left < 0.5 then
             time_str = nil
@@ -350,6 +351,11 @@ function Aura:InternalUpdate(unit, data)
 
     if expires > 0 then
         self.expires = expires
+        -- timeMod has some interesting uses, e.g. in Elisande (Nighthold)
+        -- to preserve the user-visible time remaining on Ablating Explosion
+        -- while the actual aura timer is lengthened by 100x to effectively
+        -- pause it during Time Stop.
+        self.time_rate = data.timeMod
         if is_mine then
             timer:SetTextColor(0.56, 1, 0.78)
         else
@@ -358,6 +364,7 @@ function Aura:InternalUpdate(unit, data)
         f:SetScript("OnUpdate", function() self:OnUpdate() end)
     else
         self.expires = 0
+        self.time_rate = 1
         if self.icon_id == ICON_DRAGON_GLYPH_RESONANCE then
             f:SetScript("OnUpdate", function() self:OnUpdate() end)
         end
