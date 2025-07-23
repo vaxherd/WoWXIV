@@ -17,7 +17,7 @@ end
 
 -- Rather than responding to Show calls, we use this event to ensure that
 -- we appropriately update targets each time the content changes.
-function GossipFrameHandler.OnShow()
+function GossipFrameHandler:OnShow()
     -- No-op.
 end
 function GossipFrameHandler:GOSSIP_SHOW()
