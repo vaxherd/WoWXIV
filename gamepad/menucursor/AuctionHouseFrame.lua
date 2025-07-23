@@ -468,12 +468,18 @@ function SellTabHandler:__constructor()
     -- handler and swap self.frame to whichever one happens to be shown
     -- at the moment.
     self:__super(nil)
-    self:HookShow(AuctionHouseFrame.ItemSellFrame)
-    self:HookShow(AuctionHouseFrame.CommoditiesSellFrame)
-    self:HookShow(AuctionHouseFrame.CommoditiesSellFrame.QuantityInput,
-                  self.RefreshTargets, self.RefreshTargets)
+    self.sell_frames = {AuctionHouseFrame.ItemSellFrame,
+                        AuctionHouseFrame.CommoditiesSellFrame}
+    for _, frame in ipairs(self.sell_frames) do
+        self:HookShow(frame)
+    end
 
-    self.cancel_func = AuctionHouseFrameHandler.CancelMenu
+    -- Set to true when the frame is focused by selecting an item from the
+    -- inventory to sell.  Controls focus behavior on "Create Auction" and
+    -- cancel.
+    self.focused_from_inventory = false
+
+    self.cancel_func = function() self:OnCancel() end
     self.has_Button3 = true  -- Used to trigger an auction list refresh.
     self.on_prev_page = function(dir) self:AdjustNumber(dir) end
     self.on_next_page = self.on_prev_page
@@ -495,6 +501,43 @@ function SellTabHandler:__constructor()
     self.silver_input_c = MenuCursor.NumberInput(
         AuctionHouseFrame.CommoditiesSellFrame.PriceInput.MoneyInputFrame.SilverBox,
         function() self:OnPriceChanged() end)
+
+    self:HookShow(AuctionHouseFrame.CommoditiesSellFrame.QuantityInput,
+                  self.RefreshTargets, self.RefreshTargets)
+end
+
+-- Called externally via AuctionHouseFrameHandler.FocusSellFrameFromInventory().
+function SellTabHandler:FocusFromInventory()
+    local frame = self:GetCurrentSellFrame()
+    if frame then
+        self:OnShow(frame)
+        self.focused_from_inventory = true
+    end
+end
+
+function SellTabHandler:GetCurrentSellFrame()
+    for _, frame in ipairs(self.sell_frames) do
+        if frame:IsVisible() then
+            return frame
+        end
+    end
+end
+
+function SellTabHandler:OnFocus()
+    self.focused_from_inventory = false
+end
+
+function SellTabHandler:OnCancel()
+    if self.focused_from_inventory then
+        local frame = self:GetCurrentSellFrame()
+        assert(frame)
+        local ItemButton = frame.ItemDisplay.ItemButton
+        assert(ItemButton)
+        ItemButton:Click("RightButton", true)
+        MenuCursor.ContainerFrameHandler.FocusIfOpen()
+    else
+        AuctionHouseFrameHandler.CancelMenu()
+    end
 end
 
 function SellTabHandler:OnShow(frame)
@@ -544,6 +587,11 @@ function SellTabHandler:SetTargets()
                       lock_highlight = true, up = GoldBox, down = PostButton,
                       left = false, right = false},
         [PostButton] = {can_activate = true, lock_highlight = true,
+                        on_click = function()
+                            if self.focused_from_inventory then
+                                MenuCursor.ContainerFrameHandler.FocusIfOpen()
+                            end
+                        end,
                         up = Duration, down = GoldBox,
                         left = false, right = false, is_default = true},
     }
@@ -721,13 +769,7 @@ end
 
 -- Exported function, called by ContainerFrame.  Focuses whichever sell
 -- frame is visible, if any.
-function AuctionHouseFrameHandler.FocusSellFrame()
-    local frames = {AuctionHouseFrame.ItemSellFrame,
-                    AuctionHouseFrame.CommoditiesSellFrame}
-    for _, frame in ipairs(frames) do
-        if frame:IsVisible() then
-            AuctionHouseFrameHandler.instance_SellTab:OnShow(frame)
-            return
-        end
-    end
+function AuctionHouseFrameHandler.FocusSellFrameFromInventory()
+    local instance_SellTab = AuctionHouseFrameHandler.instance_SellTab
+    instance_SellTab:FocusFromInventory()
 end

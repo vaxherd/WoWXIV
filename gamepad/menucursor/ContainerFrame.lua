@@ -34,7 +34,7 @@ local InventoryItemSubmenu = class(WoWXIV.UI.ItemSubmenu)
 -- focus it at that point.)
 local function SendToAuctionHouse(item_loc)
     AuctionHouseFrame:SetPostItem(item_loc)
-    MenuCursor.AuctionHouseFrameHandler.FocusSellFrame()
+    MenuCursor.AuctionHouseFrameHandler.FocusSellFrameFromInventory()
 end
 
 -- Send an item to the currently active bank frame.  May start a locked
