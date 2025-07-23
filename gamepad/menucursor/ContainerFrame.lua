@@ -202,13 +202,14 @@ local function SendToScrapper(bag, slot, info)
         WoWXIV.Error("Item is locked.")
         return
     end
-    local scrap_slot
-    for i = 0, 8 do
-        if not C_ScrappingMachineUI.GetCurrentPendingScrapItemLocationByIndex(i) then  -- whew, that's a mouthful
-            scrap_slot = i
-            break
+    local function GetEmptySlot()
+        for i = 0, 8 do
+            if not C_ScrappingMachineUI.GetCurrentPendingScrapItemLocationByIndex(i) then  -- whew, that's a mouthful
+                return i
+            end
         end
     end
+    local scrap_slot = GetEmptySlot()
     if not scrap_slot then
         WoWXIV.Error("The scrapper is full.")
         return
@@ -217,6 +218,17 @@ local function SendToScrapper(bag, slot, info)
     local cursor_type, _, cursor_link = GetCursorInfo()
     assert(cursor_type == "item" and cursor_link == info.hyperlink)
     C_ScrappingMachineUI.DropPendingScrapItemFromCursor(scrap_slot)
+    if GetCursorInfo() then
+        -- If the item is invalid for the scrapper or the scrapper is
+        -- busy, the DropPending call will fail and leave the item on the
+        -- cursor.  We could report an error and clear the cursor, but we
+        -- might as well let the player rearrange their inventory instead.
+        return
+    end
+    if not GetEmptySlot() then
+        -- Machine is full, time to scrap!
+        MenuCursor.ScrappingMachineFrameHandler:FocusScrapButton()
+    end
 end
 
 -- Send an item to a socket in the socketing interface.

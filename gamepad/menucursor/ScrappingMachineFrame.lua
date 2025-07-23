@@ -7,6 +7,7 @@ local class = WoWXIV.class
 ---------------------------------------------------------------------------
 
 local ScrappingMachineFrameHandler = class(MenuCursor.AddOnMenuFrame)
+MenuCursor.ScrappingMachineFrameHandler = ScrappingMachineFrameHandler  -- For exports.
 ScrappingMachineFrameHandler.ADDON_NAME = "Blizzard_ScrappingMachineUI"
 MenuCursor.Cursor.RegisterFrameHandler(ScrappingMachineFrameHandler)
 
@@ -41,4 +42,14 @@ end
 function ScrappingMachineFrameHandler.PostClickScrapButton()  -- static method
     -- Send the cursor back to the inventory to save the player some time.
     MenuCursor.ContainerFrameHandler.FocusIfOpen()
+end
+
+---------------------------------------------------------------------------
+
+-- Exported function, called by ContainerFrame.
+function ScrappingMachineFrameHandler.FocusScrapButton()
+    local instance = ScrappingMachineFrameHandler.instance
+    assert(instance:IsEnabled())
+    instance:SetTarget(instance.frame.ScrapButton)
+    instance:Focus()
 end
