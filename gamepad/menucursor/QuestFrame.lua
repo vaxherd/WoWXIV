@@ -36,8 +36,7 @@ end
 
 function QuestFrameHandler:QUEST_GREETING()
     assert(QuestFrame:IsVisible())  -- FIXME: might be false if previous quest turn-in started a cutscene (e.g. The Underking Comes in the Legion Highmountain scenario)
-    self:SetTargets("QUEST_GREETING")
-    self:Enable()
+    self:Enable(self:SetTargets("QUEST_GREETING"))
 end
 
 function QuestFrameHandler:RefreshGreeting()
@@ -106,6 +105,10 @@ function QuestFrameHandler:SetTargets(event, initial_id)
                 initial = button
             end
         end
+        if first_button then
+            self.targets[first_button].up = goodbye
+            self.targets[goodbye].down = first_button
+        end
         return initial or first_avail or first_button or goodbye
 
     elseif event == "QUEST_PROGRESS" then
@@ -118,11 +121,50 @@ function QuestFrameHandler:SetTargets(event, initial_id)
                                          lock_highlight = true,
                                          is_default = not can_complete},
         }
+        local function ItemFrame(i)
+            return _G["QuestProgressItem"..i]
+        end
+        local first_frame = ItemFrame(1)
         for i = 1, 99 do
-            local name = "QuestProgressItem" .. i
-            local item_frame = _G[name]
+            local item_frame = ItemFrame(i)
             if not item_frame or not item_frame:IsShown() then break end
             self.targets[item_frame] = {send_enter_leave = true}
+            -- These seem to be laid out straightforwardly, so we can just
+            -- bind by number for wraparound movement.
+            self.targets[item_frame].right = first_frame
+            self.targets[first_frame].left = item_frame
+            if i == 1 then
+                self.targets[item_frame].up = QuestFrameCompleteButton
+                self.targets[item_frame].down = QuestFrameCompleteButton
+                self.targets[item_frame].left = false
+                self.targets[item_frame].right = false
+                self.targets[QuestFrameCompleteButton].down = item_frame
+                self.targets[QuestFrameCompleteButton].up = item_frame
+                self.targets[QuestFrameGoodbyeButton].down = item_frame
+                self.targets[QuestFrameGoodbyeButton].up = item_frame
+            elseif i == 2 then
+                self.targets[item_frame].up = QuestFrameGoodbyeButton
+                self.targets[item_frame].down = QuestFrameGoodbyeButton
+                self.targets[item_frame].left = first_frame
+                self.targets[first_frame].right = item_frame
+                self.targets[QuestFrameGoodbyeButton].down = item_frame
+                self.targets[QuestFrameGoodbyeButton].up = item_frame
+            else  -- row 2 and below
+                local up_frame = ItemFrame(i-2)
+                local prev_frame = ItemFrame(i-1)
+                self.targets[item_frame].up = up_frame
+                self.targets[up_frame].down = item_frame
+                self.targets[item_frame].left = prev_frame
+                self.targets[prev_frame].right = item_frame
+                if i % 2 == 1 then  -- left side
+                    self.targets[prev_frame].down = item_frame
+                    self.targets[item_frame].down = QuestFrameCompleteButton
+                    self.targets[QuestFrameCompleteButton].up = item_frame
+                else  -- right side
+                    self.targets[item_frame].down = QuestFrameGoodbyeButton
+                    self.targets[QuestFrameGoodbyeButton].up = item_frame
+                end
+            end
         end
 
     else  -- DETAIL or COMPLETE
@@ -176,29 +218,31 @@ function QuestFrameHandler:SetTargets(event, initial_id)
         table.sort(rewards, function(a, b)
             return a[4] > b[4] or (a[4] == b[4] and a[3] < b[3])
         end)
-        local last_l, last_r, this_l
-        for _, v in ipairs(rewards) do
+        local first_l, first_r, last_l, last_r, this_l
+        for i, v in ipairs(rewards) do
             local reward_frame, is_item = unpack(v)
             self.targets[reward_frame] = {
-                up = false, down = false, left = false, right = false,
+                up = false, down = false,
+                left = rewards[i==1 and #rewards or i-1][1],
+                right = rewards[i==#rewards and 1 or i+1][1],
                 can_activate = is_item, send_enter_leave = true,
                 scroll_frame = (is_complete and QuestRewardScrollFrame
                                              or QuestDetailScrollFrame),
             }
             if this_l and reward_frame:GetTop() == this_l:GetTop() then
                 -- Item is in the right column.
+                first_r = first_r or reward_frame
                 if last_r then
                     self.targets[last_r].down = reward_frame
                     self.targets[reward_frame].up = last_r
                 elseif last_l then
                     self.targets[reward_frame].up = last_l
                 end
-                self.targets[this_l].right = reward_frame
-                self.targets[reward_frame].left = this_l
                 last_l, last_r = this_l, reward_frame
                 this_l = nil
             else
                 -- Item is in the left column.
+                first_l = first_l or reward_frame
                 if this_l then
                     last_l, last_r = this_l, nil
                 end
@@ -217,7 +261,15 @@ function QuestFrameHandler:SetTargets(event, initial_id)
         if this_l then
             last_l, last_r = this_l, nil
         end
-        if last_l then
+        if first_l then
+            self.targets[first_l].up = button1
+            self.targets[button1].down = first_l
+            if button2 then
+                self.targets[button2].down = first_r or first_l
+            end
+            if first_r then
+                self.targets[first_r].up = button2 or button1
+            end
             self.targets[last_l].down = button1
             self.targets[button1].up = last_l
             if button2 then
