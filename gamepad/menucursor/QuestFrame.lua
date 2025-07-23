@@ -18,6 +18,15 @@ function QuestFrameHandler:__constructor()
     self:RegisterEvent("QUEST_DETAIL")
     self:RegisterEvent("QUEST_PROGRESS")
     self:RegisterEvent("QUEST_COMPLETE")
+    -- QuestFrame uses QUEST_LOG_UPDATE to refresh the quest list in the
+    -- greeting panel; if multiple quests are listed, this can cause
+    -- different subframes to be reallocated to each quest even if the
+    -- list itself is unchanged, which would result in the cursor
+    -- spontaneously changing position.  We could catch the same event,
+    -- but the order of operations would be undefined with respect to
+    -- QuestFrame itself, so instead we hook into the update function.
+    hooksecurefunc("QuestFrameGreetingPanel_OnShow",
+                   function() self:RefreshGreeting() end)
 end
 
 -- Suppress the normal show callback in favor of event-specific versions.
@@ -29,6 +38,22 @@ function QuestFrameHandler:QUEST_GREETING()
     assert(QuestFrame:IsVisible())  -- FIXME: might be false if previous quest turn-in started a cutscene (e.g. The Underking Comes in the Legion Highmountain scenario)
     self:SetTargets("QUEST_GREETING")
     self:Enable()
+end
+
+function QuestFrameHandler:RefreshGreeting()
+    local saved_id = self.cur_id
+    self:SetTarget(nil)
+    self:SetTarget(self:SetTargets("QUEST_GREETING", saved_id))
+end
+
+function QuestFrameHandler:EnterTarget(target)
+    MenuCursor.CoreMenuFrame.EnterTarget(self, target)
+    -- If in the greeting frame, save the ID of the currently selected quest
+    -- so we can preserve it across subframe reallocation (see notes in
+    -- constructor).
+    if QuestFrameGreetingPanel:IsVisible() then
+        self.cur_id = target:GetID()
+    end
 end
 
 function QuestFrameHandler:QUEST_DETAIL()
@@ -53,12 +78,12 @@ function QuestFrameHandler:QUEST_COMPLETE()
     self:Enable()
 end
 
-function QuestFrameHandler:SetTargets(event)
+function QuestFrameHandler:SetTargets(event, initial_id)
     if event == "QUEST_GREETING" then
         local goodbye = QuestFrameGreetingGoodbyeButton
         self.targets = {[goodbye] = {can_activate = true,
                                      lock_highlight = true}}
-        local first_button, last_button, first_avail
+        local first_button, last_button, first_avail, initial
         local avail_y = (AvailableQuestsText:IsShown()
                          and AvailableQuestsText:GetTop())
         for button in QuestFrameGreetingPanel.titleButtonPool:EnumerateActive() do
@@ -77,8 +102,11 @@ function QuestFrameHandler:SetTargets(event)
                     first_avail = button
                 end
             end
+            if initial_id and button:GetID() == initial_id then
+                initial = button
+            end
         end
-        self.targets[first_avail or first_button or goodbye].is_default = true
+        return initial or first_avail or first_button or goodbye
 
     elseif event == "QUEST_PROGRESS" then
         local can_complete = QuestFrameCompleteButton:IsEnabled()
