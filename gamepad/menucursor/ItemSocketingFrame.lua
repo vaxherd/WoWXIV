@@ -12,6 +12,7 @@ MenuCursor.Cursor.RegisterFrameHandler(ItemSocketingFrameHandler)
 
 function ItemSocketingFrameHandler:__constructor()
     self:__super(ItemSocketingFrame)
+    self.cursor_show_item = true
 end
 
 function ItemSocketingFrameHandler:SetTargets()

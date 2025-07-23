@@ -645,12 +645,12 @@ function Cursor:UpdateCursor(in_combat)
             if info[1] == "item" then
                 item_texture = select(10, C_Item.GetItemInfo(info[2]))
             end
-            if item_texture then
-                self.held_item_icon:SetTexture(item_texture)
-                self.held_item_icon:Show()
-            else
-                self.held_item_icon:Hide()
-            end
+        end
+        if item_texture then
+            self.held_item_icon:SetTexture(item_texture)
+            self.held_item_icon:Show()
+        else
+            self.held_item_icon:Hide()
         end
     end
 
