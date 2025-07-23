@@ -51,7 +51,7 @@ function QuestFrameHandler:EnterTarget(target)
     -- so we can preserve it across subframe reallocation (see notes in
     -- constructor).
     if QuestFrameGreetingPanel:IsVisible() then
-        self.cur_id = target:GetID()
+        self.cur_id = self.targets[self:GetTarget()].id
     end
 end
 
@@ -86,9 +86,18 @@ function QuestFrameHandler:SetTargets(event, initial_id)
         local avail_y = (AvailableQuestsText:IsShown()
                          and AvailableQuestsText:GetTop())
         for button in QuestFrameGreetingPanel.titleButtonPool:EnumerateActive() do
-            self.targets[button] = {can_activate = true,
-                                    lock_highlight = true}
+            -- Annoyingly, active and offered quest groups both number their
+            -- button IDs from 1 and don't have any convenient fields from
+            -- which we can directly check the quest type, so in order to
+            -- get RefreshGreeting() working properly, we have to save our
+            -- own ID value.  We use negative values to indicate active
+            -- (already-accepted) quests.
             local y = button:GetTop()
+            local is_avail = avail_y and y < avail_y
+            local id = button:GetID()
+            if not is_avail then id = -id end
+            self.targets[button] = {can_activate = true, lock_highlight = true,
+                                    id = id}
             if not first_button then
                 first_button = button
                 last_button = button
@@ -96,12 +105,12 @@ function QuestFrameHandler:SetTargets(event, initial_id)
                 if y > first_button:GetTop() then first_button = button end
                 if y < last_button:GetTop() then last_button = button end
             end
-            if avail_y and y < avail_y then
+            if is_avail then
                 if not first_avail or y > first_avail:GetTop() then
                     first_avail = button
                 end
             end
-            if initial_id and button:GetID() == initial_id then
+            if initial_id and id == initial_id then
                 initial = button
             end
         end
