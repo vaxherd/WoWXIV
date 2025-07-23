@@ -567,6 +567,7 @@ end
 function SellTabHandler:SetTargets()
     local qi = self.frame.QuantityInput
     local pi = self.frame.PriceInput
+    local ItemButton = self.frame.ItemDisplay.ItemButton
     local QuantityBox = qi.InputBox
     local MaxButton = qi.MaxButton
     local GoldBox = pi.MoneyInputFrame.GoldBox
@@ -577,11 +578,15 @@ function SellTabHandler:SetTargets()
     -- it means having to add support for the extra fields it needs).
 
     self.targets = {
+        -- ItemButton is view-only; ContainerFrameHandler selects items for us.
+        [ItemButton] = {send_enter_leave = true,
+                        up = PostButton, down = GoldBox,
+                        left = false, right = false},
         [GoldBox] = {on_click = function() self:EditGold() end,
-                     up = PostButton, down = Duration,
+                     up = ItemButton, down = Duration,
                      left = SilverBox, right = SilverBox},
         [SilverBox] = {on_click = function() self:EditSilver() end,
-                       up = PostButton, down = Duration,
+                       up = ItemButton, down = Duration,
                        left = GoldBox, right = GoldBox},
         [Duration] = {on_click = function() self:ToggleDurationDropdown() end,
                       lock_highlight = true, up = GoldBox, down = PostButton,
@@ -592,21 +597,21 @@ function SellTabHandler:SetTargets()
                                 MenuCursor.ContainerFrameHandler.FocusIfOpen()
                             end
                         end,
-                        up = Duration, down = GoldBox,
+                        up = Duration, down = ItemButton,
                         left = false, right = false, is_default = true},
     }
     if QuantityBox:IsVisible() then
         self.targets[QuantityBox] = {
             on_click = function() self:EditQuantity() end,
-            up = PostButton, down = GoldBox,
+            up = ItemButton, down = GoldBox,
             left = MaxButton, right = MaxButton}
         self.targets[MaxButton] = {
             can_activate = true, lock_highlight = true,
-            up = PostButton, down = SilverBox,
+            up = ItemButton, down = SilverBox,
             left = QuantityBox, right = QuantityBox}
         self.targets[GoldBox].up = QuantityBox
         self.targets[SilverBox].up = MaxButton
-        self.targets[PostButton].down = QuantityBox
+        self.targets[ItemButton].down = QuantityBox
     end
 end
 
