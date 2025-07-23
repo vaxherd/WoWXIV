@@ -288,8 +288,20 @@ function SchematicFormHandler:OnShowRecraftOutputSlot()
     end
 end
 
-local function SchematicForm_ClickItemButton(button)
-    ProfessionsFrameHandler.instance_ItemFlyout:SetInitialItem(button.item)
+function SchematicFormHandler:OnChangeRecraftItem()
+    -- The set of visible reagent slots may have changed, so refresh the
+    -- target list.  The cursor should already be at the input target slot
+    -- (which won't go away), so we don't have to worry about moving it.
+    local InputSlot =
+        ProfessionsFrame.CraftingPage.SchematicForm.recraftSlot.InputSlot
+    assert(self:GetTarget() == InputSlot)
+    assert(InputSlot:IsShown())
+    self:SetTargets()
+end
+
+function SchematicForm_ClickItemButton(button, confirm_callback)
+    ProfessionsFrameHandler.instance_ItemFlyout:Configure(
+        button.item, confirm_callback)
     local onMouseDown = button:GetScript("OnMouseDown")
     assert(onMouseDown)
     -- We pass down=true for completeness, but all current implementations
@@ -306,9 +318,12 @@ function SchematicFormHandler:SetTargets()
     local top_icon, top_icon2
     local rs = SchematicForm.recraftSlot
     if rs:IsShown() then
+        local function OnChangeRecraftItem() self:OnChangeRecraftItem() end
         self.targets[rs.InputSlot] = {
-            on_click = SchematicForm_ClickItemButton, send_enter_leave = true,
-            left = false, right = false}
+            on_click = function(button)
+                SchematicForm_ClickItemButton(button, OnChangeRecraftItem)
+            end,
+            send_enter_leave = true, left = false, right = false}
         if rs.OutputSlot:IsShown() then
             self.targets[rs.InputSlot].right = rs.OutputSlot
             self.targets[rs.OutputSlot] = {
@@ -600,10 +615,11 @@ function ItemFlyoutHandler:__constructor()
     self.cancel_func = CloseProfessionsItemFlyout  -- Blizzard function.
 end
 
--- Item buttons should call this method to set the initial item ID for the
--- next Show() operation.
-function ItemFlyoutHandler:SetInitialItem(id)
-    self.initial_item = id
+-- Item buttons should call this method to set the initial item ID and
+-- item selection callback for the next Show() operation.
+function ItemFlyoutHandler:Configure(item_id, confirm_callback)
+    self.initial_item = item_id
+    self.confirm_callback = confirm_callback
 end
 
 function ItemFlyoutHandler:OnShow()
@@ -614,6 +630,12 @@ function ItemFlyoutHandler:OnShow()
     -- FIXME: this delay isn't enough to get the list immediately after login;
     -- unclear if there's any way to detect whether the frame is fully loaded
     RunNextFrame(function() self:RefreshTargets(initial_item) end)
+end
+
+function ItemFlyoutHandler:ClickItem(target)
+    local target_frame = self:GetTargetFrame(target)
+    target_frame:GetScript("OnClick")(target_frame, "LeftButton", true)
+    if self.confirm_callback then self.confirm_callback() end
 end
 
 function ItemFlyoutHandler:RefreshTargets(initial_item)
@@ -646,8 +668,8 @@ function ItemFlyoutHandler:RefreshTargets(initial_item)
             local pseudo_frame =
                 self.PseudoFrameForScrollElement(ItemScroll, index)
             self.targets[pseudo_frame] = {
-                is_scroll_box = true, can_activate = true,
-                send_enter_leave = true,
+                is_scroll_box = true, send_enter_leave = true,
+                on_click = function(target) self:ClickItem(target) end,
                 up = false, down = false, left = false, right = false}
             if index % 3 == 1 then
                 tinsert(rows, {})
