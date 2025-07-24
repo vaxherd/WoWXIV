@@ -622,9 +622,31 @@ function Cursor:UpdateCursor(in_combat)
     if target and should_show then
         self:SetCursorPoint(focus, target)
         if focus:IsTargetClickable(target) then
-            self:SetAttribute("clickbutton1", target_frame)
+            local action = focus:GetTargetClickAction(target)
+            if action then
+                if action.type == "item" then
+                    if not action.item then
+                        error("Missing action item")
+                    end
+                    self:SetAttribute("type1", "item")
+                    self:SetAttribute("item1", action.item)
+                elseif action.type == "spell" then
+                    if not action.spell then
+                        error("Missing action spell")
+                    end
+                    self:SetAttribute("type1", "spell")
+                    self:SetAttribute("spell1", action.spell)
+                    self:SetAttribute("target-bag1", action["target-bag"])
+                    self:SetAttribute("target-slot1", action["target-slot"])
+                else
+                    error("Unknown click action type: "..action.type)
+                end
+            else
+                self:SetAttribute("type1", "click")
+                self:SetAttribute("clickbutton1", target_frame)
+            end
         else
-            self:SetAttribute("clickbutton1", nil)
+            self:SetAttribute("type1", nil)
         end
         self:SetAttribute("clickbutton2", focus:GetCancelButton())
         if not self:IsShown() then
@@ -994,6 +1016,16 @@ function MenuFrame:__constructor(frame, modal)
     --         for actions which run secure code (attempting to do so will
     --         trigger a taint error), since repeats are handled by
     --         user-side logic.
+    --    - click_action: Specifies the action to be securely performed
+    --         when the target is activated.  The value must be a table
+    --         containing a "type" field giving the action type (as for
+    --         SecureActionButtonTemplate) along with any data appropriate
+    --         to that type.  If not specified, a left-click action is
+    --         performed on the target (which must be a Button instance);
+    --         note that if the target button itself (i.e. the table value)
+    --         is tainted, the button will not be able to execute any
+    --         secure actions even if it was created with a secure template
+    --         like SecureActionButtonTemplate.
     --    - cursor_show_item: If true, an item held by the game cursor
     --         (as indicated by GetCursorInfo()) will be displayed next to
     --         the cursor image.
@@ -1169,6 +1201,16 @@ end
 function MenuFrame:IsTargetRepeatable(target)
     local params = self.targets[target]
     return params and params.can_repeat
+end
+
+-- For clickable targets (when IsTargetClickable() returns true), return
+-- the click action data for the target, if any.  The return value should
+-- be a table of secure button attributes, containing at minimum a "type"
+-- member with the appropriate action.  A nil return causes the default
+-- behavior of executing a secure click on the target.
+function MenuFrame:GetTargetClickAction(target)
+    local params = self.targets[target]
+    return params and params.click_action
 end
 
 -- Return whether directional pad inputs should be passed directly to this
@@ -1391,7 +1433,8 @@ function MenuFrame:EnterTarget(target)
     if params.send_enter_leave then
         local script = frame:GetScript("OnEnter")
         if script then
-            WoWXIV.ReplaceGameTooltip(script, frame)
+            script(frame)
+            --WoWXIV.ReplaceGameTooltip(script, frame)
         end
     elseif params.on_enter then
         params.on_enter(target)
@@ -1410,7 +1453,8 @@ function MenuFrame:LeaveTarget(target)
     if params.send_enter_leave then
         local script = frame:GetScript("OnLeave")
         if script then
-            WoWXIV.ReplaceGameTooltip(script, frame)
+            script(frame)
+            --WoWXIV.ReplaceGameTooltip(script, frame)
         end
     elseif params.on_leave then
         params.on_leave(target)

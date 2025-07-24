@@ -853,6 +853,21 @@ function InventoryItemSubmenuHandler:SetTargets()
     local initial
     for _, button in ipairs(self.frame.buttons) do
         self.targets[button] = {can_activate = true}
+        local type = button:GetAttribute("type")
+        if type then
+            -- We can't indirectly click user-created buttons due to taint,
+            -- so we have the menu cursor execute the action directly.
+            local click_action = {type = type}
+            for _, field in ipairs({"spell", "item",
+                                    "target-bag", "target-slot"}) do
+                click_action[field] = button:GetAttribute(field)
+            end
+            self.targets[button].click_action = click_action
+            -- Because we execute the action ourselves, the menu item's
+            -- PostClick handler won't be called, and we have to close
+            -- the menu ourselves.
+            self.targets[button].on_click = function() self.frame:Close() end
+        end
         initial = initial or button
     end
     return initial
@@ -861,11 +876,6 @@ end
 
 function InventoryItemSubmenu:__constructor()
     self:__super()
-
-    -- FIXME: "Use" for spell-type items (e.g. Hearthstone) and "Disenchant"
-    -- currently fail due to taint errors when activated via menu cursor.
-    -- They work fine via physical mouse click, so hopefully not an
-    -- unresolvable problem?
 
     -- Note that both of these are the same action because "item" resolves
     -- to either "equip" or "use" based on C_Item.IsEquippableItem() (see
