@@ -942,12 +942,21 @@ function InventoryItemSubmenu:__constructor()
         function(bag, slot, info) self:DoDiscard(bag, slot, info) end
 end
 
+local DISENCHANTABLE_TYPES = {
+    [Enum.ItemClass.Weapon] = true,
+    [Enum.ItemClass.Armor] = true,
+    [Enum.ItemClass.Profession] = true,
+    [Enum.ItemClass.Gem] = {
+        [Enum.ItemGemSubclass.Artifactrelic] = true,  -- Legion artifact relics
+    },
+}
+
 function InventoryItemSubmenu:ConfigureForItem(bag, slot)
     local guid =
         C_Item.GetItemGUID(ItemLocation:CreateFromBagAndSlot(bag, slot))
     local bagslot = strformat("%d %d", bag, slot)
     local info = C_Container.GetContainerItemInfo(bag, slot)
-    local class = select(12, C_Item.GetItemInfo(guid))
+    local item_class, item_subclass = select(12, C_Item.GetItemInfo(guid))
 
     if AuctionHouseFrame and AuctionHouseFrame:IsShown() then
         if C_AuctionHouse.IsSellItemValid(self.item_loc, false) then
@@ -972,7 +981,7 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
         end
 
     elseif ItemSocketingFrame and ItemSocketingFrame:IsShown() then
-        if class == Enum.ItemClass.Gem then
+        if item_class == Enum.ItemClass.Gem then
             self:AppendButton(self.menuitem_socket)
         end
 
@@ -991,10 +1000,11 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
         end
     end
 
-    if class == Enum.ItemClass.Weapon
-    or class == Enum.ItemClass.Armor
-    or class == Enum.ItemClass.Profession
-    then
+    local disenchantable = DISENCHANTABLE_TYPES[item_class]
+    if type(disenchantable) == table then
+        disenchantable = disenchantable[item_subclass]
+    end
+    if disenchantable then
         local prof1, prof2 = GetProfessions()
         local TEXTURE_ENCHANTING = 4620672
         if (prof1 and select(2, GetProfessionInfo(prof1)) == TEXTURE_ENCHANTING)
