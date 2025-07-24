@@ -1004,6 +1004,9 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
     if type(disenchantable) == table then
         disenchantable = disenchantable[item_subclass]
     end
+    if info.quality >= Enum.ItemQuality.Legendary then
+        disenchantable = false
+    end
     if disenchantable then
         local prof1, prof2 = GetProfessions()
         local TEXTURE_ENCHANTING = 4620672
