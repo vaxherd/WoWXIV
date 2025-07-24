@@ -99,16 +99,16 @@ function ItemSubmenu:AppendLayout(element)
     if self.layout_prev then
         target = self.layout_prev
         ref = "BOTTOM"
-        offset = -self.SPACING
+        offset = self.SPACING
     else
         target = self
         ref = "TOP"
         offset = 0
     end
     element:ClearAllPoints()
-    element:SetPoint("TOPLEFT", target, ref.."LEFT", 0, offset)
+    element:SetPoint("TOPLEFT", target, ref.."LEFT", 0, -offset)
     self.layout_width = max(self.layout_width, element:GetWidth())
-    self.layout_height = self.layout_height + element:GetHeight()
+    self.layout_height = self.layout_height + offset + element:GetHeight()
     self.layout_prev = element
 end
 
@@ -179,8 +179,8 @@ function ItemSubmenuButton:OnClick()
     if info.itemID ~= self.item_id then return end
     -- If we get here, the slot has the same item as it originally did.
     -- It may not be the same specific instance (GUID), but we accept
-    -- like-for-like substitutions to avoid potentially confusing error
-    -- messages.
+    -- like-for-like substitutions to avoid potentially confusing the
+    -- player with errors like "found Foo instead of Foo".
     self.ExecuteInsecure(bag, slot, info, self.item_button)
 end
 
