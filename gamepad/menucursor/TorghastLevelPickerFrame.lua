@@ -5,6 +5,7 @@ local MenuCursor = WoWXIV.Gamepad.MenuCursor
 local class = WoWXIV.class
 
 local envcall = WoWXIV.envcall
+local makefenv = WoWXIV.makefenv
 local min = math.min
 local tinsert = tinsert
 
@@ -133,8 +134,7 @@ function TorghastLevelPickerFrameHandler:OnEnterLevel(level)
             IsAnyDescendantOfOrSame = function() return true end
         }
     }
-    setmetatable(level_env, {__index = _G})
-    envcall(level_env, level.RefreshTooltip, level)
+    envcall(makefenv(level_env), level.RefreshTooltip, level)
 
     if reward:IsVisible() then
         local reward_oldmeta = getmetatable(reward)
