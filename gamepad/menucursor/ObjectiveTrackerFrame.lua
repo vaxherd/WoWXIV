@@ -64,6 +64,8 @@ function ObjectiveTrackerFrameHandler:RefreshTargets()
 end
 
 local function ClickHeaderButton(block)
+    -- Unfocus because the player probably doesn't want to come back afterward.
+    ObjectiveTrackerFrameHandler.instance:Unfocus()
     local button = block.HeaderButton
     button:GetScript("OnClick")(button, "LeftButton")
 end
