@@ -86,19 +86,20 @@ function ObjectiveTrackerFrameHandler:SetTargets(old_target)
         while block do
             -- Exclude unclickable blocks.  FIXME: are there any other types?
             if block.parentModule ~= ScenarioObjectiveTracker then
-                tinsert(blocks, block)
+                tinsert(blocks, {block, module})
             end
             block = block.nextBlock
         end
     end)
-    for i, block in ipairs(blocks) do
+    for i, entry in ipairs(blocks) do
+        local block, module = unpack(entry)
         local params =
             {on_click = ClickHeaderButton, is_default = (i==1),
              -- FIXME: we need to roll our own because this pops up in the middle of the screen
              --on_button4 = function(blk) blk:OnHeaderClick("RightButton") end,
              send_enter_leave = true, left = false, right = false,
-             up = blocks[i==1 and #blocks or i-1],
-             down = blocks[i==#blocks and 1 or i+1]}
+             up = blocks[i==1 and #blocks or i-1][1],
+             down = blocks[i==#blocks and 1 or i+1][1]}
         self.targets[block] = params
         -- For quests, position the cursor at the PoI button
         -- rather than the middle of the block (which ends up
@@ -124,8 +125,8 @@ function ObjectiveTrackerFrameHandler:SetTargets(old_target)
             local item_params =
                 {can_activate = true, --lock_highlight = true,
                  send_enter_leave = true, left = block, right = block}
-            local up = blocks[i==1 and #blocks or i-1]
-            local down = blocks[i==#blocks and 1 or i+1]
+            local up = blocks[i==1 and #blocks or i-1][1]
+            local down = blocks[i==#blocks and 1 or i+1][1]
             item_params.up = GetItemButton(up) or up
             item_params.down = GetItemButton(down) or down
             self.targets[item] = item_params
@@ -149,7 +150,7 @@ function ObjectiveTrackerFrameHandler:SetTargets(old_target)
     if old_target and not self.targets[old_target] then
         old_target = nil
     end
-    return old_target or blocks[1]
+    return old_target or blocks[1][1]
 end
 
 function ObjectiveTrackerFrameHandler:OnAction(button)
