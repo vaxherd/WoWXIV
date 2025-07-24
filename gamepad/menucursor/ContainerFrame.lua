@@ -843,6 +843,16 @@ end
 -- Item submenu handler and implementation
 ---------------------------------------------------------------------------
 
+local SPELL_DISENCHANT = 13262
+local DISENCHANTABLE_TYPES = {
+    [Enum.ItemClass.Weapon] = true,
+    [Enum.ItemClass.Armor] = true,
+    [Enum.ItemClass.Profession] = true,
+    [Enum.ItemClass.Gem] = {
+        [Enum.ItemGemSubclass.Artifactrelic] = true,  -- Legion artifact relics
+    },
+}
+
 function InventoryItemSubmenuHandler:__constructor(submenu)
     self:__super(submenu, MenuCursor.MenuFrame.MODAL)
     self.cancel_func = function(self) self.frame:Close() end
@@ -927,7 +937,7 @@ function InventoryItemSubmenu:__constructor()
     self.menuitem_disenchant =
         WoWXIV.UI.ItemSubmenuButton(self, "Disenchant", true)
     self.menuitem_disenchant:SetAttribute("type", "spell")
-    self.menuitem_disenchant:SetAttribute("spell", 13262)
+    self.menuitem_disenchant:SetAttribute("spell", SPELL_DISENCHANT)
 
     self.menuitem_splitstack =
         WoWXIV.UI.ItemSubmenuButton(self, "Split stack", false)
@@ -941,15 +951,6 @@ function InventoryItemSubmenu:__constructor()
     self.menuitem_discard.ExecuteInsecure =
         function(bag, slot, info) self:DoDiscard(bag, slot, info) end
 end
-
-local DISENCHANTABLE_TYPES = {
-    [Enum.ItemClass.Weapon] = true,
-    [Enum.ItemClass.Armor] = true,
-    [Enum.ItemClass.Profession] = true,
-    [Enum.ItemClass.Gem] = {
-        [Enum.ItemGemSubclass.Artifactrelic] = true,  -- Legion artifact relics
-    },
-}
 
 function InventoryItemSubmenu:ConfigureForItem(bag, slot)
     local guid =
@@ -1000,19 +1001,15 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
         end
     end
 
-    local disenchantable = DISENCHANTABLE_TYPES[item_class]
-    if type(disenchantable) == table then
-        disenchantable = disenchantable[item_subclass]
-    end
-    if info.quality >= Enum.ItemQuality.Legendary then
-        disenchantable = false
-    end
-    if disenchantable then
-        local prof1, prof2 = GetProfessions()
-        local TEXTURE_ENCHANTING = 4620672
-        if (prof1 and select(2, GetProfessionInfo(prof1)) == TEXTURE_ENCHANTING)
-        or (prof2 and select(2, GetProfessionInfo(prof2)) == TEXTURE_ENCHANTING)
-        then
+    if C_Spell.IsSpellUsable(SPELL_DISENCHANT) then
+        local disenchantable = DISENCHANTABLE_TYPES[item_class]
+        if type(disenchantable) == table then
+            disenchantable = disenchantable[item_subclass]
+        end
+        if info.quality >= Enum.ItemQuality.Legendary then
+            disenchantable = false
+        end
+        if disenchantable then
             self:AppendButton(self.menuitem_disenchant)
         end
     end
