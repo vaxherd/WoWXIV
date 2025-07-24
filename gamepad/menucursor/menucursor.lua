@@ -1022,10 +1022,10 @@ function MenuFrame:__constructor(frame, modal)
     --         SecureActionButtonTemplate) along with any data appropriate
     --         to that type.  If not specified, a left-click action is
     --         performed on the target (which must be a Button instance);
-    --         note that if the target button itself (i.e. the table value)
-    --         is tainted, the button will not be able to execute any
-    --         secure actions even if it was created with a secure template
-    --         like SecureActionButtonTemplate.
+    --         note that if the target button itself (i.e. the button
+    --         frame's table value) is tainted, the button will not be
+    --         able to execute any secure actions even if it was created
+    --         with a secure template like SecureActionButtonTemplate.
     --    - cursor_show_item: If true, an item held by the game cursor
     --         (as indicated by GetCursorInfo()) will be displayed next to
     --         the cursor image.
