@@ -4,7 +4,9 @@ local class = WoWXIV.class
 
 local floor = math.floor
 local max = math.max
+local strfind = string.find
 local strgsub = string.gsub
+local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 
 ------------------------------------------------------------------------
 -- Timing routines
@@ -302,6 +304,61 @@ StaticPopupDialogs["WOWXIV_CONFIRMATION"] = {
 end  -- FIXME: 11.2.0
 
 ------------------------------------------------------------------------
+-- Substitute tooltip window management
+------------------------------------------------------------------------
+
+-- A substitute GameTooltip instance which can be used in place of the
+-- global GameTooltip for the same purposes.  Using this tooltip can help
+-- avoid tainting fields in the global GameTooltip instance, since even
+-- transient taint can leak into other Blizzard code.
+--
+-- Note that this currently does _not_ replace BattlePetTooltip, which is
+-- statically referenced from some GameTooltip code.  For the moment, we
+-- don't worry about that because we haven't run into any taint problems
+-- stemming from that particular tooltip frame.
+WoWXIV.GameTooltip = CreateFrame(
+    "GameTooltip", "WoWXIV_GameTooltip", UIParent, "GameTooltipTemplate")
+-- The following setup mimics the settings in the global GameTooltip.xml.
+WoWXIV.GameTooltip.supportsItemComparison = true
+WoWXIV.GameTooltip.ItemTooltip = CreateFrame(
+    "Frame", nil, WoWXIV.GameTooltip, "InternalEmbeddedItemTooltipTemplate")
+WoWXIV.GameTooltip.ItemTooltip:SetSize(100, 100)
+WoWXIV.GameTooltip.ItemTooltip:SetPoint("BOTTOMLEFT", 10, 13)
+WoWXIV.GameTooltip.ItemTooltip.yspacing = 13
+WoWXIV.GameTooltip.ItemTooltip:Hide()
+WoWXIV.GameTooltip:SetScript("OnShow", GameTooltip_OnShow)
+WoWXIV.GameTooltip:SetScript("OnUpdate", GameTooltip_OnUpdate)
+WoWXIV.GameTooltip:OnLoad()
+-- This setup must follow OnLoad() to override shoppingTooltips properly:
+WoWXIV.GameTooltip.ItemTooltip.Tooltip.shoppingTooltips = {}
+for i = 1, 2 do
+    local tooltip = CreateFrame("GameTooltip", "WoWXIV_ShoppingTooltip"..i,
+                                UIParent, "ShoppingTooltipTemplate")
+    WoWXIV["GameTooltip_ShoppingTooltip"..i] = tooltip
+    tinsert(WoWXIV.GameTooltip.ItemTooltip.Tooltip.shoppingTooltips, tooltip)
+    tooltip:SetClampedToScreen(true)
+    tooltip:SetFrameStrata("TOOLTIP")
+    tooltip:Hide()
+end
+WoWXIV.GameTooltip:Hide()
+
+-- Call a function, substituting a local instance of GameTooltip for the
+-- global one (so that any unqualified references to "GameTooltip" in the
+-- called code will reference our local instance).  To use, replace:
+--     func(arg1, arg2, ...)
+-- with:
+--     WoWXIV.ReplaceGameTooltip(func, arg1, arg2, ...)
+--
+-- Note that GameTooltip replacement will _not_ work for:
+--    - Functions declared as "local" called from the target function.
+--    - Modules which localize GameTooltip (or _G).
+-- See 
+function WoWXIV.ReplaceGameTooltip(func, ...)
+    local tooltip_env = WoWXIV.makefenv({GameTooltip = WoWXIV.GameTooltip})
+    return WoWXIV.deepcall(tooltip_env, func, ...)
+end
+
+------------------------------------------------------------------------
 -- Text formatting routines
 ------------------------------------------------------------------------
 
@@ -532,18 +589,153 @@ REAGENT = {
     [190388] = true,  -- Lupine Lattice
 }
 
+-- Helper to create an overlay environment table for envcall() or deepcall().
+-- Pass a table of overlay values; the table will be modified as appropriate
+-- for passing as the "env" argument to those functions and returned.
+local makefenv_hack_names  -- Defined below.
+function WoWXIV.makefenv(env)
+    -- HACK: Some native code seems to rely on having mixin tables present
+    -- directly in the function environment (i.e., not via __index lookup),
+    -- so we have to add those to not get an "unable to find mixin" error.
+    -- See:
+    --     https://github.com/Stanzilla/WoWUIBugs/issues/589
+    --     https://github.com/WeakAuras/WeakAuras2/pull/5221
+    for _, name in ipairs(makefenv_hack_names) do
+        env[name] = _G[name]
+    end
+    return setmetatable(env, {__index = _G})
+end
+makefenv_hack_names = {
+    "ColorMixin",
+    "ItemLocationMixin",
+    "ItemTransmogInfoMixin",
+    "PlayerLocationMixin",
+    "TransmogLocationMixin",
+    "TransmogPendingInfoMixin",
+    "Vector2DMixin",
+    "Vector3DMixin",
+}
+
 -- Call a function with a specified environment, restoring the function's
 -- original environment afterward.  Only the first return value (if any)
--- is passed up to the caller.  Note that as of 11.1.7, setting the
--- environment for a function does not in itself appear to taint the
--- function (though of course taint will be passed in via the execution
--- path).
-function WoWXIV.envcall(env, fn, ...)
-    local saved_env = getfenv(fn)
-    setfenv(fn, env)
-    local retval = fn(...)
-    setfenv(fn, saved_env)
+-- is passed up to the caller.  For an "overlay"-type environment, make
+-- sure to set a metatable on the environment table with {__index = _G} so
+-- non-overlaid global symbols work as usual.
+--
+-- The environment will _only_ apply to the specified function, and will
+-- _not_ be passed down to any functions it calls (i.e., lexical scoping).
+-- For a dynamically scoped environment override, see deepcall().
+--
+-- Note that as of 11.1.7, setting the environment for a function does not
+-- in itself appear to taint the function (though of course taint will be
+-- passed in via the execution path).
+function WoWXIV.envcall(env, func, ...)
+    local saved_env = getfenv(func)
+    setfenv(func, env)
+    local retval = func(...)
+    setfenv(func, saved_env)
     return retval
+end
+
+-- Call a function with a specified environment, restoring the function's
+-- original environment afterward.  Only the first return value (if any)
+-- is passed up to the caller.
+--
+-- Unlike envcall(), this function applies the environment to all code
+-- called from the given function (i.e., dynamic scoping), to the degree
+-- possible.  Note that Lua does not allow lookup of function upvalues
+-- (such as values declared "local" in the relevant module), except via
+-- the debug library which is not available in WoW, so locally-declared
+-- functions called by local name will not see the replaced environment,
+-- and the environment cannot replace locally-declared variables when
+-- those variables are referenced by local name.
+--
+-- Because Lua does not natively support dynamic scoping, this script-side
+-- implementation is fairly CPU-intensive, and it should be used only when
+-- necessary.
+function WoWXIV.deepcall(env, func, ...)
+    local getmetatable, setmetatable, type = getmetatable, setmetatable, type
+
+    -- Environment manipulation helpers.  We accomplish dynamic scoping by
+    -- inserting a wrap call on every table lookup via __index (including
+    -- the environment table) and table member addition via __newindex,
+    -- and individually wrap existing table members when a table is first
+    -- encountered.
+    local wrapped_tables = {}
+    local wrapped_funcs = {}
+    local wrap_value  -- Forward declaration.
+    local function make_index(index)
+        if type(index) == "function" then
+            return function(t, k) return wrap_value(index(t, k)) end
+        elseif index ~= nil then
+            return function(t, k) return wrap_value(index[k]) end
+        else
+            return nil
+        end
+    end
+    local function make_newindex(newindex)
+        if type(newindex) == "function" then
+            return function(t, k, v) newindex(t, k, wrap_value(v)) end
+        elseif newindex ~= nil then
+            return function(t, k, v) newindex[k] = wrap_value(v) end
+        else
+            return function(t, k, v) rawset(t, k, wrap_value(v)) end
+        end
+    end
+    local function wrap_func(f)
+        if not wrapped_funcs[f] then
+            local old_env = getfenv(f)
+            local success, error = pcall(setfenv, f, env)
+            if success then
+                wrapped_funcs[f] = old_env
+            elseif not strstr(error, "cannot change env") then
+                error("setfenv() failed: "..error)
+            end
+        end
+    end
+    local function wrap_table(t)
+        if wrapped_tables[t] == nil then
+            local meta = getmetatable(t)
+            -- We use a value of false to indicate a table which had
+            -- no metatable, so we can use nil as "not yet seen".
+            wrapped_tables[t] = meta or false
+            for k, v in pairs(t) do
+                wrap_value(v)
+            end
+            local new_meta = {}
+            if meta then
+                for k, v in pairs(meta) do
+                    new_meta[k] = v
+                end
+                new_meta.__index = make_index(meta.__index)
+            end
+            new_meta.__newindex = make_newindex(meta and meta.__newindex)
+            setmetatable(t, new_meta)
+        end
+    end
+    function wrap_value(v)  -- Declared local above.
+        if type(v) == "function" then
+            wrap_func(v)
+        elseif type(v) == "table" then
+            wrap_table(v)
+        end
+        return v
+    end
+
+    local env_meta = getmetatable(env)
+    setmetatable(env, env_meta and {__index = make_index(env_meta.__index)})
+    wrap_func(func)
+    for i = 1, select("#", ...) do
+        wrap_value(select(i, ...))
+    end
+    local result = func(...)
+    for f, e in pairs(wrapped_funcs) do
+        setfenv(f, e)
+    end
+    for t, m in pairs(wrapped_tables) do
+        setmetatable(t, m or nil)
+    end
+    return result
 end
 
 -- Display an error message, optionally with an error sound.

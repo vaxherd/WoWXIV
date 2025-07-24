@@ -1390,7 +1390,9 @@ function MenuFrame:EnterTarget(target)
     end
     if params.send_enter_leave then
         local script = frame:GetScript("OnEnter")
-        if script then script(frame) end
+        if script then
+            WoWXIV.ReplaceGameTooltip(script, frame)
+        end
     elseif params.on_enter then
         params.on_enter(target)
     end
@@ -1407,7 +1409,9 @@ function MenuFrame:LeaveTarget(target)
     end
     if params.send_enter_leave then
         local script = frame:GetScript("OnLeave")
-        if script then script(frame) end
+        if script then
+            WoWXIV.ReplaceGameTooltip(script, frame)
+        end
     elseif params.on_leave then
         params.on_leave(target)
     end
