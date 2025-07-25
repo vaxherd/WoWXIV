@@ -33,6 +33,10 @@ local InventoryItemSubmenu = class(WoWXIV.UI.ItemSubmenu)
 -- not visible, it will be imminently Show()n and the manu handler will
 -- focus it at that point.)
 local function SendToAuctionHouse(item_loc)
+    if info.isLocked then
+        WoWXIV.Error("Item is locked.")
+        return
+    end
     AuctionHouseFrame:SetPostItem(item_loc)
     MenuCursor.AuctionHouseFrameHandler.FocusSellFrameFromInventory()
 end
@@ -194,22 +198,52 @@ local function SellItem(item_button, bag, slot, info)
     end
 end
 
+-- Send an item to the item interaction frame.
+local function SendToItemInteraction(item_loc, info)
+    if info.isLocked then
+        WoWXIV.Error("Item is locked.")
+    end
+    C_ItemInteraction.SetPendingItem(item_loc)
+    MenuCursor.ItemInteractionFrameHandler.FocusActionButton()
+end
+
+-- Send an item to the item upgrade frame.
+local function SendToItemUpgrade(bag, slot, info)
+    if info.isLocked then
+        WoWXIV.Error("Item is locked.")
+    end
+    C_Container.PickupContainerItem(bag, slot)
+    C_ItemUpgrade.SetItemUpgradeFromCursorItem()
+    MenuCursor.ItemUpgradeFrameHandler.FocusUpgradeButton()
+end
+
 -- Send an item to the BfA scrapping machine.
 local function SendToScrapper(bag, slot, info)
     ClearCursor()
     assert(not GetCursorInfo())
-    if info.isLocked then
-        WoWXIV.Error("Item is locked.")
-        return
-    end
-    local function GetEmptySlot()
+    local function FindSlot(b, s)
         for i = 0, 8 do
-            if not C_ScrappingMachineUI.GetCurrentPendingScrapItemLocationByIndex(i) then  -- whew, that's a mouthful
+            local loc = C_ScrappingMachineUI.GetCurrentPendingScrapItemLocationByIndex(i)  -- whew, that's a mouthful
+            if (b and loc and loc:IsEqualToBagAndSlot(b, s))
+            or (not b and not loc)
+            then
                 return i
             end
         end
+        return nil
     end
-    local scrap_slot = GetEmptySlot()
+    if info.isLocked then
+        -- It could be locked because it's already in the machine, in which
+        -- case we should just pull it out instad.
+        local scrap_slot = FindSlot(bag, slot)
+        if scrap_slot then
+            C_ScrappingMachineUI.RemoveItemToScrap(scrap_slot)
+        else
+            WoWXIV.Error("Item is locked.")
+        end
+        return
+    end
+    local scrap_slot = FindSlot()
     if not scrap_slot then
         WoWXIV.Error("The scrapper is full.")
         return
@@ -225,7 +259,7 @@ local function SendToScrapper(bag, slot, info)
         -- might as well let the player rearrange their inventory instead.
         return
     end
-    if not GetEmptySlot() then
+    if not FindSlot() then
         -- Machine is full, time to scrap!
         MenuCursor.ScrappingMachineFrameHandler:FocusScrapButton()
     end
@@ -768,18 +802,10 @@ function ContainerFrameHandler:ClickItem()
     local info = C_Container.GetContainerItemInfo(bag, slot)
     local cursor = {GetCursorInfo()}
 
-    if GetCursorInfo() then
-        -- We prioritize this over checking info.isLocked because we might
-        -- be putting an item back where we picked it up, in which case
-        -- the slot will be locked but this call will still succeed.
-        -- There doesn't seem to be any way to determine the location of
-        -- the held item, so we rely on the game itself to handle errors
-        -- in this case.
-        C_Container.PickupContainerItem(bag, slot)
-    elseif not info then
-        return  -- Slot is empty.
-    elseif info.isLocked then
-        WoWXIV.Error("Item is locked.")
+    if not info then
+        if #cursor > 0 then
+            C_Container.PickupContainerItem(bag, slot)  -- Drop the item here.
+        end
     elseif AuctionHouseFrame and AuctionHouseFrame:IsShown() then
         if C_AuctionHouse.IsSellItemValid(item_loc, false) then
             SendToAuctionHouse(item_loc)
@@ -793,19 +819,20 @@ function ContainerFrameHandler:ClickItem()
         -- the character bank interface is ever changed to match the
         -- new (tabbed) account bank UI.  (FIXME: consider for 11.2.0)
         --SendToBank(bag, slot, info)
-        C_Container.PickupContainerItem(bag, slot)
+        if info.isLocked then
+            WoWXIV.Error("Item is locked.")
+        else
+            C_Container.PickupContainerItem(bag, slot)
+        end
     elseif ItemInteractionFrame and ItemInteractionFrame:IsShown() then
         if C_Item.IsItemConvertibleAndValidForPlayer(item_loc) then
-            C_ItemInteraction.SetPendingItem(item_loc)
-            MenuCursor.ItemInteractionFrameHandler.FocusActionButton()
+            SendToItemInteraction(item_loc, info)
         else
             WoWXIV.Error("Invalid selection.")
         end
     elseif ItemUpgradeFrame and ItemUpgradeFrame:IsShown() then
         if C_ItemUpgrade.CanUpgradeItem(item_loc) then
-            C_Container.PickupContainerItem(bag, slot)
-            C_ItemUpgrade.SetItemUpgradeFromCursorItem()
-            MenuCursor.ItemUpgradeFrameHandler.FocusUpgradeButton()
+            SendToItemUpgrade(bag, slot, info)
         else
             WoWXIV.Error("Item cannot be upgraded.")
         end
@@ -817,6 +844,9 @@ function ContainerFrameHandler:ClickItem()
     elseif ScrappingMachineFrame and ScrappingMachineFrame:IsShown() then
         SendToScrapper(bag, slot, info)
     else
+        if info.isLocked then
+            WoWXIV.Error("Item is locked.")
+        end
         C_Container.PickupContainerItem(bag, slot)
     end
 end
