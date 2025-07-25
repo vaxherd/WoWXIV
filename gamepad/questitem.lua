@@ -151,6 +151,7 @@ local ITEM_TARGET = {
     [187128] = "none",    -- Find-A-Spy (64167: Pets Detective)
     [187186] = "target",  -- Orb of Deception (Torghast)
     [187516] = "none",    -- Firim's Forge-Tap (64579: Hollow Efforts)
+    [187684] = "none",    -- Containment Trap (64854: Trappings of Success)
     [187816] = "target",  -- Irresistible Goop (64960: Feed the Annelids)
     [187820] = "none",    -- Piece of Goop (64960: Feed the Annelids)
     [187908] = "none",    -- Firim's Spare Forge-Tap (Zereth Mortis)
