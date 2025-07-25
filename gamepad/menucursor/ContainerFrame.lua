@@ -32,7 +32,7 @@ local InventoryItemSubmenu = class(WoWXIV.UI.ItemSubmenu)
 -- focus the auction house sell frame if it's already visible.  (If it's
 -- not visible, it will be imminently Show()n and the manu handler will
 -- focus it at that point.)
-local function SendToAuctionHouse(item_loc)
+local function SendToAuctionHouse(item_loc, info)
     if info.isLocked then
         WoWXIV.Error("Item is locked.")
         return
@@ -630,6 +630,8 @@ function ContainerFrameHandler:__constructor()
 
     -- Ordered list of item buttons in the current bag.
     self.items = {}
+    -- Used to manage the initial target, see OnShow().
+    self.initial_target_pending = false
 end
 
 function ContainerFrameHandler:OnCancel()
@@ -651,22 +653,56 @@ function ContainerFrameHandler:OnCancel()
 end
 
 function ContainerFrameHandler:OnShow(shown_frame)
-    local cur_target = self:GetTarget()
-    if not cur_target then
-        self.current_bag = shown_frame:GetBagID()
-        self.current_slot = 1
-        local target, frame = self:SetTargets()
-        self.frame = frame
-        -- Various UIs automatically open the inventory alongside them,
-        -- so don't steal focus from any other frame that's already open.
-        if self.cursor:GetFocus() then
-            self:EnableBackground(target)
-        else
-            self:Enable(target)
+    -- Typically multiple bags will be shown at once, so rather than
+    -- checking/updating the target for each one, we wait a frame until
+    -- all relevant bags have (presumably) been shown and set the target
+    -- then.
+    if not self:GetTarget() then
+        if not self.initial_target_pending then
+            self.initial_target_pending = true
+            RunNextFrame(function()
+                self.initial_target_pending = false
+                self:SetInitialTarget()
+            end)
         end
     else
-        local target, frame = self:SetTargets()
-        assert(target == cur_target)
+        -- If we already have a target, opening another bag shouldn't
+        -- affect it.
+    end
+end
+
+function ContainerFrameHandler:SetInitialTarget()
+    local Match = ItemButtonUtil.ItemContextMatchResult.Match
+    local target, first
+    for _, frame in ipairs(self.bag_frames) do
+        if frame:IsShown() then
+            local items = {}
+            for _, item in frame:EnumerateValidItems() do
+                items[item:GetID()] = item
+            end
+            for _, item in ipairs(items) do
+                first = first or item
+                if item.itemContextMatchResult == Match then
+                    target = item
+                    break
+                end
+            end
+        end
+        if target then break end
+    end
+    target = target or first
+    if not target then return end  -- Maybe bags were instantly closed?
+    self.current_bag = target:GetBagID()
+    self.current_slot = target:GetID()
+    local returned_target, frame = self:SetTargets()
+    assert(returned_target == target)
+    self.frame = frame
+    -- Various UIs automatically open the inventory alongside them,
+    -- so don't steal focus from any other frame that's already open.
+    if self.cursor:GetFocus() then
+        self:EnableBackground(target)
+    else
+        self:Enable(target)
     end
 end
 
@@ -739,6 +775,7 @@ function ContainerFrameHandler:SetTargets()
                 if item:IsExtended() then
                     -- This is for the extra 4 backpack slots which are
                     -- unlocked with 2FA.  We just ignore them if disabled.
+                    -- We could also have just used EnumerateValidItems().
                 else
                     self.targets[item] = {
                         send_enter_leave = true, lock_highlight = true,
@@ -808,7 +845,7 @@ function ContainerFrameHandler:ClickItem()
         end
     elseif AuctionHouseFrame and AuctionHouseFrame:IsShown() then
         if C_AuctionHouse.IsSellItemValid(item_loc, false) then
-            SendToAuctionHouse(item_loc)
+            SendToAuctionHouse(item_loc, info)
         else
             WoWXIV.Error("You can't sell this item.")
         end
@@ -940,7 +977,8 @@ function InventoryItemSubmenu:__constructor()
         WoWXIV.UI.ItemSubmenuButton(self, "Auction", false)
     self.menuitem_auction.ExecuteInsecure =
         function(bag, slot, info)
-            SendToAuctionHouse(ItemLocation:CreateFromBagAndSlot(bag, slot))
+            SendToAuctionHouse(ItemLocation:CreateFromBagAndSlot(bag, slot),
+                               info)
         end
 
     self.menuitem_sendtobank =
