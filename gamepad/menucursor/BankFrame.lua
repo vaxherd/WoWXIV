@@ -144,8 +144,8 @@ function BankFrameHandler:OnTabCycle(direction)
     local new_index =
         (PanelTemplates_GetSelectedTab(self.frame) or 0) + direction
     if new_index < 1 then
-        new_index = #self.frame.Tabs
-    elseif new_index > #self.frame.Tabs then
+        new_index = self.frame.numTabs
+    elseif new_index > self.frame.numTabs then
         new_index = 1
     end
     local tab = self.frame.Tabs[new_index]

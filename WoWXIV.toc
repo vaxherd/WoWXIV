@@ -38,6 +38,7 @@ gamepad/leavevehicle.lua
 gamepad/questitem.lua
 
 gamepad/menucursor/menucursor.lua
+gamepad/menucursor/AchievementFrame.lua
 gamepad/menucursor/AdventureMapQuestChoiceDialog.lua
 gamepad/menucursor/AnimaDiversionFrame.lua
 gamepad/menucursor/AuctionHouseFrame.lua
@@ -46,12 +47,14 @@ gamepad/menucursor/BonusRollFrame.lua
 gamepad/menucursor/CharacterFrame.lua
 gamepad/menucursor/CinematicFrame.lua
 gamepad/menucursor/ClassTrainerFrame.lua
+gamepad/menucursor/CollectionsJournal.lua
 gamepad/menucursor/ContainerFrame.lua
 gamepad/menucursor/ContributionCollectionFrame.lua
 gamepad/menucursor/CovenantMissionFrame.lua
 gamepad/menucursor/CovenantSanctumFrame.lua
 gamepad/menucursor/DelvesCompanionConfigurationFrame.lua
 gamepad/menucursor/DelvesDifficultyPickerFrame.lua
+gamepad/menucursor/EncounterJournal.lua
 gamepad/menucursor/EventToastManagerFrame.lua
 gamepad/menucursor/FlightMapFrame.lua
 gamepad/menucursor/GarrisonCapacitiveDisplayFrame.lua
