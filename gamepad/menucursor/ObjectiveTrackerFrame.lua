@@ -70,6 +70,12 @@ local function ClickHeaderButton(block)
     button:GetScript("OnClick")(button, "LeftButton")
 end
 
+local function ClickAutoQuest(block)
+    ObjectiveTrackerFrameHandler.instance:Unfocus()  -- As above.
+    block:OnMouseUp("LeftButton", true)
+end
+
+
 local function ClickPOIButton(block)
     local button = block.poiButton
     button:GetScript("OnClick")(button, "LeftButton")
@@ -136,8 +142,7 @@ function ObjectiveTrackerFrameHandler:SetTargets(old_target)
         -- Quest popups in the objective tracker need their own
         -- button handling.
         if block.template == "AutoQuestPopUpBlockTemplate" then
-            params.on_click =
-                function(blk) blk:OnMouseUp("LeftButton", true) end
+            params.on_click = ClickAutoQuest
             params.on_button4 = nil
         end
         -- Tweak cursor position for various block types.
