@@ -919,6 +919,10 @@ local DISENCHANTABLE_TYPES = {
         [Enum.ItemGemSubclass.Artifactrelic] = true,  -- Legion artifact relics
     },
 }
+local DISENCHANTABLE_ITEMS = {
+    -- FIXME: is there any more general way to detect these?
+    [182067] = true,  -- Antique Duelist's Rapier (Revendreth enchanting WQ)
+}
 
 function InventoryItemSubmenuHandler:__constructor(submenu)
     self:__super(submenu, MenuCursor.MenuFrame.MODAL)
@@ -1070,7 +1074,8 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
     end
 
     if C_Spell.IsSpellUsable(SPELL_DISENCHANT) then
-        local disenchantable = DISENCHANTABLE_TYPES[item_class]
+        local disenchantable = (DISENCHANTABLE_TYPES[item_class]
+                                or DISENCHANTABLE_ITEMS[info.itemID])
         if type(disenchantable) == table then
             disenchantable = disenchantable[item_subclass]
         end
