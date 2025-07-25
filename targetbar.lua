@@ -420,15 +420,21 @@ function WoWXIV.TargetBar.Create()
         local f = WoWXIV.CreateEventFrame()
         WoWXIV.TargetBar.tmtc_event_frame = f
         f:RegisterEvent("UI_SCALE_CHANGED")
-        function f:UI_SCALE_CHANGED()
+        -- Prevent PlayerPowerBarAlt from overriding our positioning.
+        local lock = 42
+        for _, name in ipairs({"ClearAllPoints", "SetPoint"}) do
+            PlayerPowerBarAlt[name] = WoWXIV.lockfunc(
+                PlayerPowerBarAlt[name], true, lock)
+        end
+        function f:UI_SCALE_CHANGED(...)
             local offset_x = UIParent:GetWidth() * 0.262
             UIWidgetTopCenterContainerFrame:ClearAllPoints()
             UIWidgetTopCenterContainerFrame:SetPoint(
                 "BOTTOM", UIParent, "BOTTOM", offset_x, 15)
             -- Seen in the Vigilant Guardian encounter in SL Sepulcher.
-            PlayerPowerBarAlt:ClearAllPoints()
+            PlayerPowerBarAlt:ClearAllPoints(lock)
             PlayerPowerBarAlt:SetPoint(
-                "BOTTOM", UIParent, "BOTTOM", offset_x, 30)
+                lock, "BOTTOM", UIParent, "BOTTOM", offset_x, 15)
         end
     end
 end

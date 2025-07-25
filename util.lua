@@ -683,6 +683,34 @@ function WoWXIV.deepcall(env, func, ...)
     return result
 end
 
+-- Wrap a function with a "lock", such that if the first argument
+-- (optionally following an implicit "self" argument) is not equal to the
+-- lock value, the call is ignored.  This can be used to suppress calls to
+-- a particular object method from external sources (see PlayerPowerBarAlt
+-- handling in targetbar.lua for an example).
+--
+-- [Parameters]
+--     func: Function to wrap.
+--     is_method: If true, the key will be expected as the second rather
+--         than the first argument, to allow for an implicit "self".
+--     lock: Lock value.  If the key argument is not equal to this value,
+--         the function will return immediately with no values.
+-- [Return value]
+--     Wrapped function.
+function WoWXIV.lockfunc(func, is_method, lock)
+    if is_method then
+        return function(self, key, ...)
+            if key ~= lock then return end
+            return func(self, ...)
+        end
+    else
+        return function(key, ...)
+            if key ~= lock then return end
+            return func(...)
+        end
+    end
+end
+
 -- Display an error message, optionally with an error sound.
 -- with_sound defaults to true if not specified.
 function WoWXIV.Error(text, with_sound)
