@@ -131,8 +131,6 @@ function GamePadListener:OnGamePadButton(button)
                 CameraZoomIn(zoom)
             end
         end
-    elseif MatchModifiedButton(button, WoWXIV_config["gamepad_open_menu"]) then
-        Gamepad.commandmenu:Open()
     end
 end
 

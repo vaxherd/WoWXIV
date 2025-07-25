@@ -70,7 +70,9 @@ function CommandMenuItem:__constructor(parent, text, func)
     self:SetFrameLevel(parent:GetFrameLevel())
 
     -- Explicitly wrap the function so the button isn't passed as an argument.
-    self:SetScript("OnClick", function() func() end)
+    if func then
+        self:SetScript("OnClick", function() func() end)
+    end
 
     local label = WRAPFONTSTRING(self:CreateFontString(nil, "ARTWORK", "GameFontNormal"))
     self.label = label
@@ -175,6 +177,16 @@ function CommandMenuColumn:SetItemEnabled(name, enabled, disabled_reason)
     error("Item not found: "..name)
 end
 
+function CommandMenuColumn:SetItemSecureAction(name, action)
+    for _, item in ipairs(self.items) do
+        if item.name == name then
+            item.secure_action = action
+            return
+        end
+    end
+    error("Item not found: "..name)
+end
+
 -- Interface for CommandMenu.
 function CommandMenuColumn:GetTitleWidth()
     return self.title_label:GetUnboundedStringWidth()
@@ -248,6 +260,19 @@ function CommandMenuColumn:GetCommandHelp()
         text = text .. " " .. RED_FONT_COLOR:WrapTextInColorCode(self.items[self.position].help_suffix)
     end
     return text
+end
+
+function CommandMenuColumn:GetCommandSecureAction()
+    return self.items[self.position].secure_action
+end
+
+function CommandMenuColumn:RunCommand()
+    local button = self.items[self.position].button
+    assert(button:IsEnabled())
+    local func = button:GetScript("OnClick")
+    if func then
+        func("LeftButton")
+    end
 end
 
 -- Internal update routine.
@@ -441,20 +466,11 @@ function SystemColumn:__constructor(parent)
                  "Enable Edit Mode to adjust the user interface layout.",
                  function() ShowUIPanel(EditModeManagerFrame) end)
     self:AddItem("Shop",
-                 "Visit the World of Warcraft online shop.",
-                 ToggleStoreUI)
-    self:SetItemEnabled("Shop", false,
-                        "(This can only be opened from the mouse menu.)")
-    self:AddItem("Log out",
-                 "Log out from your character and return to the character list.",
-                 Logout)
-    self:SetItemEnabled("Log out", false,
-                        "(This can only be done from the mouse menu.)")
+                 "Visit the World of Warcraft online shop.")
+    self:AddItem("Log Out",
+                 "Log out from your character and return to the character list.")
     self:AddItem("Exit Game",
-                 "Log out from your character and close World of Warcraft.",
-                 Quit)
-    self:SetItemEnabled("Exit Game",
-                        false, "(This can only be done from the mouse menu.)")
+                 "Log out from your character and close World of Warcraft.")
 end
 
 function SystemColumn:Open()
@@ -464,10 +480,6 @@ function SystemColumn:Open()
     self:SetItemEnabled("What's New", (C_SplashScreen.CanViewSplashScreen()
                                        and not IsCharacterNewlyBoosted()))
     self:SetItemEnabled("Edit Mode", EditModeManagerFrame:CanEnterEditMode())
-
-    -- If we find a way to make the shop/quit/exit buttons work, these
-    -- checks are also needed:
-    --[[
     local shop_reason
     if not C_StorePublic.IsEnabled() then
         shop_reason = "(Not available in this version.)"
@@ -478,9 +490,27 @@ function SystemColumn:Open()
     local exit_disabled = (StaticPopup_Visible("CAMP") or
                            StaticPopup_Visible("PLUNDERSTORM_LEAVE") or
                            StaticPopup_Visible("QUIT"))
-    self:setItemEnabled("Quit", not exit_disabled)
-    self:setItemEnabled("Exit game", not exit_disabled)
-    ]]--
+    self:SetItemEnabled("Log Out", not exit_disabled)
+    self:SetItemEnabled("Exit Game", not exit_disabled)
+
+    -- Look up GameMenuFrame buttons for secure actions.  (These are
+    -- recreated every time the menu is opened, so we have to look these
+    -- up at least every time CommandMenu is opened.)
+    local game_menu_buttons = {}
+    for button in GameMenuFrame.buttonPool:EnumerateActive() do
+        game_menu_buttons[button:GetText()] = button
+    end
+    for name, text in pairs({["Shop"] = BLIZZARD_STORE, ["Log Out"] = LOG_OUT,
+                             ["Exit Game"] = EXIT_GAME}) do
+        local button = game_menu_buttons[text]
+        if button then
+            self:SetItemSecureAction(name,
+                                     {type = "click", clickbutton = button})
+        else
+            self:SetItemEnabled(name, false,
+                                "(Open the main menu to enable this option.)")
+        end
+    end
 
     CommandMenuColumn.Open(self)
 end
@@ -489,11 +519,14 @@ end
 -- Top-level menu implementation
 ---------------------------------------------------------------------------
 
-Gamepad.CommandMenu = class(Frame)
+Gamepad.CommandMenu = class(Button)
 local CommandMenu = Gamepad.CommandMenu
 
 function CommandMenu:__allocator()
-    return Frame.__allocator("Frame", "WoWXIV_CommandMenu", UIParent)
+    -- Implemented as a SecureActionButton to allow indirectly clicking
+    -- GameMenuFrame buttons.
+    return Button.__allocator("Button", "WoWXIV_CommandMenu", UIParent,
+                              "SecureActionButtonTemplate")
 end
 
 function CommandMenu:__constructor()
@@ -504,14 +537,13 @@ function CommandMenu:__constructor()
     self:SetFrameStrata("FULLSCREEN")
     self:SetFrameLevel(103)
     self:SetAllPoints()
-    self:SetScript("OnShow", self.OnShow)
-    self:SetScript("OnHide", self.OnHide)
-    self:SetScript("OnGamePadButtonDown", self.OnInputDown)
-    self:SetScript("OnGamePadButtonUp", self.OnInputUp)
-    self:SetScript("OnKeyDown", self.OnInputDown)
-    self:SetScript("OnKeyUp", self.OnInputUp)
-    self:SetScript("OnMouseDown", self.Hide)
+    self:SetAttribute("useOnKeyDown", true)
+    self:RegisterForClicks("AnyDown", "AnyUp")
+    self:HookScript("OnClick", self.OnClick)
+    self:HookScript("OnShow", self.OnShow)
+    self:HookScript("OnHide", self.OnHide)
     self:RegisterEvent("PLAYER_REGEN_DISABLED", self.Hide)
+    self:UpdateBindings(false)
 
     local bg_frame = CreateFrame("Frame", nil, self)
     self.bg_frame = bg_frame
@@ -590,9 +622,11 @@ function CommandMenu:OnShow()
     self.columns[self.cur_column]:Open()
     self:UpdateCommand()
     self:SetScript("OnUpdate", self.OnUpdate)
+    self:UpdateBindings(true)
 end
 
 function CommandMenu:OnHide()
+    self:UpdateBindings(false)
     self:SetScript("OnUpdate", nil)
     self.brm:StopRepeat()
     for _, column in ipairs(self.columns) do
@@ -600,53 +634,86 @@ function CommandMenu:OnHide()
     end
 end
 
+function CommandMenu:UpdateBindings(active)
+    ClearOverrideBindings(self)
+    SetOverrideBinding(self, true, WoWXIV_config["gamepad_open_menu"],
+                       "CLICK WoWXIV_CommandMenu:RightButton")
+    if active then
+        SetOverrideBinding(self, true, WoWXIV.Config.GamePadConfirmButton(),
+                           "CLICK WoWXIV_CommandMenu:LeftButton")
+        SetOverrideBinding(self, true, "ENTER",
+                           "CLICK WoWXIV_CommandMenu:LeftButton")
+        SetOverrideBinding(self, true, WoWXIV.Config.GamePadCancelButton(),
+                           "CLICK WoWXIV_CommandMenu:RightButton")
+        SetOverrideBinding(self, true, "ESCAPE",
+                           "CLICK WoWXIV_CommandMenu:RightButton")
+        SetOverrideBinding(self, true, "PADDUP",
+                           "CLICK WoWXIV_CommandMenu:DPadUp")
+        SetOverrideBinding(self, true, "UP",
+                           "CLICK WoWXIV_CommandMenu:DPadUp")
+        SetOverrideBinding(self, true, "PADDDOWN",
+                           "CLICK WoWXIV_CommandMenu:DPadDown")
+        SetOverrideBinding(self, true, "DOWN",
+                           "CLICK WoWXIV_CommandMenu:DPadDown")
+        SetOverrideBinding(self, true, "PADDLEFT",
+                           "CLICK WoWXIV_CommandMenu:DPadLeft")
+        SetOverrideBinding(self, true, "LEFT",
+                           "CLICK WoWXIV_CommandMenu:DPadLeft")
+        SetOverrideBinding(self, true, "PADDRIGHT",
+                           "CLICK WoWXIV_CommandMenu:DPadRight")
+        SetOverrideBinding(self, true, "RIGHT",
+                           "CLICK WoWXIV_CommandMenu:DPadRight")
+    end
+end
+
 function CommandMenu:OnUpdate()
     self.brm:CheckRepeat(function(input) self:OnInputDown(input, true) end)
 end
 
-function CommandMenu:OnInputDown(input, is_repeat)
-    self:SetPropagateKeyboardInput(false)
+function CommandMenu:OnClick(input, down)
+    if not self:IsShown() then
+        assert(input == "RightButton")
+        if down then
+            self:Open()
+        end
+        return
+    end
 
+    if down then
+        self:OnInputDown(input)
+    else
+        self:OnInputUp(input)
+    end
+end
+
+function CommandMenu:OnInputDown(input, is_repeat)
     if input ~= self.brm:GetRepeatButton() then
         self.brm:StopRepeat()
     end
 
-    local is_modified = IsShiftKeyDown() or IsControlKeyDown() or IsAltKeyDown()
-    local handled = false
-    if not is_modified then
-        handled = true
-        if input == WoWXIV_config["gamepad_open_menu"]
-        or input == WoWXIV.Config.GamePadCancelButton()
-        or input == "ESCAPE"
-        then
-            self:Hide()
-        elseif input == WoWXIV.Config.GamePadConfirmButton()
-        or input == "ENTER"
-        then
-            local button = self.columns[self.cur_column]:GetCommandButton()
-            if button:IsEnabled() then
-                self:Hide()
-                button:GetScript("OnClick")(button, "LeftButton")
-            end
-        elseif input == "PADDUP" or input == "UP" then
-            self.brm:StartRepeat(input)
-            self:ScrollColumn(-1, is_repeat)
-        elseif input == "PADDDOWN" or input == "DOWN" then
-            self.brm:StartRepeat(input)
-            self:ScrollColumn(1, is_repeat)
-        elseif input == "PADDLEFT" or input == "LEFT" then
-            self.brm:StartRepeat(input)
-            self:SwitchColumn(-1, is_repeat)
-        elseif input == "PADDRIGHT" or input == "RIGHT" then
-            self.brm:StartRepeat(input)
-            self:SwitchColumn(1, is_repeat)
-        else
-            handled = false
-        end
-    end
-    if not handled then
-        self:SetPropagateKeyboardInput(true)
+    if input == "RightButton" then
         self:Hide()
+    elseif input == "LeftButton" then
+        local column = self.columns[self.cur_column]
+        local button = column:GetCommandButton()
+        if button:IsEnabled() then
+            self:Hide()
+            if not column:GetCommandSecureAction() then
+                column:RunCommand()
+            end
+        end
+    elseif input == "DPadUp" then
+        self.brm:StartRepeat(input)
+        self:ScrollColumn(-1, is_repeat)
+    elseif input == "DPadDown" then
+        self.brm:StartRepeat(input)
+        self:ScrollColumn(1, is_repeat)
+    elseif input == "DPadLeft" then
+        self.brm:StartRepeat(input)
+        self:SwitchColumn(-1, is_repeat)
+    elseif input == "DPadRight" then
+        self.brm:StartRepeat(input)
+        self:SwitchColumn(1, is_repeat)
     end
 end
 
@@ -677,6 +744,16 @@ function CommandMenu:SwitchColumn(direction, is_repeat)
 end
 
 function CommandMenu:UpdateCommand()
-    self.help_label:SetText(self.columns[self.cur_column]:GetCommandHelp())
-    self.help_label:SetWidth(self.help_label:GetUnboundedStringWidth())
+    local column = self.columns[self.cur_column]
+    local help_label = self.help_label
+    help_label:SetText(column:GetCommandHelp())
+    help_label:SetWidth(help_label:GetUnboundedStringWidth())
+    local action = column:GetCommandSecureAction()
+    if action then
+        for k, v in pairs(action) do
+            self:SetAttribute(k.."1", v)
+        end
+    else
+        self:SetAttribute("type1", nil)
+    end
 end
