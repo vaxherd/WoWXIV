@@ -2,7 +2,7 @@ local _, WoWXIV = ...
 WoWXIV.FlyText = {}
 
 local class = WoWXIV.class
-local typeof = type
+local Frame = WoWXIV.Frame
 
 local CLM = WoWXIV.CombatLogManager
 local GetItemInfo = C_Item.GetItemInfo
@@ -10,6 +10,8 @@ local strfind = string.find
 local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 local strsub = string.sub
 local tinsert = tinsert
+
+local typeof = type  -- Renamed so we can use "type" as an ordinary name.
 
 ------------------------------------------------------------------------
 
@@ -685,78 +687,102 @@ end
 
 ------------------------------------------------------------------------
 
-local LootHandler = class()
+local LootHandler = class(Frame)
+
+function LootHandler:__allocator()
+    return Frame.__allocator("Frame", "WoWXIV_LootHandler", nil)
+end
 
 function LootHandler:__constructor()
     self.looting = false
-    self.autolooted = false
+    self.autolooting = false
 
-    local f = CreateFrame("Frame", "WoWXIV_LootHandler", nil)
-    self.frame = f
-    f:Hide()
-    f:SetScript("OnEvent", function(frame,...) self:OnEvent(...) end)
-    f:RegisterEvent("LOOT_READY")
-    f:RegisterEvent("LOOT_CLOSED")
-
-    -- For debugging/reverse-engineering:
-    if false then
-        f:SetScript("OnEvent", function(frame,...) print(...) end)
-        f:RegisterEvent("BONUS_ROLL_ACTIVATE")
-        f:RegisterEvent("BONUS_ROLL_DEACTIVATE")
-        f:RegisterEvent("BONUS_ROLL_FAILED")
-        f:RegisterEvent("BONUS_ROLL_RESULT")
-        f:RegisterEvent("BONUS_ROLL_STARTED")
-        f:RegisterEvent("CANCEL_ALL_LOOT_ROLLS")
-        f:RegisterEvent("CANCEL_LOOT_ROLL")
-        f:RegisterEvent("CONFIRM_DISENCHANT_ROLL")
-        f:RegisterEvent("CONFIRM_LOOT_ROLL")
-        f:RegisterEvent("ENCOUNTER_LOOT_RECEIVED")
-        f:RegisterEvent("GARRISON_MISSION_BONUS_ROLL_LOOT")
-        f:RegisterEvent("ITEM_PUSH")
-        f:RegisterEvent("LOOT_BIND_CONFIRM")
-        f:RegisterEvent("LOOT_CLOSED")
-        f:RegisterEvent("LOOT_ITEM_AVAILABLE")
-        f:RegisterEvent("LOOT_ITEM_ROLL_WON")
-        f:RegisterEvent("LOOT_OPENED")
-        f:RegisterEvent("LOOT_READY")
-        f:RegisterEvent("LOOT_ROLLS_COMPLETE")
-        f:RegisterEvent("LOOT_SLOT_CHANGED")
-        f:RegisterEvent("LOOT_SLOT_CLEARED")
-        f:RegisterEvent("MAIN_SPEC_NEED_ROLL")
-        f:RegisterEvent("OPEN_MASTER_LOOT_LIST")
-        f:RegisterEvent("PET_BATTLE_LOOT_RECEIVED")
-        f:RegisterEvent("QUEST_CURRENCY_LOOT_RECEIVED")
-        f:RegisterEvent("QUEST_LOOT_RECEIVED")
-        f:RegisterEvent("START_LOOT_ROLL")
-        hooksecurefunc("LootSlot", function(...) print("LootSlot",...) end)
-    end
+    self:Hide()
+    self:SetScript("OnEvent", self.OnEvent)
+    self:RegisterEvent("LOOT_READY")
+    self:RegisterEvent("LOOT_CLOSED")
 end
 
 function LootHandler:OnEvent(event, ...)
     if event == "LOOT_READY" then
+        local autoloot = ...
         -- The engine fires two LOOT_READY events, one before and one
         -- after LOOT_OPENED.
         if not self.looting then
             self.looting = true
-            local autoloot = ...
             -- The autoloot flag is (by all appearances) a signal that
             -- the game _will_ automatically take all loot, not that the
             -- loot frame _should_ automatically LootSlot() each slot,
             -- so we don't need to do anything more than hide the frame.
-            if autoloot and WoWXIV_config["flytext_enable"] and WoWXIV_config["flytext_hide_autoloot"] then
-                self.autolooted = true
+            if (autoloot
+                and WoWXIV_config["flytext_enable"]
+                and WoWXIV_config["flytext_hide_autoloot"])
+            then
+                self.autolooting = true
                 LootFrame:UnregisterEvent("LOOT_OPENED")
                 -- FIXME: the top half of the frame sometimes appears anyway
                 -- (presumably from LootFrame.NineSlice); why is this?
             end
+        else  -- second (or later) LOOT_READY event
+            -- There is (since at least 11.0, still present in 11.1.7) a
+            -- bug in the engine which seems to "forget" the autoloot state
+            -- in certain cases, possibly when a loot item is added to the
+            -- table after the first LOOT_READY but before LOOT_OPENED.
+            -- We can detect that here by comparing against the original
+            -- autoloot flag; if the bug occurs, we work around it by
+            -- performing the autoloot operation ourselves.
+            if self.autolooting and not autoloot then
+                for i = 1, GetNumLootItems() do
+                    LootSlot(i)
+                end
+            end
         end
     elseif event == "LOOT_CLOSED" then
-        if self.autolooted then
+        if self.autolooting then
             LootFrame:RegisterEvent("LOOT_OPENED")
         end
         self.looting = false
-        self.autolooted = false
+        self.autolooting = false
     end
+end
+
+-- For debugging / reverse engineering:
+if false then
+    local f = CreateFrame("Frame")
+    f:SetScript("OnEvent", function(frame, event, ...)
+        if event == "LOOT_READY" or event == "LOOT_OPENED" then
+            event = event.." num="..GetNumLootItems()
+        end
+        print(event, ...)
+    end)
+    f:RegisterEvent("BONUS_ROLL_ACTIVATE")
+    f:RegisterEvent("BONUS_ROLL_DEACTIVATE")
+    f:RegisterEvent("BONUS_ROLL_FAILED")
+    f:RegisterEvent("BONUS_ROLL_RESULT")
+    f:RegisterEvent("BONUS_ROLL_STARTED")
+    f:RegisterEvent("CANCEL_ALL_LOOT_ROLLS")
+    f:RegisterEvent("CANCEL_LOOT_ROLL")
+    f:RegisterEvent("CONFIRM_DISENCHANT_ROLL")
+    f:RegisterEvent("CONFIRM_LOOT_ROLL")
+    f:RegisterEvent("ENCOUNTER_LOOT_RECEIVED")
+    f:RegisterEvent("GARRISON_MISSION_BONUS_ROLL_LOOT")
+    f:RegisterEvent("ITEM_PUSH")
+    f:RegisterEvent("LOOT_BIND_CONFIRM")
+    f:RegisterEvent("LOOT_CLOSED")
+    f:RegisterEvent("LOOT_ITEM_AVAILABLE")
+    f:RegisterEvent("LOOT_ITEM_ROLL_WON")
+    f:RegisterEvent("LOOT_OPENED")
+    f:RegisterEvent("LOOT_READY")
+    f:RegisterEvent("LOOT_ROLLS_COMPLETE")
+    f:RegisterEvent("LOOT_SLOT_CHANGED")
+    f:RegisterEvent("LOOT_SLOT_CLEARED")
+    f:RegisterEvent("MAIN_SPEC_NEED_ROLL")
+    f:RegisterEvent("OPEN_MASTER_LOOT_LIST")
+    f:RegisterEvent("PET_BATTLE_LOOT_RECEIVED")
+    f:RegisterEvent("QUEST_CURRENCY_LOOT_RECEIVED")
+    f:RegisterEvent("QUEST_LOOT_RECEIVED")
+    f:RegisterEvent("START_LOOT_ROLL")
+    hooksecurefunc("LootSlot", function(...) print("LootSlot",...) end)
 end
 
 ------------------------------------------------------------------------
