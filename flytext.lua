@@ -720,8 +720,6 @@ function LootHandler:OnEvent(event, ...)
             then
                 self.autolooting = true
                 LootFrame:UnregisterEvent("LOOT_OPENED")
-                -- FIXME: the top half of the frame sometimes appears anyway
-                -- (presumably from LootFrame.NineSlice); why is this?
             end
         else  -- second (or later) LOOT_READY event
             -- There is (since at least 11.0, still present in 11.1.7) a
