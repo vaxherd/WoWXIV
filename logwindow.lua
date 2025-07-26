@@ -728,8 +728,7 @@ function TabBar:__constructor(parent)
     self.active_tab = nil
     self.size_scale = 5/6  -- gives the right size at 2560x1440 with default UI scaling
 
-    self:SetSize(parent:GetWidth(), 26*self.size_scale)
-    self:SetPoint("TOPLEFT", parent, "BOTTOMLEFT")
+    self:SetHeight(26*self.size_scale)
 
     local left = self:CreateTexture(nil, "BACKGROUND")
     self.left = left
@@ -939,20 +938,22 @@ function LogWindow:__constructor()
 
     local scrollbar = CreateFrame("EventFrame", nil, frame, "MinimalScrollBar")
     self.scrollbar = scrollbar
-    scrollbar:SetPoint("TOPLEFT", frame, "TOPRIGHT", 3, 0)
-    scrollbar:SetPoint("BOTTOMLEFT", frame, "BOTTOMRIGHT", 3, 0)
+    scrollbar:SetPoint("TOPRIGHT", frame, "TOPLEFT", -6, 0)
+    scrollbar:SetPoint("BOTTOMRIGHT", frame, "BOTTOMLEFT", -6, 0)
     ScrollUtil.InitScrollingMessageFrameWithScrollBar(frame, scrollbar)
     scrollbar:Show()
 
     local bg = frame:CreateTexture(nil, "BACKGROUND")
     self.background = bg
-    bg:SetPoint("TOPLEFT", frame, "TOPLEFT", -3, 3)
+    bg:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 3, 3)
     -- HACK: scrollbar frame is smaller than the actual visuals
-    bg:SetPoint("BOTTOMRIGHT", scrollbar, "BOTTOMRIGHT", 5, -3)
+    bg:SetPoint("BOTTOMLEFT", scrollbar, "BOTTOMLEFT", -5, -3)
     bg:SetColorTexture(0, 0, 0, 0.25)
 
     local tab_bar = TabBar(frame)
     self.tab_bar = tab_bar
+    tab_bar:SetPoint("TOPLEFT", bg, "BOTTOMLEFT")
+    tab_bar:SetPoint("TOPRIGHT", bg, "BOTTOMRIGHT")
     EventRegistry:RegisterCallback(
         "WoWXIV.LogWindow.OnActiveTabChanged",
         function(_, index) self:OnActiveTabChanged(index) end)
@@ -971,8 +972,8 @@ function LogWindow:__constructor()
 
     if not KEEP_NATIVE_FRAME then
         ChatFrame1EditBox:ClearAllPoints()
-        ChatFrame1EditBox:SetPoint("TOPLEFT", self.tab_bar, "BOTTOMLEFT", -5, 0)
-        ChatFrame1EditBox:SetPoint("RIGHT", self.scrollbar, "RIGHT", 8, 0)
+        ChatFrame1EditBox:SetPoint("LEFT", self.scrollbar, "RIGHT", -5, 0)
+        ChatFrame1EditBox:SetPoint("TOPRIGHT", self.tab_bar, "BOTTOMRIGHT", 8, 0)
     end
 end
 
@@ -1003,7 +1004,7 @@ function LogWindow:InternalSetFullscreen(state)
         frame:SetSize(430, 120)
         frame:ClearAllPoints()
         if not KEEP_NATIVE_FRAME then
-            frame:SetPoint("BOTTOMLEFT", 35, 72)
+            frame:SetPoint("BOTTOMLEFT", 49, 72)
         else
             frame:SetPoint("BOTTOMLEFT", GeneralDockManager, "TOPLEFT", 0, 67)
         end
