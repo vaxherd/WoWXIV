@@ -144,9 +144,32 @@ function MerchantFrameHandler:OnTabChange()
     end
 end
 
+local function OnEnterItemButton(button)
+    button:GetScript("OnEnter")(button)
+    -- We can't seem to override the tooltip positioning without clearing
+    -- it entirely, so we just reimplement the tooltip-related parts of
+    -- MerchantItemButton_OnEnter() outselves.
+    GameTooltip:SetOwner(MerchantFrame, "ANCHOR_NONE")
+    GameTooltip:ClearAllPoints()
+    GameTooltip:SetPoint("TOPLEFT", MerchantFrame, "TOPRIGHT")
+    if MerchantFrame.selectedTab == 1 then
+        GameTooltip:SetMerchantItem(button:GetID())
+        GameTooltip_ShowCompareItem(GameTooltip)
+    else
+        GameTooltip:SetBuybackItem(button:GetID())
+    end
+end
+
+local function OnLeaveItemButton(button)
+    button:GetScript("OnLeave")(button)
+end
+
 function MerchantFrameHandler:OnShowItemButton(frame, skip_update)
     self.targets[frame] = {
-        lock_highlight = true, send_enter_leave = true,
+        lock_highlight = true,
+        -- We use custom OnEnter/OnLeave handlers to pin the tooltip to
+        -- the right side of the frame.
+        on_enter = OnEnterItemButton, on_leave = OnLeaveItemButton,
         -- Pass a confirm action down as a right click because left-click
         -- activates the item drag functionality.  (On the buyback tab,
         -- right and left click do the same thing, so we don't need a

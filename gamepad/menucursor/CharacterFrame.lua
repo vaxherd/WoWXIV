@@ -3,6 +3,7 @@ assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
 
 local class = WoWXIV.class
+local strupper = string.upper
 
 ---------------------------------------------------------------------------
 
@@ -124,6 +125,28 @@ function PaperDollFrameHandler:__constructor()
     self.targets[left[8]].right = bottom[1]
     self.targets[right[8]].left = bottom[2]
     self.targets[left[1]].is_default = true
+
+    local function MoveTooltip(button) return self:MoveTooltip(button) end
+    for _, t in ipairs({left, right, bottom}) do
+        for _, button in ipairs(t) do
+            button:HookScript("OnEnter", MoveTooltip)
+        end
+    end
+end
+
+function PaperDollFrameHandler:MoveTooltip(button)
+    -- Override tooltip position, reimplementing button's OnEnter()
+    -- tooltip logic as for MerchantFrame item buttons.
+    GameTooltip:SetOwner(CharacterFrame, "ANCHOR_NONE")
+    if not GameTooltip:SetInventoryItem("player", button:GetID()) then
+        GameTooltip:SetOwner(CharacterFrame, "ANCHOR_NONE")
+        assert(not UnitHasRelicSlot("player"))  -- Obsolete?
+        local name = PaperDollItemSlotButton_GetSlotName(button)
+        GameTooltip:SetText(_G[strupper(name)])
+        GameTooltip:Show()
+    end
+    GameTooltip:ClearAllPoints()
+    GameTooltip:SetPoint("TOPLEFT", CharacterFrame, "TOPRIGHT")
 end
 
 function PaperDollFrameHandler:OnClickSlot(slot)
