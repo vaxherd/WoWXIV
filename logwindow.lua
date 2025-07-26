@@ -2,6 +2,7 @@ local _, WoWXIV = ...
 WoWXIV.LogWindow = {}
 
 local class = WoWXIV.class
+local Frame = WoWXIV.Frame
 
 local CLM = WoWXIV.CombatLogManager
 local band = bit.band
@@ -348,7 +349,7 @@ local MESSAGE_TYPES = {
 
 }
 
--- For testing: set to true to keep the native chat frame visible
+-- For testing: set to true to keep the native chat frame visible.
 local KEEP_NATIVE_FRAME = false
 
 --------------------------------------------------------------------------
@@ -716,31 +717,33 @@ end
 
 --------------------------------------------------------------------------
 
-local TabBar = class()
+local TabBar = class(Frame)
+
+function TabBar:__allocator(parent)
+    return Frame.__allocator("Frame", nil, parent)
+end
 
 function TabBar:__constructor(parent)
     self.tabs = {}
     self.active_tab = nil
     self.size_scale = 5/6  -- gives the right size at 2560x1440 with default UI scaling
 
-    local frame = CreateFrame("Frame", nil, parent)
-    self.frame = frame
-    frame:SetSize(parent:GetWidth(), 26*self.size_scale)
-    frame:SetPoint("TOPLEFT", parent, "BOTTOMLEFT")
+    self:SetSize(parent:GetWidth(), 26*self.size_scale)
+    self:SetPoint("TOPLEFT", parent, "BOTTOMLEFT")
 
-    local left = frame:CreateTexture(nil, "BACKGROUND")
+    local left = self:CreateTexture(nil, "BACKGROUND")
     self.left = left
     WoWXIV.SetUITexture(left, 0, 21, 52, 78)
-    left:SetSize(21*self.size_scale, frame:GetHeight())
+    left:SetSize(21*self.size_scale, self:GetHeight())
     left:SetPoint("TOPLEFT")
 
-    local right = frame:CreateTexture(nil, "BACKGROUND")
+    local right = self:CreateTexture(nil, "BACKGROUND")
     self.right = right
     WoWXIV.SetUITexture(right, 72, 96, 52, 78)
-    right:SetSize(24*self.size_scale, frame:GetHeight())
+    right:SetSize(24*self.size_scale, self:GetHeight())
     right:SetPoint("LEFT", left, "RIGHT")
 
-    frame:SetScript("OnMouseDown", function(frame) self:OnClick() end)
+    self:SetScript("OnMouseDown", function(frame) self:OnClick() end)
 
     self:AddTab(Tab("General", {
         "System", "Error", "Ping",
@@ -774,17 +777,16 @@ function TabBar:__constructor(parent)
     self:AddTab(Tab("Other", {"Gathering", "TradeSkill", "PetInfo", "Debug"}))
 
     self:SetActiveTab(1)
-    frame:Show()
+    self:Show()
 end
 
 function TabBar:AddTab(tab)
-    local frame = self.frame
     local name = tab:GetName()
     local last = #self.tabs > 0 and self.tabs[#self.tabs].frame or self.left
     local index = #self.tabs + 1
 
-    local tab_frame = CreateFrame("Frame", nil, frame)
-    tab_frame:SetHeight(frame:GetHeight())
+    local tab_frame = CreateFrame("Frame", nil, self)
+    tab_frame:SetHeight(self:GetHeight())
     tab_frame:SetPoint("LEFT", last, "RIGHT")
 
     local header = tab_frame:CreateTexture(nil, "BACKGROUND")
@@ -856,12 +858,7 @@ function LogWindow:__constructor()
     local frame = CreateFrame("ScrollingMessageFrame", "WoWXIV_LogWindow",
                               UIParent)
     self.frame = frame
-    frame:SetSize(430, 120)
-    if not KEEP_NATIVE_FRAME then
-        frame:SetPoint("BOTTOMLEFT", ChatFrame1EditBox, "TOPLEFT", 5, 17)
-    else
-        frame:SetPoint("BOTTOMLEFT", GeneralDockManager, "TOPLEFT", 0, 24)
-    end
+    self:InternalSetFullscreen(false)
 
     frame:SetTimeVisible(2*60)
     frame:SetMaxLines(WoWXIV_config["logwindow_history"])
@@ -970,6 +967,46 @@ function LogWindow:__constructor()
             frame:AddMessage(text, r, g, b, 0.5)
         end
         histindex = (histindex == histlen) and 1 or histindex+1
+    end
+
+    if not KEEP_NATIVE_FRAME then
+        ChatFrame1EditBox:ClearAllPoints()
+        ChatFrame1EditBox:SetPoint("TOPLEFT", self.tab_bar, "BOTTOMLEFT", -5, 0)
+        ChatFrame1EditBox:SetPoint("RIGHT", self.scrollbar, "RIGHT", 8, 0)
+    end
+end
+
+-- Toggle the window between normal and fullscreen sizes.
+-- With a boolean argument, sets the fullscreen state to the given value.
+function LogWindow:ToggleFullscreen(optional_state)
+    local new_state
+    if optional_state ~= nil then
+        new_state = not not optional_state
+    else
+        new_state = not self.fullscreen
+    end
+    self:InternalSetFullscreen(new_state)
+end
+
+function LogWindow:InternalSetFullscreen(state)
+    self.fullscreen = state
+    local frame = self.frame
+    if state then
+        frame:SetFrameStrata("HIGH")
+        frame:SetFrameLevel(0)
+        frame:SetSize(UIParent:GetWidth()*0.8, UIParent:GetHeight()*0.8)
+        frame:ClearAllPoints()
+        frame:SetPoint("CENTER")
+    else
+        frame:SetFrameStrata("MEDIUM")
+        frame:SetFrameLevel(UIParent:GetFrameLevel() + 1)
+        frame:SetSize(430, 120)
+        frame:ClearAllPoints()
+        if not KEEP_NATIVE_FRAME then
+            frame:SetPoint("BOTTOMLEFT", 35, 72)
+        else
+            frame:SetPoint("BOTTOMLEFT", GeneralDockManager, "TOPLEFT", 0, 67)
+        end
     end
 end
 
