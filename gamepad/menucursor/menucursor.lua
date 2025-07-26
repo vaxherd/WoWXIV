@@ -827,6 +827,18 @@ end
 -- Click event handler; handles all events other than secure click passthrough.
 function Cursor:OnClick(button, down, is_repeat)
     if not down then
+        -- Ideally we should only stop repeating on button-up from the
+        -- currently repeating button; consider the case of
+        --    (1) confirm pressed (to open a menu)
+        --    (2) D-pad down pressed (to start repeating cursor movement)
+        --    (3) confirm released
+        --    (4) D-pad down released
+        -- in which the D-pad down input should continue repeating at (3)
+        -- and only stop repeating at (4).  But it seems the WoW engine
+        -- clears all pending button state when a frame receives a button-up
+        -- event, so in the above case we'd lose event (4) and continue
+        -- repeating indefinitely.  We instead stop repeating at (3) as the
+        -- less disruptive approach.
         self.brm:StopRepeat()
         return
     end

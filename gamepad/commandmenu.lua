@@ -718,9 +718,9 @@ function CommandMenu:OnInputDown(input, is_repeat)
 end
 
 function CommandMenu:OnInputUp(input)
-    if input == self.brm:GetRepeatButton() then
-        self.brm:StopRepeat()
-    end
+    -- See notes at MenuCursor.Cursor:OnClick() for why we don't check
+    -- against self.brm:GetRepeatButton().
+    self.brm:StopRepeat()
 end
 
 function CommandMenu:ScrollColumn(direction, is_repeat)
