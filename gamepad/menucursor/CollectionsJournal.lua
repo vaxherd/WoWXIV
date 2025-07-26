@@ -101,6 +101,63 @@ function ToyBoxHandler:__constructor()
     self.on_next_page = self.frame.PagingFrame.NextPageButton
 end
 
+function ToyBoxHandler:RefreshTargets()
+    local old_target = self:GetTarget()
+    self:SetTarget(nil)
+    self:SetTarget(self:SetTargets(old_target))
+end
+
+function ToyBoxHandler:SetTargets(old_target)
+    local f = self.frame
+    local PrevPageButton = f.PagingFrame.PrevPageButton
+    local NextPageButton = f.PagingFrame.NextPageButton
+    self.targets = {
+        [PrevPageButton] = {can_activate = true, lock_highlight = true,
+                            left = NextPageButton, right = NextPageButton},
+        [NextPageButton] = {can_activate = true, lock_highlight = true,
+                            left = PrevPageButton, right = PrevPageButton},
+    }
+
+    local buttons = {}
+    local TOYS_PER_PAGE = 18  -- local constant in Blizzard_ToyBox.lua
+    for i = 1, TOYS_PER_PAGE do
+        local button = f.iconsFrame["spellButton"..i]
+        if not button or not button:IsShown() then break end
+        tinsert(buttons, button)
+    end
+    for i, button in ipairs(buttons) do
+        self.targets[button] = {can_activate = true, lock_highlight = true,
+                                left = buttons[i==1 and #buttons or i-1],
+                                right = buttons[i==#buttons and 1 or i+1],
+                                down = ((i-1)%3==2 and NextPageButton
+                                        or PrevPageButton)}
+        if (i-1)%3 == 2 then
+            self.targets[button].down = NextPageButton
+            self.targets[NextPageButton].up = button
+        else
+            self.targets[button].down = PrevPageButton
+            self.targets[PrevPageButton].up = button
+        end
+        if i >= 4 then
+            self.targets[button].up = buttons[i-3]
+            self.targets[buttons[i-3]].down = button
+        elseif i == 3 then
+            self.targets[button].up = NextPageButton
+            self.targets[NextPageButton].down = button
+        else
+            self.targets[button].up = PrevPageButton
+            self.targets[PrevPageButton].down = button
+            self.targets[NextPageButton].down = button
+        end
+    end
+
+    if old_target and not self.targets[old_target] then
+        -- Must have been a toy button which is no longer displayed.
+        old_target = buttons[#buttons]
+    end
+    return old_target or buttons[1]
+end
+
 
 function HeirloomsJournalHandler:__constructor()
     self:__super(HeirloomsJournal)
