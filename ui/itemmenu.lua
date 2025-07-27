@@ -145,7 +145,7 @@ function ItemSubmenuButton:__constructor(parent, text, secure)
     self:Hide()
     local label = self:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     self.label = label
-    label:SetPoint("CENTER")
+    label:SetPoint("LEFT", 2, 0)
     label:SetTextColor(WHITE_FONT_COLOR:GetRGB())
     label:SetTextScale(1.0)
     label:SetText(text)
