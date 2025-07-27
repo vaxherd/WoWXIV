@@ -177,6 +177,15 @@ function CommandMenuColumn:SetItemEnabled(name, enabled, disabled_reason)
     error("Item not found: "..name)
 end
 
+function CommandMenuColumn:IsItemEnabled(name)
+    for _, item in ipairs(self.items) do
+        if item.name == name then
+            return item.button:IsEnabled()
+        end
+    end
+    error("Item not found: "..name)
+end
+
 function CommandMenuColumn:SetItemSecureAction(name, action)
     for _, item in ipairs(self.items) do
         if item.name == name then
@@ -502,13 +511,15 @@ function SystemColumn:Open()
     end
     for name, text in pairs({["Shop"] = BLIZZARD_STORE, ["Log Out"] = LOG_OUT,
                              ["Exit Game"] = EXIT_GAME}) do
-        local button = game_menu_buttons[text]
-        if button then
-            self:SetItemSecureAction(name,
-                                     {type = "click", clickbutton = button})
-        else
-            self:SetItemEnabled(name, false,
-                                "(Open the main menu to enable this option.)")
+        if self:IsItemEnabled(name) then
+            local button = game_menu_buttons[text]
+            if button then
+                self:SetItemSecureAction(
+                    name, {type = "click", clickbutton = button})
+            else
+                self:SetItemEnabled(
+                    name, false, "(Open the main menu to enable this option.)")
+            end
         end
     end
 
