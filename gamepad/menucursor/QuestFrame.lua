@@ -36,6 +36,10 @@ end
 
 function QuestFrameHandler:QUEST_GREETING()
     assert(QuestFrame:IsVisible())  -- FIXME: might be false if previous quest turn-in started a cutscene (e.g. The Underking Comes in the Legion Highmountain scenario)
+    -- Quest progression often causes multiple quest events without
+    -- intervening Hide operations, so make sure to clear cursor state
+    -- before refreshing the target list.
+    self:SetTarget(nil)
     self:Enable(self:SetTargets("QUEST_GREETING"))
 end
 
@@ -60,12 +64,14 @@ function QuestFrameHandler:QUEST_DETAIL()
     -- quest directly from the map without opening QuestFrame, so don't
     -- blindly assume the frame is open.
     if not QuestFrame:IsVisible() then return end
+    self:SetTarget(nil)
     self:SetTargets("QUEST_DETAIL")
     self:Enable()
 end
 
 function QuestFrameHandler:QUEST_PROGRESS()
     assert(QuestFrame:IsVisible())
+    self:SetTarget(nil)
     self:SetTargets("QUEST_PROGRESS")
     self:Enable()
 end
@@ -73,6 +79,7 @@ end
 function QuestFrameHandler:QUEST_COMPLETE()
     -- Quest frame can fail to open under some conditions?
     if not QuestFrame:IsVisible() then return end
+    self:SetTarget(nil)
     self:SetTargets("QUEST_COMPLETE")
     self:Enable()
 end

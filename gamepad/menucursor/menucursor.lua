@@ -1318,6 +1318,7 @@ function MenuFrame:NextTarget(target, dir)
     end
 
     local params = self.targets[target]
+    assert(params, "Target is not defined: "..tostring(target))
     local explicit_next = params[dir]
     if explicit_next ~= nil then
         -- A value of false indicates "suppress movement in this direction".
