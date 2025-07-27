@@ -22,13 +22,18 @@ end
 
 function LogWindowHandler:__constructor()
     self:__super(WoWXIV_LogWindow)
-    self.cancel_func = function() self:Unfocus() end
+    self.cancel_func = function() self:OnCancel() end
     self.has_Button3 = true  -- Used to toggle fullscreen mode.
     -- HACK: the instance currently isn't a native frame
     self.targets = {[WoWXIV.LogWindow.window.tab_bar] = {is_default = true}}
 
     assert(self.frame:IsShown())
     self:EnableBackground()
+end
+
+function LogWindowHandler:OnCancel()
+    WoWXIV.LogWindow.window:ToggleFullscreen(false)
+    self:Unfocus()
 end
 
 function LogWindowHandler:OnAction(button)
