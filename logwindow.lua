@@ -998,6 +998,7 @@ function LogWindow:InternalSetFullscreen(state)
         frame:SetSize(UIParent:GetWidth()*0.8, UIParent:GetHeight()*0.8)
         frame:ClearAllPoints()
         frame:SetPoint("CENTER")
+        frame:SetFading(false)
     else
         frame:SetFrameStrata("MEDIUM")
         frame:SetFrameLevel(UIParent:GetFrameLevel() + 1)
@@ -1008,6 +1009,8 @@ function LogWindow:InternalSetFullscreen(state)
         else
             frame:SetPoint("BOTTOMLEFT", GeneralDockManager, "TOPLEFT", 0, 67)
         end
+        frame:ResetAllFadeTimes()
+        frame:SetFading(true)
     end
 end
 
