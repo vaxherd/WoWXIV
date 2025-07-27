@@ -448,6 +448,10 @@ function Cursor:SetCursorTexture()
     local texture = self.texture
     if self.cursor_type == "map" then
         WoWXIV.SetUITexture(texture, 0, 40, 80, 120)
+    elseif self.cursor_type == "cast" then
+        -- Flipped as for the default cursor.
+        texture:SetTexture("Interface/CURSOR/Cast")
+        texture:SetTexCoord(1, 0, 0, 1)
     else
         assert(self.cursor_type == "default")
         -- Use the default mouse cursor image (pointing gauntlet), but
@@ -1069,6 +1073,7 @@ function MenuFrame:__constructor(frame, modal)
     --         the cursor image.
     --    - cursor_type: Sets the cursor type for this target, one of:
     --         - "default" (or nil): Default bouncing finger pointer.
+    --         - "cast": Bouncing finger pointer with a spell-cast outline.
     --         - "map": Circle with internal crosshairs.
     --    - dpad_override: If true, while the cursor is on this element,
     --         all directional pad inputs will be passed to the OnDPad()

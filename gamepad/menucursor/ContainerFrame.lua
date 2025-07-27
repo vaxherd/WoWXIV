@@ -827,6 +827,15 @@ function ContainerFrameHandler:EnterTarget(target)
     end
 end
 
+function ContainerFrameHandler:GetTargetCursorType(target)
+    if SpellIsTargeting() and SpellCanTargetItem() then
+        -- Same test as for the "Use as target" submenu item.
+        return "cast"
+    else
+        return "default"
+    end
+end
+
 function ContainerFrameHandler:OnMove(old_target, new_target)
     local params = self.targets[new_target]
     self.current_slot = new_target:GetID()
@@ -977,6 +986,9 @@ function InventoryItemSubmenu:__constructor()
     self.menuitem_read =
         WoWXIV.UI.ItemSubmenuButton(self, "Read", true)
     self.menuitem_read:SetAttribute("type", "item")
+    self.menuitem_target =
+        WoWXIV.UI.ItemSubmenuButton(self, "Use as target", true)
+    self.menuitem_target:SetAttribute("type", "item")
 
     self.menuitem_expand_sockets =
         WoWXIV.UI.ItemSubmenuButton(self, "View sockets", false)
@@ -1053,7 +1065,10 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
     local info = C_Container.GetContainerItemInfo(bag, slot)
     local item_class, item_subclass = select(12, C_Item.GetItemInfo(guid))
 
-    if AuctionHouseFrame and AuctionHouseFrame:IsShown() then
+    if SpellIsTargeting() and SpellCanTargetItem() then
+        self:AppendButton(self.menuitem_target)
+
+    elseif AuctionHouseFrame and AuctionHouseFrame:IsShown() then
         if C_AuctionHouse.IsSellItemValid(self.item_loc, false) then
             self:AppendButton(self.menuitem_auction)
         end
