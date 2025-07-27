@@ -684,11 +684,8 @@ function Cursor:UpdateCursor(in_combat)
 
     if self:IsShown() then
         local item_texture
-        if focus and focus:IsCursorShowItem() then
-            local info = {GetCursorInfo()}
-            if info[1] == "item" then
-                item_texture = select(10, C_Item.GetItemInfo(info[2]))
-            end
+        if focus then
+            item_texture = focus:GetHeldItemTexture()
         end
         if item_texture then
             self.held_item_icon:SetTexture(item_texture)
@@ -1197,9 +1194,17 @@ function MenuFrame:HasActionButton(button)
     return self["has_"..button]
 end
 
--- Return whether a held-item icon should be displayed with the cursor.
-function MenuFrame:IsCursorShowItem()
-    return self.cursor_show_item
+-- Return the texture to display next to the cursor as a held-item icon,
+-- nil if none.
+function MenuFrame:GetHeldItemTexture()
+    if self.cursor_show_item then
+        local type, item_id = GetCursorInfo()
+        if type == "item" then
+            local item_texture = select(10, C_Item.GetItemInfo(item_id))
+            return item_texture
+        end
+    end
+    return nil
 end
 
 -- Return the frame's default cursor target, or nil if none.

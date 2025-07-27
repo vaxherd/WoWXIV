@@ -978,6 +978,27 @@ function InventoryItemSubmenu:__constructor()
         WoWXIV.UI.ItemSubmenuButton(self, "Read", true)
     self.menuitem_read:SetAttribute("type", "item")
 
+    self.menuitem_expand_sockets =
+        WoWXIV.UI.ItemSubmenuButton(self, "View sockets", false)
+    self.menuitem_expand_sockets.ExecuteInsecure =
+        function(bag, slot) C_Container.SocketContainerItem(bag, slot) end
+
+    self.menuitem_expand_azerite =
+        WoWXIV.UI.ItemSubmenuButton(self, "View Azerite powers", false)
+    self.menuitem_expand_azerite.ExecuteInsecure =
+        function(bag, slot, info)
+            OpenAzeriteEmpoweredItemUIFromItemLocation(
+                ItemLocation:CreateFromBagAndSlot(bag, slot))
+        end
+
+    self.menuitem_expand_azerheart =
+        WoWXIV.UI.ItemSubmenuButton(self, "View Azerite essences", false)
+    self.menuitem_expand_azerheart.ExecuteInsecure =
+        function(bag, slot, info)
+            OpenAzeriteEssenceUIFromItemLocation(
+                ItemLocation:CreateFromBagAndSlot(bag, slot))
+        end
+
     self.menuitem_auction =
         WoWXIV.UI.ItemSubmenuButton(self, "Auction", false)
     self.menuitem_auction.ExecuteInsecure =
@@ -1071,6 +1092,17 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
             self:AppendButton(self.menuitem_read)
         elseif C_Item.IsUsableItem(guid) or info.hasLoot or info.isReadable then
             self:AppendButton(self.menuitem_use)
+        end
+    end
+
+    if C_Item.GetItemNumSockets(info.itemID) > 0 then
+        self:AppendButton(self.menuitem_expand_sockets)
+    elseif C_AzeriteEmpoweredItem.IsAzeriteEmpoweredItemByID(info.itemID) then
+        self:AppendButton(self.menuitem_expand_azerite)
+    else
+        local heart_loc = C_AzeriteItem.FindActiveAzeriteItem()
+        if heart_loc and heart_loc:IsEqualToBagAndSlot(bag, slot) then
+            self:AppendButton(self.menuitem_expand_azerheart)
         end
     end
 

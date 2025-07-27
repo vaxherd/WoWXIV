@@ -42,6 +42,8 @@ gamepad/menucursor/AchievementFrame.lua
 gamepad/menucursor/AdventureMapQuestChoiceDialog.lua
 gamepad/menucursor/AnimaDiversionFrame.lua
 gamepad/menucursor/AuctionHouseFrame.lua
+gamepad/menucursor/AzeriteEmpoweredItemUI.lua
+gamepad/menucursor/AzeriteEssenceUI.lua
 gamepad/menucursor/BankFrame.lua
 gamepad/menucursor/BonusRollFrame.lua
 gamepad/menucursor/CharacterFrame.lua
