@@ -39,7 +39,8 @@ function StackSplitFrameHandler:__constructor()
     }
 
     self.quantity_input = MenuCursor.NumberInput(
-        StackSplitText, function() self:OnQuantityChanged() end)
+        StackSplitText, function() self:OnQuantityChanged() end,
+        function() self:SetTarget(OkayButton) end)
 end
 
 function StackSplitFrameHandler:EditQuantity()

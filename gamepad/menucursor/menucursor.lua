@@ -2251,19 +2251,21 @@ end
 --[[
     Class implementing a gamepad-controlled numeric input field.
     Pass the associated input frame, which must be an EditBox, to the
-    constructor.  Optionally also pass a callback to be called whenever
-    the input value is changed during editing.
+    constructor.  Optionally also pass callbacks to be called whenever
+    the input value is changed during editing and when the input value
+    is confirmed.
 ]]--
 MenuCursor.NumberInput = class(StandardMenuFrame)
 local NumberInput = MenuCursor.NumberInput
 
-function NumberInput:__constructor(editbox, on_change)
+function NumberInput:__constructor(editbox, on_change, on_confirm)
     assert(type(editbox) == "table")
     -- Special case for StackSplitFrame, which uses a nonstandard input box.
     self.is_StackSplitText = (editbox == StackSplitFrame.StackSplitText)
     assert(self.is_StackSplitText or editbox:GetObjectType() == "EditBox")
     self.editbox = editbox
     self.on_change = on_change
+    self.on_confirm = on_confirm
 
     -- Value (text string) of the EditBox when editing was started.
     self.old_value = nil
@@ -2358,6 +2360,7 @@ function NumberInput:ConfirmEdit()
         local r, g, b = editbox:GetTextColor()
         editbox:SetTextColor(r, g, b, self.edittext_alpha)
         self:SetEditBoxText(tostring(self.value))
+        if self.on_confirm then self:on_confirm() end
     end
 end
 
