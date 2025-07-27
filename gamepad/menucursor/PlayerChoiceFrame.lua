@@ -71,6 +71,7 @@ function PlayerChoiceFrameHandler:SetTargets(initial_option)
 
     self.targets = {}
     local buttons = {}
+    local rewards = {}
     for option in PlayerChoiceFrame.optionPools:EnumerateActiveByTemplate(PlayerChoiceFrame.optionFrameTemplate) do
         for bframe in option.OptionButtonsContainer.buttonFramePool:EnumerateActive() do
             local button = bframe.Button
@@ -103,6 +104,13 @@ function PlayerChoiceFrameHandler:SetTargets(initial_option)
                 -- or just accepting the possibly-awkward default behavior
                 -- by clearing left/right fields from widget targets.
             end
+            -- This appears to only be used in the Vindicaar at the moment?
+            for reward in option.Rewards.rewardsPool:EnumerateActive() do
+                assert(not rewards[button])
+                rewards[button] = reward
+                self.targets[reward] = {send_enter_leave = true, up = button}
+                self.targets[button].down = reward
+            end
         end
     end
     if #buttons == 0 then return false end -- Ignore frame if no buttons found.
@@ -111,6 +119,11 @@ function PlayerChoiceFrameHandler:SetTargets(initial_option)
     for i, button in ipairs(buttons) do
         self.targets[button].left = buttons[i==1 and #buttons or i-1]
         self.targets[button].right = buttons[i==#buttons and 1 or i+1]
+        if rewards[button] then
+            local reward = rewards[button]
+            self.targets[reward].left = rewards[self.targets[button].left]
+            self.targets[reward].right = rewards[self.targets[button].right]
+        end
         if initial_option and self:ButtonID(button) == initial_option then
             initial_button = button
         end
