@@ -49,11 +49,12 @@ function Cursor:__constructor()
     -- Is the player currently using gamepad input?  (Mirrors the
     -- GAME_PAD_ACTIVE_CHANGED event.)
     self.gamepad_active = false
+    -- Is the menu cursor active (does any frame have focus)?
+    self.cursor_active = false
     -- Stack of active MenuFrames and their current targets (each element
-    -- is a {frame,target} pair, or the value false which indicates that no
-    -- frame currently has input focus).  The current focus is on top of
-    -- the stack (focus_stack[#focus_stack]).
-    self.focus_stack = {false}
+    -- is a {frame,target} pair).  The current focus is on top of the stack
+    -- (focus_stack[#focus_stack]).
+    self.focus_stack = {}
     -- Stack of active modal MenuFrames and their current targets.  If a
     -- modal frame is active, the top frame on this stack is the current
     -- focus and input frame cycling is disabled.
@@ -164,8 +165,9 @@ end
 -- already in the focus stack and has a (non-nil) target.
 --
 -- If |focus| is true, the frame is added to the top of its focus stack,
--- or moved there if it is already in the stack; otherwise, if it is not
--- already in the stack, it is added to the bottom.
+-- or moved there if it is already in the stack.  If |focus| is false, the
+-- frame is not moved from its position in the focus stack if present, and
+-- is added to the bottom of the stack if not present.
 function Cursor:AddFrame(frame, modal, target, focus)
     local other_stack = modal and self.focus_stack or self.modal_stack
     if WoWXIV.anyt(function(v) return v and v[1]==frame end, other_stack) then
@@ -198,7 +200,7 @@ function Cursor:AddFrame(frame, modal, target, focus)
     -- But note that we don't actually perform the focus change if we're
     -- currently locked, even if the new frame should be focused.
     local do_focus_change = focus and not self.lock_frame
-    if do_focus_change then
+    if do_focus_change and self:GetFocus() then
         self:SendUnfocus()
     end
     target = target or frame:GetDefaultTarget()
@@ -207,27 +209,30 @@ function Cursor:AddFrame(frame, modal, target, focus)
         frame:ScrollToTarget(target)
     end
     if do_focus_change then
+        self.cursor_active = true
         self:SendFocus()
         self:UpdateCursor()
     end
 end
 
 -- Remove the given frame (a MenuFrame instance) from the focus stack.
--- If the frame is the current focus, the focus is changed to the next
--- frame on the stack.  Does nothing if the given frame is not in the
--- focus stack.
+-- Does nothing if the given frame is not in the focus stack.  If the
+-- removed frame is the current focus, then:
+--    - If the frame was a modal frame, focus is given to the next topmost
+--      frame (either another modal frame or the topmost non-modal frame).
+--    - Otherwise, the cursor becomes inactive.
 function Cursor:RemoveFrame(frame)
     if #self.modal_stack > 0 then
-        self:InternalRemoveFrameFromStack(frame, self.modal_stack, true)
-        self:InternalRemoveFrameFromStack(frame, self.focus_stack, false)
+        self:InternalRemoveFrameFromStack(frame, self.modal_stack, true, true)
+        self:InternalRemoveFrameFromStack(frame, self.focus_stack, false, true)
     else
-        self:InternalRemoveFrameFromStack(frame, self.focus_stack, true)
+        self:InternalRemoveFrameFromStack(frame, self.focus_stack, true, false)
     end
 end
 
 -- Return whether any focus stack has the given frame.
 function Cursor:HasFrame(frame)
-    local function Match(entry) return entry and entry[1]==frame end
+    local function Match(entry) return entry[1]==frame end
     return WoWXIV.anyt(Match, self.focus_stack)
         or WoWXIV.anyt(Match, self.modal_stack)
 end
@@ -239,8 +244,7 @@ function Cursor:GetFocus()
         return self.lock_frame
     else
         local stack = self:InternalGetFocusStack()
-        local top = #stack
-        return (top > 0 and stack[top] and stack[top][1]) or nil
+        return stack and stack[#stack][1]
     end
 end
 
@@ -253,20 +257,27 @@ end
 -- updated but the cursor's focus itself will not change until the lock
 -- is released.
 function Cursor:SetFocus(frame)
-    local stack = self:InternalGetFocusStack()
-    local top = #stack
-    for i, v in ipairs(stack) do
-        if (frame and v and v[1] == frame) or (not frame and not v) then
-            if i < top then
-                self:SendUnfocus()
-                tinsert(stack, tremove(stack, i))
-                self:SendFocus()
-                self:UpdateCursor()
+    if not frame then
+        self.cursor_active = false
+        self:UpdateCursor()
+    else
+        self.cursor_active = true
+        local stack = self:InternalGetFocusStack()
+        if not stack then return end
+        local top = #stack
+        for i, v in ipairs(stack) do
+            if v[1] == frame then
+                if i < top then
+                    self:SendUnfocus()
+                    tinsert(stack, tremove(stack, i))
+                    self:SendFocus()
+                    self:UpdateCursor()
+                end
+                return
             end
-            return
         end
+        error("SetFocus for frame ("..tostring(frame)..") not in focus stack")
     end
-    error("SetFocus for frame ("..tostring(frame)..") not in focus stack")
 end
 
 -- Return the input element most recently selected in the given frame.
@@ -358,12 +369,13 @@ function Cursor:Lock(frame)
     else
         assert(self.lock_depth == 0)
         local cur_focus = self:GetFocus()
-        if cur_focus ~= frame then
+        if cur_focus and cur_focus ~= frame then
             self:SendUnfocus()
         end
         self.lock_frame = frame
         self.lock_depth = 1
         self.pending_cancel = false  -- Should already be false, but be safe.
+        self.cursor_active = true
         if cur_focus ~= frame then
             self:SendFocus()
         end
@@ -442,20 +454,26 @@ function Cursor:SetCursorTexture()
 end
 
 -- Internal helper for RemoveFrame().
-function Cursor:InternalRemoveFrameFromStack(frame, stack, is_top_stack)
+function Cursor:InternalRemoveFrameFromStack(frame, stack, is_top_stack,
+                                             keep_active)
     for i, v in ipairs(stack) do
         if v and v[1] == frame then
             local had_lock = (self.lock_frame == frame)
             if had_lock then
                 self:ClearLock()
             end
-            local is_focus = had_lock or (is_top_stack and i == #stack)
+            local is_focus = had_lock
+                or (self.cursor_active and is_top_stack and i == #stack)
             if is_focus then
                 self:SendUnfocus()
             end
             tremove(stack, i)
             if is_focus then
-                self:SendFocus()
+                if keep_active then
+                    self:SendFocus()
+                else
+                    self.cursor_active = false
+                end
             end
             self:UpdateCursor()
             return
@@ -463,10 +481,18 @@ function Cursor:InternalRemoveFrameFromStack(frame, stack, is_top_stack)
     end
 end
 
--- Internal helper to get the topmost stack (modal or normal).
+-- Internal helper to get the topmost stack (modal or normal).  Returns nil
+-- if the cursor is inactive.
 function Cursor:InternalGetFocusStack()
-    local modal_stack = self.modal_stack
-    return #modal_stack > 0 and modal_stack or self.focus_stack
+    if self.cursor_active then
+        local modal_stack = self.modal_stack
+        if #modal_stack > 0 then return modal_stack end
+        local focus_stack = self.focus_stack
+        assert(#focus_stack > 0, "Cursor active but focus stack empty")
+        return focus_stack
+    else
+        return nil
+    end
 end
 
 -- Return the current focus and target in a single function call.
@@ -477,9 +503,8 @@ function Cursor:GetFocusAndTarget()
         return unpack(stack[index])
     else
         local stack = self:InternalGetFocusStack()
-        local top = #stack
-        if top > 0 and stack[top] then
-            return unpack(stack[top])
+        if stack then
+            return unpack(stack[#stack])
         else
             return nil, nil
         end
@@ -490,20 +515,18 @@ end
 -- EnterTarget() for the new target.
 function Cursor:SendFocus()
     local focus = self:GetFocus()
-    if focus then
-        focus:OnFocus()
-        self:EnterTarget()
-    end
+    assert(focus, "SendFocus() with no focus frame")
+    focus:OnFocus()
+    self:EnterTarget()
 end
 
 -- Send an OnUnfocus event to the currently focused MenuFrame.  First calls
 -- LeaveTarget() for the current target.
 function Cursor:SendUnfocus()
     local focus = self:GetFocus()
-    if focus then
-        self:LeaveTarget()
-        focus:OnUnfocus()
-     end
+    assert(focus, "SendUnfocus() with no focus frame")
+    self:LeaveTarget()
+    focus:OnUnfocus()
 end
 
 -- Perform all actions appropriate to the cursor entering a target.
@@ -538,9 +561,8 @@ end
 -- attempting to call the leave callback may trigger an error).
 function Cursor:InternalForceClearTarget()
     local stack = self:InternalGetFocusStack()
-    local top = #stack
-    if top > 0 and stack[top] then
-        stack[top][2] = nil
+    if stack then
+        stack[#stack][2] = nil
     end
 end
 
@@ -851,10 +873,13 @@ function Cursor:OnClick(button, down, is_repeat)
         if not self.lock_frame and #self.modal_stack == 0 then
             local stack = self.focus_stack
             local top = #stack
-            if top > 1 then
-                self:SendUnfocus()
-                tinsert(stack, 1, tremove(stack, top))
-                assert(#stack == top)
+            if top > (self.cursor_active and 1 or 0) then
+                if self.cursor_active then
+                    self:SendUnfocus()
+                    tinsert(stack, 1, tremove(stack, top))
+                    assert(#stack == top)
+                end
+                self.cursor_active = true
                 self:SendFocus()
                 self:UpdateCursor()
             end

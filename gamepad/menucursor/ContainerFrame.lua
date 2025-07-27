@@ -698,11 +698,12 @@ function ContainerFrameHandler:SetInitialTarget()
     assert(returned_target == target)
     self.frame = frame
     -- Various UIs automatically open the inventory alongside them,
-    -- so don't steal focus from any other frame that's already open.
-    if self.cursor:GetFocus() then
-        self:EnableBackground(target)
-    else
-        self:Enable(target)
+    -- so don't steal focus from any other frame that's already open,
+    -- but leave ourselves as the next frame in the stack in that case.
+    local focus = self.cursor:GetFocus()
+    self:Enable(target)
+    if focus then
+        self.cursor:SetFocus(focus)
     end
 end
 
