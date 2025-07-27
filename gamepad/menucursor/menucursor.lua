@@ -257,26 +257,30 @@ end
 -- updated but the cursor's focus itself will not change until the lock
 -- is released.
 function Cursor:SetFocus(frame)
+    local focus = self:GetFocus()
+    local focus_change = not self.lock_frame and frame ~= focus
     if not frame then
+        if focus_change then
+            self:SendUnfocus()
+        end
         self.cursor_active = false
         self:UpdateCursor()
     else
         self.cursor_active = true
-        local stack = self:InternalGetFocusStack()
-        if not stack then return end
-        local top = #stack
-        for i, v in ipairs(stack) do
-            if v[1] == frame then
-                if i < top then
-                    self:SendUnfocus()
-                    tinsert(stack, tremove(stack, i))
-                    self:SendFocus()
-                    self:UpdateCursor()
-                end
-                return
-            end
+        local stack, index = self:InternalFindFrame(frame)
+        assert(stack,
+               "SetFocus for frame ("..tostring(frame)..") not in focus stack")
+        focus_change = focus_change and stack == self:InternalGetFocusStack()
+        if focus_change then
+            self:SendUnfocus()
         end
-        error("SetFocus for frame ("..tostring(frame)..") not in focus stack")
+        if index < #stack then
+            tinsert(stack, tremove(stack, index))
+        end
+        if focus_change then
+            self:SendFocus()
+        end
+        self:UpdateCursor()
     end
 end
 
