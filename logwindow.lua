@@ -1182,7 +1182,7 @@ function LogWindow:InternalAddMessage(show, save, event, text, r, g, b)
     end
 end
 
--- Various methods called on DEFAULT_CHAT_FRAME.
+-- Various methods called by the ChatFrame message handlers we borrow.
 function LogWindow:AdjustMessageColors(func) end
 function LogWindow:GetFont() return self.frame:GetFontObject() end
 function LogWindow:GetID() return 1 end
