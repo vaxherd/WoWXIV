@@ -717,5 +717,5 @@ function WoWXIV.Error(text, with_sound)
     if with_sound ~= false then
         PlaySound(SOUNDKIT.IG_QUEST_LOG_ABANDON_QUEST)  -- generic error sound
     end
-    print(WoWXIV.FormatColoredText(text, RED_FONT_COLOR:GetRGB()))
+    UIErrorsFrame:AddExternalErrorMessage(text)
 end
