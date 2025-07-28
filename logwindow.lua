@@ -864,6 +864,8 @@ function LogWindow:__constructor()
     frame:SetFontObject(ChatFontNormal)
     frame:SetIndentedWordWrap(true)
     frame:SetJustifyH("LEFT")
+    frame:SetTextCopyable(true)
+    frame:EnableMouse(true)
 
     frame:SetScript("OnHyperlinkClick",
                     function(frame, link, text, button)
