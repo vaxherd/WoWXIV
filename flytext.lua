@@ -700,10 +700,13 @@ function LootHandler:__constructor()
     self:Hide()
     self:SetScript("OnEvent", self.OnEvent)
     self:RegisterEvent("LOOT_READY")
+    self:RegisterEvent("LOOT_OPENED")
     self:RegisterEvent("LOOT_CLOSED")
 end
 
 function LootHandler:OnEvent(event, ...)
+    local hide_autoloot = (WoWXIV_config["flytext_enable"]
+                           and WoWXIV_config["flytext_hide_autoloot"])
     if event == "LOOT_READY" then
         local autoloot = ...
         -- The engine fires two LOOT_READY events, one before and one
@@ -714,10 +717,7 @@ function LootHandler:OnEvent(event, ...)
             -- the game _will_ automatically take all loot, not that the
             -- loot frame _should_ automatically LootSlot() each slot,
             -- so we don't need to do anything more than hide the frame.
-            if (autoloot
-                and WoWXIV_config["flytext_enable"]
-                and WoWXIV_config["flytext_hide_autoloot"])
-            then
+            if autoloot and hide_autoloot then
                 self.autolooting = true
                 LootFrame:UnregisterEvent("LOOT_OPENED")
             end
@@ -733,6 +733,20 @@ function LootHandler:OnEvent(event, ...)
                 for i = 1, GetNumLootItems() do
                     LootSlot(i)
                 end
+            end
+        end
+    elseif event == "LOOT_OPENED" then
+        -- On rare occasions, we can get LOOT_OPENED _without_ LOOT_READY;
+        -- this has been observed in delves when opening a reward chest at
+        -- roughly the same time as stepping on a collectable pile of gold.
+        -- Treat that as a LOOT_READY, and close LootFrame if it saw the
+        -- event first.
+        if not self.looting then
+            self.looting = true
+            if autoloot and hide_autoloot then
+                self.autolooting = true
+                LootFrame:UnregisterEvent("LOOT_OPENED")
+                LootFrame:Hide()
             end
         end
     elseif event == "LOOT_CLOSED" then
