@@ -105,11 +105,14 @@ function PlayerChoiceFrameHandler:SetTargets(initial_option)
                 -- by clearing left/right fields from widget targets.
             end
             -- This appears to only be used in the Vindicaar at the moment?
-            for reward in option.Rewards.rewardsPool:EnumerateActive() do
-                assert(not rewards[button])
-                rewards[button] = reward
-                self.targets[reward] = {send_enter_leave = true, up = button}
-                self.targets[button].down = reward
+            if option.Rewards then
+                for reward in option.Rewards.rewardsPool:EnumerateActive() do
+                    assert(not rewards[button])
+                    rewards[button] = reward
+                    self.targets[reward] = {send_enter_leave = true,
+                                            up = button}
+                    self.targets[button].down = reward
+                end
             end
         end
     end
