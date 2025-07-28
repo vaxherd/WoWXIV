@@ -593,11 +593,7 @@ function SellTabHandler:SetTargets()
                       lock_highlight = true, up = GoldBox, down = PostButton,
                       left = false, right = false},
         [PostButton] = {can_activate = true, lock_highlight = true,
-                        on_click = function()
-                            if self.focused_from_inventory then
-                                MenuCursor.ContainerFrameHandler.FocusIfOpen()
-                            end
-                        end,
+                        on_click = function() self:PostClickPostButton() end,
                         up = Duration, down = ItemButton,
                         left = false, right = false, is_default = true},
     }
@@ -690,6 +686,21 @@ function SellTabHandler:OnQuantityChanged()
     local InputBox = self.frame.QuantityInput.InputBox
     local callback = InputBox:GetInputChangedCallback()
     if callback then callback() end
+end
+
+function SellTabHandler:PostClickPostButton(button)
+    -- Return to the inventory after selling if that's where we came from.
+    -- Unfortunately we can't (easily) confirm whether the click actually
+    -- went through, but we don't necessarily want to wait for the posting
+    -- to complete server-side, so instead we check whether the item box
+    -- is now empty.  (We can't just look at PostButton:IsEnabled() because
+    -- the button is disabled as soon as a click goes through, i.e. before
+    -- we're called.)
+    if (not self.frame.ItemDisplay.ItemButton:GetItemLocation()
+        and self.focused_from_inventory)
+    then
+        MenuCursor.ContainerFrameHandler.FocusIfOpen()
+    end
 end
 
 function SellTabHandler:OnAction(button)
