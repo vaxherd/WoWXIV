@@ -846,6 +846,8 @@ end
 
 --------------------------------------------------------------------------
 
+-- We unfortunately can't make this class inherit from ScrollingMessageFrame
+-- because that causes taint to block CopyToClipboard().
 local LogWindow = class()
 
 function LogWindow:__constructor()
@@ -972,10 +974,16 @@ function LogWindow:__constructor()
         histindex = (histindex == histlen) and 1 or histindex+1
     end
 
+    -- Copy various things into the frame table for external access (e.g.
+    -- menu cursor).
+    frame.tab_bar = self.tab_bar
+    -- Careful here - "function frame:..." would override self!
+    function frame.ToggleFullscreen(_,...) return self:ToggleFullscreen(...) end
+
     if not KEEP_NATIVE_FRAME then
         ChatFrame1EditBox:ClearAllPoints()
-        ChatFrame1EditBox:SetPoint("LEFT", self.scrollbar, "RIGHT", -5, 0)
-        ChatFrame1EditBox:SetPoint("TOPRIGHT", self.tab_bar, "BOTTOMRIGHT", 8, 0)
+        ChatFrame1EditBox:SetPoint("LEFT", scrollbar, "LEFT", -5, 0)
+        ChatFrame1EditBox:SetPoint("TOPRIGHT", tab_bar, "BOTTOMRIGHT", 8, 0)
     end
 end
 
