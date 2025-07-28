@@ -846,6 +846,24 @@ end
 
 --------------------------------------------------------------------------
 
+-- ScrollingMessageWindow overrides for the log window.
+local FadeLimiterMixin = {}
+
+-- Set the final alpha value for faded lines (0 = transparent, 1 = opaque).
+function FadeLimiterMixin:SetFadeFloor(alpha_floor)
+    self.alpha_floor = alpha_floor
+end
+
+function FadeLimiterMixin:CalculateLineAlphaValueFromTimestamp(now, timestamp)
+    local alpha =
+        ScrollingMessageFrameMixin.CalculateLineAlphaValueFromTimestamp(
+            self, now, timestamp)
+    local alpha_floor = self.alpha_floor or 0
+    return alpha_floor + (alpha * (1 - alpha_floor))
+end
+
+--------------------------------------------------------------------------
+
 -- We unfortunately can't make this class inherit from ScrollingMessageFrame
 -- because that causes taint to block CopyToClipboard().
 local LogWindow = class()
@@ -856,12 +874,15 @@ function LogWindow:__constructor()
     -- from Blizzard code which does not pass down the event ID.
     self.current_event = nil
 
-    local frame = CreateFrame("ScrollingMessageFrame", "WoWXIV_LogWindow",
-                              UIParent)
+    local frame = Mixin(
+        CreateFrame("ScrollingMessageFrame", "WoWXIV_LogWindow", UIParent),
+        FadeLimiterMixin)
     self.frame = frame
     self:InternalSetFullscreen(false)
 
     frame:SetTimeVisible(2*60)
+    frame:SetFadeDuration(2)
+    frame:SetFadeFloor(1/3)
     frame:SetMaxLines(WoWXIV_config["logwindow_history"])
     frame:SetFontObject(ChatFontNormal)
     frame:SetIndentedWordWrap(true)
