@@ -827,6 +827,16 @@ function TabBar:GetActiveTab()
     return self.active_tab and self.tabs[self.active_tab].tab
 end
 
+function TabBar:NextTab()
+    local index = (self.active_tab or 0) + 1
+    self:SetActiveTab(index > #self.tabs and 1 or index)
+end
+
+function TabBar:PrevTab()
+    local index = (self.active_tab or 0) - 1
+    self:SetActiveTab(index < 1 and #self.tabs or index)
+end
+
 function TabBar:OnClick(button, down)
     for index, tab_info in ipairs(self.tabs) do
         if tab_info.frame:IsMouseOver() then

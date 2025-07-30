@@ -23,6 +23,8 @@ end
 function LogWindowHandler:__constructor()
     self:__super(WoWXIV_LogWindow, MenuCursor.MenuFrame.NOAUTOFOCUS)
     self.cancel_func = function() self:OnCancel() end
+    self.on_prev_page = function() self.frame.tab_bar:PrevTab() end
+    self.on_next_page = function() self.frame.tab_bar:NextTab() end
     self.has_Button3 = true  -- Used to toggle fullscreen mode.
     self.targets = {[self.frame.tab_bar] = {is_default = true}}
 
