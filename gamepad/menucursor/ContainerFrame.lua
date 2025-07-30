@@ -949,9 +949,12 @@ end
 
 function InventoryItemSubmenuHandler:SetTargets()
     self.targets = {}
+    local f = self.frame
     local initial
-    for _, button in ipairs(self.frame.buttons) do
-        self.targets[button] = {can_activate = true}
+    for i, button in ipairs(f.buttons) do
+        self.targets[button] = {can_activate = true,
+                                up = f.buttons[i==1 and #f.buttons or i-1],
+                                down = f.buttons[i==#f.buttons and 1 or i+1]}
         local type = button:GetAttribute("type")
         if type then
             -- We can't indirectly click user-created buttons due to taint,
