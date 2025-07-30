@@ -33,8 +33,11 @@ function LogWindowHandler:__constructor()
 end
 
 function LogWindowHandler:OnCancel()
-    self.frame:ToggleFullscreen(false)
     self:Unfocus()
+end
+
+function LogWindowHandler:OnUnfocus()
+    self.frame:ToggleFullscreen(false)
 end
 
 function LogWindowHandler:OnAction(button)
