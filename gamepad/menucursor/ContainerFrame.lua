@@ -923,7 +923,15 @@ end
 local SPELL_DISENCHANT = 13262
 local DISENCHANTABLE_TYPES = {
     [Enum.ItemClass.Weapon] = true,
-    [Enum.ItemClass.Armor] = true,
+    [Enum.ItemClass.Armor] = {
+        [Enum.ItemArmorSubclass.Generic] = true,
+        [Enum.ItemArmorSubclass.Cloth] = true,
+        [Enum.ItemArmorSubclass.Leather] = true,
+        [Enum.ItemArmorSubclass.Mail] = true,
+        [Enum.ItemArmorSubclass.Plate] = true,
+        -- Enum.ItemArmorSubclass.Cosmetic: not disenchantable!
+        [Enum.ItemArmorSubclass.Shield] = true,
+    },
     [Enum.ItemClass.Profession] = true,
     [Enum.ItemClass.Gem] = {
         [Enum.ItemGemSubclass.Artifactrelic] = true,  -- Legion artifact relics
@@ -1100,7 +1108,15 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
         -- may cause the "default behavior" invoked by those commands to
         -- do something different.
         if C_Item.IsEquippableItem(guid) then
-            self:AppendButton(self.menuitem_equip)
+            if C_Item.IsCosmeticItem(guid) then
+                -- FIXME: the standard "item" action tries to equip this,
+                -- which both isn't what we're looking for and doesn't
+                -- learn the appearance (caused by a missing IsCosmeticItem
+                -- check in SecureTemplates.lua:SECURE_ACTIONS.item, line
+                -- 417 in build 11.1.7.61967, reported on 2025-07-30).
+            else
+                self:AppendButton(self.menuitem_equip)
+            end
         elseif info.hasLoot then
             self:AppendButton(self.menuitem_open)
         elseif info.isReadable then
@@ -1124,7 +1140,7 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
     if C_Spell.IsSpellUsable(SPELL_DISENCHANT) then
         local disenchantable = (DISENCHANTABLE_TYPES[item_class]
                                 or DISENCHANTABLE_ITEMS[info.itemID])
-        if type(disenchantable) == table then
+        if type(disenchantable) == "table" then
             disenchantable = disenchantable[item_subclass]
         end
         if info.quality >= Enum.ItemQuality.Legendary then
