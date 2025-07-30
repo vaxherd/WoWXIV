@@ -217,16 +217,17 @@ end
 
 -- Remove the given frame (a MenuFrame instance) from the focus stack.
 -- Does nothing if the given frame is not in the focus stack.  If the
--- removed frame is the current focus, then:
---    - If the frame was a modal frame, focus is given to the next topmost
---      frame (either another modal frame or the topmost non-modal frame).
---    - Otherwise, the cursor becomes inactive.
+-- removed frame is the current focus, then focus is given to the next
+-- topmost frame which allows autofocus (:IsAutoFocus() returns true);
+-- if there is no such frame, the cursor becomes inactive.  If the
+-- selected frame is not on the top of its focus stack, it is raised to
+-- the top.
 function Cursor:RemoveFrame(frame)
     if #self.modal_stack > 0 then
-        self:InternalRemoveFrameFromStack(frame, self.modal_stack, true, true)
-        self:InternalRemoveFrameFromStack(frame, self.focus_stack, false, true)
+        self:InternalRemoveFrameFromStack(frame, self.modal_stack, true)
+        self:InternalRemoveFrameFromStack(frame, self.focus_stack, false)
     else
-        self:InternalRemoveFrameFromStack(frame, self.focus_stack, true, false)
+        self:InternalRemoveFrameFromStack(frame, self.focus_stack, true)
     end
 end
 
@@ -462,8 +463,7 @@ function Cursor:SetCursorTexture()
 end
 
 -- Internal helper for RemoveFrame().
-function Cursor:InternalRemoveFrameFromStack(frame, stack, is_top_stack,
-                                             keep_active)
+function Cursor:InternalRemoveFrameFromStack(frame, stack, is_top_stack)
     for i, v in ipairs(stack) do
         if v and v[1] == frame then
             local had_lock = (self.lock_frame == frame)
@@ -477,7 +477,24 @@ function Cursor:InternalRemoveFrameFromStack(frame, stack, is_top_stack,
             end
             tremove(stack, i)
             if is_focus then
-                if keep_active then
+                local found_focus
+                if stack == self.modal_stack and #stack > 0 then
+                    assert(stack[#stack][1]:IsAutoFocus(),
+                           "Modal frames must be auto-focus")
+                    found_focus = true
+                else
+                    stack = self.focus_stack
+                    for i = #stack, 1, -1 do
+                        if stack[i][1]:IsAutoFocus() then
+                            if i < #stack then
+                                tinsert(stack, tremove(stack, i))
+                            end
+                            found_focus = true
+                            break
+                        end
+                    end
+                end
+                if found_focus then
                     self:SendFocus()
                 else
                     self.cursor_active = false
@@ -1025,24 +1042,41 @@ end
 MenuCursor.MenuFrame = class()
 local MenuFrame = MenuCursor.MenuFrame
 
--- Convenience constant for passing true to the modal argument of the
--- MenuFrame constructor in a way that indicates the argument's meaning.
--- Python-style keyword-only arguments would be nice here.
-MenuFrame.MODAL = true
+-- Constants indicating the focus style of a MenuFrame, passed to the
+-- MenuFrame constructor.
+MenuFrame.MODAL = "MODAL"
+MenuFrame.NOAUTOFOCUS = "NOAUTOFOCUS"
 
 
 -------- Instance constructor
 
 -- Instance constructor.  Pass the WoW Frame instance to be managed.
--- If |modal| is true, the frame will be modal (preventing switching input
--- focus to any non-modal frame while active).
 -- |frame| == nil is permitted only if the instance overrides GetFrame()
 -- or otherwise arranges for instance.frame to have the proper value
 -- whenever the menu cursor is on a target managed by the instance.
 -- (See ContainerFrameHandler for an example.)
-function MenuFrame:__constructor(frame, modal)
+--
+-- |focus_style| indicates special focus behavior for the frame, either
+-- nil (default focus behavior) or one of the following:
+--
+-- - MenuFrame.MODAL: Frame is modal, preventing switching input focus
+--       focus to any non-modal frame while active.
+--
+-- - MenuFrame.NOAUTOFOCUS: The frame should not automatically receive
+--       focus when the frame above it in the focus stack is removed.
+--       (The next frame without this behavior will receive focus.)
+function MenuFrame:__constructor(frame, focus_style)
     self.frame = frame
-    self.modal = modal
+    self.autofocus = true
+    if focus_style then
+        if focus_style == MenuFrame.MODAL then
+            self.modal = true
+        elseif focus_style == MenuFrame.NOAUTOFOCUS then
+            self.autofocus = false
+        else
+            error("Invalid focus style: "..tostring(focus_style))
+        end
+    end
 
     -------- Frame parameters which may be set by specializations:
 
@@ -1170,6 +1204,12 @@ end
 -- Return the WoW Frame instance for this frame.
 function MenuFrame:GetFrame()
     return self.frame
+end
+
+-- Return whether this frame should automatically receive focus when the
+-- frame above it is removed from the stack.
+function MenuFrame:IsAutoFocus()
+    return self.autofocus
 end
 
 -- Return the handlers for previous-page and next-page actions for this frame,
