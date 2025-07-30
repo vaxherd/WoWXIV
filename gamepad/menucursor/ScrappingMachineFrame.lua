@@ -21,6 +21,7 @@ function ScrappingMachineFrameHandler:__constructor()
     assert(#slots == 9)
     for i, button in ipairs(slots) do
         self.targets[button] = {can_activate = true, lock_highlight = true,
+                                send_enter_leave = true,
                                 up = i<=3 and f.ScrapButton or slots[i-3],
                                 down = i>=7 and f.ScrapButton or slots[i+3],
                                 left = slots[i==1 and 9 or i-1],
