@@ -26,9 +26,9 @@ function EncounterJournalHandler.OnAddOnLoaded(class, cursor)
     class.instance_InstanceSelect = InstanceSelectHandler()
     class.instance_LootJournalItems = LootJournalItemsHandler()
     -- InstanceSelect is an odd one: it is used for both the Dungeons and
-    -- Raids tabs, but more importantly it is _always_ shown regardless
-    -- of which tab is active (the other tabs are just layered on top).
-    -- So we omit it from this list and add special handling in the various
+    -- Raids tabs, but more importantly it is left shown even when other
+    -- tabs are active (the other tabs are just layered on top).  So we
+    -- omit it from this list and add special handling in the various
     -- callbacks.
     class.panel_instances = {class.instance_MonthlyActivitiesFrame,
                              class.instance_SuggestFrame,
@@ -53,8 +53,10 @@ function EncounterJournalHandler:OnShow()
             return
         end
     end
-    assert(EncounterJournalInstanceSelect:IsShown())
-    EncounterJournalHandler.instance_InstanceSelect:OnShow()
+    if EncounterJournalInstanceSelect:IsShown() then
+        EncounterJournalHandler.instance_InstanceSelect:OnShow()
+    -- FIXME: else showing dungeon/raid details
+    end
 end
 
 function EncounterJournalHandler:OnHide()
@@ -64,8 +66,10 @@ function EncounterJournalHandler:OnHide()
             return
         end
     end
-    assert(EncounterJournalInstanceSelect:IsShown())
-    EncounterJournalHandler.instance_InstanceSelect:OnHide()
+    if EncounterJournalInstanceSelect:IsShown() then
+        EncounterJournalHandler.instance_InstanceSelect:OnHide()
+    -- FIXME: else showing dungeon/raid details
+    end
 end
 
 function EncounterJournalHandler:OnTabCycle(direction)
