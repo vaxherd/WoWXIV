@@ -27,6 +27,15 @@ function SplashFrameHandler:OnShow()
     __super(self)
 end
 
+function SplashFrameHandler:OnHide()
+    __super(self)
+    -- Suppress the default behavior of (re)opening the game menu after
+    -- closing the splash frame, since we don't use that menu with gamepad.
+    -- (Properly speaking, this ought to be part of the command menu, but
+    -- we don't worry about that for now.)
+    HideUIPanel(GameMenuFrame)
+end
+
 function SplashFrameHandler:SetTargets()
     self.targets = {}
     self:OnUpdate()
