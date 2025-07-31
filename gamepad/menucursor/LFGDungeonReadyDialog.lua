@@ -15,9 +15,13 @@ function LFGDungeonReadyDialogHandler:__constructor()
     self.cancel_button = LFGDungeonReadyDialogCloseButton
     self.targets = {
         [LFGDungeonReadyDialogEnterDungeonButton] = {
-            can_activate = true, lock_highlight = true, is_default = true},
+            can_activate = true, lock_highlight = true, is_default = true,
+            left = LFGDungeonReadyDialogLeaveQueueButton,
+            right = LFGDungeonReadyDialogLeaveQueueButton},
         [LFGDungeonReadyDialogLeaveQueueButton] = {
-            can_activate = true, lock_highlight = true},
+            can_activate = true, lock_highlight = true,
+            left = LFGDungeonReadyDialogEnterDungeonButton,
+            right = LFGDungeonReadyDialogEnterDungeonButton},
     }
 
     -- This is implemented as a subframe of a higher-level dialog frame
