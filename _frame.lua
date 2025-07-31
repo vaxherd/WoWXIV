@@ -78,7 +78,8 @@ module.class = function(...)
         if type(v) == "function" then
             local fenv = getfenv(v)
             for _, name in ipairs(makefenv_hack_names) do
-                fenv[name] = _G[name]
+                -- Must be rawset! (fenv has its own __newindex)
+                rawset(fenv, name, _G[name])
             end
         end
     end

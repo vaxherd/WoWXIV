@@ -536,7 +536,10 @@ REAGENT = {
 
 -- Helper to create an overlay environment table for envcall() or deepcall().
 -- Pass a table of overlay values; the table will be modified as appropriate
--- for passing as the "env" argument to those functions and returned.
+-- for passing as the "env" argument to those functions and returned.  Note
+-- that the returned table is "closed": attempts to store to it (except via
+-- rawset()) will write to the global environment instead!  Make sure the
+-- table is complete before passing it to this function.
 local makefenv_hack_names  -- Defined below.
 function WoWXIV.makefenv(env)
     -- HACK: Some native code seems to rely on having mixin tables present
