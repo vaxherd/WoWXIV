@@ -607,7 +607,8 @@ function AuraBar:OnUnitAura(unit, update_info)
         for _, instance in ipairs(update_info.updatedAuraInstanceIDs) do
             local index = self.instance_map[instance]
             if index then
-                aura_data = C_UnitAuras.GetAuraDataByAuraInstanceID(self.unit, instance)
+                local aura_data = C_UnitAuras.GetAuraDataByAuraInstanceID(
+                    self.unit, instance)
                 if aura_data then  -- sanity check
                     local aura = self.auras[index]
                     local old_expires = aura.expires
