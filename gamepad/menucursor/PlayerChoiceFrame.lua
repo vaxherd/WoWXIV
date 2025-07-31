@@ -186,7 +186,7 @@ end
 
 
 function PlayerChoiceToggleButtonHandler:__constructor(button)
-    __super(self, button)
+    __super(self, button, MenuCursor.MenuFrame.NOAUTOFOCUS)
     self.cancel_func = function()
         -- Leave the button active so we can select it again later.
         self:Unfocus()
