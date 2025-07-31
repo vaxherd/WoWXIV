@@ -202,7 +202,7 @@ function module.class(parent)
     -- reference it as an upvalue, but hidden values are unkind to users.
     class_metatable.methods = methods
 
-    local method_metatable = {__index = _G}
+    local method_metatable = {__index = _G, __newindex = _G}
     class_metatable.__newindex = function(t, k, v)
         if type(v) == "function" then
             -- Define __super() for this specific function.  We need a

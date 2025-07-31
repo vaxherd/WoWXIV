@@ -548,7 +548,7 @@ function WoWXIV.makefenv(env)
     for _, name in ipairs(makefenv_hack_names) do
         env[name] = _G[name]
     end
-    return setmetatable(env, {__index = _G})
+    return setmetatable(env, {__index = _G, __newindex = _G})
 end
 -- NOTE: Make sure _frame.lua is kept in sync with this list!
 makefenv_hack_names = {
