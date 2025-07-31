@@ -6,6 +6,7 @@ local Frame = WoWXIV.Frame
 
 local CLM = WoWXIV.CombatLogManager
 local GetItemInfo = C_Item.GetItemInfo
+local min = math.min
 local strfind = string.find
 local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 local strsub = string.sub
@@ -694,19 +695,37 @@ function LootHandler:__allocator()
 end
 
 function LootHandler:__constructor()
+    -- Is a loot operation in progress?
     self.looting = false
+    -- Is the loot operation an autoloot (whether bugged or not?)
     self.autolooting = false
+    -- State of each loot slot in the active loot operation, used with
+    -- manual autolooting.  Values of each array entry:
+    --    0: loot collected, slot is empty
+    --    1: loot available, not yet manually looted with LootSlot()
+    --    2: loot available, LootSlot() already performed
+    self.loot_slots = nil
 
     self:Hide()
     self:SetScript("OnEvent", self.OnEvent)
     self:RegisterEvent("LOOT_READY")
     self:RegisterEvent("LOOT_OPENED")
     self:RegisterEvent("LOOT_CLOSED")
+    self:RegisterEvent("LOOT_SLOT_CHANGED")
+    self:RegisterEvent("LOOT_SLOT_CLEARED")
+
+    EventRegistry:RegisterCallback(
+        "WoWXIV.AutolootFixTriggered",
+        function(_, type)
+            WoWXIV.LogWindow.AddMessage("WOWXIV_DEBUG",
+                                        "*** Autoloot fix "..type)
+        end)
 end
 
 function LootHandler:OnEvent(event, ...)
     local hide_autoloot = (WoWXIV_config["flytext_enable"]
                            and WoWXIV_config["flytext_hide_autoloot"])
+
     if event == "LOOT_READY" then
         local autoloot = ...
         -- The engine fires two LOOT_READY events, one before and one
@@ -716,49 +735,124 @@ function LootHandler:OnEvent(event, ...)
             -- The autoloot flag is (by all appearances) a signal that
             -- the game _will_ automatically take all loot, not that the
             -- loot frame _should_ automatically LootSlot() each slot,
-            -- so we don't need to do anything more than hide the frame.
-            if autoloot and hide_autoloot then
+            -- so we don't need to do anything more than hide the frame
+            -- if the corresponding setting is enabled.
+            if autoloot then
                 self.autolooting = true
-                LootFrame:UnregisterEvent("LOOT_OPENED")
+                if hide_autoloot then
+                    LootFrame:UnregisterEvent("LOOT_OPENED")
+                end
+                self:UpdateLootSlots()
             end
         else  -- second (or later) LOOT_READY event
             -- There is (since at least 11.0, still present in 11.1.7) a
             -- bug in the engine which seems to "forget" the autoloot state
             -- in certain cases, possibly when a loot item is added to the
-            -- table after the first LOOT_READY but before LOOT_OPENED.
-            -- We can detect that here by comparing against the original
-            -- autoloot flag; if the bug occurs, we work around it by
-            -- performing the autoloot operation ourselves.
+            -- table after the first LOOT_READY but before LOOT_OPENED (or
+            -- perhaps "before the processing which generates LOOT_OPENED
+            -- completes", since the erroneous LOOT_READY can also follow
+            -- LOOT_OPENED).  We can detect that here by comparing against
+            -- the original autoloot flag; if the bug occurs, we work
+            -- around it by performing the autoloot operation ourselves.
             if self.autolooting and not autoloot then
-                for i = 1, GetNumLootItems() do
-                    LootSlot(i)
-                end
+                EventRegistry:TriggerEvent("WoWXIV.AutolootFixTriggered", 1)
+                self:UpdateLootSlots()  -- Add any new slots.
+                self:DoManualAutoloot()
             end
         end
+
     elseif event == "LOOT_OPENED" then
+        local autoloot = ...
         -- On rare occasions, we can get LOOT_OPENED _without_ LOOT_READY;
         -- this has been observed in delves when opening a reward chest at
-        -- roughly the same time as stepping on a collectable pile of gold.
-        -- Treat that as a LOOT_READY, and close LootFrame if it saw the
-        -- event first.
+        -- roughly the same time as stepping on a collectable pile of gold,
+        -- but it may also be related to opening multiple chests in quick
+        -- succession.  We treat this case as a LOOT_READY and LOOT_OPENED
+        -- at the same time, and close LootFrame if it saw the event first.
         if not self.looting then
             self.looting = true
-            if autoloot and hide_autoloot then
+            -- We also have to check for the autoloot bug mentioned above,
+            -- but since we didn't get an initial LOOT_READY to know the
+            -- intended autoloot state, we have to work out what it should
+            -- have been ourselves.
+            local should_autoloot = (C_CVar.GetCVarBool("autoLootDefault")
+                                     ~= IsModifiedClick("AUTOLOOTTOGGLE"))
+            if should_autoloot then
                 self.autolooting = true
-                LootFrame:UnregisterEvent("LOOT_OPENED")
-                LootFrame:Hide()
+                if hide_autoloot then
+                    LootFrame:UnregisterEvent("LOOT_OPENED")
+                    LootFrame:Hide()
+                end
+                if not autoloot then
+                    EventRegistry:TriggerEvent("WoWXIV.AutolootFixTriggered", 2)
+                    self:UpdateLootSlots()
+                    self:DoManualAutoloot()
+                end
+            end
+        else
+            -- In yet another failure mode (though possibly one provoked
+            -- by our LOOT_READY autoloot fix), we can receive LOOT_OPENED
+            -- well after a manual autoloot indicating that some items
+            -- were not successfully looted, which has been observed when
+            -- looting a very large number of corpses at once.  We treat
+            -- this as equivalent to a LOOT_READY and perform another
+            -- manual autoloot pass.
+            if self.autolooting and not autoloot then
+                EventRegistry:TriggerEvent("WoWXIV.AutolootFixTriggered", 3)
+                self:UpdateLootSlots()
+                self:DoManualAutoloot()
             end
         end
+
+    elseif event == "LOOT_SLOT_CHANGED" then
+        local slot = ...
+        -- It's not clear that we need to worry about this, but we
+        -- include it anyway for completeness.
+        if self.loot_slots then
+            self.loot_slots[slot] = 1
+        end
+
+    elseif event == "LOOT_SLOT_CLEARED" then
+        local slot = ...
+        if self.loot_slots then
+            self.loot_slots[slot] = 0
+        end
+
     elseif event == "LOOT_CLOSED" then
         if self.autolooting then
             LootFrame:RegisterEvent("LOOT_OPENED")
         end
         self.looting = false
         self.autolooting = false
+        self.loot_slots = nil
     end
 end
 
--- For debugging / reverse engineering:
+function LootHandler:UpdateLootSlots()
+    local slots = self.loot_slots or {}
+    -- Preserve any 0 entries (indicating cleared slots with no subsequent
+    -- changes), but force any 2 entries to 1 on the assumption that the
+    -- event indicates there's uncollected loot there (confirmed to be
+    -- necessary in 11.1.7: LOOT_READY(num=4) -> LootSlot(4) -> no events
+    -- for slot 4 -> LOOT_OPENED(num=4) with loot remaining in slot 4).
+    self.loot_slots = WoWXIV.maptn(
+        function(i) return min(slots[i] or 1, 1) end, GetNumLootItems())
+end
+
+function LootHandler:DoManualAutoloot(event, ...)
+    -- This behavior is slightly different from native autoloot in that
+    -- it loots everything instantly rather than inserting a small delay
+    -- between each item.  We don't worry about that for the moment.
+    local slots = self.loot_slots
+    for i = 1, #slots do
+        if slots[i] == 1 then
+            LootSlot(i)
+            slots[i] = 2
+        end
+    end
+end
+
+-- For debugging / game behavior analysis:
 if false then
     local f = CreateFrame("Frame")
     f:SetScript("OnEvent", function(frame, event, ...)
