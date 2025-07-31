@@ -179,7 +179,7 @@ function ReputationFrameHandler:OnHide()
     -- frame, but that's awkward, so always hide it when closing the
     -- reputation frame.
     self.frame.ReputationDetailFrame:Hide()
-    MenuCursor.StandardMenuFrame.OnHide(self)
+    __super(self)
 end
 
 function ReputationFrameHandler:RefreshTargets()
@@ -356,11 +356,12 @@ end
 
 function TokenFramePopupHandler:OnShow()
     -- It seems to take a frame before button states are set properly.
-    RunNextFrame(function() MenuCursor.StandardMenuFrame.OnShow(self) end)
+    local __super = __super
+    RunNextFrame(function() __super(self) end)
 end
 
 function TokenFramePopupHandler:OnHide()
-    MenuCursor.StandardMenuFrame.OnHide(self)
+    __super(self)
     -- Work around a Blizzard bug that fails to deselect the currency
     -- when the popup is closed.
     local token = TokenFrame.selectedToken

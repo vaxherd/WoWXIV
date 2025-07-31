@@ -24,7 +24,7 @@ function SplashFrameHandler:OnShow()
         end
         return
     end
-    MenuCursor.CoreMenuFrame.OnShow(self)
+    __super(self)
 end
 
 function SplashFrameHandler:SetTargets()

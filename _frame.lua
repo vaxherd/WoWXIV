@@ -22,19 +22,17 @@ Instances of the derived class can then be created as usual:
 
 Note, however, that because the Lua table representing the instance must
 be created with the CreateFrame() API function, additional arguments to
-CreateFrame() cannot be passed through the usual __super() interface.
+CreateFrame() cannot be passed through the usual constructor interface.
 If any such arguments are required, the class must define an
 __allocator() method and pass those arguments to the base class's
 __allocator() method, using the returned value as the created instance.
-When doing this, the base __allocator() should be called as a _static_
-method rather than as a class method, passing as the first argument
+When doing this, pass as the first argument to the base __allocator()
 (ordinarily the class object itself) the name of the relevant native
 frame type:
 
     MyButton = class(Button)
     function MyButton.__allocator(thisclass)
-        return Button.__allocator("Button", nil, UIParent,
-                                  "UIPanelButtonTemplate")
+        return __super("Button", nil, UIParent, "UIPanelButtonTemplate")
     end
 
 While a bit awkward structurally, this allows classes which do not need

@@ -50,7 +50,7 @@ function QuestFrameHandler:RefreshGreeting()
 end
 
 function QuestFrameHandler:EnterTarget(target)
-    MenuCursor.CoreMenuFrame.EnterTarget(self, target)
+    __super(self, target)
     -- If in the greeting frame, save the ID of the currently selected quest
     -- so we can preserve it across subframe reallocation (see notes in
     -- constructor).

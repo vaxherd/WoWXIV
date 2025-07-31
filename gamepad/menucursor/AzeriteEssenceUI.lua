@@ -42,7 +42,7 @@ end
 function AzeriteEssenceUIHandler:OnShow()
     self.cur_essence = nil
     self.on_list = true
-    MenuCursor.AddOnMenuFrame.OnShow(self)
+    __super(self)
 end
 
 function AzeriteEssenceUIHandler:OnAction(button)
@@ -52,7 +52,7 @@ function AzeriteEssenceUIHandler:OnAction(button)
 end
 
 function AzeriteEssenceUIHandler:EnterTarget(target)
-    MenuCursor.AddOnMenuFrame.EnterTarget(self, target)
+    __super(self, target)
     if self.on_list then
         self.cur_essence = self:GetTargetFrame(target).essenceID
     end

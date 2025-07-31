@@ -198,7 +198,7 @@ end
 end  -- FIXME: 11.2.0 bank revamp
 
 function BankFrameHandler:OnHide()
-    MenuCursor.CoreMenuFrame.OnHide(self)
+    __super(self)
 if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
     self.current_subframe = nil
 end  -- FIXME: 11.2.0 bank revamp

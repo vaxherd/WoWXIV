@@ -27,8 +27,8 @@ function LFGDungeonReadyDialogHandler:__constructor()
     self:HookShow(LFGDungeonReadyPopup)
 end
 
-function LFGDungeonReadyDialogHandler:OnShow()
+function LFGDungeonReadyDialogHandler:OnShow() --FIXME needed?
     if self.frame:IsVisible() then  -- See note in constructor.
-        MenuCursor.CoreMenuFrame.OnShow(self)
+        __super(self)
     end
 end

@@ -18,7 +18,7 @@ PlayerChoiceFrameHandler.ADDON_NAME = "Blizzard_PlayerChoice"
 MenuCursor.Cursor.RegisterFrameHandler(PlayerChoiceFrameHandler)
 
 function PlayerChoiceFrameHandler.OnAddOnLoaded(class)
-    MenuCursor.AddOnMenuFrame.OnAddOnLoaded(class)
+    __super(class)
     class.instance_ToggleButton = PlayerChoiceToggleButtonHandler(GenericPlayerChoiceToggleButton)
     class.instance_TorghastToggleButton = PlayerChoiceToggleButtonHandler(TorghastPlayerChoiceToggleButton)
     class.instance_CypherToggleButton = PlayerChoiceToggleButtonHandler(CypherPlayerChoiceToggleButton)
@@ -51,7 +51,7 @@ end
 
 function PlayerChoiceFrameHandler:OnShow()
     self.current_option = nil
-    MenuCursor.AddOnMenuFrame.OnShow(self)
+    __super(self)
 end
 
 function PlayerChoiceFrameHandler:SetTargets(initial_option)
@@ -205,7 +205,7 @@ function PlayerChoiceToggleButtonHandler:UpdateButtonOffset()
 end
 
 function PlayerChoiceToggleButtonHandler:OnShow()
-    MenuCursor.StandardMenuFrame.OnShow(self)
+    __super(self)
     if PlayerChoiceFrame:IsShown() then
         PlayerChoiceFrameHandler.instance:Focus()
     end

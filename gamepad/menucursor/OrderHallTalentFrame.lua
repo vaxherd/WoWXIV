@@ -41,7 +41,7 @@ function OrderHallTalentFrameHandler:__constructor()
 end
 
 function OrderHallTalentFrameHandler:OnHide()
-    MenuCursor.AddOnMenuFrame.OnHide(self)
+    __super(self)
     -- Clear target info in preparation for the next show event (see notes
     -- in RefreshTargets()).
     self.targets = {}
@@ -283,7 +283,7 @@ function OrderHallTalentFrameHandler:RefreshTargets()
 end
 
 function OrderHallTalentFrameHandler:OnMove(old_target, new_target)
-    MenuCursor.AddOnMenuFrame.OnMove(self, old_target, new_target)
+    __super(self, old_target, new_target)
     if not old_target or not new_target then return end
 
     local old_order = self.talents[old_target.talent.id]

@@ -34,12 +34,12 @@ local global_cursor = nil
 MenuCursor.Cursor = class(Button)
 local Cursor = MenuCursor.Cursor
 
-function Cursor.__allocator(class)
+function Cursor:__allocator()
     -- This is a SecureActionButtonTemplate only so that we can indirectly
     -- click the button pointed to by the cursor without introducing taint;
     -- the cursor is hidden during combat.
-    return Button.__allocator("Button", "WoWXIV_MenuCursor", UIParent,
-                              "SecureActionButtonTemplate")
+    return __super("Button", "WoWXIV_MenuCursor", UIParent,
+                   "SecureActionButtonTemplate")
 end
 
 function Cursor:__constructor()

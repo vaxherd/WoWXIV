@@ -87,9 +87,9 @@ function PVETab:__constructor(frame)
         function(direction) PVEFrameHandler.instance:OnTabCycle(direction) end
 end
 
-function PVETab:OnShow()
+function PVETab:OnShow()  -- FIXME: do we need this?
     if not self.frame:IsVisible() then return end
-    StandardMenuFrame.OnShow(self)
+    __super(self)
 end
 
 ---------------------------------------------------------------------------

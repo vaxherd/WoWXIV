@@ -720,7 +720,7 @@ end
 local TabBar = class(Frame)
 
 function TabBar:__allocator(parent)
-    return Frame.__allocator("Frame", nil, parent)
+    return __super("Frame", nil, parent)
 end
 
 function TabBar:__constructor(parent)

@@ -821,7 +821,7 @@ end
 function ContainerFrameHandler:EnterTarget(target)
     -- Work around item button layout sometimes not completing immediately.
     if target:GetRight() then
-        MenuCursor.MenuFrame.EnterTarget(self, target)
+        __super(self, target)
     else
         RunNextFrame(function() self:EnterTarget(target) end)
     end

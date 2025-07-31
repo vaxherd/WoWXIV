@@ -99,11 +99,11 @@ function MonthlyActivitiesFrameHandler:OnShow()
     -- InstanceSelect is always shown, so we have to send an OnHide() when
     -- we become active.
     EncounterJournalHandler.instance_InstanceSelect:OnHide()
-    MenuCursor.StandardMenuFrame.OnShow(self)
+    __super(self)
 end
 
 function MonthlyActivitiesFrameHandler:OnHide()
-    MenuCursor.StandardMenuFrame.OnHide(self)
+    __super(self)
     -- InstanceSelect is always shown, so it won't get an OnShow() call
     -- here; we have to send that manually.  (Since we send OnHide() in
     -- our own OnShow(), we shouldn't have to worry that it might already
@@ -120,11 +120,11 @@ end
 
 function SuggestFrameHandler:OnShow()
     EncounterJournalHandler.instance_InstanceSelect:OnHide()
-    MenuCursor.StandardMenuFrame.OnShow(self)
+    __super(self)
 end
 
 function SuggestFrameHandler:OnHide()
-    MenuCursor.StandardMenuFrame.OnHide(self)
+    __super(self)
     EncounterJournalHandler.instance_InstanceSelect:OnShow()
 end
 
@@ -144,10 +144,10 @@ end
 
 function LootJournalItemsHandler:OnShow()
     EncounterJournalHandler.instance_InstanceSelect:OnHide()
-    MenuCursor.StandardMenuFrame.OnShow(self)
+    __super(self)
 end
 
 function LootJournalItemsHandler:OnHide()
-    MenuCursor.StandardMenuFrame.OnHide(self)
+    __super(self)
     EncounterJournalHandler.instance_InstanceSelect:OnShow()
 end

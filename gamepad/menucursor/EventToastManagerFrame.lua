@@ -25,7 +25,7 @@ function EventToastManagerFrameHandler:OnShow()
     else
         return
     end
-    MenuCursor.CoreMenuFrame.OnShow(self)
+    __super(self)
 end
 
 local function ClickToast(toast)

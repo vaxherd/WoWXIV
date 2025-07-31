@@ -12,7 +12,7 @@ local CovenantSanctumTalentFrameHandler = class(MenuCursor.MenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(CovenantSanctumFrameHandler)
 
 function CovenantSanctumFrameHandler.OnAddOnLoaded(class)
-    MenuCursor.AddOnMenuFrame.OnAddOnLoaded(class)
+    __super(class)
     class.talent_instance = CovenantSanctumTalentFrameHandler()
 end
 

@@ -163,7 +163,7 @@ function BankBagGetter:Size()
     -- suppress all data when the bank frame is not open.  The bank revamp
     -- in 11.2.0 will make this all moot anyway.
     if not BankFrame:IsShown() then return 0 end
-    return BagGetter.Size(self)
+    return __super(self)
 end
 
 

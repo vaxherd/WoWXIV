@@ -13,7 +13,7 @@ local DelvesCompanionAbilityListFrameHandler = class(MenuCursor.StandardMenuFram
 
 
 function DelvesCompanionConfigurationFrameHandler.Initialize(class, cursor)
-    MenuCursor.CoreMenuFrame.Initialize(class, cursor)
+    __super(class, cursor)
     class.instance_slot = {}
     local dccf = DelvesCompanionConfigurationFrame
     local lists = {dccf.CompanionCombatRoleSlot.OptionsList,

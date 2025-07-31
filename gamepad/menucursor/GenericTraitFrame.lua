@@ -44,11 +44,11 @@ function GenericTraitFrameHandler:OnShow()
     if not self.tree_id or not SUPPORTED_TRAIT_TREES[self.tree_id] then
         return
     end
-    return MenuCursor.AddOnMenuFrame.OnShow(self)
+    return __super(self)
 end
 
 function GenericTraitFrameHandler:OnHide()
-    MenuCursor.AddOnMenuFrame.OnHide(self)
+    __super(self)
     -- Clear target info in preparation for the next show event (see notes
     -- in RefreshTargets()).
     self.targets = {}
@@ -143,7 +143,7 @@ function GenericTraitFrameHandler:RefreshTargets()
 end
 
 function GenericTraitFrameHandler:OnMove(old_target, new_target)
-    MenuCursor.AddOnMenuFrame.OnMove(self, old_target, new_target)
+    __super(self, old_target, new_target)
     self.node_id = new_target and new_target.nodeID
     if not new_target or new_target == old_target then return end
 

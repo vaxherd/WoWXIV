@@ -63,7 +63,7 @@ end
 local CommandMenuItem = class(Button)
 
 function CommandMenuItem:__allocator(parent, text, func)
-    return Button.__allocator("Button", nil, parent)
+    return __super("Button", nil, parent)
 end
 
 function CommandMenuItem:__constructor(parent, text, func)
@@ -83,7 +83,7 @@ function CommandMenuItem:__constructor(parent, text, func)
 end
 
 function CommandMenuItem:SetEnabled(enabled)
-    Button.SetEnabled(self, enabled)
+    __super(self, enabled)
     self.label:SetTextColor(unpack(enabled and COLOR_ACTIVE_TEXT
                                             or COLOR_DISABLED_TEXT))
 end
@@ -95,7 +95,7 @@ end
 local CommandMenuColumn = class(Frame)
 
 function CommandMenuColumn:__allocator(parent, title)
-    return Frame.__allocator("Frame", nil, parent)
+    return __super("Frame", nil, parent)
 end
 
 function CommandMenuColumn:__constructor(parent, title)
@@ -407,7 +407,7 @@ function ContentColumn:Open()
     self:SetItemEnabled("Raid Info",
                         GetNumSavedInstances() + GetNumSavedWorldBosses() > 0,
                         "(You do not have any saved instances.)")
-    CommandMenuColumn.Open(self)
+    __super(self)
 end
 
 
@@ -523,7 +523,7 @@ function SystemColumn:Open()
         end
     end
 
-    CommandMenuColumn.Open(self)
+    __super(self)
 end
 
 ---------------------------------------------------------------------------
@@ -536,8 +536,8 @@ local CommandMenu = Gamepad.CommandMenu
 function CommandMenu:__allocator()
     -- Implemented as a SecureActionButton to allow indirectly clicking
     -- GameMenuFrame buttons.
-    return Button.__allocator("Button", "WoWXIV_CommandMenu", UIParent,
-                              "SecureActionButtonTemplate")
+    return __super("Button", "WoWXIV_CommandMenu", UIParent,
+                   "SecureActionButtonTemplate")
 end
 
 function CommandMenu:__constructor()

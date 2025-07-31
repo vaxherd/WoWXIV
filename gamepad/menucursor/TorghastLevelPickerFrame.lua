@@ -158,8 +158,7 @@ function TorghastLevelPickerFrameHandler:OnLeaveLevel(level)
 end
 
 function TorghastLevelPickerFrameHandler:OnMove(old_target, new_target)
-    MenuCursor.AddOnMenuFrame.OnMove(self, old_target, new_target)
-
+    __super(self, old_target, new_target)
     local f = self.frame
     for i = 1, 3 do
         if self.top_row[i]==new_target or self.bottom_row[i]==new_target then

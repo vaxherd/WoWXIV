@@ -11,7 +11,7 @@ MenuCursor.Cursor.RegisterFrameHandler(PetBattleFrameHandler)
 local PetBattlePetSelectionFrameHandler = class(MenuCursor.StandardMenuFrame)
 
 function PetBattleFrameHandler.Initialize(class, cursor)
-    MenuCursor.CoreMenuFrame.Initialize(class, cursor)
+    __super(class, cursor)
     class.instance_PetSelection = PetBattlePetSelectionFrameHandler()
     -- If we're in the middle of a pet battle, these might already be active!
     if PetBattleFrame:IsVisible() then

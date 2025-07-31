@@ -56,7 +56,7 @@ local enable_raid
 local ClassIcon = class(Frame)
 
 function ClassIcon:__allocator(parent)
-    return Frame.__allocator("Frame", nil, parent)
+    return __super("Frame", nil, parent)
 end
 
 function ClassIcon:__constructor(parent)
@@ -723,7 +723,7 @@ for i, token in ipairs(PARTY_UNIT_TOKENS) do
 end
 
 function PartyList:__allocator()
-    return Frame.__allocator("Frame", "WoWXIV_PartyList", UIParent)
+    return __super("Frame", "WoWXIV_PartyList", UIParent)
 end
 
 function PartyList:__constructor()

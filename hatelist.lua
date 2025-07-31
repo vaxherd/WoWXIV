@@ -14,7 +14,7 @@ local bor = bit.bor
 local Enemy = class(Frame)
 
 function Enemy:__allocator(parent, y)
-    return Frame.__allocator("Frame", nil, parent)
+    return __super("Frame", nil, parent)
 end
 
 function Enemy:__constructor(parent, y)
@@ -149,7 +149,7 @@ end
 local HateList = class(Frame)
 
 function HateList:__allocator()
-    return Frame.__allocator("Frame", "WoWXIV_HateList", UIParent)
+    return __super("Frame", "WoWXIV_HateList", UIParent)
 end
 
 function HateList:__constructor()

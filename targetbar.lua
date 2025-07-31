@@ -12,7 +12,7 @@ local TargetBar = class(Frame)
 
 function TargetBar:__allocator(is_focus)
     local name = is_focus and "WoWXIV_FocusBar" or "WoWXIV_TargetBar"
-    return Frame.__allocator("Frame", name, UIParent)
+    return __super("Frame", name, UIParent)
 end
 
 function TargetBar:__constructor(is_focus)

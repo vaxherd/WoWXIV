@@ -14,7 +14,7 @@ local ItemSubmenuButton = UI.ItemSubmenuButton
 ---------------------------------------------------------------------------
 
 function ItemSubmenu:__allocator()
-    return Frame.__allocator("Frame", nil, UIParent)
+    return __super("Frame", nil, UIParent)
 end
 
 function ItemSubmenu:__constructor()
@@ -134,10 +134,9 @@ end
 
 function ItemSubmenuButton:__allocator(parent, text, secure)
     if secure then
-        return Button.__allocator("Button", nil, parent,
-                                  "SecureActionButtonTemplate")
+        return __super("Button", nil, parent, "SecureActionButtonTemplate")
     else
-        return Button.__allocator("Button", nil, parent)
+        return __super("Button", nil, parent)
     end
 end
 
@@ -159,7 +158,7 @@ function ItemSubmenuButton:__constructor(parent, text, secure)
 end
 
 function ItemSubmenuButton:SetEnabled(enabled)
-    Button.SetEnabled(self, enabled)
+    __super(self, enabled)
     self.label:SetTextColor(
         (enabled and WHITE_FONT_COLOR or GRAY_FONT_COLOR):GetRGB())
 end

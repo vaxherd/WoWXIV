@@ -53,7 +53,7 @@ function MerchantFrameHandler:OnShow()
         self.on_prev_page = nil
         self.on_next_page = nil
     end
-    MenuCursor.CoreMenuFrame.OnShow(self)
+    __super(self)
 end
 
 function MerchantFrameHandler:SetTargets()

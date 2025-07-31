@@ -570,7 +570,7 @@ function QualityDialogHandler:OnHide()
     for _, input in ipairs(self.quantity_inputs) do
         input:CancelEdit()
     end
-    StandardMenuFrame.OnHide(self)
+    __super(self)
 end
 
 function QualityDialogHandler:GetMaxQuantity(index)
@@ -986,7 +986,7 @@ end
 -- Override NextTarget() to limit cursor movement within the skill tree
 -- to adjacent or sibling nodes.
 function SpecPageHandler:NextTarget(target, dir)
-    local next = StandardMenuFrame.NextTarget(self, target, dir)
+    local next = __super(self, target, dir)
     local tree = self.skill_tree
     if not tree then return next end  -- Sanity check, should never happen.
     local edges = tree[target]
@@ -1021,8 +1021,9 @@ function SpecPageHandler:NextTarget(target, dir)
         end
     end
     self.targets = new_targets
+    local __super = __super
     local success, result = pcall(  -- Ensure self.targets is restored.
-        function() return StandardMenuFrame.NextTarget(self, target, dir) end)
+        function() return __super(self, target, dir) end)
     self.targets = saved_targets
     if not success then
         error("Error in NextTarget: "..tostring(result))

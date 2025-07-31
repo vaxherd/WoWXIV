@@ -691,7 +691,7 @@ end
 local LootHandler = class(Frame)
 
 function LootHandler:__allocator()
-    return Frame.__allocator("Frame", "WoWXIV_LootHandler", nil)
+    return __super("Frame", "WoWXIV_LootHandler", nil)
 end
 
 function LootHandler:__constructor()

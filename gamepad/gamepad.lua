@@ -52,7 +52,7 @@ Gamepad.GamepadBoundButton = class(Button)
 local GamepadBoundButton = Gamepad.GamepadBoundButton
 
 function GamepadBoundButton:__allocator(name, ...)
-    return Button.__allocator("Button", name, UIParent, ...)
+    return __super("Button", name, UIParent, ...)
 end
 
 -- Pass (setting,command) pairs to bind.

@@ -66,7 +66,7 @@ function WorldMapFrameHandler:OnShow()
     self.cursor_speed = 0
     self.cursor_highlight = nil
     self:UpdateCursorTarget()
-    CoreMenuFrame.OnShow(self)
+    __super(self)
 end
 
 function WorldMapFrameHandler:OnGamePadButton(button, down)

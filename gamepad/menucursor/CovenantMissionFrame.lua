@@ -244,7 +244,7 @@ function CovenantMissionFrameMissionsHandler:SetTargets(last_target)
 end
 
 function CovenantMissionFrameMissionsHandler:EnterTarget(target)
-    MenuCursor.StandardMenuFrame.EnterTarget(self, target)
+    __super(self, target)
     local params = self.targets[target]
     if params.is_scroll_box then
         self.current = params.id
@@ -354,7 +354,7 @@ function CovenantMissionFrameFollowersHandler:OnAction(button)
 end
 
 function CovenantMissionFrameFollowersHandler:EnterTarget(target)
-    MenuCursor.StandardMenuFrame.EnterTarget(self, target)
+    __super(self, target)
     local params = self.targets[target]
     if params.is_scroll_box then
         self.current = params.id

@@ -332,7 +332,7 @@ end
 
 function CommoditiesBuyFrameHandler:OnHide()
     self.quantity_input:CancelEdit()
-    StandardMenuFrame.OnHide(self)
+    __super(self)
 end
 
 function CommoditiesBuyFrameHandler:SetTargets()
@@ -544,7 +544,7 @@ end
 function SellTabHandler:OnShow(frame)
     self:ClearTarget()
     self.frame = frame
-    StandardMenuFrame.OnShow(self)
+    __super(self)
 end
 
 function SellTabHandler:OnHide(frame)
@@ -553,7 +553,7 @@ function SellTabHandler:OnHide(frame)
     self.silver_input_i:CancelEdit()
     self.gold_input_c:CancelEdit()
     self.silver_input_c:CancelEdit()
-    StandardMenuFrame.OnHide(self)
+    __super(self)
 end
 
 function SellTabHandler:RefreshTargets()
