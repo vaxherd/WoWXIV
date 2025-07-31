@@ -134,7 +134,7 @@ end
 -- Getter for inventory bags.
 local BagGetter = class(ContainerGetter)
 function BagGetter:__constructor(bag_id, name, append_bagname)
-    self:__super(bag_id)
+    __super(self, bag_id)
     self.name = name
     self.append_bagname = append_bagname
 end
@@ -171,7 +171,7 @@ end
 --local
  AccountBagGetter = class(BagGetter)
 function AccountBagGetter:__constructor(tab_index, name)
-    self:__super(Enum.BagIndex.AccountBankTab_1 + (tab_index - 1), name, true)
+    __super(self, Enum.BagIndex.AccountBankTab_1 + (tab_index - 1), name, true)
 end
 function AccountBagGetter:Name()
     local name = self.name
@@ -196,7 +196,7 @@ end
 --local
  VoidGetter = class(ContainerGetter)
 function VoidGetter:__constructor(tab_index)
-    self:__super(nil)
+    __super(self, nil)
     self.tab = tab_index
 end
 function VoidGetter:Name()
@@ -231,7 +231,7 @@ function BankTabGetter:__constructor(bank_type, tab_index, name)
         assert(bank_type == Enum.BankType.Account)
         bag_id_base = Enum.BagIndex.AccountBankTab_1
     end
-    self:__super(bag_id_base + (tab_index - 1))
+    __super(self, bag_id_base + (tab_index - 1))
     self.bank_type = bank_type
     self.name = name
 end

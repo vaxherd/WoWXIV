@@ -10,7 +10,7 @@ local EventToastManagerFrameHandler = class(MenuCursor.CoreMenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(EventToastManagerFrameHandler)
 
 function EventToastManagerFrameHandler:__constructor()
-    self:__super(EventToastManagerFrame)
+    __super(self, EventToastManagerFrame)
     self.cancel_func = nil
     self.cancel_button = self.frame.HideButton
     hooksecurefunc(self.frame, "Reset", function() self:OnHide() end)

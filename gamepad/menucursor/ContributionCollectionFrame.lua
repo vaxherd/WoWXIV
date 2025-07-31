@@ -14,7 +14,7 @@ ContributionCollectionFrameHandler.ADDON_NAME = "Blizzard_Contribution"
 MenuCursor.Cursor.RegisterFrameHandler(ContributionCollectionFrameHandler)
 
 function ContributionCollectionFrameHandler:__constructor()
-    self:__super(ContributionCollectionFrame)
+    __super(self, ContributionCollectionFrame)
     -- We need to hook each contribution option's UpdateRewards() to
     -- refresh our target list because that method uses a release/recreate
     -- strategy which can change the order of reward icons.  This table

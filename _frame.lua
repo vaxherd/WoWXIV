@@ -54,6 +54,40 @@ local _, module = ...
 assert(module.class, "_class.lua must be loaded first")
 
 
+-- HACK: Ugly workaround for WoW engine limitation.  util.lua is not
+-- loaded at this point, so we have to redeclare this ourselves.
+-- See makefenv() for details.
+local makefenv_hack_names = {
+    "ColorMixin",
+    "ItemLocationMixin",
+    "ItemTransmogInfoMixin",
+    "PlayerLocationMixin",
+    "TransmogLocationMixin",
+    "TransmogPendingInfoMixin",
+    "Vector2DMixin",
+    "Vector3DMixin",
+}
+local wrapped_class = module.class
+local ipairs = ipairs
+local type = type
+module.class = function(...)
+    local classdef = wrapped_class(...)
+    local classmeta = getmetatable(classdef)
+    local methods = classmeta.methods
+    local old_newindex = classmeta.__newindex
+    classmeta.__newindex = function(t, k, v)
+        old_newindex(t, k, v)
+        if type(v) == "function" then
+            local fenv = getfenv(v)
+            for _, name in ipairs(makefenv_hack_names) do
+                fenv[name] = _G[name]
+            end
+        end
+    end
+    return classdef
+end
+
+
 local SUPPORTED_CLASSES = {"Button", "Frame"}
 
 for _, frame_type in ipairs(SUPPORTED_CLASSES) do

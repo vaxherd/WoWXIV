@@ -28,7 +28,7 @@ end
 
 function DelvesCompanionConfigurationFrameHandler:__constructor()
     local dccf = DelvesCompanionConfigurationFrame
-    self:__super(dccf)
+    __super(self, dccf)
     local function ClickSlot(frame)
         frame:OnMouseDown("LeftButton", true)
     end
@@ -68,7 +68,7 @@ end
 
 
 function DelvesCompanionConfigurationSlotHandler:__constructor(frame)
-    self:__super(frame)
+    __super(self, frame)
     self.cancel_func = function() frame:Hide() end
 end
 
@@ -96,7 +96,7 @@ end
 
 
 function DelvesCompanionAbilityListFrameHandler:__constructor()
-    self:__super(DelvesCompanionAbilityListFrame)
+    __super(self, DelvesCompanionAbilityListFrame)
     self.cancel_func = self.HideUIFrame
 end
 

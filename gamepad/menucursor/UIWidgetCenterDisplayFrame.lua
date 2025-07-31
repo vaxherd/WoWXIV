@@ -13,7 +13,7 @@ local UIWidgetCenterDisplayFrameHandler = class(MenuCursor.CoreMenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(UIWidgetCenterDisplayFrameHandler)
 
 function UIWidgetCenterDisplayFrameHandler:__constructor()
-    self:__super(UIWidgetCenterDisplayFrame)
+    __super(self, UIWidgetCenterDisplayFrame)
     self.targets = {
         [UIWidgetCenterDisplayFrame.CloseButton] = {
             can_activate = true, lock_highlight = true, is_default = true},

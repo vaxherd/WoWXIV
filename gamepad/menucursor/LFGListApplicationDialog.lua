@@ -10,7 +10,7 @@ local LFGListApplicationDialogHandler = class(MenuCursor.CoreMenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(LFGListApplicationDialogHandler)
 
 function LFGListApplicationDialogHandler:__constructor()
-    self:__super(LFGListApplicationDialog, MenuCursor.MenuFrame.MODAL)
+    __super(self, LFGListApplicationDialog, MenuCursor.MenuFrame.MODAL)
     self.cancel_func = nil
     self.cancel_button = self.frame.CancelButton
 end

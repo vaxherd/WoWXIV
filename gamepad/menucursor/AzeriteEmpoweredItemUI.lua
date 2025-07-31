@@ -11,7 +11,7 @@ AzeriteEmpoweredItemUIHandler.ADDON_NAME = "Blizzard_AzeriteUI"
 MenuCursor.Cursor.RegisterFrameHandler(AzeriteEmpoweredItemUIHandler)
 
 function AzeriteEmpoweredItemUIHandler:__constructor()
-    self:__super(AzeriteEmpoweredItemUI)
+    __super(self, AzeriteEmpoweredItemUI)
     hooksecurefunc(self.frame, "RebuildTiers",
                    function() self:RefreshTargets() end)
     hooksecurefunc(self.frame, "UpdateTiers",

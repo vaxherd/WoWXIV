@@ -31,7 +31,7 @@ end
 
 function PlayerSpellsFrameHandler:__constructor()
     -- Same pattern as e.g. CharacterFrame.
-    self:__super(PlayerSpellsFrame)
+    __super(self, PlayerSpellsFrame)
     self:HookShow(self.frame)
     self:SetTabSystem(self.frame.TabSystem)
 end
@@ -64,7 +64,7 @@ end
 
 
 function SpecFrameHandler:__constructor()
-    self:__super(PlayerSpellsFrame.SpecFrame)
+    __super(self, PlayerSpellsFrame.SpecFrame)
     self.cancel_func = PlayerSpellsFrameHandler.CancelMenu
     self.tab_handler = PlayerSpellsFrameHandler.instance.tab_handler
     self:HookShow(self.frame.DisabledOverlay,
@@ -116,14 +116,14 @@ end
 
 
 function TalentsFrameHandler:__constructor()
-    self:__super(PlayerSpellsFrame.TalentsFrame)
+    __super(self, PlayerSpellsFrame.TalentsFrame)
     self.cancel_func = PlayerSpellsFrameHandler.CancelMenu
     self.tab_handler = PlayerSpellsFrameHandler.instance.tab_handler
 end
 
 
 function SpellBookFrameHandler:__constructor()
-    self:__super(PlayerSpellsFrame.SpellBookFrame)
+    __super(self, PlayerSpellsFrame.SpellBookFrame)
     self.cancel_func = PlayerSpellsFrameHandler.CancelMenu
     self.tab_handler = PlayerSpellsFrameHandler.instance.tab_handler
     self.on_prev_page = self.frame.PagedSpellsFrame.PagingControls.PrevPageButton

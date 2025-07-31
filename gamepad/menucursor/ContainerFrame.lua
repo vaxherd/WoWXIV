@@ -605,7 +605,7 @@ function ContainerFrameHandler:__constructor()
     -- In order to implement page swapping across multiple bag frames, we
     -- deliberately pass a nil frame reference to the base constructor and
     -- manage self.frame on our own.
-    self:__super(nil)
+    __super(self, nil)
     self.cursor_show_item = true
     self.cancel_func = self.OnCancel
     self.has_Button4 = true  -- Used to display item operation submenu.
@@ -943,7 +943,7 @@ local DISENCHANTABLE_ITEMS = {
 }
 
 function InventoryItemSubmenuHandler:__constructor(submenu)
-    self:__super(submenu, MenuCursor.MenuFrame.MODAL)
+    __super(self, submenu, MenuCursor.MenuFrame.MODAL)
     self.cancel_func = function(self) self.frame:Close() end
 end
 
@@ -977,7 +977,7 @@ end
 
 
 function InventoryItemSubmenu:__constructor()
-    self:__super()
+    __super(self)
 
     -- Note that both of these are the same action because "item" resolves
     -- to either "equip" or "use" based on C_Item.IsEquippableItem() (see

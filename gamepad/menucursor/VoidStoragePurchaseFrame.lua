@@ -11,7 +11,7 @@ VoidStoragePurchaseFrameHandler.ADDON_NAME = "Blizzard_VoidStorageUI"
 MenuCursor.Cursor.RegisterFrameHandler(VoidStoragePurchaseFrameHandler)
 
 function VoidStoragePurchaseFrameHandler:__constructor()
-    self:__super(VoidStoragePurchaseFrame)
+    __super(self, VoidStoragePurchaseFrame)
     self.cancel_func = function() HideUIPanel(VoidStorageFrame) end
     self.targets = {
         [VoidStoragePurchaseButton] = {

@@ -14,7 +14,7 @@ function InboxFrameHandler:__constructor()
     -- with arg1 == Enum.PlayerInteractionType.MailInfo (17) for mailbox
     -- handling, but we don't currently have any support for the send UI,
     -- so we isolate our handling to the inbox frame.
-    self:__super(InboxFrame)
+    __super(self, InboxFrame)
     for i = 1, 7 do
         local frame_name = "MailItem" .. i .. "Button"
         local frame = _G[frame_name]

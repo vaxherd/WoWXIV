@@ -19,7 +19,7 @@ function TorghastLevelPickerFrameHandler:__constructor()
     self.top_row = {}     -- Ordered list of level buttons in the top row.
     self.bottom_row = {}  -- Ordered list of level buttons in the bottom row.
 
-    self:__super(TorghastLevelPickerFrame)
+    __super(self, TorghastLevelPickerFrame)
     self.cancel_func = nil
     self.cancel_button = self.frame.CloseButton
     self.on_prev_page = self.frame.Pager.PreviousPage

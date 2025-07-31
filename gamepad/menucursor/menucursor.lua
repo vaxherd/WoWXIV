@@ -2219,7 +2219,7 @@ MenuCursor.StandardMenuFrame = class(MenuFrame)
 local StandardMenuFrame = MenuCursor.StandardMenuFrame
 
 function StandardMenuFrame:__constructor(frame, modal)
-    self:__super(frame, modal)
+    __super(self, frame, modal)
     if frame then self:HookShow(frame) end
     self.cancel_func = MenuFrame.CancelUIFrame
 end
@@ -2323,7 +2323,7 @@ function NumberInput:__constructor(editbox, on_change, on_confirm)
                    "Hide", Cancel)
 
     local f = CreateFrame("Frame")
-    self:__super(f, MenuFrame.MODAL)
+    __super(self, f, MenuFrame.MODAL)
     self.cancel_func = Cancel
     f:Hide()
     f:SetFrameStrata("TOOLTIP") -- Make sure it's visible above other elements.

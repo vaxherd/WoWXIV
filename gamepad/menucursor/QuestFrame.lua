@@ -12,7 +12,7 @@ local QuestFrameHandler = class(MenuCursor.CoreMenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(QuestFrameHandler)
 
 function QuestFrameHandler:__constructor()
-    self:__super(QuestFrame)
+    __super(self, QuestFrame)
     self.cancel_func = CloseQuest
     self:RegisterEvent("QUEST_GREETING")
     self:RegisterEvent("QUEST_DETAIL")

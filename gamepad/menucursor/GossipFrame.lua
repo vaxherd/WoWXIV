@@ -10,7 +10,7 @@ local GossipFrameHandler = class(MenuCursor.CoreMenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(GossipFrameHandler)
 
 function GossipFrameHandler:__constructor()
-    self:__super(GossipFrame)
+    __super(self, GossipFrame)
     self:RegisterEvent("GOSSIP_SHOW")
     self:RegisterEvent("GOSSIP_CONFIRM_CANCEL")
 end

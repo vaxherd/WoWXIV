@@ -18,7 +18,7 @@ function CinematicFrameHandler.Initialize(class, cursor)
 end
 
 function CinematicFrameHandler:__constructor()
-    self:__super(CinematicFrame, MenuCursor.MenuFrame.MODAL)
+    __super(self, CinematicFrame, MenuCursor.MenuFrame.MODAL)
     self.cancel_func = function() self:OnCancel() end
     self.cursor_parent_override = CinematicFrame
     self:RegisterEvent("CINEMATIC_START")
@@ -68,7 +68,7 @@ end
 
 
 function CinematicFrameCloseDialogHandler:__constructor()
-    self:__super(CinematicFrameCloseDialog, MenuCursor.MenuFrame.MODAL)
+    __super(self, CinematicFrameCloseDialog, MenuCursor.MenuFrame.MODAL)
     -- Ideally we'd use confirm/cancel passthrough on these buttons, but
     -- since we have to (insecurely) send events to the cursor manually
     -- (see notes above), we're forced to use on_click and cancel_func

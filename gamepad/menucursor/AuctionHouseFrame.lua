@@ -41,7 +41,7 @@ function AuctionHouseFrameHandler.OnAddOnLoaded(class)
 end
 
 function AuctionHouseFrameHandler:__constructor()
-    self:__super(AuctionHouseFrame)
+    __super(self, AuctionHouseFrame)
     -- AuctionHouseFrame itself is just a holder for the tabs and the
     -- individual tab content pages, so we don't have any menu behavior
     -- of our own.  We still HookShow() because the current tab page
@@ -93,7 +93,7 @@ end
 -------- Auction search frame and results list
 
 function BuyTabHandler:__constructor()
-    self:__super(AuctionHouseFrame.BrowseResultsFrame)
+    __super(self, AuctionHouseFrame.BrowseResultsFrame)
     self.cancel_func = AuctionHouseFrameHandler.CancelMenu
     self.has_Button4 = true  -- Used to toggle favorites on and off.
     self.tab_handler = AuctionHouseFrameHandler.instance.tab_handler
@@ -225,7 +225,7 @@ end
 -------- Purchase window (individual items)
 
 function ItemBuyFrameHandler:__constructor()
-    self:__super(AuctionHouseFrame.ItemBuyFrame)
+    __super(self, AuctionHouseFrame.ItemBuyFrame)
     self.cancel_func = nil
     self.cancel_button = self.frame.BackButton
     self.has_Button3 = true  -- Used to trigger an item list refresh.
@@ -318,7 +318,7 @@ end
 -------- Purchase window (commodities)
 
 function CommoditiesBuyFrameHandler:__constructor()
-    self:__super(AuctionHouseFrame.CommoditiesBuyFrame)
+    __super(self, AuctionHouseFrame.CommoditiesBuyFrame)
     self.cancel_func = nil
     self.cancel_button = self.frame.BackButton
     self.has_Button3 = true  -- Used to trigger an auction list refresh.
@@ -416,7 +416,7 @@ end
 -------- Buy dialog
 
 function BuyDialogHandler:__constructor()
-    self:__super(AuctionHouseFrame.BuyDialog, MenuFrame.MODAL)
+    __super(self, AuctionHouseFrame.BuyDialog, MenuFrame.MODAL)
     -- Hide cursor when buy/cancel buttons are replaced by spinning arrows.
     self:HookShow(self.frame.LoadingSpinner,
                   self.RefreshTargets, self.RefreshTargets)
@@ -468,7 +468,7 @@ function SellTabHandler:__constructor()
     -- implementing separate handlers for each, we just use a single
     -- handler and swap self.frame to whichever one happens to be shown
     -- at the moment.
-    self:__super(nil)
+    __super(self, nil)
     self.sell_frames = {AuctionHouseFrame.ItemSellFrame,
                         AuctionHouseFrame.CommoditiesSellFrame}
     for _, frame in ipairs(self.sell_frames) do
@@ -713,7 +713,7 @@ end
 -------- Auctions list tab
 
 function AuctionsTabHandler:__constructor()
-    self:__super(AuctionHouseFrameAuctionsFrame)
+    __super(self, AuctionHouseFrameAuctionsFrame)
     self.cancel_func = AuctionHouseFrameHandler.CancelMenu
     self.has_Button3 = true  -- Used to trigger an auction list refresh.
     self.tab_handler = AuctionHouseFrameHandler.instance.tab_handler

@@ -13,7 +13,7 @@ DelvesDifficultyPickerFrameHandler.ADDON_NAME = "Blizzard_DelvesDifficultyPicker
 MenuCursor.Cursor.RegisterFrameHandler(DelvesDifficultyPickerFrameHandler)
 
 function DelvesDifficultyPickerFrameHandler:__constructor()
-    self:__super(DelvesDifficultyPickerFrame)
+    __super(self, DelvesDifficultyPickerFrame)
 end
 
 function DelvesDifficultyPickerFrameHandler:OnShow()

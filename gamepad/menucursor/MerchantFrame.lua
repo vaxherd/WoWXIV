@@ -27,7 +27,7 @@ local MerchantFrameHandler = class(MenuCursor.CoreMenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(MerchantFrameHandler)
 
 function MerchantFrameHandler:__constructor()
-    self:__super(MerchantFrame)
+    __super(self, MerchantFrame)
     self.has_Button4 = true  -- Used to purchase multiple of an item.
     self.tab_handler = function(direction) self:OnTabCycle(direction) end
     -- We use the "sell all junk" button (which is always[*] displayed on

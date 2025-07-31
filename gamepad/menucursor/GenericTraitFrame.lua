@@ -30,7 +30,7 @@ function GenericTraitFrameHandler:__constructor()
     self.tree = nil     -- Manually defined tree if needed for movement.
     self.buttons = nil  -- Mapping from talent node ID to button frame.
 
-    self:__super(GenericTraitFrame)
+    __super(self, GenericTraitFrame)
     self.has_Button4 = true  -- Used to remove points from a talent.
     -- The frame uses various events and actions to refresh its display,
     -- using a release/recreate strategy which can change the mapping from

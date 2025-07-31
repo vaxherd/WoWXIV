@@ -25,7 +25,7 @@ OrderHallTalentFrameHandler.ADDON_NAME = "Blizzard_OrderHallUI"
 MenuCursor.Cursor.RegisterFrameHandler(OrderHallTalentFrameHandler)
 
 function OrderHallTalentFrameHandler:__constructor()
-    self:__super(OrderHallTalentFrame)
+    __super(self, OrderHallTalentFrame)
     -- The frame uses various events and actions to refresh its display,
     -- using a release/recreate strategy which can change the mapping from
     -- tree icon to backing frame, so we need to hook the refresh function

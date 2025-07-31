@@ -10,7 +10,7 @@ local SplashFrameHandler = class(MenuCursor.CoreMenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(SplashFrameHandler)
 
 function SplashFrameHandler:__constructor()
-    self:__super(SplashFrame)
+    __super(self, SplashFrame)
 end
 
 function SplashFrameHandler:OnShow()

@@ -11,7 +11,7 @@ MajorFactionRenownFrameHandler.ADDON_NAME = "Blizzard_MajorFactions"
 MenuCursor.Cursor.RegisterFrameHandler(MajorFactionRenownFrameHandler)
 
 function MajorFactionRenownFrameHandler:__constructor()
-    self:__super(MajorFactionRenownFrame)
+    __super(self, MajorFactionRenownFrame)
     self.cancel_func = nil
     self.cancel_button = self.frame.CloseButton
     hooksecurefunc(self.frame, "SetRewards",

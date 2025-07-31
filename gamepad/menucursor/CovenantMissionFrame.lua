@@ -35,11 +35,11 @@ function CovenantMissionFrameHandler.OnAddOnLoaded(class)
 end
 
 function CovenantMissionFrameHandler:__constructor()
-    self:__super(CovenantMissionFrame)
+    __super(self, CovenantMissionFrame)
 end
 
 function CovenantMissionFrameHandler:__constructor()
-    self:__super(CovenantMissionFrame)
+    __super(self, CovenantMissionFrame)
     self.tab_handler = function(direction) self:OnTabCycle(direction) end
 end
 
@@ -78,7 +78,7 @@ end
 
 
 function CovenantMissionFrameMissionsHandler:__constructor()
-    self:__super(CovenantMissionFrameMissions)
+    __super(self, CovenantMissionFrameMissions)
     self.cancel_func = function() HideUIPanel(CovenantMissionFrame) end
     self.tab_handler = CovenantMissionFrameHandler.instance.tab_handler
     hooksecurefunc(self.frame, "UpdateMissions",
@@ -255,7 +255,7 @@ end
 
 
 function CovenantMissionFrameFollowersHandler:__constructor()
-    self:__super(CovenantMissionFrameFollowers)
+    __super(self, CovenantMissionFrameFollowers)
     self.cancel_func = function() self:OnCancel() end
     self.has_Button3 = true  -- Used to switch to the mission tab.
     self.has_Button4 = true  -- Used to add followers to missions.
@@ -365,7 +365,7 @@ end
 
 
 function MissionTabHandler:__constructor()
-    self:__super(CovenantMissionFrame.MissionTab)
+    __super(self, CovenantMissionFrame.MissionTab)
     self.cancel_func = function()
         -- Avoid Disable() to preserve cursor position.
         CovenantMissionFrameHandler.instance_Followers:Enable()
@@ -541,7 +541,7 @@ end
 
 
 function FollowerTabHandler:__constructor()
-    self:__super(CovenantMissionFrame.FollowerTab)
+    __super(self, CovenantMissionFrame.FollowerTab)
     self.cancel_func = function() self:Disable() end
 end
 
@@ -584,7 +584,7 @@ end
 
 
 function CompleteDialogHandler:__constructor()
-    self:__super(CovenantMissionFrameMissions.CompleteDialog,
+    __super(self, CovenantMissionFrameMissions.CompleteDialog,
                  MenuCursor.MenuFrame.MODAL)
     self.cancel_func = nil
 end
@@ -598,7 +598,7 @@ end
 
 
 function MissionCompleteHandler:__constructor()
-    self:__super(CovenantMissionFrame.MissionComplete,
+    __super(self, CovenantMissionFrame.MissionComplete,
                  MenuCursor.MenuFrame.MODAL)
     self.cancel_func = nil
     self:HookShow(self.frame.RewardsScreen.FinalRewardsPanel,
@@ -626,7 +626,7 @@ end
 
 
 function MapTabHandler:__constructor()
-    self:__super(CovenantMissionFrame.MapTab)
+    __super(self, CovenantMissionFrame.MapTab)
     self.cancel_func = function() HideUIPanel(CovenantMissionFrame) end
 end
 

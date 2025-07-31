@@ -43,7 +43,7 @@ function ProfessionsFrameHandler.OnAddOnLoaded(class)
 end
 
 function ProfessionsFrameHandler:__constructor()
-    self:__super(ProfessionsFrame)
+    __super(self, ProfessionsFrame)
     -- ProfessionsFrame itself is just a holder for the tabs and the
     -- individual tab content pages, so we don't have any menu behavior
     -- of our own.  We still HookShow() because the current tab page
@@ -89,7 +89,7 @@ end
 -------- Crafting wrapper frame and recipe list
 
 function CraftingPageHandler:__constructor()
-    self:__super(ProfessionsFrame.CraftingPage)
+    __super(self, ProfessionsFrame.CraftingPage)
     self:RegisterEvent("TRADE_SKILL_LIST_UPDATE")
     self.cancel_func = ProfessionsFrameHandler.CancelMenu
     self.has_Button4 = true  -- Used to toggle the filter dropdown.
@@ -239,7 +239,7 @@ end
 -------- Recipe details frame
 
 function SchematicFormHandler:__constructor()
-    self:__super(ProfessionsFrame.CraftingPage.SchematicForm)
+    __super(self, ProfessionsFrame.CraftingPage.SchematicForm)
     self:HookShow(ProfessionsFrame.CraftingPage.CreateAllButton,
                   self.OnShowCreateAllButton, self.OnHideCreateAllButton)
     self:HookShow(
@@ -539,7 +539,7 @@ end
 
 function QualityDialogHandler:__constructor()
     local QualityDialog = ProfessionsFrame.CraftingPage.SchematicForm.QualityDialog
-    self:__super(QualityDialog)
+    __super(self, QualityDialog)
     self.cancel_func = nil
     self.cancel_button = QualityDialog.CancelButton
     self.on_prev_page = function(dir) self:AdjustQuantity(dir) end
@@ -611,7 +611,7 @@ function ItemFlyoutHandler:__constructor()
     -- this hack to get the frame (which is a singleton).
     local ItemFlyout = OpenProfessionsItemFlyout(UIParent, UIParent)
     CloseProfessionsItemFlyout()
-    self:__super(ItemFlyout)
+    __super(self, ItemFlyout)
     self.cancel_func = CloseProfessionsItemFlyout  -- Blizzard function.
 end
 
@@ -721,7 +721,7 @@ end
 
 function SpecPageHandler:__constructor()
     local SpecPage = ProfessionsFrame.SpecPage
-    self:__super(SpecPage)
+    __super(self, SpecPage)
     self.cancel_func = ProfessionsFrameHandler.CancelMenu
     self.on_prev_page = function() self:CycleTabs(-1) end
     self.on_next_page = function() self:CycleTabs(1) end
@@ -1037,7 +1037,7 @@ end
 
 function DetailedViewHandler:__constructor()
     local DetailedView = ProfessionsFrame.SpecPage.DetailedView
-    self:__super(DetailedView)
+    __super(self, DetailedView)
     -- We need to hook both show and hide events to ensure we end up in
     -- the proper state regardless of the show/hide order.
     self:HookShow(DetailedView.UnlockPathButton,
@@ -1112,7 +1112,7 @@ end
 -------- Order list frame
 
 function OrderListHandler:__constructor()
-    self:__super(ProfessionsFrame.OrdersPage.BrowseFrame)
+    __super(self, ProfessionsFrame.OrdersPage.BrowseFrame)
     self.cancel_func = ProfessionsFrameHandler.CancelMenu
     self.on_prev_page = function() self:CycleTabs(-1) end
     self.on_next_page = function() self:CycleTabs(1) end
@@ -1267,7 +1267,7 @@ end
 -------- Order details frame
 
 function OrderViewHandler:__constructor()
-    self:__super(ProfessionsFrame.OrdersPage.OrderView)
+    __super(self, ProfessionsFrame.OrdersPage.OrderView)
     self.cancel_func = nil
     self:SetTabSystem(ProfessionsFrame.TabSystem)
     -- Use button show events to handle order progression.

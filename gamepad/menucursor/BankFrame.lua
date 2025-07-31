@@ -110,7 +110,7 @@ function BankFrameHandler.Initialize(class, cursor)
 end
 
 function BankFrameHandler:__constructor()
-    self:__super(BankFrame)
+    __super(self, BankFrame)
     self.cursor_show_item = true
     self.cancel_func = self.OnCancel
     self.has_Button4 = true  -- Used to display item operation submenu.
@@ -439,7 +439,7 @@ end
 ---------------------------------------------------------------------------
 
 function BankItemSubmenuHandler:__constructor(submenu)
-    self:__super(submenu, MenuCursor.MenuFrame.MODAL)
+    __super(self, submenu, MenuCursor.MenuFrame.MODAL)
     self.cancel_func = function(self) self.frame:Close() end
 end
 
@@ -455,7 +455,7 @@ end
 
 
 function BankItemSubmenu:__constructor()
-    self:__super()
+    __super(self)
 
     -- "Take out" and "Take all" are the same thing, chosen depending
     -- on whether the item is a stack or not.

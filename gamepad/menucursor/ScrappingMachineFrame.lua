@@ -12,7 +12,7 @@ ScrappingMachineFrameHandler.ADDON_NAME = "Blizzard_ScrappingMachineUI"
 MenuCursor.Cursor.RegisterFrameHandler(ScrappingMachineFrameHandler)
 
 function ScrappingMachineFrameHandler:__constructor()
-    self:__super(ScrappingMachineFrame)
+    __super(self, ScrappingMachineFrame)
     local f = self.frame
     local slots = {}
     for button in f.ItemSlots.scrapButtons:EnumerateActive() do

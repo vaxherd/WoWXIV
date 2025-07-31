@@ -346,7 +346,7 @@ end
 local CharacterColumn = class(CommandMenuColumn)
 
 function CharacterColumn:__constructor(parent)
-    self:__super(parent, "Character")
+    __super(self, parent, "Character")
     self:AddItem("Currency",
                  "View your owned tokens and other currencies.",
                  function() ToggleCharacter("TokenFrame") end)
@@ -381,7 +381,7 @@ end
 local ContentColumn = class(CommandMenuColumn)
 
 function ContentColumn:__constructor(parent)
-    self:__super(parent, "Content")
+    __super(self, parent, "Content")
     self:AddItem("Adventure Guide",
                  "Open the adventure guide.",
                  ToggleEncounterJournal,
@@ -414,7 +414,7 @@ end
 local CollectionsColumn = class(CommandMenuColumn)
 
 function CollectionsColumn:__constructor(parent)
-    self:__super(parent, "Collections")
+    __super(self, parent, "Collections")
     self:AddItem("Mounts",
                  "View the list of mounts you've collected.",
                  function() ToggleCollectionsJournal(COLLECTIONS_JOURNAL_TAB_INDEX_MOUNTS) end,
@@ -440,7 +440,7 @@ end
 local CommunicationColumn = class(CommandMenuColumn)
 
 function CommunicationColumn:__constructor(parent)
-    self:__super(parent, "Communication")
+    __super(self, parent, "Communication")
     self:AddItem("Guild & Communities",
                  "View your current guild, or look for guilds or communities to join.",
                  ToggleGuildFrame,
@@ -454,7 +454,7 @@ end
 local SystemColumn = class(CommandMenuColumn)
 
 function SystemColumn:__constructor(parent)
-    self:__super(parent, "System")
+    __super(self, parent, "System")
     self:AddItem("Support",
                  "Read support articles or ask for help.",
                  ToggleHelpFrame)

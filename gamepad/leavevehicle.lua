@@ -21,7 +21,7 @@ function LeaveVehicleButton:__allocator()
 end
 
 function LeaveVehicleButton:__constructor()
-    self:__super("gamepad_leave_vehicle",
+    __super(self, "gamepad_leave_vehicle",
                  "CLICK WoWXIV_LeaveVehicleButton:LeftButton")
     self:SetScript("OnClick", self.OnClick)
 end

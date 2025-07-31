@@ -28,7 +28,7 @@ MenuCursor.Cursor.RegisterFrameHandler(ChallengesFrameHandler)
 MenuCursor.Cursor.RegisterFrameHandler(DelvesDashboardFrameHandler)
 
 function PVEFrameHandler:__constructor()
-    self:__super(PVEFrame)
+    __super(self, PVEFrame)
     self.tabs = {{PVEFrameTab1, GroupFinderFrameHandler},
                  {PVEFrameTab2, PVPUIFrameHandler},
                  {PVEFrameTab3, ChallengesFrameHandler},
@@ -81,7 +81,7 @@ function PVETab.OnAddOnLoaded(class)
 end
 
 function PVETab:__constructor(frame)
-    self:__super(frame)
+    __super(self, frame)
     self.cancel_func = function() HideUIPanel(PVEFrame) end
     self.tab_handler =
         function(direction) PVEFrameHandler.instance:OnTabCycle(direction) end
@@ -98,7 +98,7 @@ end
 -------- Group finder tab
 
 function GroupFinderFrameHandler:__constructor()
-    self:__super(GroupFinderFrame)
+    __super(self, GroupFinderFrame)
 end
 
 
@@ -106,7 +106,7 @@ end
 
 PVPUIFrameHandler.ADDON_NAME = "Blizzard_PVPUI"
 function PVPUIFrameHandler:__constructor()
-    self:__super(PVPUIFrame)
+    __super(self, PVPUIFrame)
 end
 
 
@@ -114,7 +114,7 @@ end
 
 ChallengesFrameHandler.ADDON_NAME = "Blizzard_ChallengesUI"
 function ChallengesFrameHandler:__constructor()
-    self:__super(ChallengesFrame)
+    __super(self, ChallengesFrame)
 end
 
 
@@ -122,7 +122,7 @@ end
 
 DelvesDashboardFrameHandler.ADDON_NAME = "Blizzard_DelvesDashboardUI"
 function DelvesDashboardFrameHandler:__constructor()
-    self:__super(DelvesDashboardFrame)
+    __super(self, DelvesDashboardFrame)
     local configure = (DelvesDashboardFrame.ButtonPanelLayoutFrame
                        .CompanionConfigButtonPanel.CompanionConfigButton)
     local rewards = (DelvesDashboardFrame.ButtonPanelLayoutFrame

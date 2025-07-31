@@ -12,7 +12,7 @@ MenuCursor.Cursor.RegisterFrameHandler(AchievementFrameHandler)
 
 
 function AchievementFrameHandler:__constructor()
-    self:__super(AchievementFrame)
+    __super(self, AchievementFrame)
     self.tab_handler = function(direction) self:OnTabCycle(direction) end
 end
 

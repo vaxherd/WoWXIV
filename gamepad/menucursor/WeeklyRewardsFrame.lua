@@ -13,7 +13,7 @@ WeeklyRewardsFrameHandler.ADDON_NAME = "Blizzard_WeeklyRewards"
 MenuCursor.Cursor.RegisterFrameHandler(WeeklyRewardsFrameHandler)
 
 function WeeklyRewardsFrameHandler:__constructor()
-    self:__super(WeeklyRewardsFrame)
+    __super(self, WeeklyRewardsFrame)
     self:RegisterEvent("WEEKLY_REWARDS_UPDATE")
 end
 

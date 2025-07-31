@@ -15,7 +15,7 @@ FlightMapFrameHandler.ADDON_NAME = "Blizzard_FlightMap"
 MenuCursor.Cursor.RegisterFrameHandler(FlightMapFrameHandler)
 
 function FlightMapFrameHandler:__constructor()
-    self:__super(FlightMapFrame)
+    __super(self, FlightMapFrame)
     hooksecurefunc(self.frame, "OnMapChanged",
                    function() self:UpdateZoomButton() end)
     hooksecurefunc(self.frame, "OnCanvasScaleChanged",

@@ -11,7 +11,7 @@ ItemSocketingFrameHandler.ADDON_NAME = "Blizzard_ItemSocketingUI"
 MenuCursor.Cursor.RegisterFrameHandler(ItemSocketingFrameHandler)
 
 function ItemSocketingFrameHandler:__constructor()
-    self:__super(ItemSocketingFrame)
+    __super(self, ItemSocketingFrame)
     self.cursor_show_item = true
 end
 

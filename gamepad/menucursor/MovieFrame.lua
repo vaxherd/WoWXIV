@@ -16,13 +16,13 @@ MenuCursor.Cursor.RegisterFrameHandler(MovieFrameCloseDialogHandler)
 -- what to do with gamepad button inputs, and if we press the cancel
 -- button we can actually get the UI displayed again.
 function MovieFrameHandler:__constructor()
-    self:__super(MovieFrame, MenuCursor.MenuFrame.MODAL)
+    __super(self, MovieFrame, MenuCursor.MenuFrame.MODAL)
     self.cancel_func = function() self.frame.CloseDialog:Show() end
 end
 
 
 function MovieFrameCloseDialogHandler:__constructor()
-    self:__super(MovieFrame.CloseDialog, MenuCursor.MenuFrame.MODAL)
+    __super(self, MovieFrame.CloseDialog, MenuCursor.MenuFrame.MODAL)
     self.cancel_func = nil
     self.cancel_button = MovieFrame.CloseDialog.ResumeButton
     self.cursor_parent_override = MovieFrame

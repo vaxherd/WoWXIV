@@ -35,7 +35,7 @@ function CharacterFrameHandler.Initialize(class, cursor)
 end
 
 function CharacterFrameHandler:__constructor()
-    self:__super(CharacterFrame)
+    __super(self, CharacterFrame)
     -- ProfessionsFrame itself is just a holder for the tabs and the
     -- individual tab content pages, so we don't have any menu behavior
     -- of our own.  We still HookShow() because the current tab page
@@ -87,7 +87,7 @@ end
 
 
 function PaperDollFrameHandler:__constructor()
-    self:__super(PaperDollFrame)
+    __super(self, PaperDollFrame)
     self.cancel_func = CharacterFrameHandler.CancelMenu
     self.tab_handler = CharacterFrameHandler.instance.tab_handler
 
@@ -167,7 +167,7 @@ end
 
 
 function ReputationFrameHandler:__constructor()
-    self:__super(ReputationFrame)
+    __super(self, ReputationFrame)
     self.cancel_func = CharacterFrameHandler.CancelMenu
     self.tab_handler = CharacterFrameHandler.instance.tab_handler
     self.has_Button4 = true
@@ -222,7 +222,7 @@ end
 
 
 function ReputationDetailFrameHandler:__constructor()
-    self:__super(ReputationFrame.ReputationDetailFrame)
+    __super(self, ReputationFrame.ReputationDetailFrame)
     self.cancel_func = MenuCursor.MenuFrame.CancelFrame
     self.has_Button4 = true
 
@@ -272,7 +272,7 @@ end
 
 
 function TokenFrameHandler:__constructor()
-    self:__super(TokenFrame)
+    __super(self, TokenFrame)
     self.cancel_func = CharacterFrameHandler.CancelMenu
     self.tab_handler = CharacterFrameHandler.instance.tab_handler
     self.has_Button4 = true
@@ -347,7 +347,7 @@ end
 
 
 function TokenFramePopupHandler:__constructor()
-    self:__super(TokenFramePopup)
+    __super(self, TokenFramePopup)
     self.cancel_func = MenuCursor.MenuFrame.CancelFrame
     self.has_Button4 = true
     hooksecurefunc(self.frame.CurrencyTransferToggleButton, "SetEnabled",
@@ -424,7 +424,7 @@ end
 
 
 function CurrencyTransferLogHandler:__constructor()
-    self:__super(CurrencyTransferLog)
+    __super(self, CurrencyTransferLog)
     self.cancel_func = nil
     self.cancel_button = self.frame.CloseButton
 end
@@ -450,7 +450,7 @@ end
 
 
 function CurrencyTransferMenuHandler:__constructor()
-    self:__super(CurrencyTransferMenu)
+    __super(self, CurrencyTransferMenu)
     local f = self.frame
     self.cancel_func = nil
     self.cancel_button = f.CloseButton

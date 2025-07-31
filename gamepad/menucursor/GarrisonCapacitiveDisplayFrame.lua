@@ -11,7 +11,7 @@ GarrisonCapacitiveDisplayFrameHandler.ADDON_NAME = "Blizzard_GarrisonUI"
 MenuCursor.Cursor.RegisterFrameHandler(GarrisonCapacitiveDisplayFrameHandler)
 
 function GarrisonCapacitiveDisplayFrameHandler:__constructor()
-    self:__super(GarrisonCapacitiveDisplayFrame)
+    __super(self, GarrisonCapacitiveDisplayFrame)
     local f = self.frame
     self.targets = {
         [f.CreateAllWorkOrdersButton] =

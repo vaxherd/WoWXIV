@@ -10,7 +10,7 @@ local BonusRollFrameHandler = class(MenuCursor.CoreMenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(BonusRollFrameHandler)
 
 function BonusRollFrameHandler:__constructor()
-    self:__super(BonusRollFrame)
+    __super(self, BonusRollFrame)
     local f = self.frame.PromptFrame
     self.cancel_button = f.PassButton
     local function DisableSelf() self:Disable() end

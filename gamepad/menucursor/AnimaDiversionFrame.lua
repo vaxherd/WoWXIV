@@ -11,7 +11,7 @@ AnimaDiversionFrameHandler.ADDON_NAME = "Blizzard_AnimaDiversionUI"
 MenuCursor.Cursor.RegisterFrameHandler(AnimaDiversionFrameHandler)
 
 function AnimaDiversionFrameHandler:__constructor()
-    self:__super(AnimaDiversionFrame)
+    __super(self, AnimaDiversionFrame)
 end
 
 function AnimaDiversionFrameHandler:SetTargets()

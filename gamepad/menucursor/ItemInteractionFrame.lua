@@ -14,7 +14,7 @@ ItemInteractionFrameHandler.ADDON_NAME = "Blizzard_ItemInteractionUI"
 MenuCursor.Cursor.RegisterFrameHandler(ItemInteractionFrameHandler)
 
 function ItemInteractionFrameHandler:__constructor()
-    self:__super(ItemInteractionFrame)
+    __super(self, ItemInteractionFrame)
     self.has_Button4 = true  -- To clear the selected item (like right-click).
     self:HookShow(self.frame.CurrencyCost,
                   self.RefreshTargets, self.RefreshTargets)

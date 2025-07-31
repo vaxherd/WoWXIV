@@ -429,7 +429,7 @@ function QuestItemButton:__allocator()
 end
 
 function QuestItemButton:__constructor()
-    self:__super("gamepad_use_quest_item",
+    __super(self, "gamepad_use_quest_item",
                  "CLICK WoWXIV_QuestItemButton:LeftButton",
                  "gamepad_select_quest_item",
                  "CLICK WoWXIV_QuestItemButton:RightButton")

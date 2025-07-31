@@ -15,7 +15,7 @@ function StackSplitFrameHandler:__constructor()
     local OkayButton = StackSplitFrame.OkayButton
     local CancelButton = StackSplitFrame.CancelButton
 
-    self:__super(StackSplitFrame, MenuCursor.MenuFrame.MODAL)
+    __super(self, StackSplitFrame, MenuCursor.MenuFrame.MODAL)
     self.cancel_func = nil
     self.cancel_button = CancelButton
     -- The frame has convenient increment/decrement buttons, so we just

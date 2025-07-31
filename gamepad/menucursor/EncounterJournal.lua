@@ -37,7 +37,7 @@ end
 
 function EncounterJournalHandler:__constructor()
     -- Same pattern as e.g. CharacterFrame.
-    self:__super(EncounterJournal)
+    __super(self, EncounterJournal)
     self:HookShow(EncounterJournal)
     self.tab_handler = function(direction) self:OnTabCycle(direction) end
 end
@@ -90,7 +90,7 @@ end
 
 
 function MonthlyActivitiesFrameHandler:__constructor()
-    self:__super(EncounterJournalMonthlyActivitiesFrame)
+    __super(self, EncounterJournalMonthlyActivitiesFrame)
     self.cancel_func = EncounterJournalHandler.CancelMenu
     self.tab_handler = EncounterJournalHandler.instance.tab_handler
 end
@@ -113,7 +113,7 @@ end
 
 
 function SuggestFrameHandler:__constructor()
-    self:__super(EncounterJournalSuggestFrame)
+    __super(self, EncounterJournalSuggestFrame)
     self.cancel_func = EncounterJournalHandler.CancelMenu
     self.tab_handler = EncounterJournalHandler.instance.tab_handler
 end
@@ -130,14 +130,14 @@ end
 
 
 function InstanceSelectHandler:__constructor()
-    self:__super(EncounterJournalInstanceSelect)
+    __super(self, EncounterJournalInstanceSelect)
     self.cancel_func = EncounterJournalHandler.CancelMenu
     self.tab_handler = EncounterJournalHandler.instance.tab_handler
 end
 
 
 function LootJournalItemsHandler:__constructor()
-    self:__super(EncounterJournal.LootJournalItems)
+    __super(self, EncounterJournal.LootJournalItems)
     self.cancel_func = EncounterJournalHandler.CancelMenu
     self.tab_handler = EncounterJournalHandler.instance.tab_handler
 end

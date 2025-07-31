@@ -12,7 +12,7 @@ local OpenMailFrameHandler = class(MenuCursor.CoreMenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(OpenMailFrameHandler)
 
 function OpenMailFrameHandler:__constructor()
-    self:__super(OpenMailFrame)
+    __super(self, OpenMailFrame)
     -- Note that the Hide event appears to fire sporadically even when the
     -- frame isn't shown in the first place.  RemoveFrame() ignores frames
     -- not in the focus list, so this isn't a problem for us and we don't

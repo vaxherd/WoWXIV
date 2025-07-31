@@ -11,7 +11,7 @@ AzeriteEssenceUIHandler.ADDON_NAME = "Blizzard_AzeriteEssenceUI"
 MenuCursor.Cursor.RegisterFrameHandler(AzeriteEssenceUIHandler)
 
 function AzeriteEssenceUIHandler:__constructor()
-    self:__super(AzeriteEssenceUI)
+    __super(self, AzeriteEssenceUI)
     self.cancel_func = function() self:OnCancel() end
     self.has_Button3 = true  -- Used to toggle between slots and essence list.
 

@@ -39,7 +39,7 @@ end
 
 function CollectionsJournalHandler:__constructor()
     -- Same pattern as e.g. CharacterFrame.
-    self:__super(CollectionsJournal)
+    __super(self, CollectionsJournal)
     self:HookShow(CollectionsJournal)
     self.tab_handler = function(direction) self:OnTabCycle(direction) end
 end
@@ -80,21 +80,21 @@ end
 
 
 function MountJournalHandler:__constructor()
-    self:__super(MountJournal)
+    __super(self, MountJournal)
     self.cancel_func = CollectionsJournalHandler.CancelMenu
     self.tab_handler = CollectionsJournalHandler.instance.tab_handler
 end
 
 
 function PetJournalHandler:__constructor()
-    self:__super(PetJournal)
+    __super(self, PetJournal)
     self.cancel_func = CollectionsJournalHandler.CancelMenu
     self.tab_handler = CollectionsJournalHandler.instance.tab_handler
 end
 
 
 function ToyBoxHandler:__constructor()
-    self:__super(ToyBox)
+    __super(self, ToyBox)
     self.cancel_func = CollectionsJournalHandler.CancelMenu
     self.tab_handler = CollectionsJournalHandler.instance.tab_handler
     self.on_prev_page = self.frame.PagingFrame.PrevPageButton
@@ -160,7 +160,7 @@ end
 
 
 function HeirloomsJournalHandler:__constructor()
-    self:__super(HeirloomsJournal)
+    __super(self, HeirloomsJournal)
     self.cancel_func = CollectionsJournalHandler.CancelMenu
     self.tab_handler = CollectionsJournalHandler.instance.tab_handler
     self.on_prev_page = self.frame.PagingFrame.PrevPageButton
@@ -169,7 +169,7 @@ end
 
 
 function WardrobeCollectionFrameHandler:__constructor()
-    self:__super(WardrobeCollectionFrame)
+    __super(self, WardrobeCollectionFrame)
     self.cancel_func = CollectionsJournalHandler.CancelMenu
     self.tab_handler = CollectionsJournalHandler.instance.tab_handler
     self.on_prev_page =
@@ -180,7 +180,7 @@ end
 
 
 function WarbandSceneJournalHandler:__constructor()
-    self:__super(WarbandSceneJournal)
+    __super(self, WarbandSceneJournal)
     self.cancel_func = CollectionsJournalHandler.CancelMenu
     self.tab_handler = CollectionsJournalHandler.instance.tab_handler
     local PagingControls = self.frame.IconsFrame.Icons.Controls.PagingControls

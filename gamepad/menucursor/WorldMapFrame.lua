@@ -35,7 +35,7 @@ function WorldMapFrameHandler:__constructor()
     -- Highlight pin currently under cursor, if any.
     self.cursor_highlight = nil
 
-    self:__super(WorldMapFrame)
+    __super(self, WorldMapFrame)
     self.has_Button3 = true
 
     -- Dummy frame we use to provide a target for the map cursor.

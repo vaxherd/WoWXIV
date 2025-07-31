@@ -11,7 +11,7 @@ ProfessionsBookFrameHandler.ADDON_NAME = "Blizzard_ProfessionsBook"
 MenuCursor.Cursor.RegisterFrameHandler(ProfessionsBookFrameHandler)
 
 function ProfessionsBookFrameHandler:__constructor()
-    self:__super(ProfessionsBookFrame)
+    __super(self, ProfessionsBookFrame)
 end
 
 local PROFESSION_BUTTONS_P = {

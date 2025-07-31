@@ -550,6 +550,7 @@ function WoWXIV.makefenv(env)
     end
     return setmetatable(env, {__index = _G})
 end
+-- NOTE: Make sure _frame.lua is kept in sync with this list!
 makefenv_hack_names = {
     "ColorMixin",
     "ItemLocationMixin",

@@ -34,7 +34,7 @@ function OrderHallMissionFrameHandler.OnAddOnLoaded(class)
 end
 
 function OrderHallMissionFrameHandler:__constructor()
-    self:__super(OrderHallMissionFrame)
+    __super(self, OrderHallMissionFrame)
     self.tab_handler = function(direction) self:OnTabCycle(direction) end
 end
 
@@ -65,7 +65,7 @@ end
 
 
 function OrderHallMissionFrameMissionsHandler:__constructor()
-    self:__super(OrderHallMissionFrameMissions)
+    __super(self, OrderHallMissionFrameMissions)
     self.cancel_func = function() HideUIPanel(OrderHallMissionFrame) end
     self.on_prev_page = function() self:ChangePage() end
     self.on_next_page = self.on_prev_page
@@ -245,7 +245,7 @@ end
 
 
 function OrderHallMissionFrameFollowersHandler:__constructor()
-    self:__super(OrderHallMissionFrameFollowers)
+    __super(self, OrderHallMissionFrameFollowers)
     self.cancel_func = function() self:OnCancel() end
     self.has_Button4 = true  -- Used to remove followers from missions.
     self.tab_handler = OrderHallMissionFrameHandler.instance.tab_handler
@@ -323,7 +323,7 @@ end
 
 
 function MissionPageHandler:__constructor()
-    self:__super(OrderHallMissionFrame.MissionTab.MissionPage)
+    __super(self, OrderHallMissionFrame.MissionTab.MissionPage)
     self.cancel_func = function() self:Disable() end
 end
 
@@ -371,7 +371,7 @@ end
 
 
 function ZoneSupportMissionPageHandler:__constructor()
-    self:__super(OrderHallMissionFrame.MissionTab.ZoneSupportMissionPage)
+    __super(self, OrderHallMissionFrame.MissionTab.ZoneSupportMissionPage)
     self.cancel_func = function() self:Disable() end
 end
 
@@ -400,7 +400,7 @@ end
 
 
 function FollowerTabHandler:__constructor()
-    self:__super(OrderHallMissionFrame.FollowerTab)
+    __super(self, OrderHallMissionFrame.FollowerTab)
     self.cancel_func = function() self:Disable() end
 end
 
@@ -476,7 +476,7 @@ end
 
 
 function CompleteDialogHandler:__constructor()
-    self:__super(OrderHallMissionFrameMissions.CompleteDialog,
+    __super(self, OrderHallMissionFrameMissions.CompleteDialog,
                  MenuCursor.MenuFrame.MODAL)
     self.cancel_func = nil
 end
@@ -490,7 +490,7 @@ end
 
 
 function MissionCompleteHandler:__constructor()
-    self:__super(OrderHallMissionFrame.MissionComplete,
+    __super(self, OrderHallMissionFrame.MissionComplete,
                  MenuCursor.MenuFrame.MODAL)
     self.cancel_func = nil
     self:HookShow(self.frame.BonusRewards.ChestModel.ClickFrame,
@@ -524,7 +524,7 @@ end
 
 
 function MapTabHandler:__constructor()
-    self:__super(OrderHallMissionFrame.MapTab)
+    __super(self, OrderHallMissionFrame.MapTab)
     self.cancel_func = function() HideUIPanel(OrderHallMissionFrame) end
 end
 

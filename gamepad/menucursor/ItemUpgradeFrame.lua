@@ -14,7 +14,7 @@ ItemUpgradeFrameHandler.ADDON_NAME = "Blizzard_ItemUpgradeUI"
 MenuCursor.Cursor.RegisterFrameHandler(ItemUpgradeFrameHandler)
 
 function ItemUpgradeFrameHandler:__constructor()
-    self:__super(ItemUpgradeFrame)
+    __super(self, ItemUpgradeFrame)
     self.has_Button4 = true  -- To clear the selected item (like right-click).
     self:HookShow(self.frame.ItemInfo.Dropdown,
                   self.RefreshTargets, self.RefreshTargets)

@@ -11,7 +11,7 @@ ClassTrainerFrameHandler.ADDON_NAME = "Blizzard_TrainerUI"
 MenuCursor.Cursor.RegisterFrameHandler(ClassTrainerFrameHandler)
 
 function ClassTrainerFrameHandler:__constructor()
-    self:__super(ClassTrainerFrame)
+    __super(self, ClassTrainerFrame)
     self:RegisterEvent("TRAINER_UPDATE")
 end
 

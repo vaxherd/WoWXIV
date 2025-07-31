@@ -23,7 +23,7 @@ function PetBattleFrameHandler.Initialize(class, cursor)
 end
 
 function PetBattleFrameHandler:__constructor()
-    self:__super(PetBattleFrame)
+    __super(self, PetBattleFrame)
     self.cancel_func = function()
         self:SetTarget(PetBattleFrame.BottomFrame.ForfeitButton)
     end
@@ -113,7 +113,7 @@ end
 
 function PetBattlePetSelectionFrameHandler:__constructor()
     local psf = PetBattleFrame.BottomFrame.PetSelectionFrame
-    self:__super(psf, self.MODAL)
+    __super(self, psf, self.MODAL)
     self.cancel_func = nil
 end
 

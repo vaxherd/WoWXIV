@@ -10,7 +10,7 @@ local LFGDungeonReadyDialogHandler = class(MenuCursor.CoreMenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(LFGDungeonReadyDialogHandler)
 
 function LFGDungeonReadyDialogHandler:__constructor()
-    self:__super(LFGDungeonReadyDialog, MenuCursor.MenuFrame.MODAL)
+    __super(self, LFGDungeonReadyDialog, MenuCursor.MenuFrame.MODAL)
     self.cancel_func = nil
     self.cancel_button = LFGDungeonReadyDialogCloseButton
     self.targets = {

@@ -17,7 +17,7 @@ function CovenantSanctumFrameHandler.OnAddOnLoaded(class)
 end
 
 function CovenantSanctumFrameHandler:__constructor()
-    self:__super(CovenantSanctumFrame)
+    __super(self, CovenantSanctumFrame)
     local function ChooseTalent(button)
         self:OnChooseTalent(button)
     end
@@ -43,7 +43,7 @@ function CovenantSanctumFrameHandler:OnChooseTalent(upgrade_button)
 end
 
 function CovenantSanctumTalentFrameHandler:__constructor()
-    self:__super(CovenantSanctumFrame)
+    __super(self, CovenantSanctumFrame)
     self.cancel_func = function(self) self:Disable() end
 end
 

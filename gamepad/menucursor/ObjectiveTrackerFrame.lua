@@ -10,7 +10,7 @@ local ObjectiveTrackerFrameHandler = class(MenuCursor.CoreMenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(ObjectiveTrackerFrameHandler)
 
 function ObjectiveTrackerFrameHandler:__constructor()
-    self:__super(ObjectiveTrackerFrame, MenuCursor.MenuFrame.NOAUTOFOCUS)
+    __super(self, ObjectiveTrackerFrame, MenuCursor.MenuFrame.NOAUTOFOCUS)
     self.cancel_func = function() self:Unfocus() end
     self.has_Button3 = true  -- Used to toggle quest tracking.
     self.has_Button4 = true  -- Used to open objective submenus.

@@ -13,7 +13,7 @@ AdventureMapQuestChoiceDialogHandler.ADDON_NAME = "Blizzard_AdventureMap"
 MenuCursor.Cursor.RegisterFrameHandler(AdventureMapQuestChoiceDialogHandler)
 
 function AdventureMapQuestChoiceDialogHandler:__constructor()
-    self:__super(AdventureMapQuestChoiceDialog, MenuCursor.MenuFrame.MODAL)
+    __super(self, AdventureMapQuestChoiceDialog, MenuCursor.MenuFrame.MODAL)
     self.cancel_func = nil
     self.cancel_button = AdventureMapQuestChoiceDialog.DeclineButton
 end

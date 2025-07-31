@@ -10,7 +10,7 @@ local LFGListInviteDialogHandler = class(MenuCursor.CoreMenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(LFGListInviteDialogHandler)
 
 function LFGListInviteDialogHandler:__constructor()
-    self:__super(LFGListInviteDialog, MenuCursor.MenuFrame.MODAL)
+    __super(self, LFGListInviteDialog, MenuCursor.MenuFrame.MODAL)
     self.cancel_func = nil
 end
 
