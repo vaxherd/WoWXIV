@@ -95,9 +95,10 @@ function TorghastLevelPickerFrameHandler:SetTargets(last_target)
     end
     table.sort(top_row, function(a,b) return a:GetLeft() < b:GetLeft() end)
     table.sort(bottom_row, function(a,b) return a:GetLeft() < b:GetLeft() end)
+    local last_row = #bottom_row > 0 and bottom_row or top_row
     for i, button in ipairs(top_row) do
-        self.targets[button].left = top_row[i>1 and i-1 or #top_row]
-        self.targets[button].right = top_row[i<#top_row and i+1 or 1]
+        self.targets[button].left = i>1 and top_row[i-1] or last_row[#last_row]
+        self.targets[button].right = i<#top_row and top_row[i+1] or last_row[1]
         self.targets[button].up = ClimbButton
         if #bottom_row == 0 then
             self.targets[button].down = ClimbButton
@@ -109,8 +110,10 @@ function TorghastLevelPickerFrameHandler:SetTargets(last_target)
         end
     end
     for i, button in ipairs(bottom_row) do
-        self.targets[button].left = bottom_row[i>1 and i-1 or #bottom_row]
-        self.targets[button].right = bottom_row[i<#bottom_row and i+1 or 1]
+        self.targets[button].left =
+            i>1 and bottom_row[i-1] or top_row[#top_row]
+        self.targets[button].right =
+            i<#bottom_row and bottom_row[i+1] or top_row[1]
         self.targets[button].up = top_row[i]
         self.targets[button].down = ClimbButton
         if i == 1 then
