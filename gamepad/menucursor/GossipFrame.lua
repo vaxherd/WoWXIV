@@ -21,9 +21,6 @@ function GossipFrameHandler:OnShow()
     -- No-op.
 end
 function GossipFrameHandler:GOSSIP_SHOW()
-    if not GossipFrame:IsVisible() then
-        return  -- Flight map, etc.
-    end
     MenuCursor.CoreMenuFrame.OnShow(self)
 end
 

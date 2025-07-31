@@ -1,7 +1,6 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local Cursor = MenuCursor.Cursor
 
 local class = WoWXIV.class
 

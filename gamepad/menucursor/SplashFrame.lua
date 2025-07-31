@@ -32,9 +32,8 @@ function SplashFrameHandler:SetTargets()
     self:OnUpdate()
 end
 
-local CoreMenuFrame_OnUpdate = MenuCursor.CoreMenuFrame.OnUpdate
 function SplashFrameHandler:OnUpdate(target_frame)
-    CoreMenuFrame_OnUpdate(self, target_frame)
+    __super(self, target_frame)
     local StartQuestButton = SplashFrame.RightFeature.StartQuestButton
     local BottomCloseButton = SplashFrame.BottomCloseButton
     if not self.targets[StartQuestButton] and StartQuestButton:IsVisible() then

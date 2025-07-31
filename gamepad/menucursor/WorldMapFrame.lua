@@ -1,7 +1,6 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local CoreMenuFrame = MenuCursor.CoreMenuFrame
 
 local class = WoWXIV.class
 
@@ -13,7 +12,7 @@ local strsub = string.sub
 
 ---------------------------------------------------------------------------
 
-local WorldMapFrameHandler = class(CoreMenuFrame)
+local WorldMapFrameHandler = class(MenuCursor.CoreMenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(WorldMapFrameHandler)
 
 

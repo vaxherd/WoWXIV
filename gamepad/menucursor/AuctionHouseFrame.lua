@@ -1,7 +1,6 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local MenuFrame = MenuCursor.MenuFrame
 local StandardMenuFrame = MenuCursor.StandardMenuFrame
 
 local class = WoWXIV.class
@@ -12,7 +11,7 @@ local tinsert = tinsert
 
 local cache_SellDurationDropdown = {}
 
-local AuctionHouseFrameHandler = class(MenuFrame)
+local AuctionHouseFrameHandler = class(MenuCursor.MenuFrame)
 MenuCursor.AuctionHouseFrameHandler = AuctionHouseFrameHandler  -- For exports.
 MenuCursor.Cursor.RegisterFrameHandler(AuctionHouseFrameHandler)
 local BuyTabHandler = class(StandardMenuFrame)
@@ -416,7 +415,7 @@ end
 -------- Buy dialog
 
 function BuyDialogHandler:__constructor()
-    __super(self, AuctionHouseFrame.BuyDialog, MenuFrame.MODAL)
+    __super(self, AuctionHouseFrame.BuyDialog, MenuCursor.MenuFrame.MODAL)
     -- Hide cursor when buy/cancel buttons are replaced by spinning arrows.
     self:HookShow(self.frame.LoadingSpinner,
                   self.RefreshTargets, self.RefreshTargets)

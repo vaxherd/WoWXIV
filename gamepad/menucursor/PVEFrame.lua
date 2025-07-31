@@ -1,7 +1,6 @@
 local _, WoWXIV = ...
 assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
-local StandardMenuFrame = MenuCursor.StandardMenuFrame
 
 local class = WoWXIV.class
 
@@ -16,7 +15,7 @@ local tinsert = tinsert
 -- common behaviors for all subframes.
 
 local PVEFrameHandler = class(MenuCursor.CoreMenuFrame)
-local PVETab = class(StandardMenuFrame)
+local PVETab = class(MenuCursor.StandardMenuFrame)
 local GroupFinderFrameHandler = class(PVETab)
 local PVPUIFrameHandler = class(PVETab)
 local ChallengesFrameHandler = class(PVETab)
@@ -85,11 +84,6 @@ function PVETab:__constructor(frame)
     self.cancel_func = function() HideUIPanel(PVEFrame) end
     self.tab_handler =
         function(direction) PVEFrameHandler.instance:OnTabCycle(direction) end
-end
-
-function PVETab:OnShow()  -- FIXME: do we need this?
-    if not self.frame:IsVisible() then return end
-    __super(self)
 end
 
 ---------------------------------------------------------------------------
