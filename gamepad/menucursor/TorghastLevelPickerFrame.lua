@@ -124,7 +124,11 @@ function TorghastLevelPickerFrameHandler:SetTargets(last_target)
     self.top_row = top_row
     self.bottom_row = bottom_row
 
-    return (was_level_target and top_row[1]) or last_target or top_row[1]
+    -- If this is the first call and no button is active, we probably have
+    -- all levels unlocked, so default to the last button (highest level).
+    return (was_level_target and top_row[1])
+        or last_target
+        or last_row[#last_row]
 end
 
 function TorghastLevelPickerFrameHandler:OnEnterLevel(level)
