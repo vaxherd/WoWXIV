@@ -177,6 +177,28 @@ local MESSAGE_TYPES = {
                             "CLM_SPELL_LEECH.*:self",
                             "CLM_SPELL_INSTAKILL.*:self"},
 
+    Combat_Attack_Party = {"CLM_SWING_DAMAGE.party",
+                           "CLM_SWING_MISSED.party",
+                           "CLM_RANGE_DAMAGE.party",
+                           "CLM_RANGE_MISSED.party",
+                           "CLM_SPELL_DAMAGE.party",
+                           "CLM_SPELL_MISSED.party",
+                           "CLM_SPELL_DRAIN.party",
+                           "CLM_SPELL_LEECH.party",
+                           "CLM_SPELL_BUILDING_DAMAGE.party",
+                           "CLM_SPELL_INSTAKILL.party"},
+
+
+    Combat_Attack_ToParty = {"CLM_SWING_DAMAGE.*:party",
+                             "CLM_SWING_MISSED.*:party",
+                             "CLM_RANGE_DAMAGE.*:party",
+                             "CLM_RANGE_MISSED.*:party",
+                             "CLM_SPELL_DAMAGE.*:party",
+                             "CLM_SPELL_MISSED.*:party",
+                             "CLM_SPELL_DRAIN.*:party",
+                             "CLM_SPELL_LEECH.*:party",
+                             "CLM_SPELL_INSTAKILL.*:party"},
+
 
     Combat_Attack_Pet = {"CLM_SWING_DAMAGE.pet",
                          "CLM_SWING_MISSED.pet",
@@ -199,15 +221,15 @@ local MESSAGE_TYPES = {
                            "CLM_SPELL_LEECH.*:pet",
                            "CLM_SPELL_INSTAKILL.*:pet"},
 
-    Combat_Attack_Enemy = {"CLM_SWING_DAMAGE.*:enemy",
-                           "CLM_SWING_MISSED.*:enemy",
-                           "CLM_RANGE_DAMAGE.*:enemy",
-                           "CLM_RANGE_MISSED.*:enemy",
-                           "CLM_SPELL_DAMAGE.*:enemy",
-                           "CLM_SPELL_MISSED.*:enemy",
-                           "CLM_SPELL_DRAIN.*:enemy",
-                           "CLM_SPELL_LEECH.*:enemy",
-                           "CLM_SPELL_INSTAKILL.*:enemy"},
+    Combat_Attack_Enemy = {"CLM_SWING_DAMAGE:enemy",
+                           "CLM_SWING_MISSED:enemy",
+                           "CLM_RANGE_DAMAGE:enemy",
+                           "CLM_RANGE_MISSED:enemy",
+                           "CLM_SPELL_DAMAGE:enemy",
+                           "CLM_SPELL_MISSED:enemy",
+                           "CLM_SPELL_DRAIN:enemy",
+                           "CLM_SPELL_LEECH:enemy",
+                           "CLM_SPELL_INSTAKILL:enemy"},
 
     Combat_Attack_ToEnemy = {"CLM_SWING_DAMAGE.*:enemy",
                              "CLM_SWING_MISSED.*:enemy",
@@ -222,6 +244,10 @@ local MESSAGE_TYPES = {
     Combat_DoT_Self = {"CLM_SPELL_PERIODIC_DAMAGE.self"},
 
     Combat_DoT_ToSelf = {"CLM_SPELL_PERIODIC_DAMAGE.*:self"},
+
+    Combat_DoT_Party = {"CLM_SPELL_PERIODIC_DAMAGE.party"},
+
+    Combat_DoT_ToParty = {"CLM_SPELL_PERIODIC_DAMAGE.*:party"},
 
     Combat_DoT_Pet = {"CLM_SPELL_PERIODIC_DAMAGE.pet"},
 
@@ -238,6 +264,14 @@ local MESSAGE_TYPES = {
     Combat_Heal_ToSelf = {"CLM_SPELL_HEAL.*:self",
                           "CLM_SPELL_HEAL_ABSORBED.*:self",
                           "CLM_SPELL_ENERGIZE.self"},
+
+    Combat_Heal_Party = {"CLM_SPELL_HEAL.party",
+                         "CLM_SPELL_HEAL_ABSORBED.party",
+                         "CLM_SPELL_ENERGIZE.party"},
+
+    Combat_Heal_ToParty = {"CLM_SPELL_HEAL.*:party",
+                          "CLM_SPELL_HEAL_ABSORBED.*:party",
+                          "CLM_SPELL_ENERGIZE.party"},
 
     Combat_Heal_Pet = {"CLM_SPELL_HEAL.pet",
                        "CLM_SPELL_HEAL_ABSORBED.pet",
@@ -258,6 +292,10 @@ local MESSAGE_TYPES = {
     Combat_HoT_Self = {"CLM_SPELL_PERIODIC_HEAL.self"},
 
     Combat_HoT_ToSelf = {"CLM_SPELL_PERIODIC_HEAL.*:self"},
+
+    Combat_HoT_Party = {"CLM_SPELL_PERIODIC_HEAL.party"},
+
+    Combat_HoT_ToParty = {"CLM_SPELL_PERIODIC_HEAL.*:party"},
 
     Combat_HoT_Pet = {"CLM_SPELL_PERIODIC_HEAL.pet"},
 
@@ -287,6 +325,26 @@ local MESSAGE_TYPES = {
                           "CLM_SPELL_DISPEL.*:self",
                           "CLM_SPELL_DISPEL_FAILED.*:self"},
 
+    Combat_Aura_Party = {"CLM_SPELL_AURA_APPLIED.party",
+                         "CLM_SPELL_AURA_REMOVED.party",
+                         "CLM_SPELL_AURA_APPLIED_DOSE.party",
+                         "CLM_SPELL_AURA_REMOVED_DOSE.party",
+                         "CLM_SPELL_AURA_REFRESH.party",
+                         "CLM_SPELL_AURA_BROKEN.party",
+                         "CLM_SPELL_AURA_BROKEN_SPELL.party",
+                         "CLM_SPELL_DISPEL.party",
+                         "CLM_SPELL_DISPEL_FAILED.party"},
+
+    Combat_Aura_ToParty = {"CLM_SPELL_AURA_APPLIED.*:party",
+                           "CLM_SPELL_AURA_REMOVED.*:party",
+                           "CLM_SPELL_AURA_APPLIED_DOSE.*:party",
+                           "CLM_SPELL_AURA_REMOVED_DOSE.*:party",
+                           "CLM_SPELL_AURA_REFRESH.*:party",
+                           "CLM_SPELL_AURA_BROKEN.*:party",
+                           "CLM_SPELL_AURA_BROKEN_SPELL.*:party",
+                           "CLM_SPELL_DISPEL.*:party",
+                           "CLM_SPELL_DISPEL_FAILED.*:party"},
+
     Combat_Aura_Pet = {"CLM_SPELL_AURA_APPLIED.pet",
                         "CLM_SPELL_AURA_REMOVED.pet",
                         "CLM_SPELL_AURA_APPLIED_DOSE.pet",
@@ -298,14 +356,14 @@ local MESSAGE_TYPES = {
                         "CLM_SPELL_DISPEL_FAILED.pet"},
 
     Combat_Aura_ToPet = {"CLM_SPELL_AURA_APPLIED.*:pet",
-                          "CLM_SPELL_AURA_REMOVED.*:pet",
-                          "CLM_SPELL_AURA_APPLIED_DOSE.*:pet",
-                          "CLM_SPELL_AURA_REMOVED_DOSE.*:pet",
-                          "CLM_SPELL_AURA_REFRESH.*:pet",
-                          "CLM_SPELL_AURA_BROKEN.*:pet",
-                          "CLM_SPELL_AURA_BROKEN_SPELL.*:pet",
-                          "CLM_SPELL_DISPEL.*:pet",
-                          "CLM_SPELL_DISPEL_FAILED.*:pet"},
+                         "CLM_SPELL_AURA_REMOVED.*:pet",
+                         "CLM_SPELL_AURA_APPLIED_DOSE.*:pet",
+                         "CLM_SPELL_AURA_REMOVED_DOSE.*:pet",
+                         "CLM_SPELL_AURA_REFRESH.*:pet",
+                         "CLM_SPELL_AURA_BROKEN.*:pet",
+                         "CLM_SPELL_AURA_BROKEN_SPELL.*:pet",
+                         "CLM_SPELL_DISPEL.*:pet",
+                         "CLM_SPELL_DISPEL_FAILED.*:pet"},
 
     Combat_Aura_Enemy = {"CLM_SPELL_AURA_APPLIED.enemy",
                          "CLM_SPELL_AURA_REMOVED.enemy",
@@ -333,6 +391,13 @@ local MESSAGE_TYPES = {
                         "CLM_SPELL_INTERRUPT.*:self"},
 
     Combat_CastFail_Self = {"CLM_SPELL_CAST_FAILED.self"},
+
+    Combat_Cast_Party = {"CLM_SPELL_CAST_START.party",
+                         "CLM_SPELL_CAST_SUCCESS.party",
+                         "CLM_SPELL_SUMMON.party",
+                         "CLM_SPELL_INTERRUPT.*:party"},
+
+    Combat_CastFail_Party = {"CLM_SPELL_CAST_FAILED.party"},
 
     Combat_Cast_Pet = {"CLM_SPELL_CAST_START.pet",
                        "CLM_SPELL_CAST_SUCCESS.pet",
@@ -763,12 +828,15 @@ function TabBar:__constructor(parent)
     self:AddTab(Tab("Battle", {
         "PetBattle",
         "Combat_Attack_Self", "Combat_Attack_ToSelf",
+        "Combat_Attack_Party", "Combat_Attack_ToParty",
         "Combat_Attack_Pet", "Combat_Attack_ToPet",
         "Combat_Attack_Enemy", "Combat_Attack_ToEnemy",
         "Combat_Heal_Self", "Combat_Heal_ToSelf",
+        "Combat_Heal_Party", "Combat_Heal_ToParty",
         "Combat_Heal_Pet", "Combat_Heal_ToPet",
         "Combat_Heal_Enemy", "Combat_Heal_ToEnemy",
         "Combat_Aura_Self", "Combat_Aura_ToSelf",
+        "Combat_Aura_Party", "Combat_Aura_ToParty",
         "Combat_Aura_Pet", "Combat_Aura_ToPet",
         "Combat_Aura_Enemy", "Combat_Aura_ToEnemy",
         "Combat_Cast_Self", "Combat_Cast_Pet", "Combat_Cast_Enemy"}))
