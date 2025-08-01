@@ -158,7 +158,7 @@ function ObjectiveTrackerFrameHandler:SetTargets(old_target)
     if old_target and not self.targets[old_target] then
         old_target = nil
     end
-    return old_target or blocks[1][1]
+    return old_target or (blocks[1] and blocks[1][1])
 end
 
 function ObjectiveTrackerFrameHandler:OnAction(button)
