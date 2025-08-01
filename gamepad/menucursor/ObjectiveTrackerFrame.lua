@@ -93,9 +93,11 @@ function ObjectiveTrackerFrameHandler:SetTargets(old_target)
         -- give the blocks in order, so we iterate manually.
         local block = module.firstBlock
         while block do
-            -- Exclude unclickable blocks.  FIXME: are there any other types?
-            if block.parentModule ~= ScenarioObjectiveTracker then
-                tinsert(blocks, {block, module})
+            if block:IsVisible() then
+               -- Exclude unclickable blocks. FIXME: are there any other types?
+                if block.parentModule ~= ScenarioObjectiveTracker then
+                    tinsert(blocks, {block, module})
+                end
             end
             block = block.nextBlock
         end
