@@ -1,0 +1,1896 @@
+--[[
+
+Implementation of a set type in Lua.
+
+This file declares the symbol "set" in the module table provided as the
+second argument when loading the file (as is done by the WoW API).  If
+no second argument is provided, one is created locally and returned from
+the module, for use with Lua require().  Module sources using this
+syntax are assumed to import the "set" identifier locally with
+"local set = module.set" or similar.
+
+
+A set is an unordered collection of values; in Lua terms, it is much
+like a table with only keys and no values.  Sets are useful in
+algorithms for which the presence or absence of a value is itself
+meaningful.
+
+Sets may contain any type of value other than nil, and may even contain
+values of differing types.
+
+The interface defined here draws largely from Python.  Notable
+differences from Python syntax and usage are documented below.
+
+
+Create a set instance by calling set() as a function:
+
+    s = set()  -- Creates an empty set.
+
+Optionally, the set can be prepopulated with values:
+
+    s = set(2, 3, 5, 7)  -- Creates a set with four elements.
+
+Note that unlike Python, initial set elements are specified directly as
+arguments to set(), not in an iterable.
+
+
+Set instances support the usual operations on elements:
+
+    s:add(x, ...)  -- Add x and ... to s if not already present
+    s:add()  -- No-op
+
+    s:has(x, ...)  -- True if x and ... are elements of s (Python "x in s")
+    s:has()  -- No-op, returns true ("all zero arguments are in s")
+
+    s:len()  -- Length of (number of elements in) s
+
+    s:remove(x, ...)  -- Remove x and ... from s; error if not present
+    s:remove()  -- No-op
+
+    s:discard(x, ...)  -- Remove x and ... from s if present
+    s:discard()  -- No-op
+
+    s:pop()  -- Remove and return an arbitrary element; error if empty
+
+    s:clear()  -- Remove all elements
+
+and other sets:
+
+    -- Set containing all elements in any of s1 or s2 or ...
+    s1 + s2  -- Python: "s1 | s2"
+    s1:union(s2, ...)
+    s1:union()  -- No-op, returns s1
+
+    -- Add all elements in s2 and ... to s1
+    s1:update(s2, ...)
+    s1:update()  -- No-op
+
+    -- Set containing elements in s1 but not in s2 or ...
+    s1 - s2
+    s1:difference(s2, ...)
+    s1:difference()  -- No-op, returns s1
+
+    -- Remove all elements in s2 and ... from s1
+    s1:difference_update(s2, ...)
+    s1:difference_update()  -- No-op
+
+    -- Set containing elements in all of s1 and s2 and ...
+    s1 * s2  -- Python: "s1 & s2"
+    s1:intersection(s2, ...)
+    s1:intersection()  -- No-op, returns s1
+
+    -- Remove all elements not in s2 or ... from s1
+    s1:intersection_update(s2, ...)
+    s1:intersection_update()  -- No-op
+
+    -- Set containing elements in s1 or s2 but not both
+    s1 ^ s2
+    s1:symmetric_difference(s2)
+
+    -- Keep elements in s1 or s2 but not both
+    s1:symmetric_difference_update(s2)
+
+    -- True if s1 is a subset of s2 (every element in s1 is in s2)
+    s1 <= s2
+    s1:issubset(s2)
+
+    -- True if s1 is a superset of s2 (every element in s2 is in s1)
+    s1 >= s2
+    s1:issuperset(s2)
+
+    -- True if every element in s1 is in s2 and vice versa
+    s1 == s2
+
+    -- True if s1 is a proper subset of s2 (s1 <= s2 and s1 ~= s2)
+    s1 < s2
+
+    -- True if s1 is a proper superset of s2 (s1 >= s2 and s1 ~= s2)
+    s1 > s2
+
+    -- True if s1 and s2 have no elements in common ((s1*s2):len == 0)
+    s1:isdisjoint(s2)
+
+
+All set methods which do not return an explicit value (add, remove,
+discard, clear, and the update methods) return the set instance on which
+they operated, allowing chaining:
+
+    s1:update(s2):update_difference(s3)  -- s1 = (s1 + s2) - s3
+
+
+A shallow copy of a set (a new set instance containing the same
+elements, but not new copies of the elements themselves) can be created
+with the copy() method:
+
+    s2 = s1:copy()
+    assert(s2 == s1)
+    s2.add(element_not_in_s1)
+    assert(s2 ~= s1)
+
+The same can be accomplished by invoking set operator methods like
+union() with no arguments; copy() is provided for semantic clarity.
+
+
+A set is its own iterator:
+
+    for elem in s do
+        print(elem, "is an element of s")
+    end
+
+The caveat to Lua next() and pairs() about modifying the table argument
+(adding a key to the table causes undefined behavior) applies here as
+well: behavior is undefined if an element is added to s inside the loop,
+but elements may be safely removed without affecting iteration.
+
+Note that because this iteration is implemented in Lua, it executes
+somewhat more slowly than the native pairs().  This set type is designed
+to prefer convenience and code conciseness over performance, but for
+very large sets, ipairs(s:elements()) may be more efficient despite the
+extra array creation.
+
+
+The elements in the set can be returned as an unsorted array:
+
+    array = s:elements()
+    for i, elem in ipairs(array) do ... end
+
+or sorted:
+
+    array = s:sorted()
+    for i = 2, #array do assert(array[i] >= array[i-1]) end
+
+and the sort can use an arbitrary comparator function like table.sort():
+
+    local function Compare(a, b) return a.value < b.value end
+    local sorted_elements = s:sorted(Compare)
+
+The arrays returned by elements() and sorted() are _iterable arrays_, in
+that they can be used directly in a "for ... in" construct.  Thus, the
+following two statements are equivalent:
+
+    for x in s do ... end
+    local array = s:elements(); for x in array do ... end
+
+except that the latter creates an extra copy of the element list.
+
+As for set iteration, this array iteration is somewhat slower than
+ipairs(), and ipairs() should be preferred where performance is
+important; the iteration operator is provided for convenience.
+
+]]--
+
+------------------------------------------------------------------------
+-- Implementation
+------------------------------------------------------------------------
+
+local _, module = ...
+module = module or {} -- so the file can also be loaded with a simple require()
+
+-- Localize some commonly called functions to reduce lookup cost.
+local getmetatable = getmetatable
+local setmetatable = setmetatable
+local strsub = string.sub
+local tostring = tostring
+
+-- Error messages are defined as constants for testing convenience.
+local ADD_NIL_MSG = "Cannot add nil to a set"
+local NO_ELEMENT_MSG = "Element not found in set"
+local EMPTY_SET_MSG = "Set is empty"
+local BAD_NEWINDEX_MSG = "Use add() to add elements to a set"
+
+local set_metatable  -- Declared below.
+
+
+function module.set(...)
+    local s = {__elements = {}, __len = 0}
+    -- Lua doesn't let us strformat("%p") to get the address of a table,
+    -- so we rely on the default "table: %p" format to create a slightly
+    -- more informative value for tostring().
+    local str = tostring(s)
+    assert(strsub(str, 1, 5) == "table")
+    s.__tostring = "set" .. strsub(str, 6)
+    return setmetatable(s, set_metatable):add(...)
+end
+
+local set = module.set
+
+
+-- Helper for elements().
+local function make_iterable(t)
+    local i
+    return setmetatable(t, {
+        --[[
+            Generic for expects a function taking two arguments, but since
+            we give it a callable table, the table itself is prepended as
+            a |self| argument.  The first ("state") argument to the
+            iterator will always be nil in our documented syntax, but we
+            have |self|, so there's no need for a separate state argument.
+
+            In order not to leak the iterator index (|i|) to the caller
+            and thus allow straightforward iteration as documented, we use
+            the previous-value argument as a flag: if it is nil, this must
+            be the first call, so we reset the index in that case.
+        ]]--
+        __call = function(self, _, prev)
+            if prev == nil then i = 0 end
+            if i < #self then
+                i = i+1
+                return self[i]
+            else
+                return nil
+            end
+        end,
+    })
+end
+
+
+local set_methods = {
+    add = function(s, ...)
+        local elements = s.__elements
+        local len = s.__len
+        for i = 1, select("#", ...) do
+            local x = select(i, ...)
+            if x == nil then
+                error(ADD_NIL_MSG)
+            end
+            if not elements[x] then
+                elements[x] = true
+                len = len+1
+            end
+        end
+        s.__len = len
+        return s
+    end,
+
+    has = function(s, ...)
+        local elements = s.__elements
+        for i = 1, select("#", ...) do
+            local x = select(i, ...)
+            if x == nil or not elements[x] then
+                return false
+            end
+        end
+        return true
+    end,
+
+    len = function(s) return s.__len end,
+
+    remove = function(s, ...)
+        local elements = s.__elements
+        local len = s.__len
+        for i = 1, select("#", ...) do
+            local x = select(i, ...)
+            if x == nil or not elements[x] then
+                error(NO_ELEMENT_MSG)
+            end
+            elements[x] = nil
+            len = len-1
+        end
+        s.__len = len
+        return s
+    end,
+
+    discard = function(s, ...)
+        local elements = s.__elements
+        local len = s.__len
+        for i = 1, select("#", ...) do
+            local x = select(i, ...)
+            if x ~= nil and elements[x] then
+                elements[x] = nil
+                len = len-1
+            end
+        end
+        s.__len = len
+        return s
+    end,
+
+    pop = function(s)
+        local elements = s.__elements
+        local len = s.__len
+        local x = next(elements)
+        if x == nil then
+            error(EMPTY_SET_MSG)
+        end
+        elements[x] = nil
+        s.__len = len-1
+        return x
+    end,
+
+    clear = function(s)
+        s.__elements = {}
+        s.__len = 0
+        return s
+    end,
+
+    union = function(...) return set():update(...) end,
+
+    update = function(s1, ...)
+        local elements = s1.__elements
+        local len = s1.__len
+        for i = 1, select("#", ...) do
+            local s2 = select(i, ...)
+            for x in s2 do
+                if not elements[x] then
+                    elements[x] = true
+                    len = len+1
+                end
+            end
+        end
+        s1.__len = len
+        return s1
+    end,
+
+    difference = function(s1, ...) return s1:copy():difference_update(...) end,
+
+    difference_update = function(s1, ...)
+        local elements = s1.__elements
+        local len = s1.__len
+        for i = 1, select("#", ...) do
+            local s2 = select(i, ...)
+            for x in s2 do
+                if elements[x] then
+                    elements[x] = nil
+                    len = len-1
+                end
+            end
+        end
+        s1.__len = len
+        return s1
+    end,
+
+    intersection = function(s1, ...)
+        return s1:copy():intersection_update(...)
+    end,
+
+    intersection_update = function(s1, ...)
+        local elements = s1.__elements
+        local len = s1.__len
+        for i = 1, select("#", ...) do
+            local s2 = select(i, ...)
+            local elements2 = s2.__elements
+            for x in pairs(elements) do
+                if not elements2[x] then
+                    elements[x] = nil
+                    len = len-1
+                end
+            end
+        end
+        s1.__len = len
+        return s1
+    end,
+
+    symmetric_difference = function(s1, s2)
+        return s1:copy():symmetric_difference_update(s2)
+    end,
+
+    symmetric_difference_update = function(s1, s2)
+        local elements = s1.__elements
+        local len = s1.__len
+        for x in s2 do
+            if elements[x] then
+                elements[x] = nil
+                len = len-1
+            else
+                elements[x] = true
+                len = len+1
+            end
+        end
+        s1.__len = len
+        return s1
+    end,
+
+    issubset = function(s1, s2)
+        local elements2 = s2.__elements
+        for x in s1 do
+            if not elements2[x] then return false end
+        end
+        return true
+    end,
+
+    issuperset = function(s1, s2)
+        return s2:issubset(s1)
+    end,
+
+    isdisjoint = function(s1, s2)
+        local elements2 = s2.__elements
+        for x in s1 do
+            if elements2[x] then return false end
+        end
+        return true
+    end,
+
+    copy = function(s) return s:union() end,
+
+    elements = function(s)
+        local array = {}
+        -- Extending the table using an explicit index is slightly faster
+        -- than calling table.insert() because the latter is still a
+        -- function call (it is not optimized out to a primitive).
+        -- Similarly for omitting the iterator and assigning to
+        -- array[#array+1], presumably because #array also performs a
+        -- function call.
+        local i = 0
+        for x in s do
+            i = i+1
+            array[i] = x
+        end
+        return make_iterable(array)
+    end,
+
+    sorted = function(s, ...)
+        local array = s:elements()
+        table.sort(array, ...)
+        return array
+    end,
+}
+
+--[[local]] set_metatable = {
+    __add = set_methods.union,
+    __sub = set_methods.difference,
+    __mul = set_methods.intersection,
+    __pow = set_methods.symmetric_difference,
+    __eq = function(s1, s2) return s1 <= s2 and s2 <= s1 end,
+    __le = set_methods.issubset,
+    __lt = function(s1, s2) return s1 <= s2 and not (s2 <= s1) end,
+    __index = set_methods,
+    __newindex = function() error(BAD_NEWINDEX_MSG) end,
+    __call = function(s, _, i) local x = next(s.__elements, i) return x end,
+    __tostring = function(s) return s.__tostring end,
+}
+
+------------------------------------------------------------------------
+-- Test routines (can be run with: lua -e 'require("_set").setTests()')
+------------------------------------------------------------------------
+
+-- Return whether s1 and s2 are the same set instance (as opposed to
+-- whether they have the same members).
+local function SameInstance(s1, s2)
+    assert(getmetatable(s1) == set_metatable)
+    assert(getmetatable(s2) == set_metatable)
+    setmetatable(s1, nil)
+    setmetatable(s2, nil)
+    local same = (s1 == s2)
+    setmetatable(s1, set_metatable)
+    setmetatable(s2, set_metatable)
+    return same
+end
+
+local tests = {
+
+    -------- add() (and basic has())
+
+    Add = function()
+        local s = set()
+        assert(SameInstance(s:add(10), s))
+        assert(s:has(10))
+    end,
+
+    HasNonExistent = function()
+        local s = set()
+        s:add(10)
+        assert(not s:has(20))
+    end,
+
+    HasEmpty = function()
+        local s = set()
+        assert(not s:has(10))
+    end,
+
+    AddSecond = function()
+        local s = set()
+        s:add(10)
+        assert(s:has(10))
+        assert(not s:has(20))
+        s:add(20)
+        assert(s:has(10))
+        assert(s:has(20))
+    end,
+
+    AddSame = function()
+        local s = set()
+        s:add(10)
+        assert(s:has(10))
+        s:add(10)  -- Should do nothing.  We test length behavior later.
+        assert(s:has(10))
+    end,
+
+    AddMultiple = function()
+        local s = set()
+        s:add(10, 20, 30)
+        assert(s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+    end,
+
+    AddMultipleTypes = function()
+        local s = set()
+        local tval = {30}
+        local fval = function() return 40 end
+        s:add(10, "twenty", tval, fval)
+        assert(s:has(10))
+        assert(s:has("twenty"))
+        assert(s:has(tval))
+        assert(s:has(fval))
+        assert(not s:has({30})) -- Distinct table instance should not be in set.
+    end,
+
+    AddSameAndOthers = function()
+        local s = set()
+        s:add(20)
+        assert(s:has(20))
+        s:add(10, 20, 30)
+        assert(s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+    end,
+
+    AddByConstructor = function()
+        local s = set()
+        s:add(10)
+        assert(s:has(10))
+    end,
+
+    AddMultipleByConstructor = function()
+        local s = set()
+        s:add(10, 20, 30)
+        assert(s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+    end,
+
+    AddSameAfterConstructor = function()
+        local s = set(10)
+        assert(s:has(10))
+        s:add(10)
+        assert(s:has(10))
+    end,
+
+    AddNil = function()
+        local s = set()
+        local result, errmsg = pcall(function() s:add(nil) end)
+        assert(result == false)
+        assert(errmsg:find(ADD_NIL_MSG, 1, true), errmsg)
+    end,
+
+    NoNewindex = function()
+        local s = set()
+        local result, errmsg = pcall(function() s[10] = true end)
+        assert(result == false)
+        assert(errmsg:find(BAD_NEWINDEX_MSG, 1, true), errmsg)
+        assert(not s:has(10))
+    end,
+
+    NoNewindexExisting = function()
+        local s = set()
+        s:add(10)
+        local result, errmsg = pcall(function() s[10] = false end)
+        assert(result == false)
+        assert(errmsg:find(BAD_NEWINDEX_MSG, 1, true), errmsg)
+        assert(s:has(10))  -- Should not affect the existing element.
+    end,
+
+    -------- has()
+
+    HasNone = function()
+        local s = set()
+        assert(s:has())  -- True: the set has all zero of the specified values
+    end,
+
+    HasMultiple = function()
+        local s = set()
+        s:add(10, 20, 30)
+        assert(s:has(10, 20, 30))
+    end,
+
+    HasMultipleMissing = function()
+        local s = set()
+        s:add(10, 20, 30)
+        assert(not s:has(10, 40, 30))
+    end,
+
+    -------- len()
+
+    LenEmpty = function()
+        local s = set()
+        assert(s:len() == 0)
+    end,
+
+    LenSingle = function()
+        local s = set(10)
+        assert(s:len() == 1)
+    end,
+
+    LenAddSingle = function()
+        local s = set()
+        s:add(10)
+        assert(s:len() == 1)
+    end,
+
+    LenMultiple = function()
+        local s = set(10, 20, 30)
+        assert(s:len() == 3)
+    end,
+
+    LenAddMultiple = function()
+        local s = set(10)
+        s:add(20, 30)
+        assert(s:len() == 3)
+    end,
+
+    LenAddExisting = function()
+        local s = set()
+        s:add(10)
+        s:add(10)
+        assert(s:len() == 1)
+    end,
+
+    LenAddExistingAfterConstructor = function()
+        local s = set(10)
+        s:add(10)
+        assert(s:len() == 1)
+    end,
+
+    -------- remove()
+
+    Remove = function()
+        local s = set(10)
+        assert(SameInstance(s:remove(10), s))
+        assert(not s:has(10))
+        assert(s:len() == 0)
+    end,
+
+    RemoveNone = function()
+        local s = set(10)
+        s:remove()
+        assert(s:has(10))
+        assert(s:len() == 1)
+    end,
+
+    RemoveMultiple = function()
+        local s = set(10, 20, 30, 40, 50)
+        s:remove(10, 30, 40)
+        assert(not s:has(10))
+        assert(s:has(20))
+        assert(not s:has(30))
+        assert(not s:has(40))
+        assert(s:has(50))
+        assert(s:len() == 2)
+    end,
+
+    RemoveNotFound = function()
+        local s = set(10)
+        local result, errmsg = pcall(function() s:remove(20) end)
+        assert(result == false)
+        assert(errmsg:find(NO_ELEMENT_MSG, 1, true), errmsg)
+        assert(s:has(10))
+        assert(not s:has(20))
+        assert(s:len() == 1)
+    end,
+
+    RemoveEmpty = function()
+        local s = set()
+        local result, errmsg = pcall(function() s:remove(10) end)
+        assert(result == false)
+        assert(errmsg:find(NO_ELEMENT_MSG, 1, true), errmsg)
+        assert(not s:has(10))
+        assert(s:len() == 0)
+    end,
+
+    -------- discard()
+
+    Discard = function()
+        local s = set(10)
+        assert(SameInstance(s:discard(10), s))
+        assert(not s:has(10))
+        assert(s:len() == 0)
+    end,
+
+    DiscardNone = function()
+        local s = set(10)
+        s:discard()
+        assert(s:has(10))
+        assert(s:len() == 1)
+    end,
+
+    DiscardMultiple = function()
+        local s = set(10, 20, 30, 40, 50)
+        s:discard(10, 30, 40)
+        assert(not s:has(10))
+        assert(s:has(20))
+        assert(not s:has(30))
+        assert(not s:has(40))
+        assert(s:has(50))
+        assert(s:len() == 2)
+    end,
+
+    DiscardNotFound = function()
+        local s = set(10)
+        s:discard(20)  -- Should not error.
+        assert(s:has(10))
+        assert(not s:has(20))
+        assert(s:len() == 1)
+    end,
+
+    DiscardEmpty = function()
+        local s = set()
+        s:discard(10) -- Should not error.
+        assert(not s:has(10))
+        assert(s:len() == 0)
+    end,
+
+    -------- pop()
+
+    Pop = function()
+        local s = set(10)
+        local x = s:pop(10)
+        assert(x == 10)
+        assert(not s:has(10))
+        assert(s:len() == 0)
+    end,
+
+    PopFromMultiple = function()
+        local s = set(10, 20, 30)
+        local x = s:pop()
+        if x == 10 then
+            assert(not s:has(10))
+            assert(s:has(20))
+            assert(s:has(30))
+        elseif x == 20 then
+            assert(s:has(10))
+            assert(not s:has(20))
+            assert(s:has(30))
+        else
+            assert(x == 30)
+            assert(s:has(10))
+            assert(s:has(20))
+            assert(not s:has(30))
+        end
+        assert(s:len() == 2)
+    end,
+
+    PopMultiple = function()
+        local s = set(1, 2, 4)
+        local x, y, z = s:pop(), s:pop(), s:pop()
+        assert(x + y + z == 7)
+        assert(s:len() == 0)
+    end,
+
+    PopEmpty = function()
+        local s = set()
+        local result, errmsg = pcall(function() s:pop() end)
+        assert(result == false)
+        assert(errmsg:find(EMPTY_SET_MSG, 1, true), errmsg)
+        assert(s:len() == 0)
+    end,
+
+    -------- clear()
+
+    Clear = function()
+        local s = set(10)
+        assert(SameInstance(s:clear(), s))
+        assert(not s:has(10))
+        assert(s:len() == 0)
+    end,
+
+    ClearMultiple = function()
+        local s = set(10, 20, 30)
+        s:clear()
+        assert(not s:has(10))
+        assert(not s:has(20))
+        assert(not s:has(30))
+        assert(s:len() == 0)
+    end,
+
+    ClearEmpty = function()
+        local s = set()
+        s:clear() -- No-op.
+        assert(not s:has(10))
+        assert(s:len() == 0)
+    end,
+
+    -------- union() and + operator
+
+    Union = function()
+        local s1 = set(10)
+        local s2 = set(20)
+        local s3 = s1:union(s2)
+        assert(not SameInstance(s3, s1))
+        assert(not SameInstance(s3, s2))
+        assert(s3:has(10))
+        assert(s3:has(20))
+        assert(s3:len() == 2)
+        -- s1 and s2 should be unmodified.
+        assert(s1:has(10))
+        assert(not s1:has(20))
+        assert(s1:len() == 1)
+        assert(not s2:has(10))
+        assert(s2:has(20))
+        assert(s2:len() == 1)
+    end,
+
+    UnionFirstEmpty = function()
+        local s1 = set()
+        local s2 = set(20)
+        local s3 = s1:union(s2)
+        assert(not SameInstance(s3, s1))
+        assert(not SameInstance(s3, s2))
+        assert(s3:has(20))
+        assert(s3:len() == 1)
+        assert(not s1:has(20))
+        assert(s1:len() == 0)
+        assert(s2:has(20))
+        assert(s2:len() == 1)
+    end,
+
+    UnionSecondEmpty = function()
+        local s1 = set(10)
+        local s2 = set()
+        local s3 = s1:union(s2)
+        assert(not SameInstance(s3, s1))
+        assert(not SameInstance(s3, s2))
+        assert(s3:has(10))
+        assert(s3:len() == 1)
+        assert(s1:has(10))
+        assert(s1:len() == 1)
+        assert(not s2:has(10))
+        assert(s2:len() == 0)
+    end,
+
+    UnionMultipleElements = function()
+        local s = set(10, 30):union(set(20, 40, 60))
+        assert(s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+        assert(s:has(40))
+        assert(s:has(60))
+        assert(s:len() == 5)
+    end,
+
+    UnionMultipleElementsOverlap = function()
+        local s = set(10, 30):union(set(20, 30, 40))
+        assert(s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+        assert(s:has(40))
+        assert(s:len() == 4)
+    end,
+
+    UnionMultipleSets = function()
+        local s = set(10, 30):union(set(20), set(30), set(40))
+        assert(s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+        assert(s:has(40))
+        assert(s:len() == 4)
+    end,
+
+    UnionNone = function()
+        local s = set(10, 30):union()
+        assert(s:has(10))
+        assert(s:has(30))
+        assert(s:len() == 2)
+    end,
+
+    OperatorUnion = function()
+        local s = set(10, 30) + set(20, 30, 40)
+        assert(s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+        assert(s:has(40))
+        assert(s:len() == 4)
+    end,
+
+    -------- update()
+
+    Update = function()
+        local s1 = set(10)
+        local s2 = set(20)
+        assert(SameInstance(s1:update(s2), s1))
+        assert(s1:has(10))
+        assert(s1:has(20))
+        assert(s1:len() == 2)
+        -- s2 should be unmodified.
+        assert(not s2:has(10))
+        assert(s2:has(20))
+        assert(s2:len() == 1)
+    end,
+
+    UpdateFirstEmpty = function()
+        local s1 = set()
+        local s2 = set(20)
+        assert(SameInstance(s1:update(s2), s1))
+        assert(s1:has(20))
+        assert(s1:len() == 1)
+        assert(s2:has(20))
+        assert(s2:len() == 1)
+    end,
+
+    UpdateSecondEmpty = function()
+        local s1 = set(10)
+        local s2 = set()
+        assert(SameInstance(s1:update(s2), s1))
+        assert(s1:has(10))
+        assert(s1:len() == 1)
+        assert(not s2:has(10))
+        assert(s2:len() == 0)
+    end,
+
+    UpdateMultipleElements = function()
+        local s = set(10, 30):update(set(20, 40, 60))
+        assert(s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+        assert(s:has(40))
+        assert(s:has(60))
+        assert(s:len() == 5)
+    end,
+
+    UpdateMultipleElementsOverlap = function()
+        local s = set(10, 30):update(set(20, 30, 40))
+        assert(s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+        assert(s:has(40))
+        assert(s:len() == 4)
+    end,
+
+    UpdateMultipleSets = function()
+        local s = set(10, 30):update(set(20), set(30), set(40))
+        assert(s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+        assert(s:has(40))
+        assert(s:len() == 4)
+    end,
+
+    UpdateNone = function()
+        local s = set(10, 30):update()
+        assert(s:has(10))
+        assert(s:has(30))
+        assert(s:len() == 2)
+    end,
+
+    -------- difference() and - operator
+
+    Difference = function()
+        local s1 = set(10, 20, 30)
+        local s2 = set(20)
+        local s3 = s1:difference(s2)
+        assert(not SameInstance(s3, s1))
+        assert(not SameInstance(s3, s2))
+        assert(s3:has(10))
+        assert(not s3:has(20))
+        assert(s3:has(30))
+        assert(s3:len() == 2)
+        -- s1 and s2 should be unmodified.
+        assert(s1:has(10))
+        assert(s1:has(20))
+        assert(s1:has(30))
+        assert(s1:len() == 3)
+        assert(not s2:has(10))
+        assert(s2:has(20))
+        assert(not s2:has(30))
+        assert(s2:len() == 1)
+    end,
+
+    DifferenceFirstEmpty = function()
+        local s1 = set()
+        local s2 = set(20)
+        local s3 = s1:difference(s2)
+        assert(not SameInstance(s3, s1))
+        assert(not SameInstance(s3, s2))
+        assert(not s3:has(20))
+        assert(s3:len() == 0)
+        assert(not s1:has(20))
+        assert(s1:len() == 0)
+        assert(s2:has(20))
+        assert(s2:len() == 1)
+    end,
+
+    DifferenceSecondEmpty = function()
+        local s1 = set(10)
+        local s2 = set()
+        local s3 = s1:difference(s2)
+        assert(not SameInstance(s3, s1))
+        assert(not SameInstance(s3, s2))
+        assert(s3:has(10))
+        assert(s3:len() == 1)
+        assert(s1:has(10))
+        assert(s1:len() == 1)
+        assert(not s2:has(10))
+        assert(s2:len() == 0)
+    end,
+
+    DifferenceElementNotInFirst = function()
+        local s = set(10, 20, 30):difference(set(40))
+        assert(s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+        assert(s:len() == 3)
+    end,
+
+    DifferenceMultipleElements = function()
+        local s = set(10, 20, 30, 40, 50):difference(set(20, 40, 60))
+        assert(s:has(10))
+        assert(not s:has(20))
+        assert(s:has(30))
+        assert(not s:has(40))
+        assert(s:has(50))
+        assert(not s:has(60))
+        assert(s:len() == 3)
+    end,
+
+    DifferenceMultipleSets = function()
+        local s = set(10, 20, 30, 40, 50):difference(set(20), set(40), set(60))
+        assert(s:has(10))
+        assert(not s:has(20))
+        assert(s:has(30))
+        assert(not s:has(40))
+        assert(s:has(50))
+        assert(not s:has(60))
+        assert(s:len() == 3)
+    end,
+
+    DifferenceNone = function()
+        local s = set(10, 30):difference()
+        assert(s:has(10))
+        assert(s:has(30))
+        assert(s:len() == 2)
+    end,
+
+    OperatorDifference = function()
+        local s = set(10, 20, 30, 40, 50) - set(20, 40, 60)
+        assert(s:has(10))
+        assert(not s:has(20))
+        assert(s:has(30))
+        assert(not s:has(40))
+        assert(s:has(50))
+        assert(not s:has(60))
+        assert(s:len() == 3)
+    end,
+
+    -------- difference_update()
+
+    DifferenceUpdate = function()
+        local s1 = set(10, 20, 30)
+        local s2 = set(20)
+        assert(SameInstance(s1:difference_update(s2), s1))
+        assert(s1:has(10))
+        assert(not s1:has(20))
+        assert(s1:has(30))
+        assert(s1:len() == 2)
+        -- s2 should be unmodified.
+        assert(not s2:has(10))
+        assert(s2:has(20))
+        assert(not s2:has(30))
+        assert(s2:len() == 1)
+    end,
+
+    DifferenceUpdateFirstEmpty = function()
+        local s1 = set()
+        local s2 = set(20)
+        assert(SameInstance(s1:difference_update(s2), s1))
+        assert(not s1:has(20))
+        assert(s1:len() == 0)
+        assert(s2:has(20))
+        assert(s2:len() == 1)
+    end,
+
+    DifferenceUpdateSecondEmpty = function()
+        local s1 = set(10)
+        local s2 = set()
+        assert(SameInstance(s1:difference_update(s2), s1))
+        assert(s1:has(10))
+        assert(s1:len() == 1)
+        assert(not s2:has(10))
+        assert(s2:len() == 0)
+    end,
+
+    DifferenceUpdateElementNotInFirst = function()
+        local s = set(10, 20, 30):difference_update(set(40))
+        assert(s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+        assert(s:len() == 3)
+    end,
+
+    DifferenceUpdateMultipleElements = function()
+        local s = set(10, 20, 30, 40, 50):difference_update(set(20, 40, 60))
+        assert(s:has(10))
+        assert(not s:has(20))
+        assert(s:has(30))
+        assert(not s:has(40))
+        assert(s:has(50))
+        assert(not s:has(60))
+        assert(s:len() == 3)
+    end,
+
+    DifferenceUpdateMultipleSets = function()
+        local s = set(10, 20, 30, 40, 50)
+            :difference_update(set(20), set(40), set(60))
+        assert(s:has(10))
+        assert(not s:has(20))
+        assert(s:has(30))
+        assert(not s:has(40))
+        assert(s:has(50))
+        assert(not s:has(60))
+        assert(s:len() == 3)
+    end,
+
+    DifferenceUpdateNone = function()
+        local s = set(10, 30):difference_update()
+        assert(s:has(10))
+        assert(s:has(30))
+        assert(s:len() == 2)
+    end,
+
+    -------- intersection() and * operator
+
+    Intersection = function()
+        local s1 = set(10, 20, 30)
+        local s2 = set(20)
+        local s3 = s1:intersection(s2)
+        assert(not SameInstance(s3, s1))
+        assert(not SameInstance(s3, s2))
+        assert(not s3:has(10))
+        assert(s3:has(20))
+        assert(not s3:has(30))
+        assert(s3:len() == 1)
+        -- s1 and s2 should be unmodified.
+        assert(s1:has(10))
+        assert(s1:has(20))
+        assert(s1:has(30))
+        assert(s1:len() == 3)
+        assert(not s2:has(10))
+        assert(s2:has(20))
+        assert(not s2:has(30))
+        assert(s2:len() == 1)
+    end,
+
+    IntersectionFirstEmpty = function()
+        local s1 = set()
+        local s2 = set(20)
+        local s3 = s1:intersection(s2)
+        assert(not SameInstance(s3, s1))
+        assert(not SameInstance(s3, s2))
+        assert(not s3:has(20))
+        assert(s3:len() == 0)
+        assert(not s1:has(20))
+        assert(s1:len() == 0)
+        assert(s2:has(20))
+        assert(s2:len() == 1)
+    end,
+
+    IntersectionSecondEmpty = function()
+        local s1 = set(10)
+        local s2 = set()
+        local s3 = s1:intersection(s2)
+        assert(not SameInstance(s3, s1))
+        assert(not SameInstance(s3, s2))
+        assert(not s3:has(10))
+        assert(s3:len() == 0)
+        assert(s1:has(10))
+        assert(s1:len() == 1)
+        assert(not s2:has(10))
+        assert(s2:len() == 0)
+    end,
+
+    IntersectionElementNotInFirst = function()
+        local s = set(10, 20, 30):intersection(set(40))
+        assert(not s:has(10))
+        assert(not s:has(20))
+        assert(not s:has(30))
+        assert(s:len() == 0)
+    end,
+
+    IntersectionMultipleElements = function()
+        local s = set(10, 20, 30, 40, 50):intersection(set(20, 40, 60))
+        assert(not s:has(10))
+        assert(s:has(20))
+        assert(not s:has(30))
+        assert(s:has(40))
+        assert(not s:has(50))
+        assert(not s:has(60))
+        assert(s:len() == 2)
+    end,
+
+    IntersectionMultipleSets = function()
+        local s = set(10, 20, 30, 40, 50):intersection(set(20), set(40))
+        assert(not s:has(10))
+        assert(not s:has(20))
+        assert(not s:has(30))
+        assert(not s:has(40))
+        assert(not s:has(50))
+        assert(s:len() == 0)
+    end,
+
+    IntersectionNone = function()
+        local s = set(10, 30):intersection()
+        assert(s:has(10))
+        assert(s:has(30))
+        assert(s:len() == 2)
+    end,
+
+    OperatorIntersection = function()
+        local s = set(10, 20, 30, 40, 50) * set(20, 40, 60)
+        assert(not s:has(10))
+        assert(s:has(20))
+        assert(not s:has(30))
+        assert(s:has(40))
+        assert(not s:has(50))
+        assert(not s:has(60))
+        assert(s:len() == 2)
+    end,
+
+    -------- intersection_update()
+
+    IntersectionUpdate = function()
+        local s1 = set(10, 20, 30)
+        local s2 = set(20)
+        assert(SameInstance(s1:intersection_update(s2), s1))
+        assert(not s1:has(10))
+        assert(s1:has(20))
+        assert(not s1:has(30))
+        assert(s1:len() == 1)
+        -- s2 should be unmodified.
+        assert(not s2:has(10))
+        assert(s2:has(20))
+        assert(not s2:has(30))
+        assert(s2:len() == 1)
+    end,
+
+    IntersectionUpdateFirstEmpty = function()
+        local s1 = set()
+        local s2 = set(20)
+        assert(SameInstance(s1:intersection_update(s2), s1))
+        assert(not s1:has(20))
+        assert(s1:len() == 0)
+        assert(s2:has(20))
+        assert(s2:len() == 1)
+    end,
+
+    IntersectionUpdateSecondEmpty = function()
+        local s1 = set(10)
+        local s2 = set()
+        assert(SameInstance(s1:intersection_update(s2), s1))
+        assert(not s1:has(10))
+        assert(s1:len() == 0)
+        assert(not s2:has(10))
+        assert(s2:len() == 0)
+    end,
+
+    IntersectionUpdateElementNotInFirst = function()
+        local s = set(10, 20, 30):intersection_update(set(40))
+        assert(not s:has(10))
+        assert(not s:has(20))
+        assert(not s:has(30))
+        assert(s:len() == 0)
+    end,
+
+    IntersectionUpdateMultipleElements = function()
+        local s = set(10, 20, 30, 40, 50):intersection_update(set(20, 40, 60))
+        assert(not s:has(10))
+        assert(s:has(20))
+        assert(not s:has(30))
+        assert(s:has(40))
+        assert(not s:has(50))
+        assert(not s:has(60))
+        assert(s:len() == 2)
+    end,
+
+    IntersectionUpdateMultipleSets = function()
+        local s = set(10, 20, 30, 40, 50):intersection_update(set(20), set(40))
+        assert(not s:has(10))
+        assert(not s:has(20))
+        assert(not s:has(30))
+        assert(not s:has(40))
+        assert(not s:has(50))
+        assert(s:len() == 0)
+    end,
+
+    IntersectionUpdateNone = function()
+        local s = set(10, 30):intersection_update()
+        assert(s:has(10))
+        assert(s:has(30))
+        assert(s:len() == 2)
+    end,
+
+    -------- symmetric_difference() and ^ operator
+
+    SymmetricDifference = function()
+        local s1 = set(10, 20, 30)
+        local s2 = set(20)
+        local s3 = s1:symmetric_difference(s2)
+        assert(not SameInstance(s3, s1))
+        assert(not SameInstance(s3, s2))
+        assert(s3:has(10))
+        assert(not s3:has(20))
+        assert(s3:has(30))
+        assert(s3:len() == 2)
+        -- s1 and s2 should be unmodified.
+        assert(s1:has(10))
+        assert(s1:has(20))
+        assert(s1:has(30))
+        assert(s1:len() == 3)
+        assert(not s2:has(10))
+        assert(s2:has(20))
+        assert(not s2:has(30))
+        assert(s2:len() == 1)
+    end,
+
+    SymmetricDifferenceFirstEmpty = function()
+        local s1 = set()
+        local s2 = set(20)
+        local s3 = s1:symmetric_difference(s2)
+        assert(not SameInstance(s3, s1))
+        assert(not SameInstance(s3, s2))
+        assert(s3:has(20))
+        assert(s3:len() == 1)
+        assert(not s1:has(20))
+        assert(s1:len() == 0)
+        assert(s2:has(20))
+        assert(s2:len() == 1)
+    end,
+
+    SymmetricDifferenceSecondEmpty = function()
+        local s1 = set(10)
+        local s2 = set()
+        local s3 = s1:symmetric_difference(s2)
+        assert(not SameInstance(s3, s1))
+        assert(not SameInstance(s3, s2))
+        assert(s3:has(10))
+        assert(s3:len() == 1)
+        assert(s1:has(10))
+        assert(s1:len() == 1)
+        assert(not s2:has(10))
+        assert(s2:len() == 0)
+    end,
+
+    SymmetricDifferenceElementNotInFirst = function()
+        local s = set(10, 20, 30):symmetric_difference(set(40))
+        assert(s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+        assert(s:has(40))
+        assert(s:len() == 4)
+    end,
+
+    SymmetricDifferenceMultipleElements = function()
+        local s = set(10, 20, 30, 40, 50):symmetric_difference(set(20, 40, 60))
+        assert(s:has(10))
+        assert(not s:has(20))
+        assert(s:has(30))
+        assert(not s:has(40))
+        assert(s:has(50))
+        assert(s:has(60))
+        assert(s:len() == 4)
+    end,
+
+    OperatorSymmetricDifference = function()
+        local s = set(10, 20, 30, 40, 50) ^ set(20, 40, 60)
+        assert(s:has(10))
+        assert(not s:has(20))
+        assert(s:has(30))
+        assert(not s:has(40))
+        assert(s:has(50))
+        assert(s:has(60))
+        assert(s:len() == 4)
+    end,
+
+    -------- symmetric_difference_update()
+
+    SymmetricDifferenceUpdate = function()
+        local s1 = set(10, 20, 30)
+        local s2 = set(20)
+        assert(SameInstance(s1:symmetric_difference_update(s2), s1))
+        assert(s1:has(10))
+        assert(not s1:has(20))
+        assert(s1:has(30))
+        assert(s1:len() == 2)
+        -- s2 should be unmodified.
+        assert(not s2:has(10))
+        assert(s2:has(20))
+        assert(not s2:has(30))
+        assert(s2:len() == 1)
+    end,
+
+    SymmetricDifferenceUpdateFirstEmpty = function()
+        local s1 = set()
+        local s2 = set(20)
+        assert(SameInstance(s1:symmetric_difference_update(s2), s1))
+        assert(s1:has(20))
+        assert(s1:len() == 1)
+        assert(s2:has(20))
+        assert(s2:len() == 1)
+    end,
+
+    SymmetricDifferenceUpdateSecondEmpty = function()
+        local s1 = set(10)
+        local s2 = set()
+        assert(SameInstance(s1:symmetric_difference_update(s2), s1))
+        assert(s1:has(10))
+        assert(s1:len() == 1)
+        assert(not s2:has(10))
+        assert(s2:len() == 0)
+    end,
+
+    SymmetricDifferenceUpdateElementNotInFirst = function()
+        local s = set(10, 20, 30):symmetric_difference_update(set(40))
+        assert(s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+        assert(s:has(40))
+        assert(s:len() == 4)
+    end,
+
+    SymmetricDifferenceUpdateMultipleElements = function()
+        local s = set(10, 20, 30, 40, 50):symmetric_difference_update(set(20, 40, 60))
+        assert(s:has(10))
+        assert(not s:has(20))
+        assert(s:has(30))
+        assert(not s:has(40))
+        assert(s:has(50))
+        assert(s:has(60))
+        assert(s:len() == 4)
+    end,
+
+    -------- issubset() and <= operator
+
+    IsSubset = function()
+        local s1 = set(10)
+        local s2 = set(10, 20)
+        assert(s1:issubset(s2))
+        -- s1 and s2 should be unmodified.  There's no reason for a
+        -- read-only operation like issubset() to modify them, but we
+        -- check anyway just for completeness.
+        assert(s1:has(10))
+        assert(not s1:has(20))
+        assert(s1:len() == 1)
+        assert(s2:has(10))
+        assert(s2:has(20))
+        assert(s2:len() == 2)
+    end,
+
+    IsSubsetEqualSets = function()
+        local s1 = set(10, 20)
+        assert(s1:issubset(set(10, 20)))
+    end,
+
+    IsSubsetMissingElement = function()
+        local s1 = set(10, 20)
+        assert(not s1:issubset(set(10, 30)))
+    end,
+
+    IsSubsetFirstEmpty = function()
+        local s = set()
+        assert(s:issubset(set(20)))
+    end,
+
+    IsSubsetSecondEmpty = function()
+        local s = set(10)
+        assert(not s:issubset(set()))
+    end,
+
+    IsSubsetBothEmpty = function()
+        local s = set()
+        assert(s:issubset(set()))
+    end,
+
+    OperatorIsSubset = function()
+        assert(set(10) <= set(10, 20))
+        assert(set(10, 20) <= set(10, 20))
+        assert(not (set(10, 20) <= set(20)))
+    end,
+
+    -------- issuperset() and >= operator
+
+    IsSuperset = function()
+        local s1 = set(10, 20)
+        local s2 = set(20)
+        assert(s1:issuperset(s2))
+        -- s1 and s2 should be unmodified.
+        assert(s1:has(10))
+        assert(s1:has(20))
+        assert(s1:len() == 2)
+        assert(not s2:has(10))
+        assert(s2:has(20))
+        assert(s2:len() == 1)
+    end,
+
+    IsSupersetEqualSets = function()
+        local s1 = set(10, 20)
+        assert(s1:issuperset(set(10, 20)))
+    end,
+
+    IsSupersetMissingElement = function()
+        local s1 = set(10, 20)
+        assert(not s1:issuperset(set(10, 30)))
+    end,
+
+    IsSupersetFirstEmpty = function()
+        local s = set()
+        assert(not s:issuperset(set(20)))
+    end,
+
+    IsSupersetSecondEmpty = function()
+        local s = set(10)
+        assert(s:issuperset(set()))
+    end,
+
+    IsSupersetBothEmpty = function()
+        local s = set()
+        assert(s:issuperset(set()))
+    end,
+
+    -- Lua doesn't have a __ge metamethod and implements "a >= b" as
+    -- "__le(b, a)", so this test is somewhat redundant, but we include
+    -- it for completeness and as a guard against future changes in Lua
+    -- behavior.
+    OperatorIsSuperset = function()
+        assert(not (set(10) >= set(10, 20)))
+        assert(set(10, 20) >= set(10, 20))
+        assert(set(10, 20) >= set(20))
+    end,
+
+    -------- == and ~= operators
+
+    OperatorIsEqual = function()
+        local s1 = set(10, 20)
+        local s2 = set(10, 20)
+        assert(s1 == s2)
+        -- s1 and s2 should be unmodified.
+        assert(s1:has(10))
+        assert(s1:has(20))
+        assert(s1:len() == 2)
+        assert(s2:has(10))
+        assert(s2:has(20))
+        assert(s2:len() == 2)
+    end,
+
+    OperatorIsEqualMissingInFirst = function()
+        assert(not (set(10) == set(10, 20)))
+    end,
+
+    OperatorIsEqualMissingInSecond = function()
+        assert(not (set(10, 20) == set(20)))
+    end,
+
+    OperatorIsEqualFirstEmpty = function()
+        assert(not (set() == set(10, 20)))
+    end,
+
+    OperatorIsEqualSecondEmpty = function()
+        assert(not (set(10, 20) == set()))
+    end,
+
+    OperatorIsEqualBothEmpty = function()
+        assert(set() == set())
+    end,
+
+    -- As with the >= test, this is currently redundant but we include it
+    -- to guard against future changes in Lua behavior.
+    OperatorIsUnequal = function()
+        assert(set(10) ~= set(10, 20))
+        assert(not (set(10, 20) ~= set(10, 20)))
+        assert(set(10, 20) ~= set(20))
+    end,
+
+    -------- < and > operators
+
+    OperatorIsProperSubset = function()
+        local s1 = set(10)
+        local s2 = set(10, 20)
+        assert(s1 < s2)
+        -- s1 and s2 should be unmodified.
+        assert(s1:has(10))
+        assert(not s1:has(20))
+        assert(s1:len() == 1)
+        assert(s2:has(10))
+        assert(s2:has(20))
+        assert(s2:len() == 2)
+    end,
+
+    OperatorIsProperSubsetEqualSets = function()
+        assert(not (set(10, 20) < set(10, 20)))
+    end,
+
+    OperatorIsProperSubsetMissingElement = function()
+        assert(not (set(10, 30) < set(10, 20)))
+    end,
+
+    OperatorIsProperSubsetFirstEmpty = function()
+        assert(set() < set(10, 20))
+    end,
+
+    OperatorIsProperSubsetSecondEmpty = function()
+        assert(not (set(10, 20) < set()))
+    end,
+
+    OperatorIsProperSubsetBothEmpty = function()
+        assert(not (set() < set()))
+    end,
+
+    -- As with the >= test, this is currently redundant but we include it
+    -- to guard against future changes in Lua behavior.
+    OperatorIsProperSuperset = function()
+        assert(not (set(10) > set(10, 20)))
+        assert(not (set(10, 20) > set(10, 20)))
+        assert(set(10, 20) > set(20))
+    end,
+
+    -------- isdisjoint()
+
+    IsDisjoint = function()
+        local s1 = set(10)
+        local s2 = set(20)
+        assert(s1:isdisjoint(s2))
+        -- s1 and s2 should be unmodified.
+        assert(s1:has(10))
+        assert(not s1:has(20))
+        assert(s1:len() == 1)
+        assert(not s2:has(10))
+        assert(s2:has(20))
+        assert(s2:len() == 1)
+    end,
+
+    IsDisjointProperSubset = function()
+        assert(not set(10):isdisjoint(set(10, 20)))
+    end,
+
+    IsDisjointProperSuperset = function()
+        assert(not set(10, 20):isdisjoint(set(10)))
+    end,
+
+    IsDisjointSharedElement = function()
+        assert(not set(10, 20):isdisjoint(set(10, 30)))
+    end,
+
+    IsDisjointFirstEmpty = function()
+        assert(set():isdisjoint(set(10, 20)))
+    end,
+
+    IsDisjointSecondEmpty = function()
+        assert(set(10, 20):isdisjoint(set()))
+    end,
+
+    IsDisjointBothEmpty = function()
+        -- The intersection of two empty sets is the empty set, so
+        -- the two sets are disjoint even though they are also equal.
+        -- Set theory is fun!
+        assert(set():isdisjoint(set()))
+    end,
+
+    -------- copy()
+
+    Copy = function()
+        local s = set(10)
+        local s2 = s:copy()
+        assert(s2)
+        assert(s2:has(10))
+        assert(s2:len() == 1)
+    end,
+
+    CopyMultiple = function()
+        local s = set(10, 20, 30)
+        local s2 = s:copy()
+        assert(s2)
+        assert(s2:has(10))
+        assert(s2:has(20))
+        assert(s2:has(30))
+        assert(s2:len() == 3)
+    end,
+
+    CopyEmpty = function()
+        local s = set()
+        local s2 = s:copy()
+        assert(s2:len() == 0)
+    end,
+
+    -------- Iteration
+
+    Iterator = function()
+        local s = set(1, 2, 4)
+        -- We don't know in what order the iterator will give us the
+        -- elements, but we've chosen powers of 2 as element values so
+        -- that if we iterate three times as expected, the values will
+        -- sum to 7 if and only if we get each element once.
+        local sum, count = 0, 0
+        for elem in s do
+            sum = sum + elem
+            count = count + 1
+        end
+        assert(count == 3)
+        assert(sum == 7)
+        -- s should be unmodified.
+        assert(s:has(1))
+        assert(s:has(2))
+        assert(s:has(4))
+        assert(s:len() == 3)
+    end,
+
+    IteratorSingleElement = function()
+        local x
+        for elem in set(10) do
+            assert(not x)
+            x = elem
+        end
+        assert(x == 10)
+    end,
+
+    IteratorEmptySet = function()
+        for elem in set() do
+            assert(false)  -- Should not be reached.
+        end
+    end,
+
+    -------- elements()
+
+    Elements = function()
+        local s = set(1, 2, 4)
+        local array = s:elements()
+        assert(#array == 3)
+        assert(array[1] + array[2] + array[3] == 7)
+        -- Make sure there are no stray elements in the returned table.
+        assert(next(array, next(array, next(array, next(array)))) == nil)
+        -- Check that the returned array's metatable is clean except for
+        -- our iterator method.
+        local mt = getmetatable(array)
+        assert(mt)
+        assert(type(mt.__call) == "function")
+        assert(next(mt) == "__call")
+        assert(next(mt, "__call") == nil)
+        -- s should be unmodified.
+        assert(s:has(1))
+        assert(s:has(2))
+        assert(s:has(4))
+        assert(s:len() == 3)
+    end,
+
+    ElementsIterate = function()
+        local array = set(1, 2, 4):elements()
+        local i = 0
+        for x in array do
+            i = i+1
+            assert(x == array[i])
+        end
+        assert(i == 3)
+    end,
+
+    ElementsSingleElement = function()
+        local array = set(10):elements()
+        local i, x = next(array)
+        assert(i == 1)
+        assert(x == 10)
+        assert(next(array, i) == nil)
+    end,
+
+    ElementsEmptySet = function()
+        local array = set():elements()
+        assert(next(array) == nil)
+    end,
+
+    -------- sorted()
+
+    Sorted = function()
+        local s = set(10, 20, 30)
+        local array = s:sorted()
+        assert(#array == 3)
+        -- Since this array is sorted, we don't have to play games with
+        -- summing the element values and can just check them directly.
+        assert(array[1] == 10)
+        assert(array[2] == 20)
+        assert(array[3] == 30)
+        -- Make sure there are no stray elements in the returned table.
+        assert(next(array, next(array, next(array, next(array)))) == nil)
+        -- Check that the returned array's metatable is clean except for
+        -- our iterator method.
+        local mt = getmetatable(array)
+        assert(mt)
+        assert(type(mt.__call) == "function")
+        assert(next(mt) == "__call")
+        assert(next(mt, "__call") == nil)
+        -- s should be unmodified.
+        assert(s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+        assert(s:len() == 3)
+    end,
+
+    SortedIterate = function()
+        local array = set(10, 20, 30):sorted()
+        local i = 0
+        for x in array do
+            i = i+1
+            assert(x == array[i])
+        end
+        assert(i == 3)
+    end,
+
+    SortedComparator = function()
+        function gt(a, b) return a > b end
+        local array = set(10, 20, 30):sorted(gt)
+        assert(#array == 3)
+        assert(array[1] == 30)
+        assert(array[2] == 20)
+        assert(array[3] == 10)
+        assert(next(array, next(array, next(array, next(array)))) == nil)
+    end,
+
+    SortedSingleElement = function()
+        local array = set(10):sorted()
+        local i, x = next(array)
+        assert(i == 1)
+        assert(x == 10)
+        assert(next(array, i) == nil)
+    end,
+
+    SortedEmptySet = function()
+        local array = set():sorted()
+        assert(next(array) == nil)
+    end,
+
+}
+
+function module.setTests(verbose)
+    local fail = 0
+    local sorted = {}
+    local tinsert = table.insert
+    for name, test in pairs(tests) do
+        local entry = {name, test}
+        tinsert(sorted, entry)
+    end
+    if debug then
+        for _, entry in ipairs(sorted) do
+            tinsert(entry, debug.getinfo(entry[2], "S").linedefined)
+        end
+        table.sort(sorted, function(a,b) return a[3] < b[3] end)
+    end
+    for _, entry in ipairs(sorted) do
+        local name, test = unpack(entry)
+        if verbose then
+            io.write(name..": ")
+        end
+        local _, err = pcall(test)
+        if err then fail = fail+1 end
+        if verbose then
+            if err then
+                print("FAIL: "..err)
+            else
+                print("pass")
+            end
+        elseif err then
+            print("FAIL: "..name..": "..err)
+        end
+    end
+    if fail > 0 then
+        print(("%d test%s failed."):format(fail, fail==1 and "" or "s"))
+        return false
+    else
+        print("All tests passed.")
+        return true
+    end
+end
+
+------------------------------------------------------------------------
+
+return module
