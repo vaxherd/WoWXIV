@@ -99,7 +99,10 @@ and other sets:
     s1:issuperset(s2)
 
     -- True if every element in s1 is in s2 and vice versa
-    s1 == s2
+    -- (Note that unlike Python, we do not override the == operator,
+    -- because Lua does not provide any other way to test whether
+    -- two values refer to the same object.)
+    s1:isequal(s2)
 
     -- True if s1 is a proper subset of s2 (s1 <= s2 and s1 ~= s2)
     s1 < s2
@@ -123,9 +126,10 @@ elements, but not new copies of the elements themselves) can be created
 with the copy() method:
 
     s2 = s1:copy()
-    assert(s2 == s1)
-    s2.add(element_not_in_s1)
     assert(s2 ~= s1)
+    assert(s2:isequal(s1))
+    s2.add(element_not_in_s1)
+    assert(not s2:isequal(s1))
 
 The same can be accomplished by invoking set operator methods like
 union() with no arguments; copy() is provided for semantic clarity.
@@ -251,7 +255,7 @@ local set_methods = {
         for i = 1, select("#", ...) do
             local x = select(i, ...)
             if x == nil then
-                error(ADD_NIL_MSG)
+                error(ADD_NIL_MSG, 2)
             end
             if not elements[x] then
                 elements[x] = true
@@ -281,7 +285,7 @@ local set_methods = {
         for i = 1, select("#", ...) do
             local x = select(i, ...)
             if x == nil or not elements[x] then
-                error(NO_ELEMENT_MSG)
+                error(NO_ELEMENT_MSG, 2)
             end
             elements[x] = nil
             len = len-1
@@ -309,7 +313,7 @@ local set_methods = {
         local len = s.__len
         local x = next(elements)
         if x == nil then
-            error(EMPTY_SET_MSG)
+            error(EMPTY_SET_MSG, 2)
         end
         elements[x] = nil
         s.__len = len-1
@@ -411,6 +415,10 @@ local set_methods = {
         return s2:issubset(s1)
     end,
 
+    isequal = function(s1, s2)
+        return s1:issubset(s2) and s1:issuperset(s2)
+    end,
+
     isdisjoint = function(s1, s2)
         local elements2 = s2.__elements
         for x in s1 do
@@ -449,11 +457,10 @@ local set_methods = {
     __sub = set_methods.difference,
     __mul = set_methods.intersection,
     __pow = set_methods.symmetric_difference,
-    __eq = function(s1, s2) return s1 <= s2 and s2 <= s1 end,
     __le = set_methods.issubset,
     __lt = function(s1, s2) return s1 <= s2 and not (s2 <= s1) end,
     __index = set_methods,
-    __newindex = function() error(BAD_NEWINDEX_MSG) end,
+    __newindex = function() error(BAD_NEWINDEX_MSG, 2) end,
     __call = function(s, _, i) local x = next(s.__elements, i) return x end,
     __tostring = function(s) return s.__tostring end,
 }
@@ -462,26 +469,13 @@ local set_methods = {
 -- Test routines (can be run with: lua -e 'require("_set").setTests()')
 ------------------------------------------------------------------------
 
--- Return whether s1 and s2 are the same set instance (as opposed to
--- whether they have the same members).
-local function SameInstance(s1, s2)
-    assert(getmetatable(s1) == set_metatable)
-    assert(getmetatable(s2) == set_metatable)
-    setmetatable(s1, nil)
-    setmetatable(s2, nil)
-    local same = (s1 == s2)
-    setmetatable(s1, set_metatable)
-    setmetatable(s2, set_metatable)
-    return same
-end
-
 local tests = {
 
     -------- add() (and basic has())
 
     Add = function()
         local s = set()
-        assert(SameInstance(s:add(10), s))
+        assert(s:add(10) == s)
         assert(s:has(10))
     end,
 
@@ -593,7 +587,7 @@ local tests = {
 
     HasNone = function()
         local s = set()
-        assert(s:has())  -- True: the set has all zero of the specified values
+        assert(s:has())  -- True: the set has all zero of the specified values.
     end,
 
     HasMultiple = function()
@@ -606,6 +600,11 @@ local tests = {
         local s = set()
         s:add(10, 20, 30)
         assert(not s:has(10, 40, 30))
+    end,
+
+    HasNil = function()
+        local s = set(10)
+        assert(not s:has(nil))  -- False: nil can never be a member of a set.
     end,
 
     -------- len()
@@ -654,7 +653,7 @@ local tests = {
 
     Remove = function()
         local s = set(10)
-        assert(SameInstance(s:remove(10), s))
+        assert(s:remove(10) == s)
         assert(not s:has(10))
         assert(s:len() == 0)
     end,
@@ -696,11 +695,20 @@ local tests = {
         assert(s:len() == 0)
     end,
 
+    RemoveNil = function()
+        local s = set(10)
+        local result, errmsg = pcall(function() s:remove(nil) end)
+        assert(result == false)
+        assert(errmsg:find(NO_ELEMENT_MSG, 1, true), errmsg)
+        assert(s:has(10))
+        assert(s:len() == 1)
+    end,
+
     -------- discard()
 
     Discard = function()
         local s = set(10)
-        assert(SameInstance(s:discard(10), s))
+        assert(s:discard(10) == s)
         assert(not s:has(10))
         assert(s:len() == 0)
     end,
@@ -736,6 +744,13 @@ local tests = {
         s:discard(10) -- Should not error.
         assert(not s:has(10))
         assert(s:len() == 0)
+    end,
+
+    DiscardNil = function()
+        local s = set(10)
+        s:discard(nil)  -- Should not error.
+        assert(s:has(10))
+        assert(s:len() == 1)
     end,
 
     -------- pop()
@@ -787,7 +802,7 @@ local tests = {
 
     Clear = function()
         local s = set(10)
-        assert(SameInstance(s:clear(), s))
+        assert(s:clear() == s)
         assert(not s:has(10))
         assert(s:len() == 0)
     end,
@@ -814,8 +829,8 @@ local tests = {
         local s1 = set(10)
         local s2 = set(20)
         local s3 = s1:union(s2)
-        assert(not SameInstance(s3, s1))
-        assert(not SameInstance(s3, s2))
+        assert(s3 ~= s1)
+        assert(s3 ~= s2)
         assert(s3:has(10))
         assert(s3:has(20))
         assert(s3:len() == 2)
@@ -832,8 +847,8 @@ local tests = {
         local s1 = set()
         local s2 = set(20)
         local s3 = s1:union(s2)
-        assert(not SameInstance(s3, s1))
-        assert(not SameInstance(s3, s2))
+        assert(s3 ~= s1)
+        assert(s3 ~= s2)
         assert(s3:has(20))
         assert(s3:len() == 1)
         assert(not s1:has(20))
@@ -846,8 +861,8 @@ local tests = {
         local s1 = set(10)
         local s2 = set()
         local s3 = s1:union(s2)
-        assert(not SameInstance(s3, s1))
-        assert(not SameInstance(s3, s2))
+        assert(s3 ~= s1)
+        assert(s3 ~= s2)
         assert(s3:has(10))
         assert(s3:len() == 1)
         assert(s1:has(10))
@@ -905,7 +920,7 @@ local tests = {
     Update = function()
         local s1 = set(10)
         local s2 = set(20)
-        assert(SameInstance(s1:update(s2), s1))
+        assert(s1:update(s2) == s1)
         assert(s1:has(10))
         assert(s1:has(20))
         assert(s1:len() == 2)
@@ -918,7 +933,7 @@ local tests = {
     UpdateFirstEmpty = function()
         local s1 = set()
         local s2 = set(20)
-        assert(SameInstance(s1:update(s2), s1))
+        assert(s1:update(s2) == s1)
         assert(s1:has(20))
         assert(s1:len() == 1)
         assert(s2:has(20))
@@ -928,7 +943,7 @@ local tests = {
     UpdateSecondEmpty = function()
         local s1 = set(10)
         local s2 = set()
-        assert(SameInstance(s1:update(s2), s1))
+        assert(s1:update(s2) == s1)
         assert(s1:has(10))
         assert(s1:len() == 1)
         assert(not s2:has(10))
@@ -976,8 +991,8 @@ local tests = {
         local s1 = set(10, 20, 30)
         local s2 = set(20)
         local s3 = s1:difference(s2)
-        assert(not SameInstance(s3, s1))
-        assert(not SameInstance(s3, s2))
+        assert(s3 ~= s1)
+        assert(s3 ~= s2)
         assert(s3:has(10))
         assert(not s3:has(20))
         assert(s3:has(30))
@@ -997,8 +1012,8 @@ local tests = {
         local s1 = set()
         local s2 = set(20)
         local s3 = s1:difference(s2)
-        assert(not SameInstance(s3, s1))
-        assert(not SameInstance(s3, s2))
+        assert(s3 ~= s1)
+        assert(s3 ~= s2)
         assert(not s3:has(20))
         assert(s3:len() == 0)
         assert(not s1:has(20))
@@ -1011,8 +1026,8 @@ local tests = {
         local s1 = set(10)
         local s2 = set()
         local s3 = s1:difference(s2)
-        assert(not SameInstance(s3, s1))
-        assert(not SameInstance(s3, s2))
+        assert(s3 ~= s1)
+        assert(s3 ~= s2)
         assert(s3:has(10))
         assert(s3:len() == 1)
         assert(s1:has(10))
@@ -1074,7 +1089,7 @@ local tests = {
     DifferenceUpdate = function()
         local s1 = set(10, 20, 30)
         local s2 = set(20)
-        assert(SameInstance(s1:difference_update(s2), s1))
+        assert(s1:difference_update(s2) == s1)
         assert(s1:has(10))
         assert(not s1:has(20))
         assert(s1:has(30))
@@ -1089,7 +1104,7 @@ local tests = {
     DifferenceUpdateFirstEmpty = function()
         local s1 = set()
         local s2 = set(20)
-        assert(SameInstance(s1:difference_update(s2), s1))
+        assert(s1:difference_update(s2) == s1)
         assert(not s1:has(20))
         assert(s1:len() == 0)
         assert(s2:has(20))
@@ -1099,7 +1114,7 @@ local tests = {
     DifferenceUpdateSecondEmpty = function()
         local s1 = set(10)
         local s2 = set()
-        assert(SameInstance(s1:difference_update(s2), s1))
+        assert(s1:difference_update(s2) == s1)
         assert(s1:has(10))
         assert(s1:len() == 1)
         assert(not s2:has(10))
@@ -1150,8 +1165,8 @@ local tests = {
         local s1 = set(10, 20, 30)
         local s2 = set(20)
         local s3 = s1:intersection(s2)
-        assert(not SameInstance(s3, s1))
-        assert(not SameInstance(s3, s2))
+        assert(s3 ~= s1)
+        assert(s3 ~= s2)
         assert(not s3:has(10))
         assert(s3:has(20))
         assert(not s3:has(30))
@@ -1171,8 +1186,8 @@ local tests = {
         local s1 = set()
         local s2 = set(20)
         local s3 = s1:intersection(s2)
-        assert(not SameInstance(s3, s1))
-        assert(not SameInstance(s3, s2))
+        assert(s3 ~= s1)
+        assert(s3 ~= s2)
         assert(not s3:has(20))
         assert(s3:len() == 0)
         assert(not s1:has(20))
@@ -1185,8 +1200,8 @@ local tests = {
         local s1 = set(10)
         local s2 = set()
         local s3 = s1:intersection(s2)
-        assert(not SameInstance(s3, s1))
-        assert(not SameInstance(s3, s2))
+        assert(s3 ~= s1)
+        assert(s3 ~= s2)
         assert(not s3:has(10))
         assert(s3:len() == 0)
         assert(s1:has(10))
@@ -1247,7 +1262,7 @@ local tests = {
     IntersectionUpdate = function()
         local s1 = set(10, 20, 30)
         local s2 = set(20)
-        assert(SameInstance(s1:intersection_update(s2), s1))
+        assert(s1:intersection_update(s2) == s1)
         assert(not s1:has(10))
         assert(s1:has(20))
         assert(not s1:has(30))
@@ -1262,7 +1277,7 @@ local tests = {
     IntersectionUpdateFirstEmpty = function()
         local s1 = set()
         local s2 = set(20)
-        assert(SameInstance(s1:intersection_update(s2), s1))
+        assert(s1:intersection_update(s2) == s1)
         assert(not s1:has(20))
         assert(s1:len() == 0)
         assert(s2:has(20))
@@ -1272,7 +1287,7 @@ local tests = {
     IntersectionUpdateSecondEmpty = function()
         local s1 = set(10)
         local s2 = set()
-        assert(SameInstance(s1:intersection_update(s2), s1))
+        assert(s1:intersection_update(s2) == s1)
         assert(not s1:has(10))
         assert(s1:len() == 0)
         assert(not s2:has(10))
@@ -1321,8 +1336,8 @@ local tests = {
         local s1 = set(10, 20, 30)
         local s2 = set(20)
         local s3 = s1:symmetric_difference(s2)
-        assert(not SameInstance(s3, s1))
-        assert(not SameInstance(s3, s2))
+        assert(s3 ~= s1)
+        assert(s3 ~= s2)
         assert(s3:has(10))
         assert(not s3:has(20))
         assert(s3:has(30))
@@ -1342,8 +1357,8 @@ local tests = {
         local s1 = set()
         local s2 = set(20)
         local s3 = s1:symmetric_difference(s2)
-        assert(not SameInstance(s3, s1))
-        assert(not SameInstance(s3, s2))
+        assert(s3 ~= s1)
+        assert(s3 ~= s2)
         assert(s3:has(20))
         assert(s3:len() == 1)
         assert(not s1:has(20))
@@ -1356,8 +1371,8 @@ local tests = {
         local s1 = set(10)
         local s2 = set()
         local s3 = s1:symmetric_difference(s2)
-        assert(not SameInstance(s3, s1))
-        assert(not SameInstance(s3, s2))
+        assert(s3 ~= s1)
+        assert(s3 ~= s2)
         assert(s3:has(10))
         assert(s3:len() == 1)
         assert(s1:has(10))
@@ -1402,7 +1417,7 @@ local tests = {
     SymmetricDifferenceUpdate = function()
         local s1 = set(10, 20, 30)
         local s2 = set(20)
-        assert(SameInstance(s1:symmetric_difference_update(s2), s1))
+        assert(s1:symmetric_difference_update(s2) == s1)
         assert(s1:has(10))
         assert(not s1:has(20))
         assert(s1:has(30))
@@ -1417,7 +1432,7 @@ local tests = {
     SymmetricDifferenceUpdateFirstEmpty = function()
         local s1 = set()
         local s2 = set(20)
-        assert(SameInstance(s1:symmetric_difference_update(s2), s1))
+        assert(s1:symmetric_difference_update(s2) == s1)
         assert(s1:has(20))
         assert(s1:len() == 1)
         assert(s2:has(20))
@@ -1427,7 +1442,7 @@ local tests = {
     SymmetricDifferenceUpdateSecondEmpty = function()
         local s1 = set(10)
         local s2 = set()
-        assert(SameInstance(s1:symmetric_difference_update(s2), s1))
+        assert(s1:symmetric_difference_update(s2) == s1)
         assert(s1:has(10))
         assert(s1:len() == 1)
         assert(not s2:has(10))
@@ -1552,12 +1567,12 @@ local tests = {
         assert(set(10, 20) >= set(20))
     end,
 
-    -------- == and ~= operators
+    -------- isequal()
 
     OperatorIsEqual = function()
         local s1 = set(10, 20)
         local s2 = set(10, 20)
-        assert(s1 == s2)
+        assert(s1:isequal(s2))
         -- s1 and s2 should be unmodified.
         assert(s1:has(10))
         assert(s1:has(20))
@@ -1568,31 +1583,23 @@ local tests = {
     end,
 
     OperatorIsEqualMissingInFirst = function()
-        assert(not (set(10) == set(10, 20)))
+        assert(not set(10):isequal(set(10, 20)))
     end,
 
     OperatorIsEqualMissingInSecond = function()
-        assert(not (set(10, 20) == set(20)))
+        assert(not set(10, 20):isequal(set(20)))
     end,
 
     OperatorIsEqualFirstEmpty = function()
-        assert(not (set() == set(10, 20)))
+        assert(not set():isequal(set(10, 20)))
     end,
 
     OperatorIsEqualSecondEmpty = function()
-        assert(not (set(10, 20) == set()))
+        assert(not set(10, 20):isequal(set()))
     end,
 
     OperatorIsEqualBothEmpty = function()
-        assert(set() == set())
-    end,
-
-    -- As with the >= test, this is currently redundant but we include it
-    -- to guard against future changes in Lua behavior.
-    OperatorIsUnequal = function()
-        assert(set(10) ~= set(10, 20))
-        assert(not (set(10, 20) ~= set(10, 20)))
-        assert(set(10, 20) ~= set(20))
+        assert(set():isequal(set()))
     end,
 
     -------- < and > operators

@@ -19,6 +19,7 @@ config.lua
 flytext.lua
 hatelist.lua
 isearch.lua
+isort.lua
 logwindow.lua
 map.lua
 partylist.lua
