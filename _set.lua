@@ -10,13 +10,15 @@ syntax are assumed to import the "set" identifier locally with
 "local set = module.set" or similar.
 
 
-A set is an unordered collection of values; in Lua terms, it is much
-like a table with only keys and no values.  Sets are useful in
-algorithms for which the presence or absence of a value is itself
-meaningful.
+A set is an unordered collection of values; in Lua terms, it is similar
+to a table with only keys and no values.  Sets are useful in algorithms
+for which the presence or absence of a value is itself meaningful.
 
 Sets may contain any type of value other than nil, and may even contain
-values of differing types.
+values of differing types.  Attempting to add nil to a set will raise an
+error; other element operations passed a value of nil will behave as
+usual when given a value not in the set (for example, has(nil) will
+return false without raising an error).
 
 The interface defined here draws largely from Python.  Notable
 differences from Python syntax and usage are documented below.
@@ -36,89 +38,76 @@ arguments to set(), not in an iterable.
 
 Set instances support the usual operations on elements:
 
-    s:add(x, ...)  -- Add x and ... to s if not already present
-    s:add()  -- No-op
-
-    s:has(x, ...)  -- True if x and ... are elements of s (Python "x in s")
-    s:has()  -- No-op, returns true ("all zero arguments are in s")
-
+    s:add(x)  -- Add x to s if not already present
+    s:has(x)  -- True if x is an element of s (Python "x in s")
     s:len()  -- Length of (number of elements in) s
-
-    s:remove(x, ...)  -- Remove x and ... from s; error if not present
-    s:remove()  -- No-op
-
-    s:discard(x, ...)  -- Remove x and ... from s if present
-    s:discard()  -- No-op
-
+    s:remove(x)  -- Remove x from s; error if not present
+    s:discard(x)  -- Remove x from s if present
     s:pop()  -- Remove and return an arbitrary element; error if empty
-
     s:clear()  -- Remove all elements
 
 and other sets:
 
-    -- Set containing all elements in any of s1 or s2 or ...
-    s1 + s2  -- Python: "s1 | s2"
-    s1:union(s2, ...)
-    s1:union()  -- No-op, returns s1
+    s1:union(s2)  -- Set containing all elements in s1 or s2 (or both)
+    s1:update(s2)  -- Add all elements in s2 to s1
+    s1:difference(s2)  -- Set containing elements in s1 but not s2
+    s1:difference_update(s2)  -- Remove all elements in s2 from s1
+    s1:intersection(s2)  -- Set containing elements in both s1 and s2
+    s1:intersection_update(s2)  -- Remove all elements not in s2 from s1
+    s1:symmetric_difference(s2)  -- Set of elements in s1 or s2 but not both
+    s1:symmetric_difference_update(s2)  -- Keep elements in s1 or s2 but not both
+    s1:issubset(s2)  -- True if every element in s1 is in s2
+    s1:issuperset(s2)  -- True if every element in s2 is in s1
+    s1:isequal(s2)  -- True if every element in s1 is in s2 and vice versa
+    s1:isdisjoint(s2)  -- True if s1 and s2 have no elements in common
 
-    -- Add all elements in s2 and ... to s1
-    s1:update(s2, ...)
+
+Most methods which take one argument can also take multiple arguments:
+
+    s:add(x, y, ...)
+    s:has(x, y, ...)  -- True if all of x, y, ... are in s
+    s:remove(x, y, ...)  -- Error if any of x, y, ... are not in s
+    s:discard(x, y, ...)
+    s1:union(s2, s3, ...)
+    s1:update(s2, s3, ...)
+    s1:difference(s2, s3, ...)
+    s1:difference_update(s2, s3, ...)
+    s1:intersection(s2, s3, ...)
+    s1:intersection_update(s2, s3, ...)
+
+or no arguments:
+
+    s:add()  -- No-op
+    s:has()  -- No-op, returns true ("all zero arguments are in s")
+    s:remove()  -- No-op
+    s:discard()  -- No-op
+    s1:union()  -- No-op, returns a copy of s1
     s1:update()  -- No-op
-
-    -- Set containing elements in s1 but not in s2 or ...
-    s1 - s2
-    s1:difference(s2, ...)
-    s1:difference()  -- No-op, returns s1
-
-    -- Remove all elements in s2 and ... from s1
-    s1:difference_update(s2, ...)
+    s1:difference()  -- No-op, returns a copy of s1
     s1:difference_update()  -- No-op
-
-    -- Set containing elements in all of s1 and s2 and ...
-    s1 * s2  -- Python: "s1 & s2"
-    s1:intersection(s2, ...)
-    s1:intersection()  -- No-op, returns s1
-
-    -- Remove all elements not in s2 or ... from s1
-    s1:intersection_update(s2, ...)
+    s1:intersection()  -- No-op, returns a copy of s1
     s1:intersection_update()  -- No-op
 
-    -- Set containing elements in s1 or s2 but not both
-    s1 ^ s2
-    s1:symmetric_difference(s2)
 
-    -- Keep elements in s1 or s2 but not both
-    s1:symmetric_difference_update(s2)
+Sets also support set-to-set operations using standard binary operators:
 
-    -- True if s1 is a subset of s2 (every element in s1 is in s2)
-    s1 <= s2
-    s1:issubset(s2)
+    s1 + s2  -- s1:union(s2) (Python: "s1 | s2")
+    s1 - s2  -- s1:difference(s2)
+    s1 * s2  -- s1:intersection(s2) (Python: "s1 & s2")
+    s1 ^ s2  -- s1:symmetric_difference(s2)
+    s1 <= s2  -- s1:issubset(s2)
+    s1 < s2  -- s1:issubset(s2) and not s1:isequal(s2) ("proper subset")
 
-    -- True if s1 is a superset of s2 (every element in s2 is in s1)
-    s1 >= s2
-    s1:issuperset(s2)
-
-    -- True if every element in s1 is in s2 and vice versa
-    -- (Note that unlike Python, we do not override the == operator,
-    -- because Lua does not provide any other way to test whether
-    -- two values refer to the same object.)
-    s1:isequal(s2)
-
-    -- True if s1 is a proper subset of s2 (s1 <= s2 and s1 ~= s2)
-    s1 < s2
-
-    -- True if s1 is a proper superset of s2 (s1 >= s2 and s1 ~= s2)
-    s1 > s2
-
-    -- True if s1 and s2 have no elements in common ((s1*s2):len == 0)
-    s1:isdisjoint(s2)
+Note that unlike Python, we do not override the == operator, because Lua
+doesn't provide any other way to test whether two values refer to the
+same object.
 
 
 All set methods which do not return an explicit value (add, remove,
 discard, clear, and the update methods) return the set instance on which
 they operated, allowing chaining:
 
-    s1:update(s2):update_difference(s3)  -- s1 = (s1 + s2) - s3
+    s1:update(s2):difference_update(s3)  -- s1 = (s1 + s2) - s3
 
 
 A shallow copy of a set (a new set instance containing the same
@@ -141,6 +130,11 @@ A set is its own iterator:
         print(elem, "is an element of s")
     end
 
+The order of iteration is undefined, and may change from one loop to
+the next, though each individual loop is guaranteed to see each element
+of the set exactly once.  See sorted() below for iterating over elements
+in a specified order.
+
 The caveat to Lua next() and pairs() about modifying the table argument
 (adding a key to the table causes undefined behavior) applies here as
 well: behavior is undefined if an element is added to s inside the loop,
@@ -148,9 +142,9 @@ but elements may be safely removed without affecting iteration.
 
 Note that because this iteration is implemented in Lua, it executes
 somewhat more slowly than the native pairs().  This set type is designed
-to prefer convenience and code conciseness over performance, but for
-very large sets, ipairs(s:elements()) may be more efficient despite the
-extra array creation.
+to prefer convenience and code conciseness over performance; where
+performance is critical, a native Lua table with set values as table
+keys and arbitrary constants as table values may be a better choice.
 
 
 The elements in the set can be returned as an unsorted array:
@@ -170,16 +164,22 @@ and the sort can use an arbitrary comparator function like table.sort():
 
 The arrays returned by elements() and sorted() are _iterable arrays_, in
 that they can be used directly in a "for ... in" construct.  Thus, the
-following two statements are equivalent:
+following three statements are equivalent:
 
     for x in s do ... end
     local array = s:elements(); for x in array do ... end
+    for x in s:elements() do ... end
 
-except that the latter creates an extra copy of the element list.
+except that the latter two create an extra copy of the element list,
+while the construct:
+
+    for x in s:sorted() do ... end
+
+will iterate over all elements of s in ascending order.
 
 As for set iteration, this array iteration is somewhat slower than
-ipairs(), and ipairs() should be preferred where performance is
-important; the iteration operator is provided for convenience.
+ipairs(), and ipairs() should be preferred if performance is important;
+the iteration operator is provided for convenience.
 
 ]]--
 
@@ -224,16 +224,17 @@ local function make_iterable(t)
     local i
     return setmetatable(t, {
         --[[
-            Generic for expects a function taking two arguments, but since
-            we give it a callable table, the table itself is prepended as
-            a |self| argument.  The first ("state") argument to the
-            iterator will always be nil in our documented syntax, but we
-            have |self|, so there's no need for a separate state argument.
+            Generic "for" expects a function taking two arguments, but
+            since we give it a callable table, the table itself is
+            prepended as a |self| argument.  The first ("state") argument
+            to the iterator will always be nil when using our documented
+            iteration syntax, but we have |self|, so there's no need for
+            a separate state argument.
 
-            In order not to leak the iterator index (|i|) to the caller
-            and thus allow straightforward iteration as documented, we use
-            the previous-value argument as a flag: if it is nil, this must
-            be the first call, so we reset the index in that case.
+            In order to avoid leaking the iterator index to the caller
+            and thus allow straightforward iteration as documented, we
+            use the previous-value argument as a flag: if it is nil, this
+            must be the first call, so we reset the index in that case.
         ]]--
         __call = function(self, _, prev)
             if prev == nil then i = 0 end
