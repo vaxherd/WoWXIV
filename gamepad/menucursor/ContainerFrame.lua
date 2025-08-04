@@ -1085,7 +1085,8 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
         self:AppendButton(self.menuitem_target)
 
     elseif AuctionHouseFrame and AuctionHouseFrame:IsShown() then
-        if C_AuctionHouse.IsSellItemValid(self.item_loc, false) then
+        local item_loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
+        if C_AuctionHouse.IsSellItemValid(item_loc, false) then
             self:AppendButton(self.menuitem_auction)
         end
 
