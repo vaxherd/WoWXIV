@@ -979,6 +979,24 @@ local tests = {
         assert(s:len() == 4)
     end,
 
+    UpdateSelf = function()
+        local s = set(10, 30)
+        s:update(s)
+        assert(s:has(10))
+        assert(s:has(30))
+        assert(s:len() == 2)
+    end,
+
+    UpdateSelfMultiple = function()
+        local s = set(10, 30)
+        s:update(set(20), s, set(40))
+        assert(s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+        assert(s:has(40))
+        assert(s:len() == 4)
+    end,
+
     UpdateNone = function()
         local s = set(10, 30):update()
         assert(s:has(10))
@@ -1153,6 +1171,28 @@ local tests = {
         assert(s:len() == 3)
     end,
 
+    DifferenceUpdateSelf = function()
+        local s = set(10, 20, 30, 40, 50)
+        s:difference_update(s)
+        assert(not s:has(10))
+        assert(not s:has(20))
+        assert(not s:has(30))
+        assert(not s:has(40))
+        assert(not s:has(50))
+        assert(s:len() == 0)
+    end,
+
+    DifferenceUpdateSelfMultiple = function()
+        local s = set(10, 20, 30, 40, 50)
+        s:difference_update(set(20), s, set(40))
+        assert(not s:has(10))
+        assert(not s:has(20))
+        assert(not s:has(30))
+        assert(not s:has(40))
+        assert(not s:has(50))
+        assert(s:len() == 0)
+    end,
+
     DifferenceUpdateNone = function()
         local s = set(10, 30):difference_update()
         assert(s:has(10))
@@ -1324,6 +1364,28 @@ local tests = {
         assert(s:len() == 0)
     end,
 
+    IntersectionUpdateSelf = function()
+        local s = set(10, 20, 30, 40, 50)
+        s:intersection_update(s)
+        assert(s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+        assert(s:has(40))
+        assert(s:has(50))
+        assert(s:len() == 5)
+    end,
+
+    IntersectionUpdateSelfMultiple = function()
+        local s = set(10, 20, 30, 40, 50)
+        s:intersection_update(set(20, 40), s, set(40))
+        assert(not s:has(10))
+        assert(not s:has(20))
+        assert(not s:has(30))
+        assert(s:has(40))
+        assert(not s:has(50))
+        assert(s:len() == 1)
+    end,
+
     IntersectionUpdateNone = function()
         local s = set(10, 30):intersection_update()
         assert(s:has(10))
@@ -1468,6 +1530,15 @@ local tests = {
         assert(s:has(50))
         assert(s:has(60))
         assert(s:len() == 4)
+    end,
+
+    SymmetricDifferenceUpdateSelf = function()
+        local s = set(10, 20, 30)
+        s:symmetric_difference_update(s)
+        assert(not s:has(10))
+        assert(not s:has(20))
+        assert(not s:has(30))
+        assert(s:len() == 0)
     end,
 
     -------- issubset() and <= operator
