@@ -138,7 +138,9 @@ in a specified order.
 The caveat to Lua next() and pairs() about modifying the table argument
 (adding a key to the table causes undefined behavior) applies here as
 well: behavior is undefined if an element is added to s inside the loop,
-but elements may be safely removed without affecting iteration.
+but elements may be safely removed without affecting iteration.  (If an
+element which has not yet been visited during a loop is removed, it will
+not be seen by that loop.)
 
 Note that because this iteration is implemented in Lua, it executes
 somewhat more slowly than the native pairs().  This set type is designed
@@ -1793,10 +1795,10 @@ local tests = {
         -- elements, but we've chosen powers of 2 as element values so
         -- that if we iterate three times as expected, the values will
         -- sum to 7 if and only if we get each element once.
-        local sum, count = 0, 0
+        local count, sum = 0, 0
         for elem in s do
-            sum = sum + elem
             count = count + 1
+            sum = sum + elem
         end
         assert(count == 3)
         assert(sum == 7)
@@ -1820,6 +1822,64 @@ local tests = {
         for elem in set() do
             assert(false)  -- Should not be reached.
         end
+    end,
+
+    IteratorRemoveCurrent = function()
+        local s = set(1, 2, 4)
+        local count, sum = 0, 0
+        local x
+        for elem in s do
+            count = count + 1
+            sum = sum + elem
+            if count == 1 then
+                x = elem
+                s:remove(x)
+            end
+        end
+        assert(count == 3)
+        assert(sum == 7)
+        assert(x == 1 or x == 2 or x == 4)
+        assert(not s:has(x))
+        assert(s:len() == 2)
+    end,
+
+    IteratorRemoveSeen = function()
+        local s = set(1, 2, 4)
+        local count, sum = 0, 0
+        local x
+        for elem in s do
+            count = count + 1
+            sum = sum + elem
+            if count == 1 then
+                x = elem
+            elseif count == 2 then
+                s:remove(x)
+            end
+        end
+        assert(count == 3)
+        assert(sum == 7)
+        assert(x == 1 or x == 2 or x == 4)
+        assert(not s:has(x))
+        assert(s:len() == 2)
+    end,
+
+    IteratorRemoveUnseen = function()
+        local s = set(1, 2, 4)
+        local count, sum = 0, 0
+        local x
+        for elem in s do
+            count = count + 1
+            sum = sum + elem
+            if count == 1 then
+                x = elem==1 and 2 or 1
+                s:remove(x)
+            end
+        end
+        assert(count == 2)
+        assert(sum == 7-x)
+        assert(x == 1 or x == 2)
+        assert(not s:has(x))
+        assert(s:len() == 2)
     end,
 
     -------- elements()
