@@ -80,9 +80,76 @@ end
 
 
 function MountJournalHandler:__constructor()
+    self.cur_mount = nil  -- ID of currently selected mount.
+
     __super(self, MountJournal)
     self.cancel_func = CollectionsJournalHandler.CancelMenu
     self.tab_handler = CollectionsJournalHandler.instance.tab_handler
+    self.has_Button3 = true  -- Used to mount/dismount or unwrap new mount.
+    self.has_Button4 = true  -- Used to toggle favorite.
+    hooksecurefunc("MountJournal_UpdateMountList",
+                   function() self:RefreshTargets() end)
+end
+
+function MountJournalHandler:RefreshTargets()
+    self:SetTarget(nil)
+    self:SetTarget(self:SetTargets())
+end
+
+function MountJournalHandler:SetTargets()
+    local f = self.frame
+    local TogglePlayer = f.MountDisplay.ModelScene.TogglePlayer
+    self.targets = {
+        [TogglePlayer] = {can_activate = true, lock_highlight = true,
+                          up = false, down = fasle}
+    }
+    local top, bottom, initial = self:AddScrollBoxTargets(
+        self.frame.ScrollBox, function(data)
+            -- Set the cursor offset to point to the icon, which is not
+            -- part of the button itself; we don't have direct access to
+            -- the button frame here, so we have to hardcode this value.
+            -- The offset comes from the MountListButtonTemplate.icon
+            -- anchor definition in Blizzard_MountCollection.xml.
+            local params = {can_activate = true, lock_highlight = true,
+                            x_offset = -42}
+            return params, data.mountID == self.cur_mount
+        end)
+    return initial or top
+end
+
+function MountJournalHandler:EnterTarget(target)
+    __super(self, target)
+    local TogglePlayer = self.frame.MountDisplay.ModelScene.TogglePlayer
+    if target ~= TogglePlayer then
+        self.cur_mount = self:GetTargetFrame(target):GetElementData().mountID
+        self.targets[target].left = TogglePlayer
+        self.targets[target].right = TogglePlayer
+        self.targets[TogglePlayer].left = target
+        self.targets[TogglePlayer].right = target
+    end
+end
+
+function MountJournalHandler:OnAction(button)
+    local target = self:GetTarget()
+    if target == self.frame.MountDisplay.ModelScene.TogglePlayer then
+        return  -- No special actions here.
+    end
+    local target_frame = self:GetTargetFrame(target)
+    if button == "Button3" then
+        -- MountButton acts on the selected mount, not the highlighted one,
+        -- so make sure we select it first.
+        target_frame:Click("LeftButton", true)
+        self.frame.MountButton:Click("LeftButton", true)
+    else
+        assert(button == "Button4")
+        local mount_id = self:GetTargetFrame(target):GetElementData().mountID
+        assert(mount_id)
+        local is_favorite, can_favorite =
+            C_MountJournal.GetIsFavorite(target_frame.index)
+        if can_favorite and not C_MountJournal.NeedsFanfare(mount_id) then
+            C_MountJournal.SetIsFavorite(target_frame.index, not is_favorite)
+        end
+    end
 end
 
 
