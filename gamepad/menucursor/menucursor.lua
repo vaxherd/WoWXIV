@@ -2225,6 +2225,7 @@ function StandardMenuFrame:__constructor(frame, modal)
 end
 
 function StandardMenuFrame:OnShow()
+    if self:IsEnabled() then return end
     if not self.frame:IsVisible() then return end
     local initial_target = self.SetTargets and self:SetTargets()
     if initial_target ~= false then
