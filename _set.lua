@@ -1949,16 +1949,12 @@ function module.setTests(verbose)
         if verbose then
             io.write(name..": ")
         end
-        local _, err = pcall(test)
-        if err then fail = fail+1 end
-        if verbose then
-            if err then
-                print("FAIL: "..err)
-            else
-                print("pass")
-            end
-        elseif err then
-            print("FAIL: "..name..": "..err)
+        local success, errmsg = pcall(test)
+        if success then
+            if verbose then print("pass") end
+        else
+            fail = fail+1
+            print("FAIL: "..(verbose and "" or name..": ")..errmsg)
         end
     end
     if fail > 0 then

@@ -1065,17 +1065,17 @@ function WoWXIV.isortTests(verbose)
         if verbose then
             io.write(name..": ")
         end
-        local success, result
+        local success, errmsg
         if type(test) == "table" then
-            success, result = pcall(RunMoveTest, test[1], test[2])
+            success, errmsg = pcall(RunMoveTest, test[1], test[2])
         else
-            success, result = pcall(test)
+            success, errmsg = pcall(test)
         end
         if success then
             if verbose then print("pass") end
         else
             fail = fail+1
-            print("FAIL: "..(verbose and "" or name..": ")..result)
+            print("FAIL: "..(verbose and "" or name..": ")..errmsg)
         end
     end
     if fail > 0 then
