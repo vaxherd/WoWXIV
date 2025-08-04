@@ -8,6 +8,7 @@ local floor = math.floor
 local strformat = string.format
 local strsub = string.sub
 local tinsert = tinsert
+local yield = coroutine.yield
 
 
 assert(WoWXIV.UI.ItemSubmenu)  -- Ensure proper load order.
@@ -445,9 +446,12 @@ end
 
 function BankItemSubmenuHandler:SetTargets()
     self.targets = {}
+    local f = self.frame
     local initial
-    for _, button in ipairs(self.frame.buttons) do
-        self.targets[button] = {can_activate = true}
+    for i, button in ipairs(f.buttons) do
+        self.targets[button] = {can_activate = true,
+                                up = f.buttons[i==1 and #f.buttons or i-1],
+                                down = f.buttons[i==#f.buttons and 1 or i+1]}
         initial = initial or button
     end
     return initial
@@ -482,6 +486,11 @@ function BankItemSubmenu:__constructor()
             self:DoSplitStack(bag, slot, info, item)
         end
 
+    self.menuitem_sort_tab =
+        WoWXIV.UI.ItemSubmenuButton(self, "Sort tab", false)
+    self.menuitem_sort_tab.ExecuteInsecure =
+        function(bag, slot, info) self:DoSortTab(bag) end
+
     self.menuitem_discard =
         WoWXIV.UI.ItemSubmenuButton(self, "Discard", false)
     self.menuitem_discard.ExecuteInsecure =
@@ -499,6 +508,7 @@ function BankItemSubmenu:ConfigureForItem(bag, slot)
     else
         self:AppendButton(self.menuitem_takeout)
     end
+    self:AppendButton(self.menuitem_sort_tab)
     self:AppendButton(self.menuitem_discard)
 end
 
@@ -581,6 +591,22 @@ function BankItemSubmenu:DoSplitStackConfirm(bag, slot, link, count)
         return
     end
     C_Container.SplitContainerItem(bag, slot, count)
+end
+
+function BankItemSubmenu:DoSortTab(bag)
+    local sorter = WoWXIV.isort_execute(bag)
+    BankFrameHandler.instance:RunUnderLock(function()
+        while not sorter:Run() do
+            local status = yield(true)
+            if status == MenuCursor.MenuFrame.RUNUNDERLOCK_ABORT then
+                WoWXIV.Error("Tab sort interrupted.")
+                return
+            elseif status == MenuCursor.MenuFrame.RUNUNDERLOCK_CANCEL then
+                WoWXIV.Error("Tab sort cancelled.", false)
+                sorter:Abort()
+            end
+        end
+    end)
 end
 
 function BankItemSubmenu:DoDiscard(bag, slot, info)

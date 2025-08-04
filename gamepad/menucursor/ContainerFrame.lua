@@ -30,7 +30,7 @@ local InventoryItemSubmenu = class(WoWXIV.UI.ItemSubmenu)
 
 -- Send an item (identified by ItemLocation) to the auction house, and
 -- focus the auction house sell frame if it's already visible.  (If it's
--- not visible, it will be imminently Show()n and the manu handler will
+-- not visible, it will be imminently Show()n and the menu handler will
 -- focus it at that point.)
 local function SendToAuctionHouse(item_loc, info)
     if info.isLocked then
@@ -1063,6 +1063,11 @@ function InventoryItemSubmenu:__constructor()
             self:DoSplitStack(bag, slot, info, item)
         end
 
+    self.menuitem_sort_bag =
+        WoWXIV.UI.ItemSubmenuButton(self, "Sort bag", false)
+    self.menuitem_sort_bag.ExecuteInsecure =
+        function(bag, slot, info) self:DoSortBag(bag) end
+
     self.menuitem_discard =
         WoWXIV.UI.ItemSubmenuButton(self, "Discard", false)
     self.menuitem_discard.ExecuteInsecure =
@@ -1158,6 +1163,8 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
         self:AppendButton(self.menuitem_splitstack)
     end
 
+    self:AppendButton(self.menuitem_sort_bag)
+
     self:AppendButton(self.menuitem_discard)
 end
 
@@ -1196,6 +1203,22 @@ function InventoryItemSubmenu:DoSplitStackConfirm(bag, slot, link, count)
         return
     end
     C_Container.SplitContainerItem(bag, slot, count)
+end
+
+function InventoryItemSubmenu:DoSortBag(bag)
+    local sorter = WoWXIV.isort_execute(bag)
+    ContainerFrameHandler.instance:RunUnderLock(function()
+        while not sorter:Run() do
+            local status = yield(true)
+            if status == MenuCursor.MenuFrame.RUNUNDERLOCK_ABORT then
+                WoWXIV.Error("Bag sort interrupted.")
+                return
+            elseif status == MenuCursor.MenuFrame.RUNUNDERLOCK_CANCEL then
+                WoWXIV.Error("Bag sort cancelled.", false)
+                sorter:Abort()
+            end
+        end
+    end)
 end
 
 function InventoryItemSubmenu:DoDiscard(bag, slot, info)

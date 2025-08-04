@@ -2,7 +2,7 @@ local module_name, WoWXIV = ...
 local STANDALONE  -- for tests (only included when run standalone)
 if not WoWXIV then
     STANDALONE = true
-    WoWXIV = {set = require("_set").set}
+    WoWXIV = {class = require("_class").class, set = require("_set").set}
     assert(not Enum)
     Enum =
         {InventoryType = setmetatable({}, {__index = function() return 0 end})}
@@ -12,13 +12,11 @@ local class = WoWXIV.class
 local set = WoWXIV.set
 
 local max = math.max
-local resume = coroutine.resume
 local strfind = string.find
 local strlen = string.len
 local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 local tinsert = table.insert
 local tremove = table.remove
-local yield = coroutine.yield
 
 local FCT = function(...)
     FCT = WoWXIV.FormatColoredText
@@ -30,8 +28,21 @@ local function Yellow(s) return FCT(s, YELLOW_FONT_COLOR:GetRGB()) end
 -- Currently set conditions for each bag.
 local bag_conditions = {}
 
--- Currently running sort operation (coroutine), nil if none.
+-- Currently running sort operation (BagSorter instance), nil if none.
 local running_sort = nil
+
+-- Default conditions for isort_execute() if none are given by the caller.
+-- These more or less mimic what WoW's own "clean up bags" does.  Note that
+-- WoW's default is either unstable or poorly defined, since e.g. reagents
+-- within a single category/expansion can end up unordered with respect to
+-- quality and item ID.
+local DEFAULT_SORT_CONDITIONS = {
+    {"id", "descending"},
+    {"quality", "descending"},
+    {"expansion", "descending"},
+    {"itemlevel", "descending"},
+    {"category", "ascending"},
+}
 
 --------------------------------------------------------------------------
 -- Item comparators
@@ -124,7 +135,7 @@ function ITEM_COMPARATORS.itemlevel(a, b)
 end
 
 --------------------------------------------------------------------------
--- Core logic
+-- Helper routines
 --------------------------------------------------------------------------
 
 -- Return data for the item at the given bag and slot suitable for passing
@@ -184,6 +195,10 @@ local function ParseCondition(condition, direction)
     end
     return comparator, direction
 end
+
+--------------------------------------------------------------------------
+-- Core logic
+--------------------------------------------------------------------------
 
 -- Tail-recursive implementation of FindMoves().
 -- slot_map maps slots to their target positions; slot_map[i]==j means
@@ -599,25 +614,117 @@ local function FindMoves(items, bag_size)
     return FindMovesImpl(bag_size, slot_map, {})
 end
 
--- Helper for sort coroutine to ensure any pending item is removed
--- from the game cursor.  Hopefully not needed, but just in case...
-local function ReallyClearCursor()
-    ClearCursor()
-    local ts = GetTime()
-    while GetCursorInfo() do
-        if GetTime() - ts > 3.0 then
-            error("Item sort operation timed out.")
-        end
-        yield(true)
-        ClearCursor()
+-- Class implementing a bag sort operation, returned from StartBagSort().
+-- The class supports two operations, intended for calling from a
+-- coroutine:
+--    - Run(): Performs as much work as possible for the current frame.
+--          Returns true if the operation is complete, false if work
+--          remains to be done.
+--    - Abort(): Aborts the operation.  No more moves will be performed,
+--          but Run() will continue to return false until all locked
+--          slots become unlocked.
+-- Note that Run() may raise an error if it encounters a situation from
+-- which it cannot proceed; the caller should wrap it (such as with
+-- pcall()) if desired.
+local BagSorter = class()
+    function BagSorter:__constructor(bag, moves)
+        self.bag = bag
+        self.moves = moves
+        self.move_index = 1
+        self.busy_slots = set()
     end
-end
+
+    function BagSorter:Error(msg)
+        -- Ensure that a subsequent Run() doesn't try to do more work.
+        self:Abort()
+        self.busy_slots:clear()
+        error(msg, 2)
+    end
+
+    function BagSorter:CheckBusy(slot)
+        if self.busy_slots:has(slot) then
+            local info = C_Container.GetContainerItemInfo(self.bag, slot)
+            if info and info.isLocked then
+                return true
+            end
+            self.busy_slots:remove(slot)
+        end
+        return false
+    end
+
+    -- Returns true if move succeeded, false to try again later.
+    function BagSorter:TryMove(source, target)
+        if self:CheckBusy(source) or self:CheckBusy(target) then
+            return false
+        end
+        if GetCursorInfo() then
+            -- We start with the cursor cleared and make sure it's
+            -- cleared after each move, so if something is on the
+            -- cursor here, either it came from player action or the
+            -- client is confused; either way, abort immediately to
+            -- try and avoid potential disaster.
+            self:Error("Item sort interrupted by user action.")
+        end
+        C_Container.PickupContainerItem(self.bag, source)
+        -- Immediately record the slot as potentially busy.  If it's
+        -- not in fact locked, we'll detect that next cycle.
+        self.busy_slots:add(source)
+        -- If the cursor now has an item, we assume it's the correct
+        -- one.  If it doesn't, we assume we got throttled by the
+        -- game and stop processing for this cycle.
+        local info = GetCursorInfo()
+        if not info then
+            -- Nothing on the cursor can also mean there was nothing to
+            -- pick up in the first place, either because the move itself
+            -- was incorrectly specified or the player (or server)
+            -- manipulated the bag during the operation.  In that case,
+            -- we'd stall here forever, so check that the slot is in fact
+            -- occupied.
+            if not C_Container.GetContainerItemInfo(self.bag, source) then
+                self:Error("Item sort aborted due to inventory consistency error.")
+            end
+            return false
+        elseif info ~= "item" then  -- should be impossible
+            self:Error("Item sort interrupted by cursor error.")
+        end
+        C_Container.PickupContainerItem(self.bag, target)
+        self.busy_slots:add(target)
+        -- The cursor should now be empty, indicating that the item was
+        -- successfully dropped in the target slot.  If not, we again
+        -- assume we're being throttled, and we make sure the cursor is
+        -- clear for the next attempt.
+        if GetCursorInfo() then
+            ClearCursor()
+            assert(not GetCursorInfo())
+            return false
+        end
+        return true
+    end
+
+    function BagSorter:Run()
+        while self.move_index <= #self.moves do
+            local source, target = unpack(self.moves[self.move_index])
+            if not self:TryMove(source, target) then
+                return false
+            end
+            self.move_index = self.move_index + 1
+        end
+        for slot in self.busy_slots do
+            if self:CheckBusy(slot) then
+                return false
+            end
+        end
+        return true
+    end
+
+    function BagSorter:Abort()
+        self.move_index = #self.moves + 1
+    end
+-- end class BagSorter
 
 -- Start a sort operation for the given bag using the given list of
--- {comparator, direction} pairs.  Returns a coroutine which will, on each
--- resume() call, execute as many moves as the server allows; the coroutine
--- will yield true if any work remains to be performed, and return with no
--- values when all work is complete and all relevant slots are unlocked.
+-- {comparator, direction} pairs.  Returns a BagSorter instance which will
+-- execute the sort operation.
 --
 -- Clears anything held by the game cursor (ClearCursor()) as a side effect.
 local function StartBagSort(bag, bag_size, conditions)
@@ -640,71 +747,7 @@ local function StartBagSort(bag, bag_size, conditions)
     local moves = FindMoves(items, bag_size)
 
     ClearCursor()
-    return coroutine.create(function()
-        local busy_slots = set()
-        local function CheckBusy(slot)
-            if busy_slots:has(slot) then
-                local info = C_Container.GetContainerItemInfo(bag, slot)
-                if info and info.isLocked then
-                    return true
-                end
-                busy_slots:remove(slot)
-            end
-            return false
-        end
-
-        -- Returns true if move succeeded, false to try again later.
-        local function TryMove(source, target)
-            if CheckBusy(source) or CheckBusy(target) then
-                return false
-            end
-            if GetCursorInfo() then
-                -- We start with the cursor cleared and make sure it's
-                -- cleared after each move, so if something is on the
-                -- cursor here, either it came from player action or the
-                -- client is confused; either way, abort immediately to
-                -- try and avoid potential disaster.
-                error("Item sort interrupted by user action.")
-            end
-            C_Container.PickupContainerItem(bag, source)
-            -- Immediately record the slot as potentially busy.  If it's
-            -- not in fact locked, we'll detect that next cycle.
-            busy_slots:add(source)
-            -- If the cursor now has an item, we assume it's the correct
-            -- one.  If it doesn't, we assume we got throttled by the
-            -- game and stop processing for this cycle.
-            local info = GetCursorInfo()
-            if not info then
-                return false
-            elseif info ~= "item" then  -- should be impossible
-                error("Item sort interrupted by cursor error.")
-            end
-            C_Container.PickupContainerItem(bag, target)
-            busy_slots:add(target)
-            -- The cursor should now be empty, indicating that the item was
-            -- successfully dropped in the target slot.  If not, we again
-            -- assume we're being throttled, and we make sure the cursor is
-            -- clear for the next attempt.
-            if GetCursorInfo() then
-                ReallyClearCursor()  -- ack, get it off!!!
-                return false
-            end
-            return true
-        end
-
-        for _, move in ipairs(moves) do
-            local source, target = unpack(move)
-            while not TryMove(source, target) do
-                yield(true)
-            end
-        end
-        while busy_slots:len() > 0 do
-            yield(true)
-            for slot in busy_slots do
-                CheckBusy(slot)
-            end
-        end
-    end)
+    return BagSorter(bag, moves)
 end
 
 -- Perform as much work as possible on the currently running sort operation,
@@ -713,8 +756,8 @@ end
 -- to continue the operation.
 local function RunBagSort()
     assert(running_sort)
-    local success, status = resume(running_sort)
-    if success and status then
+    local success, status = pcall(running_sort.Run, running_sort)
+    if success and not status then
         RunNextFrame(RunBagSort)
         return
     end
@@ -785,21 +828,23 @@ end
 
 -- External callers can use this function to start a bag sort operation.
 -- |conditions| should be a list of {condition, direction} entries,
--- specified as for the /itemsort command (e.g. {"category", "ascending"}).
--- The caller is responsible for running the returned coroutine.
+-- specified as for the /itemsort command (e.g. {"category", "ascending"}),
+-- or nil for a "reasonable" default set of conditions.
+-- The caller is responsible for running the returned BagSorter instance.
 function WoWXIV.isort_execute(bag, conditions)
-    for _, entry in ipairs(conditions) do
+    local comparators = {}
+    for _, entry in ipairs(conditions or DEFAULT_SORT_CONDITIONS) do
         local comparator, dir_val, errmsg = ParseCondition(unpack(entry))
-        if not condition then
+        if not comparator then
             error(errmsg)
         end
-        entry[1], entry[2] = comparator, dir_val
+        tinsert(comparators, {comparator, dir_val})
     end
     local bag_size = C_Container.GetContainerNumSlots(bag) or 0
     if bag_size == 0 then
         error("Bag is unavailable")
     end
-    return StartBagSort(bag, bag_size, conditions)
+    return StartBagSort(bag, bag_size, comparators)
 end
 
 --------------------------------------------------------------------------
