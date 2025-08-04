@@ -541,7 +541,7 @@ function SellTabHandler:OnCancel()
 end
 
 function SellTabHandler:OnShow(frame)
-    self:ClearTarget()
+    self:Disable()
     self.frame = frame
     __super(self)
 end
