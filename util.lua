@@ -233,41 +233,6 @@ function WoWXIV.ShowConfirmation(text, check_text, accept_text,
 end
 
 -- Similar to GENERIC_CONFIRMATION, but adjusted for our purposes.
-if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0
-StaticPopupDialogs["WOWXIV_CONFIRMATION"] = {
-    text = "",
-    button1 = "",
-    button2 = "",
-    OnAccept = function(self, data)
-        data.accept_cb()
-    end,
-    OnCancel = function(self, data)
-        if data.cancel_cb then data.cancel_cb() end
-    end,
-    OnShow = function(self, data)
-        self.text:SetText(data.text)
-        self.button1:SetText(data.accept_text)
-        self.button2:SetText(data.cancel_text)
-        if data.check_text then
-            local button = WoWXIV._ShowStaticPopup_check_button
-            button.text:SetText(data.check_text)
-            button:GetParent():SetWidth(button:GetWidth() + button.text:GetStringWidth())
-            button:GetParent():SetHeight(max(button:GetHeight(), button.text:GetStringHeight()))
-            button:SetChecked(false)
-            button:SetScript("OnClick", function()
-                self.button1:SetEnabled(button:GetChecked())
-            end)
-            self.button1:Disable()
-        end
-    end,
-    OnHide = function(self, data)
-        local button = WoWXIV._ShowStaticPopup_check_button
-        button:SetScript("OnClick", nil)
-    end,
-    timeout = 0,
-    hideOnEscape = true,
-}
-else  -- FIXME: 11.2.0
 StaticPopupDialogs["WOWXIV_CONFIRMATION"] = {
     text = "",
     button1 = "",
@@ -301,7 +266,6 @@ StaticPopupDialogs["WOWXIV_CONFIRMATION"] = {
     timeout = 0,
     hideOnEscape = true,
 }
-end  -- FIXME: 11.2.0
 
 ------------------------------------------------------------------------
 -- Text formatting routines

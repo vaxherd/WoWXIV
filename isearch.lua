@@ -14,12 +14,6 @@ local function Yellow(s) return FCT(s, YELLOW_FONT_COLOR:GetRGB())     end
 local function Green(s)  return FCT(s, GREEN_FONT_COLOR:GetRGB())      end
 local function Blue(s)   return FCT(s, BRIGHTBLUE_FONT_COLOR:GetRGB()) end
 
-local VOID_MAX_TABS,VOID_MAX_SLOTS if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
--- Void storage constants which don't seem to be available via the API.
---[[local]] VOID_MAX_TABS = 2
---[[local]] VOID_MAX_SLOTS = 80  -- per tab
-end  -- FIXME: 11.2.0 bank revamp
-
 
 -- Maximum number of results to return in a single call.
 local MAX_RESULTS = 20
@@ -148,81 +142,8 @@ function BagGetter:Name()
 end
 
 
-local BankBagGetter  -- FIXME: 11.2.0 bank revamp
-local AccountBagGetter  -- FIXME: 11.2.0 bank revamp
-local VoidGetter  -- FIXME: 11.2.0 bank revamp
-local BankTabGetter  -- FIXME: 11.2.0 bank revamp
-if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
--- Specialization of BagGetter for bank bags.
---local
- BankBagGetter = class(BagGetter)
-function BankBagGetter:Size()
-    -- If not at a bank, GetContainerNumSlots() will return positive values
-    -- for the main and reagent bank bags but GetContainerItemInfo() will
-    -- not return any data, making it look like the bags are empty, so we
-    -- suppress all data when the bank frame is not open.  The bank revamp
-    -- in 11.2.0 will make this all moot anyway.
-    if not BankFrame:IsShown() then return 0 end
-    return __super(self)
-end
-
-
--- Specialization of BagGetter for account bank tabs.
---local
- AccountBagGetter = class(BagGetter)
-function AccountBagGetter:__constructor(tab_index, name)
-    __super(self, Enum.BagIndex.AccountBankTab_1 + (tab_index - 1), name, true)
-end
-function AccountBagGetter:Name()
-    local name = self.name
-    if self.append_bagname then
-        local tab_name = "???"
-        local data = C_Bank.FetchPurchasedBankTabData(Enum.BankType.Account)
-        if data then
-            for _, tab_info in ipairs(data) do
-                if tab_info.ID == self.bag_id then
-                    tab_name = tab_info.name
-                    break
-                end
-            end
-        end
-        name = name .. " (" .. tab_name .. ")"
-    end
-    return name
-end
-
-
--- Getter for void storage tabs.
---local
- VoidGetter = class(ContainerGetter)
-function VoidGetter:__constructor(tab_index)
-    __super(self, nil)
-    self.tab = tab_index
-end
-function VoidGetter:Name()
-    return "Void Storage tab " .. self.tab
-end
-function VoidGetter:Size()
-    return IsVoidStorageReady() and VOID_MAX_SLOTS or 0
-end
-function VoidGetter:Item(slot)
-    -- Void storage strips all item parameters, so we can just get the
-    -- standard link from the item ID.
-    local item = GetVoidItemInfo(self.tab, slot)
-    if item then
-        local link = select(2, C_Item.GetItemInfo(item))
-        return {item, 1, link}
-    else
-        return nil
-    end
-end
-function VoidGetter:BagID()
-    return nil
-end
-else  -- FIXME: 11.2.0 bank revamp
 -- Getter for bank tabs.
---local
- BankTabGetter = class(ContainerGetter)
+local BankTabGetter = class(ContainerGetter)
 function BankTabGetter:__constructor(bank_type, tab_index, name)
     local bag_id_base
     if bank_type == Enum.BankType.Character then
@@ -249,7 +170,6 @@ function BankTabGetter:Name()
     end
     return name .. " (" .. tab_name .. ")"
 end
-end  -- FIXME: 11.2.0 bank revamp
 
 --------------------------------------------------------------------------
 -- Other local data and utility routines
@@ -263,37 +183,7 @@ end  -- FIXME: 11.2.0 bank revamp
 local function BAGDEF(getter, cache_id, in_combined)
     return {getter = getter, cache_id = cache_id, in_combined = in_combined}
 end
-local BAGS  -- FIXME: 11.2.0 bank revamp
-if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
---local
- BAGS = {
-    BAGDEF(BagGetter(Enum.BagIndex.Backpack, "Backpack", false), nil, true),
-    BAGDEF(BagGetter(Enum.BagIndex.Bag_1, "Bag 1", true), nil, true),
-    BAGDEF(BagGetter(Enum.BagIndex.Bag_2, "Bag 2", true), nil, true),
-    BAGDEF(BagGetter(Enum.BagIndex.Bag_3, "Bag 3", true), nil, true),
-    BAGDEF(BagGetter(Enum.BagIndex.Bag_4, "Bag 4", true), nil, true),
-    BAGDEF(BagGetter(Enum.BagIndex.ReagentBag, "Reagent Bag", false)),
-    BAGDEF(BagGetter(Enum.BagIndex.Bank, "Bank", false), "bank0"),
-    BAGDEF(BankBagGetter(Enum.BagIndex.BankBag_1, "Bank Bag 1", true), "bank1"),
-    BAGDEF(BankBagGetter(Enum.BagIndex.BankBag_2, "Bank Bag 2", true), "bank2"),
-    BAGDEF(BankBagGetter(Enum.BagIndex.BankBag_3, "Bank Bag 3", true), "bank3"),
-    BAGDEF(BankBagGetter(Enum.BagIndex.BankBag_4, "Bank Bag 4", true), "bank4"),
-    BAGDEF(BankBagGetter(Enum.BagIndex.BankBag_5, "Bank Bag 5", true), "bank5"),
-    BAGDEF(BankBagGetter(Enum.BagIndex.BankBag_6, "Bank Bag 6", true), "bank6"),
-    BAGDEF(BankBagGetter(Enum.BagIndex.BankBag_7, "Bank Bag 7", true), "bank7"),
-    BAGDEF(BankBagGetter(Enum.BagIndex.Reagentbank, "Bank Reagent Bag", false), "bankR"),
-    BAGDEF(AccountBagGetter(1, "Warband Bank Tab 1", false), "warbank1"),
-    BAGDEF(AccountBagGetter(2, "Warband Bank Tab 2", false), "warbank2"),
-    BAGDEF(AccountBagGetter(3, "Warband Bank Tab 3", false), "warbank3"),
-    BAGDEF(AccountBagGetter(4, "Warband Bank Tab 4", false), "warbank4"),
-    BAGDEF(AccountBagGetter(5, "Warband Bank Tab 5", false), "warbank5"),
-}
-for tab = 1, VOID_MAX_TABS do
-    tinsert(BAGS, BAGDEF(VoidGetter(tab), "void"..tab))
-end
-else  -- FIXME: 11.2.0 bank revamp
---local
- BAGS = {
+local BAGS = {
     BAGDEF(BagGetter(Enum.BagIndex.Backpack, "Backpack", false), nil, true),
     BAGDEF(BagGetter(Enum.BagIndex.Bag_1, "Bag 1", true), nil, true),
     BAGDEF(BagGetter(Enum.BagIndex.Bag_2, "Bag 2", true), nil, true),
@@ -312,7 +202,6 @@ else  -- FIXME: 11.2.0 bank revamp
     BAGDEF(BankTabGetter(Enum.BankType.Account, 4, "Warband Bank Tab 4"), "warbank4"),
     BAGDEF(BankTabGetter(Enum.BankType.Account, 5, "Warband Bank Tab 5"), "warbank5"),
 }
-end  -- FIXME: 11.2.0 bank revamp
 
 -- For equipment, names are available as global constants, but again they
 -- don't provide a way to distinguish between multiple slots of the same type.
@@ -434,11 +323,7 @@ function isearch_event_frame:BAG_UPDATE(bag_id)
     end
 end
 
-if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
-BankFrame:HookScript("OnShow", function() isearch_event_frame:BANKFRAME_OPENED() end)  -- BANKFRAME_OPENED fires before OnShow() and our bank bag hack looks for :IsShown().
-else
 isearch_event_frame:RegisterEvent("BANKFRAME_OPENED")
-end
 function isearch_event_frame:BANKFRAME_OPENED()
     self.bankframe_open = true
     for _, bag in ipairs(BAGS) do
@@ -469,84 +354,10 @@ function isearch_event_frame:PLAYERBANKSLOTS_CHANGED(slot)
     self:BAG_UPDATE(Enum.BagIndex.Bank)
 end
 
-if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
-isearch_event_frame:RegisterEvent("PLAYERREAGENTBANKSLOTS_CHANGED")
-function isearch_event_frame:PLAYERREAGENTBANKSLOTS_CHANGED(slot)
-    for _, bag in ipairs(BAGS) do
-        local cache_id = bag.cache_id
-        if cache_id == "bankR" and WoWXIV_isearch_cache[cache_id] then
-            local bag_id = Enum.BagIndex.Reagentbank  -- for brevity
-            local info = C_Container.GetContainerItemInfo(bag_id, slot)
-            if info then
-                WoWXIV_isearch_cache[cache_id][slot] =
-                    {info.itemID, info.stackCount, info.hyperlink}
-            elseif self.bankframe_open then
-                WoWXIV_isearch_cache[cache_id][slot] = nil
-            else
-                -- An empty result could mean either that the slot is empty
-                -- or that the reagent bank data is unavailable.  If not at
-                -- a bank NPC, this event typically should only fire in
-                -- cases like using reagents from the reagent bank when
-                -- crafting, where the reagent bank is available - but
-                -- we have no easy way to conclusively determine that.
-                -- We use a heuristic here that assumes a player using the
-                -- reagent bank will generally have multiple items in the
-                -- bank, so if we find at least one non-empty slot, we can
-                -- safely assume that this nil result indicates an empty slot.
-                local found_item = false
-                for i = 1, C_Container.GetContainerNumSlots(bag_id) do
-                    if C_Container.GetContainerItemInfo(bag_id, i) then
-                        found_item = true
-                        break
-                    end
-                end
-                if false and found_item then
-                    WoWXIV_isearch_cache[cache_id][slot] = nil
-                else
-                    isearch_cache_uptodate[cache_id] = nil
-                end
-            end
-        end
-    end
-end
-
-isearch_event_frame:RegisterEvent("VOID_STORAGE_UPDATE")
-function isearch_event_frame:VOID_STORAGE_UPDATE()
-    for _, bag in ipairs(BAGS) do
-        local cache_id = bag.cache_id
-        if cache_id and string.sub(cache_id, 1, 4) == "void" then
-            local bag_name, size, content = bag.getter:Get()
-            if size > 0 then
-                WoWXIV_isearch_cache[cache_id] = content
-                WoWXIV_isearch_cache[cache_id .. "_size"] = size
-                WoWXIV_isearch_cache[cache_id .. "_name"] = bag_name
-                isearch_cache_uptodate[cache_id] = true
-            else
-                WoWXIV_isearch_cache[cache_id] = nil
-                WoWXIV_isearch_cache[cache_id .. "_size"] = nil
-                WoWXIV_isearch_cache[cache_id .. "_name"] = nil
-            end
-        end
-    end
-end
-
-isearch_event_frame:RegisterEvent("VOID_STORAGE_CONTENTS_UPDATE")
-isearch_event_frame.VOID_STORAGE_CONTENTS_UPDATE =
-    isearch_event_frame.VOID_STORAGE_UPDATE
-
-isearch_event_frame:RegisterEvent("VOID_TRANSFER_DONE")
-isearch_event_frame.VOID_TRANSFER_DONE =
-    isearch_event_frame.VOID_STORAGE_UPDATE
-end  -- FIXME: 11.2.0 bank revamp
 
 isearch_event_frame:RegisterEvent("ADDON_LOADED")
 function isearch_event_frame:ADDON_LOADED(name)
     if name == module_name then
-if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
-        if IsVoidStorageReady() then
-            self:VOID_STORAGE_UPDATE()
-        end
-else  -- FIXME: 11.2.0 bank revamp
         if WoWXIV_isearch_cache.bank0 then
             -- Delete cache data from pre-11.2.0 bank bags and void storage.
             local tags = {"bank0", "bank1", "bank2", "bank3", "bank4", "bank5",
@@ -557,7 +368,6 @@ else  -- FIXME: 11.2.0 bank revamp
                 WoWXIV_isearch_cache[tag.."_size"] = nil
             end
         end
-end  -- FIXME: 11.2.0 bank revamp
     end
 end
 

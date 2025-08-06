@@ -117,19 +117,9 @@ function BankFrameHandler:__constructor()
     self.has_Button4 = true  -- Used to display item operation submenu.
     self.on_prev_page = function() self:OnPageCycle(-1) end
     self.on_next_page = function() self:OnPageCycle(1) end
-if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
-    self.tab_handler = function(direction) self:OnTabCycle(direction) end
-
-    self.current_subframe = nil  -- Currently active subframe.
-    self.subframes = {BankSlotsFrame, ReagentBankFrame, AccountBankPanel}
-    for _, subframe in ipairs(self.subframes) do
-        self:HookShow(subframe, self.OnSubframeChange, self.OnSubframeChange)
-    end
-else  -- FIXME: 11.2.0 bank revamp
     self:SetTabSystem(self.frame.TabSystem)
     BankPanel:RegisterCallback(BankPanelMixin.Event.NewBankTabSelected,
                                function() self:RefreshTargets() end)
-end  -- FIXME: 11.2.0 bank revamp
 end
 
 function BankFrameHandler:OnCancel()
@@ -140,42 +130,6 @@ function BankFrameHandler:OnCancel()
     end
 end
 
-if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
-function BankFrameHandler:OnTabCycle(direction)
-    local new_index =
-        (PanelTemplates_GetSelectedTab(self.frame) or 0) + direction
-    if new_index < 1 then
-        new_index = self.frame.numTabs
-    elseif new_index > self.frame.numTabs then
-        new_index = 1
-    end
-    local tab = self.frame.Tabs[new_index]
-    tab:GetScript("OnClick")(tab, "LeftButton", true)
-end
-
-function BankFrameHandler:OnPageCycle(direction)
-    local f = AccountBankPanel
-    if not f:IsVisible() then return end
-    local tabs = {}
-    for tab in f.bankTabPool:EnumerateActive() do
-        tinsert(tabs, tab)
-    end
-    table.sort(tabs, function(a,b) return a.tabData.ID < b.tabData.ID end)
-    if f.PurchaseTab then
-        tinsert(tabs, f.PurchaseTab)
-    end
-    for i, tab in ipairs(tabs) do
-        if tab:IsSelected() then
-            local target = i + direction
-            if target < 1 then target = #tabs end
-            if target > #tabs then target = 1 end
-            target = tabs[target]
-            target:GetScript("OnClick")(target, "LeftButton", true)
-            return
-        end
-    end
-end
-else  -- FIXME: 11.2.0 bank revamp
 function BankFrameHandler:OnPageCycle(direction)
     local tabs = {}
     for tab in BankPanel.bankTabPool:EnumerateActive() do
@@ -196,170 +150,12 @@ function BankFrameHandler:OnPageCycle(direction)
         end
     end
 end
-end  -- FIXME: 11.2.0 bank revamp
-
-function BankFrameHandler:OnHide()
-    __super(self)
-if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
-    self.current_subframe = nil
-end  -- FIXME: 11.2.0 bank revamp
-end
-if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
-
-function BankFrameHandler:OnSubframeChange()
-    local active = self:GetActiveSubframe()
-    if active ~= self.current_subframe then
-        self:RefreshTargets()
-    end
-end
-
-function BankFrameHandler:GetActiveSubframe()
-    for _, subframe in ipairs(self.subframes) do
-        if subframe:IsVisible() then
-            return subframe
-        end
-    end
-    return nil
-end
-end  -- FIXME: 11.2.0 bank revamp
 
 function BankFrameHandler:RefreshTargets()
     self:SetTarget(nil)
     self:SetTarget(self:SetTargets())
 end
 
-if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
-function BankFrameHandler:SetTargets()
-    self.current_subframe = self:GetActiveSubframe()
-    local f = self.current_subframe
-    if not f then
-        return nil
-    end
-
-    self.targets = {
-        [BankItemAutoSortButton] = {can_activate = true, lock_highlight = true,
-                                    send_enter_leave = true,
-                                    left = false, right = false},
-    }
-
-    if f == BankSlotsFrame then
-        assert(C_Container.GetContainerNumSlots(f.Item1:GetBagID()) == 28)
-        for i = 1, 28 do
-            local item = f["Item"..i]
-            local row = floor((i-1)/7)
-            local up = row==0 and BankItemAutoSortButton or f["Item"..(i-7)]
-            local down = row==3 and f["Bag"..(i-21)] or f["Item"..(i+7)]
-            local left = i==1 and f.Item28 or f["Item"..(i-1)]
-            local right = i==28 and f.Item1 or f["Item"..(i+1)]
-            self.targets[item] = {
-                is_item = true, on_click = function() self:ClickItem(item) end,
-                lock_highlight = true, send_enter_leave = true,
-                up = up, down = down, left = left, right = right}
-        end
-        for i = 1, 7 do
-            local bag = f["Bag"..i]
-            local up = f["Item"..(i+21)]
-            local left = i==1 and f.Bag7 or f["Bag"..(i-1)]
-            local right = i==7 and f.Bag1 or f["Bag"..(i+1)]
-            self.targets[bag] = {
-                is_bag = true, can_activate = true, lock_highlight = true,
-                lock_highlight = true, send_enter_leave = true,
-                up = up, down = BankItemAutoSortButton,
-                left = left, right = right}
-        end
-        self.targets[BankItemAutoSortButton].up = f.Bag7
-        self.targets[BankItemAutoSortButton].down = f.Item7
-        return f.Item1
-
-    elseif f == ReagentBankFrame then
-        assert(C_Container.GetContainerNumSlots(f.Item1:GetBagID()) == 98)
-        for i = 1, 98 do
-            local item = f["Item"..i]
-            local col = floor((i-1)/7)
-            local row = (i-1)%7
-            local up = row==0 and BankItemAutoSortButton or f["Item"..(i-1)]
-            local down = row==6 and f.DespositButton or f["Item"..(i+1)]
-            local left = col==0 and f["Item"..(i+91)] or f["Item"..(i-7)]
-            local right = col==13 and f["Item"..(i-91)] or f["Item"..(i+7)]
-            self.targets[item] = {
-                is_item = true, on_click = function() self:ClickItem(item) end,
-                send_enter_leave = true,
-                up = up, down = down, left = left, right = right}
-        end
-        self.targets[f.DespositButton] = {  -- Typo in Blizzard code.
-            can_activate = true, lock_highlight = true,
-            up = f.Item7, down = BankItemAutoSortButton,
-            left = false, right = false}
-        self.targets[BankItemAutoSortButton].up = f.DespositButton
-        self.targets[BankItemAutoSortButton].down = f.Item92
-        return f.Item1
-
-    else
-        assert(f == AccountBankPanel)
-        self.targets[f.MoneyFrame.WithdrawButton] =
-            {can_activate = true, lock_highlight = true,
-             send_enter_leave = true, down = BankItemAutoSortButton,
-             left = f.MoneyFrame.DepositButton,
-             right = f.MoneyFrame.DepositButton}
-        self.targets[f.MoneyFrame.DepositButton] =
-            {can_activate = true, lock_highlight = true,
-             send_enter_leave = true, down = BankItemAutoSortButton,
-             left = f.MoneyFrame.WithdrawButton,
-             right = f.MoneyFrame.WithdrawButton}
-        self.targets[BankItemAutoSortButton].up = f.MoneyFrame.DepositButton
-        local bag_id = f.selectedTabID
-        if bag_id == -1 then  -- "Purchase new tab" tab
-            local button = f.PurchasePrompt.TabCostFrame.PurchaseButton
-            self.targets[button] = {can_activate = true, lock_highlight = true,
-                                    up = f.MoneyFrame.WithdrawButton,
-                                    down = f.MoneyFrame.WithdrawButton,
-                                    left = false, right= false}
-            self.targets[f.MoneyFrame.WithdrawButton].up = button
-            self.targets[f.MoneyFrame.DepositButton].up = button
-            self.targets[BankItemAutoSortButton].down = button
-            return button
-        end
-        self.targets[f.ItemDepositFrame.DepositButton] =
-            {can_activate = true, lock_highlight = true,
-             send_enter_leave = true, down = f.MoneyFrame.WithdrawButton,
-             left = f.ItemDepositFrame.IncludeReagentsCheckbox,
-             right = f.ItemDepositFrame.IncludeReagentsCheckbox}
-        self.targets[f.ItemDepositFrame.IncludeReagentsCheckbox] =
-            {can_activate = true, lock_highlight = true,
-             send_enter_leave = true, down = f.MoneyFrame.WithdrawButton,
-             left = f.ItemDepositFrame.DepositButton,
-             right = f.ItemDepositFrame.DepositButton}
-        self.targets[f.MoneyFrame.WithdrawButton].up =
-            f.ItemDepositFrame.DepositButton
-        self.targets[f.MoneyFrame.DepositButton].up =
-            f.ItemDepositFrame.DepositButton
-        local bag_size = C_Container.GetContainerNumSlots(bag_id)
-        assert(bag_size == 98)
-        local items = {}
-        for item in f.itemButtonPool:EnumerateActive() do
-            items[item.containerSlotID] = item
-        end
-        assert(#items == bag_size)
-        for i = 1, 98 do
-            local item = items[i]
-            local col = floor((i-1)/7)
-            local row = (i-1)%7
-            local up = row==0 and BankItemAutoSortButton or items[i-1]
-            local down = row==6 and f.ItemDepositFrame.DepositButton or items[i+1]
-            local left = col==0 and items[i+91] or items[i-7]
-            local right = col==13 and items[i-91] or items[i+7]
-            self.targets[item] = {
-                is_item = true, on_click = function() self:ClickItem(item) end,
-                send_enter_leave = true,
-                up = up, down = down, left = left, right = right}
-        end
-        self.targets[BankItemAutoSortButton].down = items[92]
-        self.targets[f.ItemDepositFrame.DepositButton].up = items[7]
-        self.targets[f.ItemDepositFrame.IncludeReagentsCheckbox].up = items[98]
-        return items[1]
-    end
-end
-else  -- FIXME: 11.2.0 bank revamp
 function BankFrameHandler:SetTargets()
     self.targets = {}
     local f = BankPanel
@@ -394,7 +190,6 @@ function BankFrameHandler:SetTargets()
     end
     return items[1]
 end
-end  -- FIXME: 11.2.0 bank revamp
 
 function BankFrameHandler:ClickItem()
     local _, bag, slot = self:GetTargetItem()
@@ -654,16 +449,4 @@ function BankItemSubmenu:DoDiscardConfirm(bag, slot, link)
         return
     end
     DeleteCursorItem()
-end
-
-
----------------------------------------------------------------------------
--- Exported functions
----------------------------------------------------------------------------
-
--- Open the bank item submenu for the given item button.  The bank frame
--- is assumed to be open.  Used by ContainerFrame for bank bags (hopefully
--- Blizzard moves those into the bank UI at some point).
-function BankFrameHandler.OpenBankItemSubmenu(item_button, bag, slot)
-    BankFrameHandler.instance.item_submenu:Open(item_button, bag, slot)
 end

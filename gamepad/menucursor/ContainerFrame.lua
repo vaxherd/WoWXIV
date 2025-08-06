@@ -74,45 +74,6 @@ function InternalSendToBank(bag, slot, info)
         return nil, empty_slot
     end
     local target_bag, target_slot, target_count, empty_bag, empty_slot
-if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
-    if BankSlotsFrame:IsVisible() then
-        for i = 0, 7 do
-            local bag_id =
-                i==0 and Enum.BagIndex.Bank or (Enum.BagIndex.BankBag_1 + (i-1))
-            target_bag, target_slot, target_count = SearchBag(bag_id)
-            if target_bag then break end
-            if not empty_bag and target_slot then
-                empty_bag, empty_slot = bag_id, target_slot
-            end
-        end
-    elseif ReagentBankFrame:IsVisible() then
-        if not WoWXIV.IsItemReagent(info.itemID) then
-            WoWXIV.Error("That item doesn't go in that container.")
-            return
-        end
-        local bag_id = Enum.BagIndex.Reagentbank
-        target_bag, target_slot, target_count = SearchBag(bag_id)
-        if not target_bag and target_slot then
-            empty_bag, empty_slot = bag_id, target_slot
-        end
-    else
-        assert(AccountBankPanel:IsVisible())
-        for i = 1, 5 do
-            local bag_id = Enum.BagIndex.AccountBankTab_1 + (i-1)
-            target_bag, target_slot, target_count = SearchBag(bag_id)
-            if target_bag then break end
-            -- Standard game behavior is to take the first empty slot in
-            -- the numerically first tab, but we choose to prioritize an
-            -- empty slot in the currently displayed tab as better UX.
-            if (not empty_bag
-                or (bag_id == AccountBankPanel.selectedTabID
-                    and empty_bag ~= bag_id))
-            and target_slot then
-                empty_bag, empty_slot = bag_id, target_slot
-            end
-        end
-    end
-else  -- FIXME: 11.2.0 bank revamp
     local bank_type = BankPanel:GetActiveBankType()
     for _, bag_id in ipairs(C_Bank.FetchPurchasedBankTabIDs(bank_type)) do
         target_bag, target_slot, target_count = SearchBag(bag_id)
@@ -127,7 +88,6 @@ else  -- FIXME: 11.2.0 bank revamp
             empty_bag, empty_slot = bag_id, target_slot
         end
     end
-end  -- FIXME: 11.2.0 bank revamp
     if not target_bag then
         if empty_bag then
             target_bag, target_slot, target_count = empty_bag, empty_slot, 0
@@ -341,23 +301,7 @@ function AutoDeposit(prev_bag, prev_slot)
     local INVENTORY_BAGS = {Enum.BagIndex.Backpack, Enum.BagIndex.Bag_1,
                             Enum.BagIndex.Bag_2, Enum.BagIndex.Bag_3,
                             Enum.BagIndex.Bag_4, Enum.BagIndex.ReagentBag}
-local BANK_BAGS  -- FIXME 11.2.0
-if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
-    -- We list Reagentbank first so reagents will preferentially be sent there.
---    local
- BANK_BAGS = {Enum.BagIndex.Reagentbank, Enum.BagIndex.Bank,
-                       Enum.BagIndex.BankBag_1, Enum.BagIndex.BankBag_2,
-                       Enum.BagIndex.BankBag_3, Enum.BagIndex.BankBag_4,
-                       Enum.BagIndex.BankBag_5, Enum.BagIndex.BankBag_6,
-                       Enum.BagIndex.BankBag_7,
-                       Enum.BagIndex.AccountBankTab_1,
-                       Enum.BagIndex.AccountBankTab_2,
-                       Enum.BagIndex.AccountBankTab_3,
-                       Enum.BagIndex.AccountBankTab_4,
-                       Enum.BagIndex.AccountBankTab_5}
-else  -- FIXME 11.2.0
---    local
- BANK_BAGS = {Enum.BagIndex.CharacterBankTab_1,
+    local BANK_BAGS = {Enum.BagIndex.CharacterBankTab_1,
                        Enum.BagIndex.CharacterBankTab_2,
                        Enum.BagIndex.CharacterBankTab_3,
                        Enum.BagIndex.CharacterBankTab_4,
@@ -368,7 +312,6 @@ else  -- FIXME 11.2.0
                        Enum.BagIndex.AccountBankTab_3,
                        Enum.BagIndex.AccountBankTab_4,
                        Enum.BagIndex.AccountBankTab_5}
-end  -- FIXME 11.2.0
 
     -- First look up stackable items in the bank, so we know which to send.
     -- Also record where those items are stored for later lookup, along with
@@ -860,17 +803,7 @@ function ContainerFrameHandler:ClickItem()
             WoWXIV.Error("You can't sell this item.")
         end
     elseif BankFrame and BankFrame:IsShown() then
-        -- The mouse default is SendToBank, but that's a bit awkward
-        -- when extended bank bags appear as ContainerFrames.
-        -- Stick with PickupContainerItem for now, and revisit if
-        -- the character bank interface is ever changed to match the
-        -- new (tabbed) account bank UI.  (FIXME: consider for 11.2.0)
-        --SendToBank(bag, slot, info)
-        if info.isLocked then
-            WoWXIV.Error("Item is locked.")
-        else
-            C_Container.PickupContainerItem(bag, slot)
-        end
+        SendToBank(bag, slot, info)
     elseif ItemInteractionFrame and ItemInteractionFrame:IsShown() then
         if C_Item.IsItemConvertibleAndValidForPlayer(item_loc) then
             SendToItemInteraction(item_loc, info)
@@ -904,15 +837,7 @@ function ContainerFrameHandler:OnAction(button)
     if GetCursorInfo() then return end
     local item = self:GetTarget()
     local bag, slot = item:GetBagID(), item:GetID()
-if select(4, GetBuildInfo()) < 110200 then  -- FIXME: 11.2.0 bank revamp
-    if bag >= Enum.BagIndex.BankBag_1 then
-        MenuCursor.BankFrameHandler.OpenBankItemSubmenu(item, bag, slot)
-    else
-        self.item_submenu:Open(item, bag, slot)
-    end
-else  -- FIXME: 11.2.0 bank revamp
     self.item_submenu:Open(item, bag, slot)
-end  -- FIXME: 11.2.0 bank revamp
 end
 
 

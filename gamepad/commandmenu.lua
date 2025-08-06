@@ -43,19 +43,6 @@ local ITEM_FADE_TIME = 0.2
 -- (-1) CommandMenuColumn.menu (menu item list)
 -- (-2) CommandMenu.bg_frame (background fader)
 
-local function WRAPFONTSTRING(fs) --FIXME 11.2.0
-    if not fs.GetFontHeight then
-        fs.GetFontHeight = function(self)
-            local t = self:GetText()
-            self:SetText("0")
-            local h = self:GetStringHeight()
-            self:SetText(t)
-            return h
-        end
-    end
-    return fs
-end
-
 ---------------------------------------------------------------------------
 -- Class for menu items
 ---------------------------------------------------------------------------
@@ -74,7 +61,7 @@ function CommandMenuItem:__constructor(parent, text, func)
         self:SetScript("OnClick", function() func() end)
     end
 
-    local label = WRAPFONTSTRING(self:CreateFontString(nil, "ARTWORK", "GameFontNormal"))
+    local label = self:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     self.label = label
     label:SetTextColor(unpack(COLOR_ACTIVE_TEXT))
     label:SetText(text)
@@ -100,7 +87,7 @@ end
 
 function CommandMenuColumn:__constructor(parent, title)
     local title_label =
-        WRAPFONTSTRING(self:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge"))
+        self:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     self.title_label = title_label
     local height = title_label:GetFontHeight()
     self:SetHeight(height*2)
@@ -603,7 +590,7 @@ function CommandMenu:__constructor()
         columns[i]:Configure(title_width, highlight_offset)
     end
 
-    local help_label = WRAPFONTSTRING(self:CreateFontString(nil, "ARTWORK", "GameFontNormal"))
+    local help_label = self:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     self.help_label = help_label
     help_label:SetPoint("LEFT", columns[1], "LEFT", 66, 66)
     help_label:SetTextColor(unpack(COLOR_HELP))

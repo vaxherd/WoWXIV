@@ -44,15 +44,10 @@ function StaticPopupHandler:SetTargets()
     local leftmost, rightmost, button2
     for i = 1, 5 do
         local button
-        if frame.ButtonContainer then --FIXME 11.2.0
-            if i == 5 then
-                button = frame.ExtraButton
-            else
-                button = frame.ButtonContainer["Button"..i]
-            end
-        else --FIXME 11.1.7
-            local name = i==5 and "extraButton" or "button"..i
-            button = frame[name]
+        if i == 5 then
+            button = frame.ExtraButton
+        else
+            button = frame.ButtonContainer["Button"..i]
         end
         assert(button)
         if button:IsShown() then
