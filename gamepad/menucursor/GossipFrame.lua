@@ -11,6 +11,7 @@ MenuCursor.Cursor.RegisterFrameHandler(GossipFrameHandler)
 
 function GossipFrameHandler:__constructor()
     __super(self, GossipFrame)
+    self.allow_repeat_show = true
     self:RegisterEvent("GOSSIP_SHOW")
     self:RegisterEvent("GOSSIP_CONFIRM_CANCEL")
 end

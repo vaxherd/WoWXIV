@@ -151,9 +151,9 @@ function Cursor:RegisterFrameEvent(handler, event, event_arg)
     self:RegisterEvent(event)
 end
 
--- Add the given frame (a MenuFrame instance) to the focus stack, set its
--- current target to the given input element, and optionally set the menu
--- cursor focus to that frame.
+-- Add the given frame (a MenuFrame instance) to the focus stack if it is
+-- not already present, set its current target to the given input element,
+-- and optionally set the menu cursor focus to that frame.
 --
 -- If |modal| is true, the frame becomes a modal frame, blocking menu
 -- cursor input to any other frame until it is removed.
@@ -2213,7 +2213,8 @@ end
     the OnShow event will instead be ignored.
 
     OnShow() will ignore any show events sent while a parent frame is
-    hidden.
+    hidden.  It will also ignore show events when the frame is already
+    enabled for cursor input unless self.allow_repeat_show is set to true.
 ]]--
 MenuCursor.StandardMenuFrame = class(MenuFrame)
 local StandardMenuFrame = MenuCursor.StandardMenuFrame
@@ -2222,10 +2223,14 @@ function StandardMenuFrame:__constructor(frame, modal)
     __super(self, frame, modal)
     if frame then self:HookShow(frame) end
     self.cancel_func = MenuFrame.CancelUIFrame
+
+    -- If true, the OnShow() handler will perform its usual processing
+    -- even when the frame is already enabled for cursor input.
+    self.allow_repeat_show = false
 end
 
 function StandardMenuFrame:OnShow()
-    if self:IsEnabled() then return end
+    if not self.allow_repeat_show and self:IsEnabled() then return end
     if not self.frame:IsVisible() then return end
     local initial_target = self.SetTargets and self:SetTargets()
     if initial_target ~= false then
