@@ -698,7 +698,7 @@ function QuestItemButton:IterateQuestItems(predicate)
             -- Torghast items are deleted when leaving, so we can
             -- unconditionally include them when in the inventory.
             on_map = true
-        else
+        elseif player_map then
             local cur_map = player_map
             while true do
                 if cur_map == map then
