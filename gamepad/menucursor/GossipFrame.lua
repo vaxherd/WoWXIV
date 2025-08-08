@@ -62,12 +62,14 @@ function GossipFrameHandler:SetTargets()
     self.targets[bottom].down = goodbye
     self.targets[goodbye].up = bottom
 
-    -- If the frame is scrollable and also has selectable options, default
-    -- to the "goodbye" button to ensure that we start at the top of the
-    -- scrollable text (rather than automatically scrolling to the bottom
-    -- where the options are).  But we treat an extremely tiny scroll range
-    -- as zero, as for the right stick scrolling logic.
-    if GossipScroll:GetDerivedScrollRange() > 0.01 then
+    -- If the frame is scrollable and also has selectable options, ensure
+    -- that we start at the top of the scrollable text: if the first option
+    -- is off the window, default to the "goodbye" button instead.
+    local top_frame = top and self:GetTargetFrame(top)
+    local top_y = (top_frame and top_frame:IsVisible()
+                   and (GossipScroll:GetTop() - top_frame:GetTop()))
+    if not (top_y and top_y + top_frame:GetHeight() < GossipScroll:GetHeight())
+    then
         top = nil
     end
 
