@@ -298,6 +298,7 @@ local ITEM_TARGET = {
     [229424] = "none",    -- Anima Vacuum (85080: An Un-Bee-lievable Solution)
     [230210] = "target",  -- Tranquilizing Dart (85079: Such a Sleebee-head / 85255: Tranquila-Bee)
     [230729] = "none",    -- Appropriated Azerothian Camera (85083: Photogra-Bee / 85261: Bee Roll)
+    [230730] = "target",  -- Nether Tuner (85009: Those We Have Yet to Save)
     [230731] = "target",  -- Pitz's Masterwork Invention (84675: Showdown in the Attic)
     [230795] = "none",    -- Experimental Go-Pack (84252: Peak Precision)
     [231164] = "target",  -- Goblin Grapnel (85396: Heaps o' Scrap)
@@ -401,6 +402,9 @@ local ZONE_ITEM = {
     },
     [1970] = {  -- Zereth Mortis
         187908,  -- Firim's Spare Forge-Tap
+    },
+    [2371] = {
+        247882,  -- Phase Regulator
     },
 }
 
@@ -695,7 +699,19 @@ function QuestItemButton:IterateQuestItems(predicate)
             -- unconditionally include them when in the inventory.
             on_map = true
         else
-            on_map = (player_map == map)
+            local cur_map = player_map
+            while true do
+                if cur_map == map then
+                    on_map = true
+                    break
+                end
+                local info = C_Map.GetMapInfo(cur_map)
+                local parent = info and info.parentMapID
+                if not parent or parent == cur_map then
+                    break
+                end
+                cur_map = parent
+            end
         end
         if on_map then
             for _, item in ipairs(items) do
