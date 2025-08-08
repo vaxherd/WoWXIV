@@ -274,6 +274,11 @@ function BankItemSubmenu:__constructor()
             self:DoTakeSome(bag, slot, info, item)
         end
 
+    self.menuitem_disenchant =
+        WoWXIV.UI.ItemSubmenuButton(self, "Disenchant", true)
+    self.menuitem_disenchant:SetAttribute("type", "spell")
+    self.menuitem_disenchant:SetAttribute("spell", WoWXIV.SPELL_DISENCHANT)
+
     self.menuitem_splitstack =
         WoWXIV.UI.ItemSubmenuButton(self, "Split stack", false)
     self.menuitem_splitstack.ExecuteInsecure =
@@ -299,11 +304,26 @@ function BankItemSubmenu:ConfigureForItem(bag, slot)
     if info.stackCount > 1 then
         self:AppendButton(self.menuitem_takeall)
         self:AppendButton(self.menuitem_takesome)
-        self:AppendButton(self.menuitem_splitstack)
     else
         self:AppendButton(self.menuitem_takeout)
     end
+
+    -- Theoretically possible, but blocked by taint (possibly tooltip
+    -- related).
+    --[[
+    if C_Spell.IsSpellUsable(WoWXIV.SPELL_DISENCHANT) then
+        if WoWXIV.IsItemDisenchantable(info.itemID) then
+            self:AppendButton(self.menuitem_disenchant)
+        end
+    end
+    ]]--
+
+    if info.stackCount > 1 then
+        self:AppendButton(self.menuitem_splitstack)
+    end
+
     self:AppendButton(self.menuitem_sort_tab)
+
     self:AppendButton(self.menuitem_discard)
 end
 

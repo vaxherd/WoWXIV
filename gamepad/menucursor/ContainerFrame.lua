@@ -845,28 +845,6 @@ end
 -- Item submenu handler and implementation
 ---------------------------------------------------------------------------
 
-local SPELL_DISENCHANT = 13262
-local DISENCHANTABLE_TYPES = {
-    [Enum.ItemClass.Weapon] = true,
-    [Enum.ItemClass.Armor] = {
-        [Enum.ItemArmorSubclass.Generic] = true,
-        [Enum.ItemArmorSubclass.Cloth] = true,
-        [Enum.ItemArmorSubclass.Leather] = true,
-        [Enum.ItemArmorSubclass.Mail] = true,
-        [Enum.ItemArmorSubclass.Plate] = true,
-        -- Enum.ItemArmorSubclass.Cosmetic: not disenchantable!
-        [Enum.ItemArmorSubclass.Shield] = true,
-    },
-    [Enum.ItemClass.Profession] = true,
-    [Enum.ItemClass.Gem] = {
-        [Enum.ItemGemSubclass.Artifactrelic] = true,  -- Legion artifact relics
-    },
-}
-local DISENCHANTABLE_ITEMS = {
-    -- FIXME: is there any more general way to detect these?
-    [182067] = true,  -- Antique Duelist's Rapier (Revendreth enchanting WQ)
-}
-
 function InventoryItemSubmenuHandler:__constructor(submenu)
     __super(self, submenu, MenuCursor.MenuFrame.MODAL)
     self.cancel_func = function(self) self.frame:Close() end
@@ -979,7 +957,7 @@ function InventoryItemSubmenu:__constructor()
     self.menuitem_disenchant =
         WoWXIV.UI.ItemSubmenuButton(self, "Disenchant", true)
     self.menuitem_disenchant:SetAttribute("type", "spell")
-    self.menuitem_disenchant:SetAttribute("spell", SPELL_DISENCHANT)
+    self.menuitem_disenchant:SetAttribute("spell", WoWXIV.SPELL_DISENCHANT)
 
     self.menuitem_splitstack =
         WoWXIV.UI.ItemSubmenuButton(self, "Split stack", false)
@@ -1004,7 +982,7 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
         C_Item.GetItemGUID(ItemLocation:CreateFromBagAndSlot(bag, slot))
     local bagslot = strformat("%d %d", bag, slot)
     local info = C_Container.GetContainerItemInfo(bag, slot)
-    local item_class, item_subclass = select(12, C_Item.GetItemInfo(guid))
+    local item_class = select(12, C_Item.GetItemInfo(guid))
 
     if SpellIsTargeting() and SpellCanTargetItem() then
         self:AppendButton(self.menuitem_target)
@@ -1071,16 +1049,8 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
         end
     end
 
-    if C_Spell.IsSpellUsable(SPELL_DISENCHANT) then
-        local disenchantable = (DISENCHANTABLE_TYPES[item_class]
-                                or DISENCHANTABLE_ITEMS[info.itemID])
-        if type(disenchantable) == "table" then
-            disenchantable = disenchantable[item_subclass]
-        end
-        if info.quality >= Enum.ItemQuality.Legendary then
-            disenchantable = false
-        end
-        if disenchantable then
+    if C_Spell.IsSpellUsable(WoWXIV.SPELL_DISENCHANT) then
+        if WoWXIV.IsItemDisenchantable(info.itemID) then
             self:AppendButton(self.menuitem_disenchant)
         end
     end
