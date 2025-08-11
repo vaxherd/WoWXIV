@@ -55,9 +55,9 @@ function DelvesDifficultyPickerFrameHandler:RefreshTargets()
             left = false, right = false, down = Dropdown},
     }
 
-    local rewards = {ddpf.DelveRewardsContainerFrame:GetChildren()}
+    local first_rewards, last_reward
     if ddpf.DelveRewardsContainerFrame:IsShown() then
-        local first_reward, last_reward = self:AddScrollBoxTargets(
+        first_reward, last_reward = self:AddScrollBoxTargets(
             ddpf.DelveRewardsContainerFrame.ScrollBox,
             function(data)
                 return {send_enter_leave = true, right = false}
@@ -78,8 +78,8 @@ function DelvesDifficultyPickerFrameHandler:RefreshTargets()
 
     local dmwc = ddpf.DelveModifiersWidgetContainer
     if dmwc:IsShown() then
-        self:AddWidgetTargets(dmwc, {"Spell"},
-                              Dropdown, EnterDelveButton, false, nil)
+        self:AddWidgetTargets(dmwc, {"Spell"}, Dropdown, EnterDelveButton,
+                              false, first_reward or false)
     end
 
     if not initial_target then
