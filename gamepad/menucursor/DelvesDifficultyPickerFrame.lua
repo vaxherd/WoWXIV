@@ -56,26 +56,18 @@ function DelvesDifficultyPickerFrameHandler:RefreshTargets()
     }
 
     local rewards = {ddpf.DelveRewardsContainerFrame:GetChildren()}
-    if ddpf.DelveRewardsContainerFrame:IsShown() and rewards and #rewards>0 then
-        local first_reward, last_reward
-        for _, f in ipairs(rewards) do
-            if f:IsVisible() then
-                self.targets[f] = {send_enter_leave = true, right = false}
-                if not first_reward or f:GetTop() > first_reward:GetTop() then
-                    first_reward = f
-                end
-                if not last_reward or f:GetTop() < last_reward:GetTop() then
-                    last_reward = f
-                end
-            end
-        end
+    if ddpf.DelveRewardsContainerFrame:IsShown() then
+        local first_reward, last_reward = self:AddScrollBoxTargets(
+            ddpf.DelveRewardsContainerFrame.ScrollBox,
+            function(data)
+                return {send_enter_leave = true, right = false}
+            end)
         self.targets[Dropdown].right = first_reward
         self.targets[EnterDelveButton].right = last_reward
     else
         -- Either no difficulty selected or rewards have not been loaded yet.
         local function TryRewards()
-            local rewards = {ddpf.DelveRewardsContainerFrame:GetChildren()}
-            if ddpf.DelveRewardsContainerFrame:IsShown() and rewards and #rewards>0 then
+            if ddpf.DelveRewardsContainerFrame:IsShown() then
                 self:RefreshTargets()
             else
                 RunNextFrame(TryRewards)
