@@ -717,6 +717,25 @@ end
     [182067] = true,  -- Antique Duelist's Rapier (Revendreth enchanting WQ)
 }
 
+-- Return whether the given item is a delve curio item, which can be used
+-- to grant access to or upgrade a curio.
+local CURIO_ITEMS  -- Defined below.
+function WoWXIV.IsDelveCurio(item)
+    return CURIO_ITEMS[item] or false
+end
+--[[local]] CURIO_ITEMS = {
+    [239567] = true,   -- 11.2 utility curio: Tailwind Conduit (rank 1)
+    [239568] = true,   -- 11.2 utility curio: Audio Amplification Crystal (rank 1)
+    [239569] = true,   -- 11.2 utility curio: Battered Aegis (rank 1)
+    [239570] = true,   -- 11.2 utility curio: Temporal Decelerator Crystal (rank 1)
+    [239571] = true,   -- 11.2 utility curio: Sands of K'aresh (rank 1)
+    [239573] = true,   -- 11.2 combat curio: Ethereal Energy Converter (rank 1)
+    [239576] = true,   -- 11.2 combat curio: Mana-Tinted Glasses (rank 1)
+    [239578] = true,   -- 11.2 combat curio: Quizzical Device (rank 1)
+    [239579] = true,   -- 11.2 combat curio: Hatarang (rank 1)
+    [239579] = true,   -- 11.2 combat curio: Nether Overlay Matrix (rank 1)
+}
+
 -- Display an error message, optionally with an error sound.
 -- with_sound defaults to true if not specified.
 function WoWXIV.Error(text, with_sound)
