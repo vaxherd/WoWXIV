@@ -115,7 +115,7 @@ function ObjectiveTrackerFrameHandler:SetTargets(old_target)
         -- For quests, position the cursor at the PoI button
         -- rather than the middle of the block (which ends up
         -- being under the PoI button and a bit confusing).
-        if block.poiButton and block.poiButton:IsShown() then
+        if block.poiButton and block.poiButton:IsVisible() then
             params.on_button3 = ClickPOIButton
             local bx, by, _, bh = block:GetRect()
             local px, py, _, ph = block.poiButton:GetRect()
