@@ -209,16 +209,18 @@ function WoWXIV.ShowConfirmation(text, check_text, accept_text,
     assert(cancel_cb == nil or type(cancel_cb) == "function")
     assert(not StaticPopupDialogs[id])
 
-    local button = WoWXIV._ShowStaticPopup_check_button
-    if not button then
+    local wrapper = WoWXIV._ShowStaticPopup_check_wrapper
+    if not wrapper then
         wrapper = CreateFrame("Frame")
         WoWXIV._ShowStaticPopup_check_wrapper = wrapper
-        button = CreateFrame("CheckButton", "WoWXIV_StaticPopupCheckButton",
-                             wrapper, "UICheckButtonTemplate")
+        local button = CreateFrame(
+            "CheckButton", "WoWXIV_StaticPopupCheckButton", wrapper,
+            "UICheckButtonTemplate")
         WoWXIV._ShowStaticPopup_check_button = button
         button.text:SetFontObject("GameFontHighlight")
         button:SetPoint("LEFT")
     end
+    wrapper:SetShown(check_text ~= nil)
 
     local data = {
         text = text,
