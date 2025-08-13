@@ -151,7 +151,7 @@ end
 
 function PaperDollFrameHandler:OnClickSlot(slot)
     if slot.itemContextMatchResult == ItemButtonUtil.ItemContextMatchResult.Match then
-        if ItemInteractionFrame:IsShown() then
+        if ItemInteractionFrame and ItemInteractionFrame:IsShown() then
             -- Blizzard's own code fails to move a right-clicked item to
             -- the interaction frame, so we work around that failure.
             local name = PaperDollItemSlotButton_GetSlotName(slot)
