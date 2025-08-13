@@ -1033,8 +1033,7 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
             self:AppendButton(self.menuitem_open)
         elseif info.isReadable then
             self:AppendButton(self.menuitem_read)
-        elseif (C_Item.IsUsableItem(guid)
-                or WoWXIV.IsDelveCurio(info.itemID)
+        elseif (WoWXIV.IsItemUsable(info.itemID)
                 or info.hasLoot
                 or info.isReadable) then
             self:AppendButton(self.menuitem_use)

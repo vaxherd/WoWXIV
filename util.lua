@@ -719,13 +719,14 @@ end
     [182067] = true,  -- Antique Duelist's Rapier (Revendreth enchanting WQ)
 }
 
--- Return whether the given item is a delve curio item, which can be used
--- to grant access to or upgrade a curio.
-local CURIO_ITEMS  -- Defined below.
-function WoWXIV.IsDelveCurio(item)
-    return CURIO_ITEMS[item] or false
+-- Return whether the given item is usable.  Wraps C_Item.IsUsableItem()
+-- but also handles usable items for which that function returns false.
+local USABLE_ITEMS  -- Defined below.
+function WoWXIV.IsItemUsable(item)
+    return USABLE_ITEMS[item] or C_Item.IsUsableItem(item)
 end
---[[local]] CURIO_ITEMS = {
+--[[local]] USABLE_ITEMS = {
+    [239276] = true,   -- K'aresh warrant: Purple Peat Cell Key
     [239567] = true,   -- 11.2 utility curio: Tailwind Conduit
     [239568] = true,   -- 11.2 utility curio: Audio Amplification Crystal
     [239569] = true,   -- 11.2 utility curio: Battered Aegis
@@ -735,7 +736,7 @@ end
     [239576] = true,   -- 11.2 combat curio: Mana-Tinted Glasses
     [239578] = true,   -- 11.2 combat curio: Quizzical Device
     [239579] = true,   -- 11.2 combat curio: Hatarang
-    [239579] = true,   -- 11.2 combat curio: Nether Overlay Matrix
+    [239580] = true,   -- 11.2 combat curio: Nether Overlay Matrix
 }
 
 -- Display an error message, optionally with an error sound.
