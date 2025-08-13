@@ -801,7 +801,7 @@ function PartyList:__constructor()
     self:RegisterUnitEvent("UNIT_THREAT_LIST_UPDATE", "target")
 
     self:SetScript("OnEvent", function(self, event, ...)
-        if self.events[event] then
+        if self.events[event] and self:IsShown() then
             self.events[event](self, ...)
         end
     end)
@@ -810,7 +810,6 @@ function PartyList:__constructor()
     self.cursor = PartyCursor(self:GetFrameLevel() + 4)
 
     self:SetParty()
-    self:Show()
 end
 
 function PartyList:OnPartyChange()
@@ -852,7 +851,6 @@ function PartyList:SetParty(is_retry)
     local is_party = UnitInParty("player")
     local is_raid = UnitInRaid("player")
 
-    local enable
     if is_raid then
         enable = enable_raid
     elseif is_party then
