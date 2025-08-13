@@ -888,20 +888,16 @@ function InventoryItemSubmenu:__constructor()
     -- we use for showing the "Equip" menu item in place of "Use".  "Open"
     -- and "Read" are just aliases for "Use" we use for loot-type and
     -- book-type items.
-    self.menuitem_equip =
-        WoWXIV.UI.ItemSubmenuButton(self, "Equip", true)
+    self.menuitem_equip = WoWXIV.UI.ItemSubmenuButton(self, "Equip", true)
     self.menuitem_equip:SetAttribute("type", "item")
-    self.menuitem_use =
-        WoWXIV.UI.ItemSubmenuButton(self, "Use", true)
+    self.menuitem_use = WoWXIV.UI.ItemSubmenuButton(self, "Use", true)
     self.menuitem_use:SetAttribute("type", "item")
-    self.menuitem_open =
-        WoWXIV.UI.ItemSubmenuButton(self, "Open", true)
+    self.menuitem_open = WoWXIV.UI.ItemSubmenuButton(self, "Open", true)
     self.menuitem_open:SetAttribute("type", "item")
-    self.menuitem_read =
-        WoWXIV.UI.ItemSubmenuButton(self, "Read", true)
+    self.menuitem_read = WoWXIV.UI.ItemSubmenuButton(self, "Read", true)
     self.menuitem_read:SetAttribute("type", "item")
-    self.menuitem_target =
-        WoWXIV.UI.ItemSubmenuButton(self, "Use as target", true)
+    self.menuitem_target = WoWXIV.UI.ItemSubmenuButton(self,
+                                                       "Use as target", true)
     self.menuitem_target:SetAttribute("type", "item")
 
     self.menuitem_expand_sockets =
