@@ -117,37 +117,93 @@ end
 DelvesDashboardFrameHandler.ADDON_NAME = "Blizzard_DelvesDashboardUI"
 function DelvesDashboardFrameHandler:__constructor()
     __super(self, DelvesDashboardFrame)
-    local configure = (DelvesDashboardFrame.ButtonPanelLayoutFrame
-                       .CompanionConfigButtonPanel.CompanionConfigButton)
-    local rewards = (DelvesDashboardFrame.ButtonPanelLayoutFrame
-                     .GreatVaultButtonPanel.GreatVaultButton)
-    self.targets = {
-        [configure] = {can_activate = true, lock_highlight = true,
-                       is_default = true, up = false, down = false,
-                       left = rewards, right = rewards},
-        [rewards] = {on_click = self.OnClickRewards,
-                     on_enter = self.OnEnterRewards,
-                     on_leave = self.OnLeaveRewards,
-                     up = false, down = false,
-                     left = configure, right = configure},
-    }
 end
 
-function DelvesDashboardFrameHandler.OnEnterRewards()
+function DelvesDashboardFrameHandler:SetTargets()
+    local f = self.frame
+    local bar = f.ThresholdBar
+    local configure = (f.ButtonPanelLayoutFrame
+                       .CompanionConfigButtonPanel.CompanionConfigButton)
+    local rewards = (f.ButtonPanelLayoutFrame
+                     .GreatVaultButtonPanel.GreatVaultButton)
+    self.targets = {
+        [bar] = {on_enter = self.OnEnterThresholdBar,
+                 on_leave = self.OnLeaveThresholdBar,
+                 is_default = true,
+                 up = configure, down = configure},
+        [configure] = {can_activate = true, lock_highlight = true,
+                       up = bar, down = bar, left = rewards, right = rewards},
+        [rewards] = {on_click = self.OnClickWeeklyRewards,
+                     on_enter = self.OnEnterWeeklyRewards,
+                     on_leave = self.OnLeaveWeeklyRewards,
+                     up = bar, down = bar,
+                     left = configure, right = configure},
+    }
+    local function ThresholdReward(n)
+        local threshold = bar["Threshold"..n]
+        return threshold and threshold.Reward
+    end
+    for i = 1, 10 do
+        local reward = ThresholdReward(i)
+        local left = i==1 and bar or ThresholdReward(i-1)
+        local right = i==10 and bar or ThresholdReward(i+1)
+        self.targets[reward] = {send_enter_leave = true,
+                                up = configure, down = configure,
+                                left = left, right = right}
+    end
+    self.targets[bar].left = ThresholdReward(10)
+    self.targets[bar].right = ThresholdReward(1)
+end
+
+-- The threshold bar uses an ANCHOR_CURSOR_RIGHT tooltip, so we have to
+-- override that.
+function DelvesDashboardFrameHandler.OnEnterThresholdBar()
+    local bar = DelvesDashboardFrame.ThresholdBar
+    -- Since GameTooltip doesn't have a way to just change the anchor
+    -- and SetOwner() will clear the contents, we have to intercept
+    -- the tooltip calls.  Thankfully, all references to GameTooltip
+    -- are directly in OnEnter(), so we can just call it with a custom
+    -- environment.
+    local GameTooltip = GameTooltip
+    local wrapped_GameTooltip = {
+        SetOwner = function(self, owner, anchor)
+            -- Place it above the season label.
+            local offset = (owner:GetParent().ReputationBarTitle:GetTop()
+                            - owner:GetTop())
+            GameTooltip:SetOwner(owner, "ANCHOR_TOPLEFT", 0, offset)
+        end,
+    }
+    for _, funcname in ipairs({"SetMinimumWidth", "AddLine", "Show"}) do
+        wrapped_GameTooltip[funcname] = function(self, ...)
+            GameTooltip[funcname](GameTooltip, ...)
+        end
+    end
+    local env = {GameTooltip = wrapped_GameTooltip}
+    WoWXIV.envcall(WoWXIV.makefenv(env), bar.OnEnter, bar)
+end
+
+function DelvesDashboardFrameHandler.OnLeaveThresholdBar()
+    local bar = DelvesDashboardFrame.ThresholdBar
+    bar:OnLeave()
+end
+
+-- The Great Vault button isn't a standard button, so we have to
+-- manage its highlight and send clicks manually.
+function DelvesDashboardFrameHandler.OnEnterWeeklyRewards()
     local rewards = (DelvesDashboardFrame.ButtonPanelLayoutFrame
                      .GreatVaultButtonPanel.GreatVaultButton)
     rewards:OnEnter()
     rewards:LockHighlight()
 end
 
-function DelvesDashboardFrameHandler.OnLeaveRewards()
+function DelvesDashboardFrameHandler.OnLeaveWeeklyRewards()
     local rewards = (DelvesDashboardFrame.ButtonPanelLayoutFrame
                      .GreatVaultButtonPanel.GreatVaultButton)
     rewards:UnlockHighlight()
     rewards:OnLeave()
 end
 
-function DelvesDashboardFrameHandler.OnClickRewards()
+function DelvesDashboardFrameHandler.OnClickWeeklyRewards()
     local rewards = (DelvesDashboardFrame.ButtonPanelLayoutFrame
                      .GreatVaultButtonPanel.GreatVaultButton)
     rewards:OnMouseUp("LeftButton", true)
