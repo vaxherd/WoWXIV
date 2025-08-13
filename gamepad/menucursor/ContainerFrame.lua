@@ -792,10 +792,12 @@ function ContainerFrameHandler:ClickItem()
     local info = C_Container.GetContainerItemInfo(bag, slot)
     local cursor = {GetCursorInfo()}
 
-    if not info then
-        if #cursor > 0 then
-            C_Container.PickupContainerItem(bag, slot)  -- Drop the item here.
-        end
+    if #cursor > 0 then
+        -- Apply whatever's on the cursor to this slot.  We rely on the
+        -- game to deal with an inappropriate selection (empty slot, etc).
+        C_Container.PickupContainerItem(bag, slot)
+    elseif not info then
+        -- Nothing to see here, move along.
     elseif AuctionHouseFrame and AuctionHouseFrame:IsShown() then
         if C_AuctionHouse.IsSellItemValid(item_loc, false) then
             SendToAuctionHouse(item_loc, info)
