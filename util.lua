@@ -1,6 +1,7 @@
 local _, WoWXIV = ...
 
 local class = WoWXIV.class
+local set = WoWXIV.set
 
 local floor = math.floor
 local max = math.max
@@ -624,61 +625,61 @@ end
 -- reagent bag.  (There doesn't seem to be a global API for this.)
 local REAGENT  -- Defined below.
 function WoWXIV.IsItemReagent(item)
-    return REAGENT[item]
+    return REAGENT:has(item)
         or select(12, C_Item.GetItemInfo(item)) == Enum.ItemClass.Tradegoods
 end
---[[local]] REAGENT = {
+--[[local]] REAGENT = set(
     -- Mechagon Tinkering reagents
-    [166846] = true,  -- Spare Parts
-    [166970] = true,  -- Energy Cell
-    [166971] = true,  -- Empty Energy Cell
-    [168327] = true,  -- Chain Ignitercoil
-    [168832] = true,  -- Galvanic Oscillator
-    [169610] = true,  -- S.P.A.R.E. Crate
+    166846,  -- Spare Parts
+    166970,  -- Energy Cell
+    166971,  -- Empty Energy Cell
+    168327,  -- Chain Ignitercoil
+    168832,  -- Galvanic Oscillator
+    169610,  -- S.P.A.R.E. Crate
     -- Protoform Synthesis (Zereth Mortis) reagents
-    [187633] = true,  -- Bufonid Lattice
-    [187634] = true,  -- Ambystan Lattice
-    [187635] = true,  -- Cervid Lattice
-    [187636] = true,  -- Aurelid Lattice
-    [188957] = true,  -- Genesis Mote
-    [189145] = true,  -- Helicid Lattice
-    [189146] = true,  -- Geomental Lattice
-    [189147] = true,  -- Leporid Lattice
-    [189148] = true,  -- Poultrid Lattice
-    [189149] = true,  -- Proto Avian Lattice
-    [189150] = true,  -- Raptora Lattice
-    [189151] = true,  -- Scarabid Lattice
-    [189152] = true,  -- Tarachnid Lattice
-    [189153] = true,  -- Unformed Lattice
-    [189154] = true,  -- Vespoid Lattice
-    [189155] = true,  -- Viperid Lattice
-    [189156] = true,  -- Vombata Lattice
-    [189157] = true,  -- Glimmer of Animation
-    [189158] = true,  -- Glimmer of Cunning
-    [189159] = true,  -- Glimmer of Discovery
-    [189160] = true,  -- Glimmer of Focus
-    [189161] = true,  -- Glimmer of Malice
-    [189162] = true,  -- Glimmer of Metamorphosis
-    [189163] = true,  -- Glimmer of Motion
-    [189164] = true,  -- Glimmer of Multiplicity
-    [189165] = true,  -- Glimmer of Predation
-    [189166] = true,  -- Glimmer of Renewal
-    [189167] = true,  -- Glimmer of Satisfaction
-    [189168] = true,  -- Glimmer of Serenity
-    [189169] = true,  -- Glimmer of Survival
-    [189170] = true,  -- Glimmer of Vigilance
-    [189171] = true,  -- Bauble of Pure Innovation
-    [189172] = true,  -- Crystallized Echo of the First Song
-    [189173] = true,  -- Eternal Ragepearl
-    [189174] = true,  -- Lens of Focused Intention
-    [189175] = true,  -- Mawforged Bridle
-    [189176] = true,  -- Protoform Sentience Crown
-    [189177] = true,  -- Revelation Key
-    [189178] = true,  -- Tools of Incomprehensible Experimentation
-    [189179] = true,  -- Unalloyed Bronze Ingot
-    [189180] = true,  -- Wind's Infinite Call
-    [190388] = true,  -- Lupine Lattice
-}
+    187633,  -- Bufonid Lattice
+    187634,  -- Ambystan Lattice
+    187635,  -- Cervid Lattice
+    187636,  -- Aurelid Lattice
+    188957,  -- Genesis Mote
+    189145,  -- Helicid Lattice
+    189146,  -- Geomental Lattice
+    189147,  -- Leporid Lattice
+    189148,  -- Poultrid Lattice
+    189149,  -- Proto Avian Lattice
+    189150,  -- Raptora Lattice
+    189151,  -- Scarabid Lattice
+    189152,  -- Tarachnid Lattice
+    189153,  -- Unformed Lattice
+    189154,  -- Vespoid Lattice
+    189155,  -- Viperid Lattice
+    189156,  -- Vombata Lattice
+    189157,  -- Glimmer of Animation
+    189158,  -- Glimmer of Cunning
+    189159,  -- Glimmer of Discovery
+    189160,  -- Glimmer of Focus
+    189161,  -- Glimmer of Malice
+    189162,  -- Glimmer of Metamorphosis
+    189163,  -- Glimmer of Motion
+    189164,  -- Glimmer of Multiplicity
+    189165,  -- Glimmer of Predation
+    189166,  -- Glimmer of Renewal
+    189167,  -- Glimmer of Satisfaction
+    189168,  -- Glimmer of Serenity
+    189169,  -- Glimmer of Survival
+    189170,  -- Glimmer of Vigilance
+    189171,  -- Bauble of Pure Innovation
+    189172,  -- Crystallized Echo of the First Song
+    189173,  -- Eternal Ragepearl
+    189174,  -- Lens of Focused Intention
+    189175,  -- Mawforged Bridle
+    189176,  -- Protoform Sentience Crown
+    189177,  -- Revelation Key
+    189178,  -- Tools of Incomprehensible Experimentation
+    189179,  -- Unalloyed Bronze Ingot
+    189180,  -- Wind's Infinite Call
+    190388   -- Lupine Lattice
+)
 
 -- Spell ID of the "Disenchant" spell.
 WoWXIV.SPELL_DISENCHANT = 13262
@@ -699,45 +700,45 @@ function WoWXIV.IsItemDisenchantable(item)
     return disenchantable
 end
 --[[local]] DISENCHANTABLE_TYPES = {
-    [Enum.ItemClass.Weapon] = true,
+    Enum.ItemClass.Weapon,
     [Enum.ItemClass.Armor] = {
-        [Enum.ItemArmorSubclass.Generic] = true,
-        [Enum.ItemArmorSubclass.Cloth] = true,
-        [Enum.ItemArmorSubclass.Leather] = true,
-        [Enum.ItemArmorSubclass.Mail] = true,
-        [Enum.ItemArmorSubclass.Plate] = true,
+        Enum.ItemArmorSubclass.Generic,
+        Enum.ItemArmorSubclass.Cloth,
+        Enum.ItemArmorSubclass.Leather,
+        Enum.ItemArmorSubclass.Mail,
+        Enum.ItemArmorSubclass.Plate,
         -- Enum.ItemArmorSubclass.Cosmetic: not disenchantable!
-        [Enum.ItemArmorSubclass.Shield] = true,
+        Enum.ItemArmorSubclass.Shield,
     },
-    [Enum.ItemClass.Profession] = true,
+    Enum.ItemClass.Profession,
     [Enum.ItemClass.Gem] = {
-        [Enum.ItemGemSubclass.Artifactrelic] = true,  -- Legion artifact relics
+        Enum.ItemGemSubclass.Artifactrelic,  -- Legion artifact relics
     },
 }
 --[[local]] DISENCHANTABLE_ITEMS = {
     -- FIXME: is there any more general way to detect these?
-    [182067] = true,  -- Antique Duelist's Rapier (Revendreth enchanting WQ)
+    182067,  -- Antique Duelist's Rapier (Revendreth enchanting WQ)
 }
 
 -- Return whether the given item is usable.  Wraps C_Item.IsUsableItem()
 -- but also handles usable items for which that function returns false.
 local USABLE_ITEMS  -- Defined below.
 function WoWXIV.IsItemUsable(item)
-    return USABLE_ITEMS[item] or C_Item.IsUsableItem(item)
+    return USABLE_ITEMS:has(item) or C_Item.IsUsableItem(item)
 end
---[[local]] USABLE_ITEMS = {
-    [239276] = true,   -- K'aresh warrant: Purple Peat Cell Key
-    [239567] = true,   -- 11.2 utility curio: Tailwind Conduit
-    [239568] = true,   -- 11.2 utility curio: Audio Amplification Crystal
-    [239569] = true,   -- 11.2 utility curio: Battered Aegis
-    [239570] = true,   -- 11.2 utility curio: Temporal Decelerator Crystal
-    [239571] = true,   -- 11.2 utility curio: Sands of K'aresh
-    [239573] = true,   -- 11.2 combat curio: Ethereal Energy Converter
-    [239576] = true,   -- 11.2 combat curio: Mana-Tinted Glasses
-    [239578] = true,   -- 11.2 combat curio: Quizzical Device
-    [239579] = true,   -- 11.2 combat curio: Hatarang
-    [239580] = true,   -- 11.2 combat curio: Nether Overlay Matrix
-}
+--[[local]] USABLE_ITEMS = set(
+    239276,   -- K'aresh warrant: Purple Peat Cell Key
+    239567,   -- 11.2 utility curio: Tailwind Conduit
+    239568,   -- 11.2 utility curio: Audio Amplification Crystal
+    239569,   -- 11.2 utility curio: Battered Aegis
+    239570,   -- 11.2 utility curio: Temporal Decelerator Crystal
+    239571,   -- 11.2 utility curio: Sands of K'aresh
+    239573,   -- 11.2 combat curio: Ethereal Energy Converter
+    239576,   -- 11.2 combat curio: Mana-Tinted Glasses
+    239578,   -- 11.2 combat curio: Quizzical Device
+    239579,   -- 11.2 combat curio: Hatarang
+    239580    -- 11.2 combat curio: Nether Overlay Matrix
+)
 
 -- Display an error message, optionally with an error sound.
 -- with_sound defaults to true if not specified.

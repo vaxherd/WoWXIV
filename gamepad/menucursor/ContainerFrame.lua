@@ -3,6 +3,7 @@ assert(WoWXIV.Gamepad.MenuCursor)
 local MenuCursor = WoWXIV.Gamepad.MenuCursor
 
 local class = WoWXIV.class
+local set = WoWXIV.set
 local Button = WoWXIV.Button
 local Frame = WoWXIV.Frame
 
@@ -335,10 +336,10 @@ function AutoDeposit(prev_bag, prev_slot)
                     target_items[id] = (max_stack[id] > 1)
                 end
                 if target_items[id] then
-                    target_bags[id] = target_bags[id] or {}
                     -- For now, we create target_bags as a set for simplicity.
                     -- We rewrite it to a list when we're all done.
-                    target_bags[id][bag] = true
+                    target_bags[id] = target_bags[id] or set()
+                    target_bags[id]:add(bag)
                     target_slots[id] = target_slots[id] or {}
                     local space = max_stack[id] - info.stackCount
                     assert(space >= 0)
@@ -355,7 +356,7 @@ function AutoDeposit(prev_bag, prev_slot)
     for id, bag_set in pairs(target_bags) do
         local bag_list = {}
         for _, bag in ipairs(BANK_BAGS) do
-            if bag_set[bag] then
+            if bag_set:has(bag) then
                 tinsert(bag_list, bag)
             end
         end

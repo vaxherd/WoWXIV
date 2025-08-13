@@ -1,6 +1,8 @@
 local _, WoWXIV = ...
 WoWXIV.SlashCmd = {}
 
+local set = WoWXIV.set
+
 local tinsert = tinsert
 
 local FCT = function(...)
@@ -96,15 +98,15 @@ function(arg)
             aliases[key] = {}
             -- Some core commands are defined multiple times (why?), so
             -- omit duplicates.
-            local seen = {}
+            local seen = set()
             local i = 1
             while _G["SLASH_"..key..i] do
                 local cmd = _G["SLASH_"..key..i]
                 if cmd and cmd:sub(1,1) == "/" then  -- Should always be true.
                     cmd = cmd:sub(2,-1)
                 end
-                if not seen[cmd] then
-                    seen[cmd] = true
+                if not seen:has(cmd) then
+                    seen:add(cmd)
                     cmds[cmd] = key
                     tinsert(aliases[key], cmd)
                 end
