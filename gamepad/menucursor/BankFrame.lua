@@ -260,19 +260,20 @@ function BankItemSubmenu:__constructor()
     -- on whether the item is a stack or not.
     self.menuitem_takeout =
         WoWXIV.UI.ItemSubmenuButton(self, "Take out", false)
-    self.menuitem_takeout.ExecuteInsecure =
-        function(bag, slot) self:TakeAllOrSome(bag, slot) end
+    self.menuitem_takeout.ExecuteInsecure = function(bag, slot)
+        self:TakeAllOrSome(bag, slot)
+    end
     self.menuitem_takeall =
         WoWXIV.UI.ItemSubmenuButton(self, "Take all", false)
-    self.menuitem_takeall.ExecuteInsecure =
-        function(bag, slot) self:TakeAllOrSome(bag, slot) end
+    self.menuitem_takeall.ExecuteInsecure = function(bag, slot)
+        self:TakeAllOrSome(bag, slot)
+    end
 
     self.menuitem_takesome =
         WoWXIV.UI.ItemSubmenuButton(self, "Take some", false)
-    self.menuitem_takesome.ExecuteInsecure =
-        function(bag, slot, info, item)
-            self:DoTakeSome(bag, slot, info, item)
-        end
+    self.menuitem_takesome.ExecuteInsecure = function(bag, slot, info, item)
+        self:DoTakeSome(bag, slot, info, item)
+    end
 
     self.menuitem_disenchant =
         WoWXIV.UI.ItemSubmenuButton(self, "Disenchant", true)
@@ -281,20 +282,21 @@ function BankItemSubmenu:__constructor()
 
     self.menuitem_splitstack =
         WoWXIV.UI.ItemSubmenuButton(self, "Split stack", false)
-    self.menuitem_splitstack.ExecuteInsecure =
-        function(bag, slot, info, item)
-            self:DoSplitStack(bag, slot, info, item)
-        end
+    self.menuitem_splitstack.ExecuteInsecure = function(bag, slot, info, item)
+        self:DoSplitStack(bag, slot, info, item)
+    end
 
     self.menuitem_sort_tab =
         WoWXIV.UI.ItemSubmenuButton(self, "Sort tab", false)
-    self.menuitem_sort_tab.ExecuteInsecure =
-        function(bag, slot, info) self:DoSortTab(bag) end
+    self.menuitem_sort_tab.ExecuteInsecure = function(bag, slot, info)
+        self:DoSortTab(bag)
+    end
 
     self.menuitem_discard =
         WoWXIV.UI.ItemSubmenuButton(self, "Discard", false)
-    self.menuitem_discard.ExecuteInsecure =
-        function(bag, slot, info) self:DoDiscard(bag, slot, info) end
+    self.menuitem_discard.ExecuteInsecure = function(bag, slot, info)
+        self:DoDiscard(bag, slot, info)
+    end
 end
 
 function BankItemSubmenu:ConfigureForItem(bag, slot)

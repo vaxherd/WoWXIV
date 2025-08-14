@@ -885,14 +885,9 @@ end
 function InventoryItemSubmenu:__constructor()
     __super(self)
 
-    -- Note that both of these are the same action because "item" resolves
-    -- to either "equip" or "use" based on C_Item.IsEquippableItem() (see
-    -- SECURE_ACTIONS.item in SecureTemplates.lua), which is the same test
-    -- we use for showing the "Equip" menu item in place of "Use".  "Open"
-    -- and "Read" are just aliases for "Use" we use for loot-type and
-    -- book-type items.
-    self.menuitem_equip = WoWXIV.UI.ItemSubmenuButton(self, "Equip", true)
-    self.menuitem_equip:SetAttribute("type", "item")
+    -- "Open" and "Read" are just aliases for "Use" we use for loot-type
+    -- and book-type items.  "Use as target" is likewise an alias we use
+    -- if the game cursor has a pending spell.
     self.menuitem_use = WoWXIV.UI.ItemSubmenuButton(self, "Use", true)
     self.menuitem_use:SetAttribute("type", "item")
     self.menuitem_open = WoWXIV.UI.ItemSubmenuButton(self, "Open", true)
@@ -903,39 +898,60 @@ function InventoryItemSubmenu:__constructor()
                                                        "Use as target", true)
     self.menuitem_target:SetAttribute("type", "item")
 
+    self.menuitem_equip = WoWXIV.UI.ItemSubmenuButton(self, "Equip", false)
+    self.menuitem_equip.ExecuteInsecure = function(bag, slot, info)
+        C_Item.EquipItemByName(info.hyperlink)
+    end
+    self.menuitem_equip_ring1 =
+        WoWXIV.UI.ItemSubmenuButton(self, "Equip (ring 1)", false)
+    self.menuitem_equip_ring1.ExecuteInsecure = function(bag, slot, info)
+        C_Item.EquipItemByName(info.hyperlink, INVSLOT_FINGER1)
+    end
+    self.menuitem_equip_ring2 =
+        WoWXIV.UI.ItemSubmenuButton(self, "Equip (ring 2)", false)
+    self.menuitem_equip_ring2.ExecuteInsecure = function(bag, slot, info)
+        C_Item.EquipItemByName(info.hyperlink, INVSLOT_FINGER2)
+    end
+    self.menuitem_equip_trinket1 =
+        WoWXIV.UI.ItemSubmenuButton(self, "Equip (trinket 1)", false)
+    self.menuitem_equip_trinket1.ExecuteInsecure = function(bag, slot, info)
+        C_Item.EquipItemByName(info.hyperlink, INVSLOT_TRINKET1)
+    end
+    self.menuitem_equip_trinket2 =
+        WoWXIV.UI.ItemSubmenuButton(self, "Equip (trinket 2)", false)
+    self.menuitem_equip_trinket2.ExecuteInsecure = function(bag, slot, info)
+        C_Item.EquipItemByName(info.hyperlink, INVSLOT_TRINKET2)
+    end
+
     self.menuitem_expand_sockets =
         WoWXIV.UI.ItemSubmenuButton(self, "View sockets", false)
-    self.menuitem_expand_sockets.ExecuteInsecure =
-        function(bag, slot) C_Container.SocketContainerItem(bag, slot) end
+    self.menuitem_expand_sockets.ExecuteInsecure = function(bag, slot)
+        C_Container.SocketContainerItem(bag, slot)
+    end
 
     self.menuitem_expand_azerite =
         WoWXIV.UI.ItemSubmenuButton(self, "View Azerite powers", false)
-    self.menuitem_expand_azerite.ExecuteInsecure =
-        function(bag, slot, info)
-            OpenAzeriteEmpoweredItemUIFromItemLocation(
-                ItemLocation:CreateFromBagAndSlot(bag, slot))
-        end
+    self.menuitem_expand_azerite.ExecuteInsecure = function(bag, slot, info)
+        OpenAzeriteEmpoweredItemUIFromItemLocation(
+            ItemLocation:CreateFromBagAndSlot(bag, slot))
+    end
 
     self.menuitem_expand_azerheart =
         WoWXIV.UI.ItemSubmenuButton(self, "View Azerite essences", false)
-    self.menuitem_expand_azerheart.ExecuteInsecure =
-        function(bag, slot, info)
-            OpenAzeriteEssenceUIFromItemLocation(
-                ItemLocation:CreateFromBagAndSlot(bag, slot))
-        end
+    self.menuitem_expand_azerheart.ExecuteInsecure = function(bag, slot, info)
+        OpenAzeriteEssenceUIFromItemLocation(
+            ItemLocation:CreateFromBagAndSlot(bag, slot))
+    end
 
     self.menuitem_auction =
         WoWXIV.UI.ItemSubmenuButton(self, "Auction", false)
-    self.menuitem_auction.ExecuteInsecure =
-        function(bag, slot, info)
-            SendToAuctionHouse(ItemLocation:CreateFromBagAndSlot(bag, slot),
-                               info)
-        end
+    self.menuitem_auction.ExecuteInsecure = function(bag, slot, info)
+        SendToAuctionHouse(ItemLocation:CreateFromBagAndSlot(bag, slot), info)
+    end
 
     self.menuitem_sendtobank =
         WoWXIV.UI.ItemSubmenuButton(self, "Send to bank", false)
-    self.menuitem_sendtobank.ExecuteInsecure =
-        function(bag, slot, info) SendToBank(bag, slot, info) end
+    self.menuitem_sendtobank.ExecuteInsecure = SendToBank
 
     self.menuitem_autodeposit =
         WoWXIV.UI.ItemSubmenuButton(self, "Auto-deposit", false)
@@ -943,15 +959,13 @@ function InventoryItemSubmenu:__constructor()
 
     self.menuitem_sell =
         WoWXIV.UI.ItemSubmenuButton(self, "Sell", false)
-    self.menuitem_sell.ExecuteInsecure =
-        function(bag, slot, info)
-            SellItem(self.item_button, bag, slot, info)
-        end
+    self.menuitem_sell.ExecuteInsecure = function(bag, slot, info)
+        SellItem(self.item_button, bag, slot, info)
+    end
 
     self.menuitem_socket =
         WoWXIV.UI.ItemSubmenuButton(self, "Socket", false)
-    self.menuitem_socket.ExecuteInsecure =
-        function(bag, slot, info) SendToSocket(bag, slot, info) end
+    self.menuitem_socket.ExecuteInsecure = SendToSocket
 
     self.menuitem_disenchant =
         WoWXIV.UI.ItemSubmenuButton(self, "Disenchant", true)
@@ -960,20 +974,21 @@ function InventoryItemSubmenu:__constructor()
 
     self.menuitem_splitstack =
         WoWXIV.UI.ItemSubmenuButton(self, "Split stack", false)
-    self.menuitem_splitstack.ExecuteInsecure =
-        function(bag, slot, info, item)
-            self:DoSplitStack(bag, slot, info, item)
-        end
+    self.menuitem_splitstack.ExecuteInsecure = function(bag, slot, info, item)
+        self:DoSplitStack(bag, slot, info, item)
+    end
 
     self.menuitem_sort_bag =
         WoWXIV.UI.ItemSubmenuButton(self, "Sort bag", false)
-    self.menuitem_sort_bag.ExecuteInsecure =
-        function(bag, slot, info) self:DoSortBag(bag) end
+    self.menuitem_sort_bag.ExecuteInsecure = function(bag, slot, info)
+        self:DoSortBag(bag)
+    end
 
     self.menuitem_discard =
         WoWXIV.UI.ItemSubmenuButton(self, "Discard", false)
-    self.menuitem_discard.ExecuteInsecure =
-        function(bag, slot, info) self:DoDiscard(bag, slot, info) end
+    self.menuitem_discard.ExecuteInsecure = function(bag, slot, info)
+        self:DoDiscard(bag, slot, info)
+    end
 end
 
 function InventoryItemSubmenu:ConfigureForItem(bag, slot)
@@ -981,7 +996,7 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
         C_Item.GetItemGUID(ItemLocation:CreateFromBagAndSlot(bag, slot))
     local bagslot = strformat("%d %d", bag, slot)
     local info = C_Container.GetContainerItemInfo(bag, slot)
-    local item_class = select(12, C_Item.GetItemInfo(guid))
+    local equip_type, _, _, item_class = select(9, C_Item.GetItemInfo(guid))
 
     if SpellIsTargeting() and SpellCanTargetItem() then
         self:AppendButton(self.menuitem_target)
@@ -1014,21 +1029,13 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
             self:AppendButton(self.menuitem_socket)
         end
 
-    else
-        -- Don't show Equip/Use while at a special location because those
+    elseif not C_Item.IsEquippableItem(guid) then
+        -- Don't show Use/etc for equippable items because the "item"
+        -- secure action executes "equip" for those instead.  Also don't
+        -- show them while at a special location because those locations
         -- may cause the "default behavior" invoked by those commands to
         -- do something different.
-        if C_Item.IsEquippableItem(guid) then
-            if C_Item.IsCosmeticItem(guid) then
-                -- FIXME: the standard "item" action tries to equip this,
-                -- which both isn't what we're looking for and doesn't
-                -- learn the appearance (caused by a missing IsCosmeticItem
-                -- check in SecureTemplates.lua:SECURE_ACTIONS.item, line
-                -- 417 in build 11.1.7.61967, reported on 2025-07-30).
-            else
-                self:AppendButton(self.menuitem_equip)
-            end
-        elseif info.hasLoot then
+        if info.hasLoot then
             self:AppendButton(self.menuitem_open)
         elseif info.isReadable then
             self:AppendButton(self.menuitem_read)
@@ -1036,6 +1043,28 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
                 or info.hasLoot
                 or info.isReadable) then
             self:AppendButton(self.menuitem_use)
+        end
+    end
+
+    if C_Item.IsEquippableItem(guid) then
+        if C_Item.IsCosmeticItem(guid) then
+            -- FIXME: the standard "item" action tries to equip this,
+            -- which both isn't what we're looking for and doesn't
+            -- learn the appearance (caused by a missing IsCosmeticItem
+            -- check in SecureTemplates.lua:SECURE_ACTIONS.item, line
+            -- 417 in build 11.1.7.61967, reported on 2025-07-30).
+            -- These arguably shouldn't be marked as "equippable" in
+            -- the first place, but since they are, we have no way to
+            -- use them from insecure code and have to rely on mouse
+            -- activation.
+        elseif equip_type == "INVTYPE_FINGER" then
+            self:AppendButton(self.menuitem_equip_ring1)
+            self:AppendButton(self.menuitem_equip_ring2)
+        elseif equip_type == "INVTYPE_TRINKET" then
+            self:AppendButton(self.menuitem_equip_trinket1)
+            self:AppendButton(self.menuitem_equip_trinket2)
+        else
+            self:AppendButton(self.menuitem_equip)
         end
     end
 
