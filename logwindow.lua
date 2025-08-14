@@ -1275,7 +1275,7 @@ function LogWindow:AddMessage(event, text, r, g, b)
 end
 
 function LogWindow:FilterOut(event, text)
-    if strsub(event,1,17)  == "CHAT_MSG_MONSTER_" and strsub(text,1,17) == "Brann Bronzebeard" then return true end  -- Suppress messages from wiseass delve companion.
+    if (strsub(event,1,17)  == "CHAT_MSG_MONSTER_" or event == "CHAT_MSG_TEXT_EMOTE") and strsub(text,1,17) == "Brann Bronzebeard" then return true end  -- Suppress messages from wiseass delve companion.
     return false
 end
 
