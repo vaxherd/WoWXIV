@@ -690,35 +690,35 @@ function WoWXIV.IsItemDisenchantable(item)
     local quality, item_class, item_subclass = info[3], info[12], info[13]
     if not item_subclass then return false end
     local disenchantable = (DISENCHANTABLE_TYPES[item_class]
-                            or DISENCHANTABLE_ITEMS[item])
+                            or DISENCHANTABLE_ITEMS:has(item))
     if type(disenchantable) == "table" then
-        disenchantable = disenchantable[item_subclass]
+        disenchantable = disenchantable:has(item_subclass)
     end
     if quality >= Enum.ItemQuality.Legendary then
         disenchantable = false
     end
-    return disenchantable
+    return disenchantable or false  -- Ensure it's a boolean return value.
 end
 --[[local]] DISENCHANTABLE_TYPES = {
-    Enum.ItemClass.Weapon,
-    [Enum.ItemClass.Armor] = {
+    [Enum.ItemClass.Weapon] = true,
+    [Enum.ItemClass.Armor] = set(
         Enum.ItemArmorSubclass.Generic,
         Enum.ItemArmorSubclass.Cloth,
         Enum.ItemArmorSubclass.Leather,
         Enum.ItemArmorSubclass.Mail,
         Enum.ItemArmorSubclass.Plate,
         -- Enum.ItemArmorSubclass.Cosmetic: not disenchantable!
-        Enum.ItemArmorSubclass.Shield,
-    },
-    Enum.ItemClass.Profession,
-    [Enum.ItemClass.Gem] = {
-        Enum.ItemGemSubclass.Artifactrelic,  -- Legion artifact relics
-    },
+        Enum.ItemArmorSubclass.Shield
+    ),
+    [Enum.ItemClass.Profession] = true,
+    [Enum.ItemClass.Gem] = set(
+        Enum.ItemGemSubclass.Artifactrelic  -- Legion artifact relics
+    ),
 }
---[[local]] DISENCHANTABLE_ITEMS = {
+--[[local]] DISENCHANTABLE_ITEMS = set(
     -- FIXME: is there any more general way to detect these?
-    182067,  -- Antique Duelist's Rapier (Revendreth enchanting WQ)
-}
+    182067  -- Antique Duelist's Rapier (Revendreth enchanting WQ)
+)
 
 -- Return whether the given item is usable.  Wraps C_Item.IsUsableItem()
 -- but also handles usable items for which that function returns false.
