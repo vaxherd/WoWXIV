@@ -750,15 +750,16 @@ function LootHandler:OnEvent(event, ...)
                 self:UpdateLootSlots()
             end
         else  -- second (or later) LOOT_READY event
-            -- There is (since at least 11.0, still present in 11.1.7) a
-            -- bug in the engine which seems to "forget" the autoloot state
-            -- in certain cases, possibly when a loot item is added to the
-            -- table after the first LOOT_READY but before LOOT_OPENED (or
-            -- perhaps "before the processing which generates LOOT_OPENED
-            -- completes", since the erroneous LOOT_READY can also follow
-            -- LOOT_OPENED).  We can detect that here by comparing against
-            -- the original autoloot flag; if the bug occurs, we work
-            -- around it by performing the autoloot operation ourselves.
+            -- There is (since at least 11.0, still present in 11.1.7,
+            -- possibly fixed in 11.2.0?) a bug in the engine which seems
+            -- to "forget" the autoloot state in certain cases, possibly
+            -- when a loot item is added to the table after the first
+            -- LOOT_READY but before LOOT_OPENED (or perhaps "before the
+            -- processing which generates LOOT_OPENED completes", since the
+            -- erroneous LOOT_READY can also follow LOOT_OPENED).  We can
+            -- detect that here by comparing against the original autoloot
+            -- flag; if the bug occurs, we work around it by performing the
+            -- autoloot operation ourselves.
             if self.autolooting and not autoloot then
                 EventRegistry:TriggerEvent("WoWXIV.AutolootFixTriggered", 1)
                 self:UpdateLootSlots()  -- Add any new slots.
@@ -769,30 +770,26 @@ function LootHandler:OnEvent(event, ...)
     elseif event == "LOOT_OPENED" then
         local autoloot = ...
         -- On rare occasions, we can get LOOT_OPENED _without_ LOOT_READY;
-        -- this has been observed in delves when opening a reward chest at
-        -- roughly the same time as stepping on a collectable pile of gold,
-        -- but it may also be related to opening multiple chests in quick
-        -- succession.  We treat this case as a LOOT_READY and LOOT_OPENED
-        -- at the same time, and close LootFrame if it saw the event first.
+        -- this has been observed in delves when opening a reward chest,
+        -- though there doesn't seem to be any consistency of conditions
+        -- for when it occurs.  In this case, we seem to correctly get
+        -- autoloot=true for the autoloot case, but the game doesn't
+        -- actually perform looting, so we treat it the same as the "lost
+        -- autoloot flag" case above and loot manually, trusting that if
+        -- the game does decide to autoloot (or this bug is fixed), it can
+        -- properly resolve our manual LootSlot() calls with the autoloot
+        -- processing.
         if not self.looting then
             self.looting = true
-            -- We also have to check for the autoloot bug mentioned above,
-            -- but since we didn't get an initial LOOT_READY to know the
-            -- intended autoloot state, we have to work out what it should
-            -- have been ourselves.
-            local should_autoloot = (C_CVar.GetCVarBool("autoLootDefault")
-                                     ~= IsModifiedClick("AUTOLOOTTOGGLE"))
-            if should_autoloot then
+            if autoloot then
                 self.autolooting = true
                 if hide_autoloot then
                     LootFrame:UnregisterEvent("LOOT_OPENED")
-                    LootFrame:Hide()
+                    LootFrame:Hide()  -- In case it saw this event before us.
                 end
-                if not autoloot then
-                    EventRegistry:TriggerEvent("WoWXIV.AutolootFixTriggered", 2)
-                    self:UpdateLootSlots()
-                    self:DoManualAutoloot()
-                end
+                EventRegistry:TriggerEvent("WoWXIV.AutolootFixTriggered", 2)
+                self:UpdateLootSlots()
+                self:DoManualAutoloot()
             end
         else
             -- In yet another failure mode (though possibly one provoked
