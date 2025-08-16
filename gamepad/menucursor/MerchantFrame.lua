@@ -270,7 +270,7 @@ function MerchantFrameHandler:UpdateTargets()
 end
 
 function MerchantFrameHandler:UpdateMovement()
-    if not self:HasFocus() then
+    if not self:IsEnabled() then
         return  -- Deal with calls during frame setup on UI reload.
     end
     -- Ensure correct up/down behavior, as for mail inbox.  Also allow
