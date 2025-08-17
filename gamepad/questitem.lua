@@ -309,6 +309,7 @@ local ITEM_TARGET = {
     [232987] = "player",  -- Blood-B-Gone (85945: Side Gig: Blood-B-Gone)
     [233028] = "none",    -- Flamethrower (86201: Watch me Make These Bugs Expire)
     [233222] = "skip",    -- Nullbomb (84865: Divide and Conquer)  -- Provided as a duty action.
+    [234457] = "target",  -- Butcher's Knife (86355: Using the Whole Animal)
     [236641] = "none",    -- Watering Jug (87339: Ongoing Activities)
     [239074] = "none",    -- Void Lure (86786: The Void Hunter)
 
