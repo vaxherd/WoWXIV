@@ -276,7 +276,7 @@ end
 
 function Gamepad.UpdateCameraSettings()
     WoWXIV.Config.SetGamePadCameraYawSpeed(
-        WoWXIV_config["gamepad_camera_invert_h"] and -1 or 1)
+        WoWXIV_config["gamepad_camera_invert_h"] and -1.5 or 1.5)
     WoWXIV.Config.SetGamePadCameraPitchSpeed(
-        WoWXIV_config["gamepad_camera_invert_v"] and -1 or 1)
+        WoWXIV_config["gamepad_camera_invert_v"] and -1.5 or 1.5)
 end
