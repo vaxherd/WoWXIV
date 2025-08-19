@@ -750,16 +750,15 @@ function LootHandler:OnEvent(event, ...)
                 self:UpdateLootSlots()
             end
         else  -- second (or later) LOOT_READY event
-            -- There is (since at least 11.0, still present in 11.1.7,
-            -- possibly fixed in 11.2.0?) a bug in the engine which seems
-            -- to "forget" the autoloot state in certain cases, possibly
-            -- when a loot item is added to the table after the first
-            -- LOOT_READY but before LOOT_OPENED (or perhaps "before the
-            -- processing which generates LOOT_OPENED completes", since the
-            -- erroneous LOOT_READY can also follow LOOT_OPENED).  We can
-            -- detect that here by comparing against the original autoloot
-            -- flag; if the bug occurs, we work around it by performing the
-            -- autoloot operation ourselves.
+            -- There is (since at least 11.0, still present in 11.2.0) a
+            -- bug in the engine which seems to "forget" the autoloot state
+            -- in certain cases, possibly when a loot item is added to the
+            -- table after the first LOOT_READY but before LOOT_OPENED (or
+            -- perhaps "before the processing which generates LOOT_OPENED
+            -- completes", since the erroneous LOOT_READY can also follow
+            -- LOOT_OPENED).  We can detect that here by comparing against
+            -- the original autoloot flag; if the bug occurs, we work
+            -- around it by performing the autoloot operation ourselves.
             if self.autolooting and not autoloot then
                 EventRegistry:TriggerEvent("WoWXIV.AutolootFixTriggered", 1)
                 self:UpdateLootSlots()  -- Add any new slots.
