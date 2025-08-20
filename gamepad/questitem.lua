@@ -303,14 +303,18 @@ local ITEM_TARGET = {
     [230795] = "none",    -- Experimental Go-Pack (84252: Peak Precision)
     [231164] = "target",  -- Goblin Grapnel (85396: Heaps o' Scrap)
     [231900] = "none",    -- Sample Potion (85515: Free Samples!)
+    [232432] = "none",    -- Condenser Disc (86184: Diminishing Returns)
     [232464] = "none",    -- Crumpled Paystub (83123: A Miner Mistake)
     [232466] = "none",    -- Leave the Storm (85113: Special Assignment: Storm's a Brewin)
     [232644] = "none",    -- Broker Disguise Pin (85432: Confuse Their Contacts)
     [232987] = "player",  -- Blood-B-Gone (85945: Side Gig: Blood-B-Gone)
+    [232992] = "none",    -- Large Bug Bits (86187: The Smallest Possible Effort)
     [233028] = "none",    -- Flamethrower (86201: Watch me Make These Bugs Expire)
+    [233195] = "none",    -- Pheromone Dispenser (86194: The Scent of Love)
     [233222] = "skip",    -- Nullbomb (84865: Divide and Conquer)  -- Provided as a duty action.
     [234457] = "target",  -- Butcher's Knife (86355: Using the Whole Animal)
     [236641] = "none",    -- Watering Jug (87339: Ongoing Activities)
+    [237009] = "none",    -- Zo'kita Safety Gear (87420: Basket of Zo'kita Fruit)
     [239074] = "none",    -- Void Lure (86786: The Void Hunter)
 
     -- The following are scenario action spells:
