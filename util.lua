@@ -722,13 +722,13 @@ end
 
 -- Return whether the given item is usable.  Wraps C_Item.IsUsableItem()
 -- but also handles usable items for which that function returns false.
+-- Does _not_ handle items which start quests (because the only API for
+-- identifying those requires a container slot rather than an item ID).
 local USABLE_ITEMS  -- Defined below.
 function WoWXIV.IsItemUsable(item)
     return USABLE_ITEMS:has(item) or C_Item.IsUsableItem(item)
 end
 --[[local]] USABLE_ITEMS = set(
-    236967,   -- K'aresh warrant: Grubber Lure
-    239276,   -- K'aresh warrant: Purple Peat Cell Key
     239567,   -- 11.2 utility curio: Tailwind Conduit
     239568,   -- 11.2 utility curio: Audio Amplification Crystal
     239569,   -- 11.2 utility curio: Battered Aegis

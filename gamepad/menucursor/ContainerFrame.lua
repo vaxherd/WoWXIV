@@ -1039,10 +1039,19 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
             self:AppendButton(self.menuitem_open)
         elseif info.isReadable then
             self:AppendButton(self.menuitem_read)
-        elseif (WoWXIV.IsItemUsable(info.itemID)
-                or info.hasLoot
-                or info.isReadable) then
-            self:AppendButton(self.menuitem_use)
+        else
+            local is_usable = (WoWXIV.IsItemUsable(info.itemID)
+                               or info.hasLoot
+                               or info.isReadable)
+            if not is_usable then
+                local qi = C_Container.GetContainerItemQuestInfo(bag, slot)
+                if qi and qi.questID and not qi.isActive then
+                    is_usable = true
+                end
+            end
+            if is_usable then
+                self:AppendButton(self.menuitem_use)
+            end
         end
     end
 
