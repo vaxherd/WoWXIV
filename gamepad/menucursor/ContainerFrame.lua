@@ -1088,7 +1088,9 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
         end
     end
 
-    if C_Spell.IsSpellUsable(WoWXIV.SPELL_DISENCHANT) then
+    if (C_SpellBook.IsSpellKnown(WoWXIV.SPELL_DISENCHANT)
+        and C_Spell.IsSpellUsable(WoWXIV.SPELL_DISENCHANT))
+    then
         if WoWXIV.IsItemDisenchantable(info.itemID) then
             self:AppendButton(self.menuitem_disenchant)
         end
