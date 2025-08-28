@@ -28,9 +28,10 @@ targetbar.lua
 util.lua
 
 # Must precede gamepad/ to avoid declaration ordering issues
-# (specifically subclassing of UI.ItemSubmenu).
+# (specifically subclassing of ContextMenu/ItemSubmenu).
 ui/aurabar.lua
 ui/castbar.lua
+ui/contextmenu.lua
 ui/gauge.lua
 ui/itemmenu.lua
 

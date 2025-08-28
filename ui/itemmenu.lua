@@ -6,122 +6,35 @@ local class = WoWXIV.class
 local Button = WoWXIV.Button
 local Frame = WoWXIV.Frame
 
-UI.ItemSubmenu = class(Frame)
-UI.ItemSubmenuButton = class(Button)
+assert(UI.ContextMenu)  -- Ensure proper load order.
+
+UI.ItemSubmenu = class(UI.ContextMenu)
+UI.ItemSubmenuButton = class(UI.ContextMenuButton)
 local ItemSubmenu = UI.ItemSubmenu
 local ItemSubmenuButton = UI.ItemSubmenuButton
 
 ---------------------------------------------------------------------------
 
-function ItemSubmenu:__allocator()
-    return __super("Frame", nil, UIParent)
-end
-
-function ItemSubmenu:__constructor()
-    self.MIN_EDGE = 4  -- Don't get closer than this to the screen edge.
-    self.SPACING = 1   -- Vertical spacing between buttons.
-    self.buttons = {}  -- List of buttons currently shown in the layout.
-
-    self:Hide()
-    self:SetFrameStrata("DIALOG")
-    self:SetScript("OnHide", self.OnHide)
-    -- Immediately close the submenu on any mouse click, to reduce the
-    -- risk of colliding inventory operations.
-    self:RegisterEvent("GLOBAL_MOUSE_UP")
-    self:SetScript("OnEvent", function(self, event)
-        if event == "GLOBAL_MOUSE_UP" and self:IsShown() then self:Hide() end
-    end)
-
-    self.background = self:CreateTexture(nil, "BACKGROUND")
-    self.background:SetPoint("TOPLEFT", -14, 11)
-    self.background:SetPoint("BOTTOMRIGHT", 14, -17)
-    self.background:SetAtlas("common-dropdown-bg")
-end
-
 -- Takes both the button itself and the bag/slot location parameters to
 -- avoid having to worry about different styles of item button (e.g.
 -- standard bags vs account bank).
 function ItemSubmenu:Open(item_button, bag, slot, ...)
-    if self:IsShown() then
-        self:Close()
-    end
-
     self.item_button, self.bag, self.slot = item_button, bag, slot
     local item_loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
     if not item_loc:IsValid() then  -- nothing there!
         self.bag, self.slot = nil, nil
         return
     end
-
-    self:ClearLayout()
-    self:ConfigureForItem(bag, slot, ...)
-    self:FinishLayout()
-
-    self:ClearAllPoints()
-    local w, h = self:GetSize()
-    local ix, iy, iw, ih = item_button:GetRect()
-    local anchor, refpoint
-    if (ix+iw) + w + self.MIN_EDGE <= UIParent:GetWidth() then
-        anchor = "TOPLEFT"
-        refpoint = "BOTTOMRIGHT"
-    else
-        -- Doesn't fit on the right side, move to the left.
-        anchor = "TOPRIGHT"
-        refpoint = "BOTTOMLEFT"
-    end
-    local y_offset = max((h + self.MIN_EDGE) - iy, 0)
-    self:SetPoint(anchor, item_button, refpoint, 0, y_offset)
-    self:Show()
-end
-
--- Just a synonym for Hide().  Included for parallelism with Open().
-function ItemSubmenu:Close()
-    self:Hide()
-end
-
-function ItemSubmenu:OnHide()
-    for _, button in ipairs(self.buttons) do
-        button:Hide()
-    end
-    self.buttons = {}
-    self.bag, self.slot = nil, nil
-end
-
-function ItemSubmenu:ClearLayout()
-    self.layout_prev = nil
-    self.layout_width = 64  -- Set a sensible minimum width.
-    self.layout_height = 0
-    self.buttons = {}
-end
-
-function ItemSubmenu:AppendLayout(element)
-    local target, ref, offset
-    if self.layout_prev then
-        target = self.layout_prev
-        ref = "BOTTOM"
-        offset = self.SPACING
-    else
-        target = self
-        ref = "TOP"
-        offset = 0
-    end
-    element:ClearAllPoints()
-    element:SetPoint("TOPLEFT", target, ref.."LEFT", 0, -offset)
-    self.layout_width = max(self.layout_width, element:GetWidth())
-    self.layout_height = self.layout_height + offset + element:GetHeight()
-    self.layout_prev = element
+    return __super(self, item_button, bag, slot, ...)
 end
 
 function ItemSubmenu:AppendButton(button)
-    self:AppendLayout(button)
-    tinsert(self.buttons, button)
+    __super(self, button)
     button:SetItem(self.item_button, self.bag, self.slot)
-    button:Show()
 end
 
-function ItemSubmenu:FinishLayout()
-    self:SetSize(self.layout_width, self.layout_height)
-    self.layout_prev = nil
+function ItemSubmenu:Configure(button, ...)
+    self:ConfigureForItem(...)
 end
 
 -- Should be implemented by subclasses.  Call self:AppendButton() (or
@@ -132,39 +45,15 @@ end
 
 ---------------------------------------------------------------------------
 
-function ItemSubmenuButton:__allocator(parent, text, secure)
-    if secure then
-        return __super("Button", nil, parent, "SecureActionButtonTemplate")
-    else
-        return __super("Button", nil, parent)
-    end
+-- Called by ItemSubmenu to set the target item's location.
+function ItemSubmenuButton:SetItem(item_button, bag, slot)
+    self.item_button, self.bag, self.slot = item_button, bag, slot
+    self.item_id = C_Item.GetItemID(
+        ItemLocation:CreateFromBagAndSlot(bag, slot))
+    self:SetAttribute("item", bag.." "..slot)
+    self:SetAttribute("target-bag", bag)
+    self:SetAttribute("target-slot", slot)
 end
-
-function ItemSubmenuButton:__constructor(parent, text, secure)
-    self:Hide()
-    local label = self:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    self.label = label
-    label:SetPoint("LEFT", 2, 0)
-    label:SetTextColor(WHITE_FONT_COLOR:GetRGB())
-    label:SetTextScale(1.0)
-    label:SetText(text)
-    self:SetSize(label:GetStringWidth()+4, label:GetStringHeight()+2)
-    self:RegisterForClicks("LeftButtonUp")
-    self:SetAttribute("useOnKeyDown", false)  -- Indirect clicks are always up.
-    self:HookScript("PostClick", function() parent:Hide() end)
-    if not secure then
-        self:SetScript("OnClick", self.OnClick)
-    end
-end
-
-function ItemSubmenuButton:SetEnabled(enabled)
-    __super(self, enabled)
-    self.label:SetTextColor(
-        (enabled and WHITE_FONT_COLOR or GRAY_FONT_COLOR):GetRGB())
-end
--- Ensure all enable changes go through SetEnabled() to update the text color.
-function ItemSubmenu:Enable() self:SetEnabled(true) end
-function ItemSubmenu:Disable() self:SetEnabled(false) end
 
 function ItemSubmenuButton:OnClick()
     local bag, slot = self.bag, self.slot
@@ -181,16 +70,6 @@ function ItemSubmenuButton:OnClick()
     -- like-for-like substitutions to avoid potentially confusing the
     -- player with errors like "found Foo instead of Foo".
     self.ExecuteInsecure(bag, slot, info, self.item_button)
-end
-
--- Called by ItemSubmenu to set the target item's location.
-function ItemSubmenuButton:SetItem(item_button, bag, slot)
-    self.item_button, self.bag, self.slot = item_button, bag, slot
-    self.item_id = C_Item.GetItemID(
-        ItemLocation:CreateFromBagAndSlot(bag, slot))
-    self:SetAttribute("item", bag.." "..slot)
-    self:SetAttribute("target-bag", bag)
-    self:SetAttribute("target-slot", slot)
 end
 
 -- Insecure menu options should override this function to implement their
