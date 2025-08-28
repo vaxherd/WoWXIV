@@ -538,9 +538,10 @@ function CommandMenu:__constructor()
     self:SetAttribute("useOnKeyDown", true)
     self:RegisterForClicks("AnyDown", "AnyUp")
     self:HookScript("OnClick", self.OnClick)
-    self:HookScript("OnShow", self.OnShow)
-    self:HookScript("OnHide", self.OnHide)
-    self:RegisterEvent("PLAYER_REGEN_DISABLED", self.Hide)
+    self:SetScript("OnShow", self.OnShow)
+    self:SetScript("OnHide", self.OnHide)
+    self:SetScript("OnEvent", self.OnEvent)
+    self:RegisterEvent("PLAYER_REGEN_DISABLED")
     self:UpdateBindings(false)
 
     local bg_frame = CreateFrame("Frame", nil, self)
@@ -629,6 +630,12 @@ function CommandMenu:OnHide()
     self.brm:StopRepeat()
     for _, column in ipairs(self.columns) do
         column:Close()
+    end
+end
+
+function CommandMenu:OnEvent(event, ...)
+    if event == "PLAYER_REGEN_DISABLED" then
+        self:Hide()
     end
 end
 
