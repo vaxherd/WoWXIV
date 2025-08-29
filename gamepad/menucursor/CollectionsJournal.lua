@@ -654,6 +654,8 @@ function ToyBoxHandler:__constructor()
     self.tab_handler = CollectionsJournalHandler.instance.tab_handler
     self.on_prev_page = self.frame.PagingFrame.PrevPageButton
     self.on_next_page = self.frame.PagingFrame.NextPageButton
+    hooksecurefunc("ToyBox_UpdateButtons",
+                   function() self:RefreshTargets() end)
 end
 
 function ToyBoxHandler:RefreshTargets()
