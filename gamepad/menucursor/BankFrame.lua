@@ -100,14 +100,13 @@ end
 local BankFrameHandler = class(MenuCursor.StandardMenuFrame)
 MenuCursor.BankFrameHandler = BankFrameHandler  -- For exports.
 MenuCursor.Cursor.RegisterFrameHandler(BankFrameHandler)
-local BankItemSubmenuHandler = class(MenuCursor.StandardMenuFrame)
 
 function BankFrameHandler.Initialize(class, cursor)
     class.cursor = cursor
     class.instance = class()
-    -- Item submenu dropdown and associated cursor handler.
+    -- Item context menu and associated cursor handler.
     class.item_submenu = BankItemSubmenu()
-    class.instance_submenu = BankItemSubmenuHandler(class.item_submenu)
+    class.instance_submenu = MenuCursor.ContextMenuHandler(class.item_submenu)
 end
 
 function BankFrameHandler:__constructor()
@@ -231,72 +230,45 @@ end
 
 
 ---------------------------------------------------------------------------
--- Item submenu handler and implementation
+-- Item context menu implementation
 ---------------------------------------------------------------------------
-
-function BankItemSubmenuHandler:__constructor(submenu)
-    __super(self, submenu, MenuCursor.MenuFrame.MODAL)
-    self.cancel_func = function(self) self.frame:Close() end
-end
-
-function BankItemSubmenuHandler:SetTargets()
-    self.targets = {}
-    local f = self.frame
-    local initial
-    for i, button in ipairs(f.buttons) do
-        self.targets[button] = {can_activate = true,
-                                up = f.buttons[i==1 and #f.buttons or i-1],
-                                down = f.buttons[i==#f.buttons and 1 or i+1]}
-        initial = initial or button
-    end
-    return initial
-end
-
 
 function BankItemSubmenu:__constructor()
     __super(self)
 
     -- "Take out" and "Take all" are the same thing, chosen depending
     -- on whether the item is a stack or not.
-    self.menuitem_takeout =
-        WoWXIV.UI.ItemSubmenuButton(self, "Take out", false)
-    self.menuitem_takeout.ExecuteInsecure = function(bag, slot)
-        self:TakeAllOrSome(bag, slot)
-    end
-    self.menuitem_takeall =
-        WoWXIV.UI.ItemSubmenuButton(self, "Take all", false)
-    self.menuitem_takeall.ExecuteInsecure = function(bag, slot)
-        self:TakeAllOrSome(bag, slot)
-    end
+    self.menuitem_takeout = self:CreateButton("Take out",
+        function(bag, slot)
+            self:TakeAllOrSome(bag, slot)
+        end)
+    self.menuitem_takeall = self:CreateButton("Take all",
+        function(bag, slot)
+            self:TakeAllOrSome(bag, slot)
+        end)
 
-    self.menuitem_takesome =
-        WoWXIV.UI.ItemSubmenuButton(self, "Take some", false)
-    self.menuitem_takesome.ExecuteInsecure = function(bag, slot, info, item)
-        self:DoTakeSome(bag, slot, info, item)
-    end
+    self.menuitem_takesome = self:CreateButton("Take some",
+        function(bag, slot, info, item)
+            self:DoTakeSome(bag, slot, info, item)
+        end)
 
-    self.menuitem_disenchant =
-        WoWXIV.UI.ItemSubmenuButton(self, "Disenchant", true)
-    self.menuitem_disenchant:SetAttribute("type", "spell")
-    self.menuitem_disenchant:SetAttribute("spell", WoWXIV.SPELL_DISENCHANT)
+    self.menuitem_disenchant = self:CreateSecureButton("Disenchant",
+        {type="spell", spell=WoWXIV.SPELL_DISENCHANT})
 
-    self.menuitem_splitstack =
-        WoWXIV.UI.ItemSubmenuButton(self, "Split stack", false)
-    self.menuitem_splitstack.ExecuteInsecure = function(bag, slot, info, item)
-        self:DoSplitStack(bag, slot, info, item)
-    end
+    self.menuitem_splitstack = self:CreateButton("Split stack",
+        function(bag, slot, info, item)
+            self:DoSplitStack(bag, slot, info, item)
+        end)
 
-    self.menuitem_sort_tab =
-        WoWXIV.UI.ItemSubmenuButton(self, "Sort tab", false)
-    self.menuitem_sort_tab.ExecuteInsecure = function(bag, slot, info)
-        self:DoSortTab(bag)
-    end
+    self.menuitem_sort_tab = self:CreateButton("Sort tab",
+        function(bag, slot, info)
+            self:DoSortTab(bag)
+        end)
 
-    self.menuitem_discard =
-        WoWXIV.UI.ItemSubmenuButton(self, "Discard", false)
-    self.menuitem_discard.ExecuteInsecure = function(bag, slot, info)
-        self:DoDiscard(bag, slot, info)
-    end
+    self.menuitem_discard = self:CreateButton("Discard",
+        function(bag, slot, info)
+            self:DoDiscard(bag, slot, info)
+        end)
 end
 
 function BankItemSubmenu:ConfigureForItem(bag, slot)

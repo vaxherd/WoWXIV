@@ -2290,6 +2290,52 @@ function AddOnMenuFrame.OnAddOnLoaded(class)
 end
 
 
+--[[
+    StandardMenuFrame subclass for handling a context menu (specifically, an
+    instance of UI.ContextMenu).  Pass the menu instance to the constructor.
+
+    Unlike the other MenuFrame subclasses, this subclass is intended to be
+    instantiated manually, typically by the constructor for the frame
+    handler which will create the menu itself.
+]]--
+MenuCursor.ContextMenuHandler = class(StandardMenuFrame)
+local ContextMenuHandler = MenuCursor.ContextMenuHandler
+
+function ContextMenuHandler:__constructor(menu)
+    self.cursor = global_cursor
+    __super(self, menu, MenuCursor.MenuFrame.MODAL)
+    self.cancel_func = function(self) self.frame:Close() end
+end
+
+function ContextMenuHandler:SetTargets()
+    self.targets = {}
+    local f = self.frame
+    local initial
+    for i, button in ipairs(f.buttons) do
+        self.targets[button] = {can_activate = true,
+                                up = f.buttons[i==1 and #f.buttons or i-1],
+                                down = f.buttons[i==#f.buttons and 1 or i+1]}
+        local type = button:GetAttribute("type")
+        if type then
+            -- We can't indirectly click user-created buttons due to taint,
+            -- so we have the menu cursor execute the action directly.
+            local click_action = {type = type}
+            for _, field in ipairs({"spell", "item",
+                                    "target-bag", "target-slot"}) do
+                click_action[field] = button:GetAttribute(field)
+            end
+            self.targets[button].click_action = click_action
+            -- Because we execute the action ourselves, the menu item's
+            -- PostClick handler won't be called, and we have to close
+            -- the menu ourselves.
+            self.targets[button].on_click = function() self.frame:Close() end
+        end
+        initial = initial or button
+    end
+    return initial
+end
+
+
 ---------------------------------------------------------------------------
 -- Utility class for numeric input
 ---------------------------------------------------------------------------

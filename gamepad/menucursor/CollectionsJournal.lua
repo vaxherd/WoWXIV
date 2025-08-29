@@ -4,6 +4,8 @@ local MenuCursor = WoWXIV.Gamepad.MenuCursor
 
 local class = WoWXIV.class
 
+assert(WoWXIV.UI.ContextMenu)  -- Ensure proper load order.
+
 ---------------------------------------------------------------------------
 
 local CollectionsJournalHandler = class(MenuCursor.MenuFrame)
@@ -78,6 +80,9 @@ function CollectionsJournalHandler:OnTabCycle(direction)
     tab:GetScript("OnClick")(tab, "LeftButton", true)
 end
 
+---------------------------------------------------------------------------
+
+local MountContextMenu = class(WoWXIV.UI.ContextMenu)
 
 function MountJournalHandler:__constructor()
     self.cur_mount = nil  -- ID of currently selected mount.
@@ -86,9 +91,19 @@ function MountJournalHandler:__constructor()
     self.cancel_func = CollectionsJournalHandler.CancelMenu
     self.tab_handler = CollectionsJournalHandler.instance.tab_handler
     self.has_Button3 = true  -- Used to mount/dismount or unwrap new mount.
-    self.has_Button4 = true  -- Used to toggle favorite.
+    self.has_Button4 = true  -- Used to open context menu.
     hooksecurefunc("MountJournal_UpdateMountList",
                    function() self:RefreshTargets() end)
+
+    -- Mount context menu and associated cursor handler.
+    self.context_menu = MountContextMenu()
+    self.context_menu_handler = MenuCursor.ContextMenuHandler(self.context_menu)
+    self.context_menu_handler.has_Button3 = true
+    self.context_menu_handler.OnAction = function(inner_self, button)
+        assert(button == "Button3")
+        inner_self.frame:Close()
+        return self:OnAction(button)
+    end
 end
 
 function MountJournalHandler:RefreshTargets()
@@ -142,16 +157,58 @@ function MountJournalHandler:OnAction(button)
         self.frame.MountButton:Click("LeftButton", true)
     else
         assert(button == "Button4")
-        local mount_id = self:GetTargetFrame(target):GetElementData().mountID
-        assert(mount_id)
-        local is_favorite, can_favorite =
-            C_MountJournal.GetIsFavorite(target_frame.index)
-        if can_favorite and not C_MountJournal.NeedsFanfare(mount_id) then
-            C_MountJournal.SetIsFavorite(target_frame.index, not is_favorite)
-        end
+        self.context_menu:Open(target_frame)
     end
 end
 
+
+function MountContextMenu:__constructor()
+    __super(self)
+
+    -- This is a "do whatever the Mount button does" option, needed because
+    -- the actual mount operation is protected.  We relabel it as appropriate
+    -- in Configure().
+    self.menuitem_mount = self:CreateButton("Mount", function()
+        -- MountButton acts on the selected mount, not the highlighted one,
+        -- but Configure() ensures that the current button is selected.
+        MountJournal.MountButton:Click("LeftButton", true)
+    end)
+
+    self.menuitem_set_favorite = self:CreateButton("Set favorite",
+        function() self:DoSetFavorite(self.mount_button, true) end)
+
+    self.menuitem_remove_favorite = self:CreateButton("Remove favorite",
+        function() self:DoSetFavorite(self.mount_button, false) end)
+end
+
+function MountContextMenu:Configure(button)
+    self.mount_button = button
+    button:Click("LeftButton", true)
+
+    local mount_text
+    if C_MountJournal.NeedsFanfare(button.mountID) then
+        mount_text = "Unwrap"
+    elseif select(4, C_MountJournal.GetMountInfoByID(button.mountID)) then
+        mount_text = "Dismount"
+    else
+        mount_text = "Mount"
+    end
+    self.menuitem_mount:SetText(
+        mount_text.." "..GetBindingText(WoWXIV.Config.GamePadMenuButton3()))
+    self:AppendButton(self.menuitem_mount)
+
+    if C_MountJournal.GetIsFavorite(button.index) then
+        self:AppendButton(self.menuitem_remove_favorite)
+    else
+        self:AppendButton(self.menuitem_set_favorite)
+    end
+end
+
+function MountContextMenu:DoSetFavorite(button, favorite)
+    C_MountJournal.SetIsFavorite(button.index, favorite)
+end
+
+---------------------------------------------------------------------------
 
 function PetJournalHandler:__constructor()
     __super(self, PetJournal)
@@ -159,6 +216,7 @@ function PetJournalHandler:__constructor()
     self.tab_handler = CollectionsJournalHandler.instance.tab_handler
 end
 
+---------------------------------------------------------------------------
 
 function ToyBoxHandler:__constructor()
     __super(self, ToyBox)
@@ -225,6 +283,7 @@ function ToyBoxHandler:SetTargets(old_target)
     return old_target or buttons[1]
 end
 
+---------------------------------------------------------------------------
 
 function HeirloomsJournalHandler:__constructor()
     __super(self, HeirloomsJournal)
@@ -234,6 +293,7 @@ function HeirloomsJournalHandler:__constructor()
     self.on_next_page = self.frame.PagingFrame.NextPageButton
 end
 
+---------------------------------------------------------------------------
 
 function WardrobeCollectionFrameHandler:__constructor()
     __super(self, WardrobeCollectionFrame)
@@ -245,6 +305,7 @@ function WardrobeCollectionFrameHandler:__constructor()
         self.frame.ItemsCollectionFrame.PagingFrame.NextPageButton
 end
 
+---------------------------------------------------------------------------
 
 function WarbandSceneJournalHandler:__constructor()
     __super(self, WarbandSceneJournal)

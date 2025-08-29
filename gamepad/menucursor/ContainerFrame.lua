@@ -535,14 +535,13 @@ end
 
 MenuCursor.ContainerFrameHandler = ContainerFrameHandler  -- For exports.
 MenuCursor.Cursor.RegisterFrameHandler(ContainerFrameHandler)
-local InventoryItemSubmenuHandler = class(MenuCursor.StandardMenuFrame)
 
 function ContainerFrameHandler.Initialize(class, cursor)
     class.cursor = cursor
     class.instance = class()
-    -- Item submenu dropdown and associated cursor handler.
+    -- Item context menu and associated cursor handler.
     class.item_submenu = InventoryItemSubmenu()
-    class.instance_submenu = InventoryItemSubmenuHandler(class.item_submenu)
+    class.instance_submenu = MenuCursor.ContextMenuHandler(class.item_submenu)
 end
 
 function ContainerFrameHandler:__constructor()
@@ -845,42 +844,8 @@ end
 
 
 ---------------------------------------------------------------------------
--- Item submenu handler and implementation
+-- Item context menu implementation
 ---------------------------------------------------------------------------
-
-function InventoryItemSubmenuHandler:__constructor(submenu)
-    __super(self, submenu, MenuCursor.MenuFrame.MODAL)
-    self.cancel_func = function(self) self.frame:Close() end
-end
-
-function InventoryItemSubmenuHandler:SetTargets()
-    self.targets = {}
-    local f = self.frame
-    local initial
-    for i, button in ipairs(f.buttons) do
-        self.targets[button] = {can_activate = true,
-                                up = f.buttons[i==1 and #f.buttons or i-1],
-                                down = f.buttons[i==#f.buttons and 1 or i+1]}
-        local type = button:GetAttribute("type")
-        if type then
-            -- We can't indirectly click user-created buttons due to taint,
-            -- so we have the menu cursor execute the action directly.
-            local click_action = {type = type}
-            for _, field in ipairs({"spell", "item",
-                                    "target-bag", "target-slot"}) do
-                click_action[field] = button:GetAttribute(field)
-            end
-            self.targets[button].click_action = click_action
-            -- Because we execute the action ourselves, the menu item's
-            -- PostClick handler won't be called, and we have to close
-            -- the menu ourselves.
-            self.targets[button].on_click = function() self.frame:Close() end
-        end
-        initial = initial or button
-    end
-    return initial
-end
-
 
 function InventoryItemSubmenu:__constructor()
     __super(self)
@@ -888,107 +853,85 @@ function InventoryItemSubmenu:__constructor()
     -- "Open" and "Read" are just aliases for "Use" we use for loot-type
     -- and book-type items.  "Use as target" is likewise an alias we use
     -- if the game cursor has a pending spell.
-    self.menuitem_use = WoWXIV.UI.ItemSubmenuButton(self, "Use", true)
-    self.menuitem_use:SetAttribute("type", "item")
-    self.menuitem_open = WoWXIV.UI.ItemSubmenuButton(self, "Open", true)
-    self.menuitem_open:SetAttribute("type", "item")
-    self.menuitem_read = WoWXIV.UI.ItemSubmenuButton(self, "Read", true)
-    self.menuitem_read:SetAttribute("type", "item")
-    self.menuitem_target = WoWXIV.UI.ItemSubmenuButton(self,
-                                                       "Use as target", true)
-    self.menuitem_target:SetAttribute("type", "item")
+    self.menuitem_use = self:CreateSecureButton("Use", {type="item"})
+    self.menuitem_open = self:CreateSecureButton("Open", {type="item"})
+    self.menuitem_read = self:CreateSecureButton("Read", {type="item"})
+    self.menuitem_target = self:CreateSecureButton("Use as target",
+                                                   {type="item"})
 
-    self.menuitem_equip = WoWXIV.UI.ItemSubmenuButton(self, "Equip", false)
-    self.menuitem_equip.ExecuteInsecure = function(bag, slot, info)
-        C_Item.EquipItemByName(info.hyperlink)
-    end
-    self.menuitem_equip_ring1 =
-        WoWXIV.UI.ItemSubmenuButton(self, "Equip (ring 1)", false)
-    self.menuitem_equip_ring1.ExecuteInsecure = function(bag, slot, info)
-        C_Item.EquipItemByName(info.hyperlink, INVSLOT_FINGER1)
-    end
-    self.menuitem_equip_ring2 =
-        WoWXIV.UI.ItemSubmenuButton(self, "Equip (ring 2)", false)
-    self.menuitem_equip_ring2.ExecuteInsecure = function(bag, slot, info)
-        C_Item.EquipItemByName(info.hyperlink, INVSLOT_FINGER2)
-    end
-    self.menuitem_equip_trinket1 =
-        WoWXIV.UI.ItemSubmenuButton(self, "Equip (trinket 1)", false)
-    self.menuitem_equip_trinket1.ExecuteInsecure = function(bag, slot, info)
-        C_Item.EquipItemByName(info.hyperlink, INVSLOT_TRINKET1)
-    end
-    self.menuitem_equip_trinket2 =
-        WoWXIV.UI.ItemSubmenuButton(self, "Equip (trinket 2)", false)
-    self.menuitem_equip_trinket2.ExecuteInsecure = function(bag, slot, info)
-        C_Item.EquipItemByName(info.hyperlink, INVSLOT_TRINKET2)
-    end
+    self.menuitem_equip = self:CreateButton("Equip",
+        function(bag, slot, info)
+            C_Item.EquipItemByName(info.hyperlink)
+        end)
+    self.menuitem_equip_ring1 = self:CreateButton("Equip (ring 1)",
+        function(bag, slot, info)
+            C_Item.EquipItemByName(info.hyperlink, INVSLOT_FINGER1)
+        end)
+    self.menuitem_equip_ring2 = self:CreateButton("Equip (ring 2)",
+        function(bag, slot, info)
+            C_Item.EquipItemByName(info.hyperlink, INVSLOT_FINGER2)
+        end)
+    self.menuitem_equip_trinket1 = self:CreateButton("Equip (trinket 1)",
+        function(bag, slot, info)
+            C_Item.EquipItemByName(info.hyperlink, INVSLOT_TRINKET1)
+        end)
+    self.menuitem_equip_trinket2 = self:CreateButton("Equip (trinket 2)",
+        function(bag, slot, info)
+            C_Item.EquipItemByName(info.hyperlink, INVSLOT_TRINKET2)
+        end)
 
-    self.menuitem_expand_sockets =
-        WoWXIV.UI.ItemSubmenuButton(self, "View sockets", false)
-    self.menuitem_expand_sockets.ExecuteInsecure = function(bag, slot)
-        C_Container.SocketContainerItem(bag, slot)
-    end
+    self.menuitem_expand_sockets = self:CreateButton("View sockets",
+        function(bag, slot)
+            C_Container.SocketContainerItem(bag, slot)
+        end)
 
-    self.menuitem_expand_azerite =
-        WoWXIV.UI.ItemSubmenuButton(self, "View Azerite powers", false)
-    self.menuitem_expand_azerite.ExecuteInsecure = function(bag, slot, info)
-        OpenAzeriteEmpoweredItemUIFromItemLocation(
-            ItemLocation:CreateFromBagAndSlot(bag, slot))
-    end
+    self.menuitem_expand_azerite = self:CreateButton("View Azerite powers",
+        function(bag, slot, info)
+            OpenAzeriteEmpoweredItemUIFromItemLocation(
+                ItemLocation:CreateFromBagAndSlot(bag, slot))
+        end)
 
-    self.menuitem_expand_azerheart =
-        WoWXIV.UI.ItemSubmenuButton(self, "View Azerite essences", false)
-    self.menuitem_expand_azerheart.ExecuteInsecure = function(bag, slot, info)
-        OpenAzeriteEssenceUIFromItemLocation(
-            ItemLocation:CreateFromBagAndSlot(bag, slot))
-    end
+    self.menuitem_expand_azerheart = self:CreateButton("View Azerite essences",
+        function(bag, slot, info)
+            OpenAzeriteEssenceUIFromItemLocation(
+                ItemLocation:CreateFromBagAndSlot(bag, slot))
+        end)
 
-    self.menuitem_auction =
-        WoWXIV.UI.ItemSubmenuButton(self, "Auction", false)
-    self.menuitem_auction.ExecuteInsecure = function(bag, slot, info)
-        SendToAuctionHouse(ItemLocation:CreateFromBagAndSlot(bag, slot), info)
-    end
+    self.menuitem_auction = self:CreateButton("Auction",
+        function(bag, slot, info)
+            local location = ItemLocation:CreateFromBagAndSlot(bag, slot)
+            SendToAuctionHouse(location, info)
+        end)
 
-    self.menuitem_sendtobank =
-        WoWXIV.UI.ItemSubmenuButton(self, "Send to bank", false)
-    self.menuitem_sendtobank.ExecuteInsecure = SendToBank
+    self.menuitem_sendtobank = self:CreateButton("Send to bank", SendToBank)
 
-    self.menuitem_autodeposit =
-        WoWXIV.UI.ItemSubmenuButton(self, "Auto-deposit", false)
-    self.menuitem_autodeposit.ExecuteInsecure = StartAutoDeposit
+    self.menuitem_autodeposit = self:CreateButton("Auto-deposit",
+                                                  StartAutoDeposit)
 
-    self.menuitem_sell =
-        WoWXIV.UI.ItemSubmenuButton(self, "Sell", false)
-    self.menuitem_sell.ExecuteInsecure = function(bag, slot, info)
-        SellItem(self.item_button, bag, slot, info)
-    end
+    self.menuitem_sell = self:CreateButton("Sell",
+        function(bag, slot, info)
+            SellItem(self.item_button, bag, slot, info)
+        end)
 
-    self.menuitem_socket =
-        WoWXIV.UI.ItemSubmenuButton(self, "Socket", false)
-    self.menuitem_socket.ExecuteInsecure = SendToSocket
+    self.menuitem_socket = self:CreateButton("Socket", SendToSocket)
 
-    self.menuitem_disenchant =
-        WoWXIV.UI.ItemSubmenuButton(self, "Disenchant", true)
-    self.menuitem_disenchant:SetAttribute("type", "spell")
-    self.menuitem_disenchant:SetAttribute("spell", WoWXIV.SPELL_DISENCHANT)
+    self.menuitem_disenchant = self:CreateSecureButton("Disenchant",
+        {type="spell", spell=WoWXIV.SPELL_DISENCHANT})
 
-    self.menuitem_splitstack =
-        WoWXIV.UI.ItemSubmenuButton(self, "Split stack", false)
-    self.menuitem_splitstack.ExecuteInsecure = function(bag, slot, info, item)
-        self:DoSplitStack(bag, slot, info, item)
-    end
+    self.menuitem_splitstack = self:CreateButton("Split stack",
+        function(bag, slot, info, item)
+            self:DoSplitStack(bag, slot, info, item)
+        end)
 
-    self.menuitem_sort_bag =
-        WoWXIV.UI.ItemSubmenuButton(self, "Sort bag", false)
-    self.menuitem_sort_bag.ExecuteInsecure = function(bag, slot, info)
-        self:DoSortBag(bag)
-    end
+    self.menuitem_sort_bag = self:CreateButton("Sort bag",
+        function(bag, slot, info)
+            self:DoSortBag(bag)
+        end)
 
-    self.menuitem_discard =
-        WoWXIV.UI.ItemSubmenuButton(self, "Discard", false)
-    self.menuitem_discard.ExecuteInsecure = function(bag, slot, info)
-        self:DoDiscard(bag, slot, info)
-    end
+    self.menuitem_discard = self:CreateButton("Discard",
+        function(bag, slot, info)
+            self:DoDiscard(bag, slot, info)
+        end)
 end
 
 function InventoryItemSubmenu:ConfigureForItem(bag, slot)

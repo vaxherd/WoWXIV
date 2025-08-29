@@ -43,6 +43,22 @@ end
 function ItemSubmenu:ConfigureForItem(bag, slot, ...)
 end  
 
+-- Override these to create ItemSubmenuButtons instead of ContextMenuButtons.
+function ItemSubmenu:CreateButton(text, ExecuteInsecure)
+    local button = ItemSubmenuButton(self, text, false)
+    if ExecuteInsecure then
+        button.ExecuteInsecure = ExecuteInsecure
+    end
+    return button
+end
+function ItemSubmenu:CreateSecureButton(text, attributes)
+    local button = ItemSubmenuButton(self, text, false)
+    for attrib, value in pairs(attributes or {}) do
+        button:SetAttribute(attrib, value)
+    end
+    return button
+end
+
 ---------------------------------------------------------------------------
 
 -- Called by ItemSubmenu to set the target item's location.

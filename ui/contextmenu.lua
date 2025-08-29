@@ -121,6 +121,29 @@ end
 function ContextMenu:Configure(button, ...)
 end  
 
+-- Convenience functions for creating button instances.
+--
+-- CreateButton(text, [OnClick]) creates an insecure ContextMenuButton with
+-- the given text and optionally sets its OnClick handler to the given
+-- function.
+--
+-- CreateSecureButton(text, [attributes]) creates a secure ContextMenuButton
+-- and sets its attributes from the given table of attributes, if any.
+function ContextMenu:CreateButton(text, OnClick)
+    local button = ContextMenuButton(self, text, false)
+    if OnClick then
+        button.OnClick = OnClick
+    end
+    return button
+end
+function ContextMenu:CreateSecureButton(text, attributes)
+    local button = ContextMenuButton(self, text, false)
+    for attrib, value in pairs(attributes or {}) do
+        button:SetAttribute(attrib, value)
+    end
+    return button
+end
+
 ---------------------------------------------------------------------------
 
 -- ContextMenuButtons can be either secure (performing a secure action on
@@ -152,7 +175,9 @@ function ContextMenuButton:__constructor(parent, text, secure)
     self:SetAttribute("useOnKeyDown", false)  -- Indirect clicks are always up.
     self:HookScript("PostClick", function() parent:Hide() end)
     if not secure then
-        self:SetScript("OnClick", self.OnClick)
+        -- We need to wrap the OnClick in a function because the function
+        -- pointer might (and probably will) change later.
+        self:SetScript("OnClick", function() self:OnClick() end)
     end
 end
 
@@ -164,6 +189,10 @@ end
 -- Ensure all enable changes go through SetEnabled() to update the text color.
 function ContextMenuButton:Enable() self:SetEnabled(true) end
 function ContextMenuButton:Disable() self:SetEnabled(false) end
+
+function ContextMenuButton:SetText(text)
+    self.label:SetText(text)
+end
 
 -- Should be implemented by instances/subclasses for insecure buttons.
 function ContextMenuButton:OnClick()
