@@ -747,7 +747,7 @@ function ToyBoxHandler:SetTargets(old_target)
     end
 
     if old_target and not self.targets[old_target] then
-        -- Must have been a toy button which is no longer displayed.
+        -- Must have been a button which is no longer displayed.
         old_target = buttons[#buttons]
     end
     return old_target or buttons[1]
@@ -802,6 +802,133 @@ function HeirloomsJournalHandler:__constructor()
     self.tab_handler = CollectionsJournalHandler.instance.tab_handler
     self.on_prev_page = self.frame.PagingFrame.PrevPageButton
     self.on_next_page = self.frame.PagingFrame.NextPageButton
+    self.has_Button4 = true  -- Does nothing (placeholder for context menu).
+    hooksecurefunc(self.frame, "RefreshView",
+                   function() self:RefreshTargets() end)
+end
+
+function HeirloomsJournalHandler:RefreshTargets()
+    local old_target = self:GetTarget()
+    self:SetTarget(nil)
+    self:SetTarget(self:SetTargets(old_target))
+end
+
+function HeirloomsJournalHandler:SetTargets(old_target)
+    local old_row = old_target and self.targets[old_target].row
+    local old_col = old_target and self.targets[old_target].col
+
+    local f = self.frame
+    local PrevPageButton = f.PagingFrame.PrevPageButton
+    local NextPageButton = f.PagingFrame.NextPageButton
+    self.targets = {
+        [PrevPageButton] = {can_activate = true, lock_highlight = true,
+                            left = NextPageButton, right = NextPageButton},
+        [NextPageButton] = {can_activate = true, lock_highlight = true,
+                            left = PrevPageButton, right = PrevPageButton},
+    }
+
+    --[[
+        Heirloom buttons use the same 3x6 layout as the toy box, but
+        perhaps because there are also section headers interspersed,
+        the buttons don't have any explicit position notation, and we
+        have to derive the positions ourselves.  We work from the
+        following assumptions (true as of 11.2.0):
+
+        - Icons are allocated from HeirloomsJournal.heirloomEntryFrames
+          in display order (rows top-to-bottom, icons left-to-right).
+
+        - Once a frame is created in HeirloomsJournal.heirloomEntryFrames,
+          it will never be changed (removed, moved around in the array, etc).
+
+        - Vertical padding between adjacent rows (when there is no header
+          line between them) is less than the size of an icon.
+    ]]--
+
+    local buttons = {}
+    local row, col, last_y
+    for i, button in ipairs(self.frame.heirloomEntryFrames) do
+        if not button:IsShown() then break end
+        local y = button:GetTop()
+        if not row then
+            row, col, last_y = 1, 1, y
+        elseif y == last_y then
+            col = col+1
+        else
+            if last_y - y > button:GetHeight()*2 then
+                row = row+2
+            else
+                row = row+1
+            end
+            col, last_y = 1, y
+        end
+        tinsert(buttons, {button, row, col})
+    end
+    for i, entry in ipairs(buttons) do
+        local button, row, col = unpack(entry)
+        self.targets[button] = {row = row, col = col,  -- For internal use.
+                                can_activate = true, lock_highlight = true,
+                                send_enter_leave = true,
+                                left = buttons[i==1 and #buttons or i-1][1],
+                                right = buttons[i==#buttons and 1 or i+1][1]}
+        if col == 3 then
+            self.targets[button].down = NextPageButton
+            self.targets[NextPageButton].up = button
+        else
+            self.targets[button].down = PrevPageButton
+            self.targets[PrevPageButton].up = button
+        end
+        local up
+        for j = i-1, 1, -1 do
+            if buttons[j][2] < row and buttons[j][3] == col then
+                up = buttons[j][1]
+                break
+            end
+        end
+        if up then
+            self.targets[button].up = up
+            self.targets[up].down = button
+        elseif col == 3 then
+            self.targets[button].up = NextPageButton
+            self.targets[NextPageButton].down = button
+        else
+            self.targets[button].up = PrevPageButton
+            self.targets[PrevPageButton].down = button
+            self.targets[NextPageButton].down = button
+        end
+    end
+
+    if old_row then
+        -- Look for the closest button to the position of the previous
+        -- target.  Note that we can't shortcut this by checking whether
+        -- the previous target was seen, because it may now be in a
+        -- different position!  We want to preserve cursor position, not
+        -- icon index.  When there's nothing at the previous cursor
+        -- position, we take the rather simplistic approach of moving the
+        -- cursor to the previous icon in display order (there will always
+        -- be such an icon, since the top row is never empty).
+        local best
+        for _, entry in ipairs(buttons) do
+            local button, row, col = unpack(entry)
+            if row > old_row then
+                break  -- Passed the previous position, so we're done.
+            end
+            best = button
+            if row == old_row and col == old_col then
+                break  -- Exact match, we're done.
+            end
+        end
+        assert(best)
+        old_target = best
+    end
+    return old_target or (buttons[1] and buttons[1][1])
+end
+
+function HeirloomsJournalHandler:OnAction(button)
+    assert(button == "Button4")
+    -- There's nothing to put on a context menu for heirloom icons
+    -- (except maybe "Use", but we already have the regular confirm
+    -- button for that), but we consume Button4 presses anyway to avoid
+    -- unintentionally opening the map (which would close this frame).
 end
 
 ---------------------------------------------------------------------------
