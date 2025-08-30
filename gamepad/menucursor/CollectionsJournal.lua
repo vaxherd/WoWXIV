@@ -5,6 +5,8 @@ local MenuCursor = WoWXIV.Gamepad.MenuCursor
 local class = WoWXIV.class
 
 local floor = math.floor
+local min = math.min
+local tinsert = tinsert
 
 assert(WoWXIV.UI.ContextMenu)  -- Ensure proper load order.
 
@@ -17,7 +19,8 @@ local PetJournalHandler = class(MenuCursor.StandardMenuFrame)
 local PetSpellSelectHandler = class(MenuCursor.StandardMenuFrame)
 local ToyBoxHandler = class(MenuCursor.StandardMenuFrame)
 local HeirloomsJournalHandler = class(MenuCursor.StandardMenuFrame)
-local WardrobeCollectionFrameHandler = class(MenuCursor.StandardMenuFrame)
+local WardrobeItemsFrameHandler = class(MenuCursor.StandardMenuFrame)
+local WardrobeSetsFrameHandler = class(MenuCursor.StandardMenuFrame)
 local WarbandSceneJournalHandler = class(MenuCursor.StandardMenuFrame)
 
 
@@ -33,13 +36,15 @@ function CollectionsJournalHandler.OnAddOnLoaded(class, cursor)
     class.instance_PetSpellSelect = PetSpellSelectHandler()
     class.instance_ToyBox = ToyBoxHandler()
     class.instance_HeirloomsJournal = HeirloomsJournalHandler()
-    class.instance_WardrobeCollectionFrame = WardrobeCollectionFrameHandler()
+    class.instance_WardrobeItemsFrame = WardrobeItemsFrameHandler()
+    class.instance_WardrobeSetsFrame = WardrobeSetsFrameHandler()
     class.instance_WarbandSceneJournal = WarbandSceneJournalHandler()
     class.panel_instances = {class.instance_MountJournal,
                              class.instance_PetJournal,
                              class.instance_ToyBox,
                              class.instance_HeirloomsJournal,
-                             class.instance_WardrobeCollectionFrame,
+                             class.instance_WardrobeItemsFrame,
+                             class.instance_WardrobeSetsFrame,
                              class.instance_WarbandSceneJournal}
 end
 
@@ -57,8 +62,11 @@ end
 function CollectionsJournalHandler:OnShow()
     for _, panel_instance in ipairs(self.panel_instances) do
         if panel_instance.frame:IsShown() then
-            panel_instance:OnShow()
-            return
+            local parent = panel_instance.frame:GetParent()
+            if parent ~= WardrobeCollectionFrame or parent:IsShown() then
+                panel_instance:OnShow()
+                return
+            end
         end
     end
 end
@@ -66,13 +74,27 @@ end
 function CollectionsJournalHandler:OnHide()
     for _, panel_instance in ipairs(self.panel_instances) do
         if panel_instance.frame:IsShown() then
-            panel_instance:OnHide()
-            return
+            local parent = panel_instance.frame:GetParent()
+            if parent ~= WardrobeCollectionFrame or parent:IsShown() then
+                panel_instance:OnHide()
+                return
+            end
         end
     end
 end
 
 function CollectionsJournalHandler:OnTabCycle(direction)
+    if WardrobeCollectionFrame:IsShown() then
+        -- Include the Items and Sets sub-tabs in the overall cycle.
+        if direction > 0 and WardrobeCollectionFrame.selectedTab == 1 then
+            WardrobeCollectionFrame:SetTab(2)
+            return
+        end
+        if direction < 0 and WardrobeCollectionFrame.selectedTab == 2 then
+            WardrobeCollectionFrame:SetTab(1)
+            return
+        end
+    end
     local new_index =
         (PanelTemplates_GetSelectedTab(self.frame) or 0) + direction
     if new_index < 1 then
@@ -82,6 +104,10 @@ function CollectionsJournalHandler:OnTabCycle(direction)
     end
     local tab = self.frame.Tabs[new_index]
     tab:GetScript("OnClick")(tab, "LeftButton", true)
+    if WardrobeCollectionFrame:IsShown() then
+        -- We just tabbed onto Appearances, so select the proper sub-tab.
+        WardrobeCollectionFrame:SetTab(direction>0 and 1 or 2)
+    end
 end
 
 ---------------------------------------------------------------------------
@@ -99,7 +125,6 @@ function MountJournalHandler:__constructor()
     hooksecurefunc("MountJournal_UpdateMountList",
                    function() self:RefreshTargets() end)
 
-    -- Mount context menu and associated cursor handler.
     self.context_menu = MountContextMenu()
     self.context_menu_handler = MenuCursor.ContextMenuHandler(self.context_menu)
     self.context_menu_handler.has_Button3 = true
@@ -123,7 +148,7 @@ function MountJournalHandler:SetTargets()
                           up = false, down = false}
     }
     local top, bottom, initial = self:AddScrollBoxTargets(
-        self.frame.ScrollBox, function(data)
+        f.ScrollBox, function(data)
             -- Set the cursor offset to point to the icon, which is not
             -- part of the button itself; we don't have direct access to
             -- the button frame here, so we have to hardcode this value.
@@ -161,6 +186,7 @@ function MountJournalHandler:OnAction(button)
         self.frame.MountButton:Click("LeftButton", true)
     else
         assert(button == "Button4")
+        button:Click("LeftButton")
         self.context_menu:Open(target_frame)
     end
 end
@@ -187,7 +213,6 @@ end
 
 function MountContextMenu:Configure(button)
     self.mount_button = button
-    button:Click("LeftButton", true)
 
     if not button.owned then return end
 
@@ -258,7 +283,6 @@ function PetJournalHandler:__constructor()
                        if self.state == "LIST" then self:RefreshTargets() end
                    end)
 
-    -- Pet context menu and associated cursor handler.
     self.context_menu = PetContextMenu()
     self.context_menu_handler = MenuCursor.ContextMenuHandler(self.context_menu)
 end
@@ -419,7 +443,7 @@ function PetJournalHandler:SetTargets()
             self:SetState("DETAIL")
         end
         local top, bottom, initial = self:AddScrollBoxTargets(
-            self.frame.ScrollBox, function(data)
+            f.ScrollBox, function(data)
                 -- Set the cursor offset to point to the icon, as for mounts.
                 local params = {on_click = OnClickPet, lock_highlight = true,
                                 x_offset = -42}
@@ -676,7 +700,6 @@ function ToyBoxHandler:__constructor()
     hooksecurefunc("ToyBox_UpdateButtons",
                    function() self:RefreshTargets() end)
 
-    -- Toy context menu and associated cursor handler.
     self.context_menu = ToyContextMenu()
     self.context_menu_handler = MenuCursor.ContextMenuHandler(self.context_menu)
 end
@@ -933,14 +956,382 @@ end
 
 ---------------------------------------------------------------------------
 
-function WardrobeCollectionFrameHandler:__constructor()
-    __super(self, WardrobeCollectionFrame)
+local cache_WardrobeItemDropdown = {}
+
+local WardrobeItemContextMenu = class(WoWXIV.UI.ContextMenu)
+
+function WardrobeItemsFrameHandler:__constructor()
+    -- Appearance to select (see ToyBoxHandler for logic).
+    self.find_appearance = nil
+
+    __super(self, WardrobeCollectionFrame.ItemsCollectionFrame)
     self.cancel_func = CollectionsJournalHandler.CancelMenu
     self.tab_handler = CollectionsJournalHandler.instance.tab_handler
-    self.on_prev_page =
-        self.frame.ItemsCollectionFrame.PagingFrame.PrevPageButton
-    self.on_next_page =
-        self.frame.ItemsCollectionFrame.PagingFrame.NextPageButton
+    self.on_prev_page = self.frame.PagingFrame.PrevPageButton
+    self.on_next_page = self.frame.PagingFrame.NextPageButton
+    self.has_Button3 = true  -- Used to cycle equipment types.
+    self.has_Button4 = true  -- Used to open context menu.
+    hooksecurefunc(self.frame, "UpdateItems",
+                   function() self:MaybeRefreshTargets() end)
+
+    self.context_menu = WardrobeItemContextMenu()
+    self.context_menu_handler = MenuCursor.ContextMenuHandler(self.context_menu)
+end
+
+function WardrobeItemsFrameHandler:OnShow()
+    self.find_appearance = nil
+    __super(self)
+end
+
+function WardrobeItemsFrameHandler:OnFocus()
+    if self.find_appearance then
+        -- The appearance list doesn't have a FindPageFor() function like
+        -- the toy box does, so we have to look up the page ourselves.
+        -- Logic follows WardrobeItemsCollectionMixin:ResetPage().
+        local f = self.frame
+        local visuals = f:GetFilteredVisualsList()
+        for i, visual in ipairs(visuals) do
+            if visual.visualID == self.find_appearance then
+                local page = CollectionWardrobeUtil.GetPage(i, f.PAGE_SIZE)
+                f.PagingFrame:SetCurrentPage(page)
+                f:UpdateItems()
+                break
+            end
+        end
+    end
+end
+
+function WardrobeItemsFrameHandler:MaybeRefreshTargets()
+    -- Changing categories transiently clears all item buttons.  If we
+    -- blindly RefreshTargets() at that point, we lose the current cursor
+    -- position, so make sure at least one item button is shown.
+    if not self.frame.ModelR1C1:IsShown() then return end
+    return self:RefreshTargets()
+end
+
+function WardrobeItemsFrameHandler:RefreshTargets()
+    local old_target = self:GetTarget()
+    self:SetTarget(nil)
+    self:SetTarget(self:SetTargets(old_target))
+end
+
+function WardrobeItemsFrameHandler:SetTargets(old_target)
+    local old_row = old_target and self.targets[old_target].row
+    local old_col = old_target and self.targets[old_target].col
+
+    local f = self.frame
+    local ClassDropdown = WardrobeCollectionFrame.ClassDropdown
+
+    self.targets = {}
+    local initial
+    if not old_row then
+        initial = old_target
+    end
+
+    local top_row = {ClassDropdown}
+    for _, button in ipairs(f.SlotsFrame.Buttons) do
+        -- Have to check IsShown() here because the shoulder slot has a
+        -- dummy button which is always hidden.
+        if button:IsShown() then
+            tinsert(top_row, button)
+        end
+    end
+    self.targets[ClassDropdown] =
+        {on_click = function() self:OnClickDropdown(ClassDropdown) end,
+         lock_highlight = true, left = top_row[#top_row], right = top_row[2],
+         up = f.PagingFrame.PrevPageButton}
+    for i = 2, #top_row do
+        local slot = top_row[i]
+        self.targets[slot] = {can_activate = true, lock_highlight = true,
+                              send_enter_leave = true, left = top_row[i-1],
+                              right = top_row[i==#top_row and 1 or i+1],
+                              up = f.PagingFrame.PrevPageButton}
+    end
+
+    local items = {}
+    for i = 1, 3*6 do
+        local row = floor((i-1)/6) + 1
+        local col = (i-1)%6 + 1
+        local item = f["ModelR"..row.."C"..col]
+        if not item:IsShown() then break end
+        self.targets[item] = {row = row, col = col,  -- For internal use.
+                              lock_highlight = true, send_enter_leave = true}
+        tinsert(items, item)
+        if row == old_row and col == old_col then
+            initial = item
+        end
+        if item.visualInfo.visualID == self.find_appearance then
+            initial = item
+            old_target, old_row, old_col = nil, nil, nil
+            self.find_appearance = nil
+        end
+    end
+    for i, item in ipairs(items) do
+        self.targets[item].left = items[i==1 and #items or i-1]
+        self.targets[item].right = items[i==#items and 1 or i+1]
+        if i > 6 then
+            self.targets[item].up = items[i-6]
+        end
+        if i <= #items-6 then
+            self.targets[item].down = items[i+6]
+        end
+    end
+    if #items > 0 then
+        -- Mapping from top row button to item column.
+        local movement_map = {1, 2,2,3,3,3,4,4, 5,5,5,6, 6,6,6,6}
+        assert(#movement_map == #top_row)
+        for i, item_index in ipairs(movement_map) do
+            local item = items[min(item_index, #items)]
+            self.targets[top_row[i]].down = item
+            if not self.targets[item].up then
+                self.targets[item].up = top_row[i]
+            end
+        end
+    end 
+
+    if f.WeaponDropdown:IsShown() then
+        self.targets[f.WeaponDropdown] =
+            {on_click = function() self:OnClickDropdown(f.WeaponDropdown) end,
+             lock_highlight = true, left = false, right = false,
+             up = top_row[-4], down = items[min(6, #items)]}
+        for i = 1, min(6, #items) do
+            self.targets[items[i]].up = f.WeaponDropdown
+        end
+    end
+
+    self.targets[f.PagingFrame.PrevPageButton] =
+        {can_activate = true, lock_highlight = true,
+         up = items[min(16, #items)], down = ClassDropdown,
+         left = f.PagingFrame.NextPageButton,
+         right = f.PagingFrame.NextPageButton}
+    self.targets[f.PagingFrame.NextPageButton] =
+        {can_activate = true, lock_highlight = true,
+         up = items[min(16, #items)], down = ClassDropdown,
+         left = f.PagingFrame.PrevPageButton,
+         right = f.PagingFrame.PrevPageButton}
+
+    if old_row and not initial then  -- Changed to a truncated final page.
+        initial = items[#items]
+    end
+    if initial and not initial:IsShown() then  -- For WeaponDropdown.
+        initial = nil
+    end
+    return initial or items[1]
+end
+
+function WardrobeItemsFrameHandler:EnterTarget(target)
+    __super(self, target)
+    if target.visualInfo then
+        self.cur_item = target.visualInfo.visualID
+    end
+end
+
+function WardrobeItemsFrameHandler:OnClickDropdown(dropdown)
+    dropdown:SetMenuOpen(not dropdown:IsMenuOpen())
+    if dropdown:IsMenuOpen() then
+        -- FIXME: we could probably use this logic to avoid having to pass
+        -- a getIndex() function; need to verify that it works everywhere
+        local order = {}
+        local index = 1
+        MenuUtil.TraverseMenu(dropdown:GetMenuDescription(), function(desc)
+            order[desc] = index
+            index = index + 1
+        end)
+        local menu, initial_target = self.SetupDropdownMenu(
+            dropdown, cache_WardrobeItemDropdown,
+            function(selection) return order[selection] end,
+            function() self:RefreshTargets() end)
+        menu:Enable(initial_target)
+    end
+end
+
+function WardrobeItemsFrameHandler:OnAction(button)
+    local target = self:GetTarget()
+    if button == "Button3" then
+        local buttons = self.frame.SlotsFrame.Buttons
+        local next = 1
+        for i, button in ipairs(buttons) do
+            if button.SelectedTexture:IsShown() then
+                next = (i==#buttons and 1 or i+1)
+                if not buttons[next]:IsShown() then  -- shoulder button garbo
+                    next = next+1
+                end
+                break
+            end
+        end
+        buttons[next]:Click("LeftButton")
+    else
+        assert(button == "Button4")
+        self.find_appearance = target.visualInfo.visualID
+        self.context_menu:Open(target, target.visualInfo.visualID)
+    end
+end
+
+
+function WardrobeItemContextMenu:__constructor()
+    __super(self)
+
+    self.menuitem_set_favorite = self:CreateButton("Set favorite",
+        function() self:DoSetFavorite(self.appearance_id, true) end)
+
+    self.menuitem_remove_favorite = self:CreateButton("Remove favorite",
+        function() self:DoSetFavorite(self.appearance_id, false) end)
+end
+
+function WardrobeItemContextMenu:Configure(button, appearance_id)
+    self.appearance_id = appearance_id
+
+    if C_TransmogCollection.GetIsAppearanceFavorite(appearance_id) then
+        self:AppendButton(self.menuitem_remove_favorite)
+    else
+        self:AppendButton(self.menuitem_set_favorite)
+    end
+end
+
+function WardrobeItemContextMenu:DoSetFavorite(button, favorite)
+    C_TransmogCollection.SetIsAppearanceFavorite(self.appearance_id, favorite)
+end
+
+---------------------------------------------------------------------------
+
+local cache_VariantSetsDropdown = {}
+
+local WardrobeSetContextMenu = class(WoWXIV.UI.ContextMenu)
+
+function WardrobeSetsFrameHandler:__constructor()
+    -- Currently selected appearance set.
+    self.cur_set = nil
+    -- Is the cursor currently on the details pane?
+    self.in_details = false
+
+    __super(self, WardrobeCollectionFrame.SetsCollectionFrame)
+    self.cancel_func = self.CancelFrame
+    self.tab_handler = CollectionsJournalHandler.instance.tab_handler
+    self.has_Button3 = true  -- Used to switch between left and right panes.
+    self.has_Button4 = true  -- Used to open context menu.
+
+    self.context_menu = WardrobeSetContextMenu()
+    self.context_menu_handler = MenuCursor.ContextMenuHandler(self.context_menu)
+end
+
+function WardrobeSetsFrameHandler:CancelFrame()
+    if self.in_details then
+        self.in_details = false
+        self:RefreshTargets()
+    else
+        CollectionsJournalHandler.CancelMenu()
+    end
+end
+
+function WardrobeSetsFrameHandler:OnShow()
+    self.in_details = false
+    __super(self)
+end
+
+function WardrobeSetsFrameHandler:RefreshTargets()
+    self:SetTarget(nil)
+    self:SetTarget(self:SetTargets())
+end
+
+function WardrobeSetsFrameHandler:SetTargets()
+    local f = self.frame
+    self.targets = {}
+    if self.in_details then
+        local dropdown = f.DetailsFrame.VariantSetsDropdown
+        self.targets[dropdown] =
+            {on_click = function() self:OnClickDropdown() end,
+             lock_highlight = true}
+        local items = {}
+        for item in f.DetailsFrame.itemFramesPool:EnumerateActive() do
+            tinsert(items, item)
+        end
+        table.sort(items, function(a,b) return a:GetLeft() < b:GetLeft() end)
+        for i, item in ipairs(items) do
+            self.targets[item] = {send_enter_leave = true,
+                                  up = dropdown, down = dropdown,
+                                  left = items[i==1 and #items or i-1],
+                                  right = items[i==#items and 1 or i+1]}
+        end
+        return items[1] or dropdown
+    else
+        local function ClickSet(target)
+            self:GetTargetFrame(target):Click("LeftButton")
+            self.in_details = true
+            self:RefreshTargets()
+        end
+        local top, bottom, initial = self:AddScrollBoxTargets(
+            f.ListContainer.ScrollBox, function(data)
+                -- Set the cursor offset to point to the icon, as for mounts.
+                local params = {on_click = ClickSet, lock_highlight = true,
+                                x_offset = -42}
+                return params, data.setID == self.cur_set
+            end)
+        return initial or top
+    end
+end
+
+function WardrobeSetsFrameHandler:EnterTarget(target)
+    __super(self, target)
+    if not self.in_details then
+        self.cur_set = self:GetTargetFrame(target).setID
+    end
+end
+
+function WardrobeSetsFrameHandler:OnClickDropdown()
+    local f = self.frame
+    local dropdown = f.DetailsFrame.VariantSetsDropdown
+    dropdown:SetMenuOpen(not dropdown:IsMenuOpen())
+    if dropdown:IsMenuOpen() then
+        local order = {}
+        local index = 1
+        MenuUtil.TraverseMenu(dropdown:GetMenuDescription(), function(desc)
+            order[desc] = index
+            index = index + 1
+        end)
+        local menu, initial_target = self.SetupDropdownMenu(
+            dropdown, cache_VariantSetsDropdown,
+            function(selection) return order[selection] end,
+            function() self:RefreshTargets() end)
+        menu:Enable(initial_target)
+    end
+end
+
+function WardrobeSetsFrameHandler:OnAction(button)
+    local target = self:GetTarget()
+    local target_frame = self:GetTargetFrame(target)
+    if button == "Button3" then
+        self.in_details = not self.in_details
+        self:RefreshTargets()
+    else
+        assert(button == "Button4")
+        target_frame:Click("LeftButton")
+        self.context_menu:Open(target_frame, self.frame.selectedSetID)
+    end
+end
+
+
+function WardrobeSetContextMenu:__constructor()
+    __super(self)
+
+    self.menuitem_set_favorite = self:CreateButton("Set favorite",
+        function() self:DoSetFavorite(self.set_id, true) end)
+
+    self.menuitem_remove_favorite = self:CreateButton("Remove favorite",
+        function() self:DoSetFavorite(self.set_id, false) end)
+end
+
+function WardrobeSetContextMenu:Configure(button, set_id)
+    self.set_id = set_id
+
+    if C_TransmogSets.GetIsFavorite(set_id) then
+        self:AppendButton(self.menuitem_remove_favorite)
+    else
+        self:AppendButton(self.menuitem_set_favorite)
+    end
+end
+
+function WardrobeSetContextMenu:DoSetFavorite(button, favorite)
+    C_TransmogSets.SetIsFavorite(self.set_id, favorite)
 end
 
 ---------------------------------------------------------------------------
@@ -958,7 +1349,6 @@ function WarbandSceneJournalHandler:__constructor()
     hooksecurefunc(self.frame.IconsFrame.Icons, "DisplayViewsForCurrentPage",
                    function() self:RefreshTargets() end)
 
-    -- Campsite context menu and associated cursor handler.
     self.context_menu = WarbandSceneContextMenu()
     self.context_menu_handler = MenuCursor.ContextMenuHandler(self.context_menu)
 end
