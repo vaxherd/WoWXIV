@@ -685,9 +685,7 @@ function ToyBoxHandler:SetTargets(old_target)
     for i, button in ipairs(buttons) do
         self.targets[button] = {can_activate = true, lock_highlight = true,
                                 left = buttons[i==1 and #buttons or i-1],
-                                right = buttons[i==#buttons and 1 or i+1],
-                                down = ((i-1)%3==2 and NextPageButton
-                                        or PrevPageButton)}
+                                right = buttons[i==#buttons and 1 or i+1]}
         if (i-1)%3 == 2 then
             self.targets[button].down = NextPageButton
             self.targets[NextPageButton].up = button
@@ -739,6 +737,8 @@ end
 
 ---------------------------------------------------------------------------
 
+local WarbandSceneContextMenu = class(WoWXIV.UI.ContextMenu)
+
 function WarbandSceneJournalHandler:__constructor()
     __super(self, WarbandSceneJournal)
     self.cancel_func = CollectionsJournalHandler.CancelMenu
@@ -746,4 +746,104 @@ function WarbandSceneJournalHandler:__constructor()
     local PagingControls = self.frame.IconsFrame.Icons.Controls.PagingControls
     self.on_prev_page = PagingControls.PrevPageButton
     self.on_next_page = PagingControls.NextPageButton
+    self.has_Button4 = true  -- Used to open context menu.
+    hooksecurefunc(self.frame.IconsFrame.Icons, "DisplayViewsForCurrentPage",
+                   function() self:RefreshTargets() end)
+
+    -- Campsite context menu and associated cursor handler.
+    self.context_menu = WarbandSceneContextMenu()
+    self.context_menu_handler = MenuCursor.ContextMenuHandler(self.context_menu)
+end
+
+function WarbandSceneJournalHandler:RefreshTargets()
+    local old_target = self:GetTarget()
+    self:SetTarget(nil)
+    self:SetTarget(self:SetTargets(old_target))
+end
+
+function WarbandSceneJournalHandler:SetTargets(old_target)
+    local old_target_index = old_target and self.targets[old_target].icon_index
+
+    local f = self.frame
+    local Controls = f.IconsFrame.Icons.Controls
+    local FilterCheck = Controls.ShowOwned.Checkbox
+    local PrevPageButton = Controls.PagingControls.PrevPageButton
+    local NextPageButton = Controls.PagingControls.NextPageButton
+    self.targets = {
+        [FilterCheck] = {can_activate = true, lock_highlight = true,
+                         left = NextPageButton, right = PrevPageButton},
+        [PrevPageButton] = {can_activate = true, lock_highlight = true,
+                            left = FilterCheck, right = NextPageButton},
+        [NextPageButton] = {can_activate = true, lock_highlight = true,
+                            left = PrevPageButton, right = FilterCheck},
+    }
+    local bottom_row = {FilterCheck, PrevPageButton, NextPageButton}
+
+    local icons = f.IconsFrame.Icons:GetFrames()
+    local initial
+    for i, icon in ipairs(icons) do
+        local bottom = bottom_row[i>3 and i-3 or i]
+        self.targets[icon] = {icon_index = i,  -- For internal use.
+                              lock_highlight = true, send_enter_leave = true,
+                              left = icons[i==1 and #icons or i-1],
+                              right = icons[i==#icons and 1 or i+1],
+                              down = bottom}
+        self.targets[bottom].up = icon
+        if i >= 4 then
+            self.targets[icon].up = icons[i-3]
+            self.targets[icons[i-3]].down = button
+        else
+            self.targets[icon].up = bottom
+            self.targets[bottom].down = icon
+        end
+        if i == old_target_index then
+            initial = icon
+        end
+    end
+
+    if old_target_index and not initial then
+        -- Must have been a campsite icon which is no longer displayed.
+        -- (FIXME: we can't currently test this because there aren't yet
+        -- enough campsites to overflow the first page)
+        initial = icons[#icons]
+    elseif old_target and not old_target_index then
+        -- Must have been one of the filter/paging buttons.
+        initial = old_target
+    end
+    return initial or icons[1]
+end
+
+function WarbandSceneJournalHandler:OnAction(button)
+    assert(button == "Button4")
+    local target = self:GetTarget()
+    if target and self.targets[target].icon_index then
+        self.context_menu:Open(target, target.elementData.warbandSceneID)
+    end
+end
+
+
+function WarbandSceneContextMenu:__constructor()
+    __super(self)
+
+    self.menuitem_set_favorite = self:CreateButton("Set favorite",
+        function() self:DoSetFavorite(self.scene_id, true) end)
+
+    self.menuitem_remove_favorite = self:CreateButton("Remove favorite",
+        function() self:DoSetFavorite(self.scene_id, false) end)
+end
+
+function WarbandSceneContextMenu:Configure(button, scene_id)
+    self.scene_id = scene_id
+
+    local favorite_item
+    if C_WarbandScene.IsFavorite(scene_id) then
+        favorite_item = self.menuitem_remove_favorite
+    else
+        favorite_item = self.menuitem_set_favorite
+    end
+    self:AppendButton(favorite_item)
+end
+
+function WarbandSceneContextMenu:DoSetFavorite(scene_id, favorite)
+    C_WarbandScene.SetFavorite(scene_id, favorite)
 end
