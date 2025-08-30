@@ -685,6 +685,12 @@ function Cursor:UpdateCursor(in_combat)
                     self:SetAttribute("spell1", action.spell)
                     self:SetAttribute("target-bag1", action["target-bag"])
                     self:SetAttribute("target-slot1", action["target-slot"])
+                elseif action.type == "toy" then
+                    if not action.toy then
+                        error("Missing action toy")
+                    end
+                    self:SetAttribute("type1", "toy")
+                    self:SetAttribute("toy1", action.toy)
                 else
                     error("Unknown click action type: "..action.type)
                 end
@@ -2320,7 +2326,7 @@ function ContextMenuHandler:SetTargets()
             -- We can't indirectly click user-created buttons due to taint,
             -- so we have the menu cursor execute the action directly.
             local click_action = {type = type}
-            for _, field in ipairs({"spell", "item",
+            for _, field in ipairs({"spell", "item", "toy",
                                     "target-bag", "target-slot"}) do
                 click_action[field] = button:GetAttribute(field)
             end

@@ -4,6 +4,8 @@ local MenuCursor = WoWXIV.Gamepad.MenuCursor
 
 local class = WoWXIV.class
 
+local floor = math.floor
+
 assert(WoWXIV.UI.ContextMenu)  -- Ensure proper load order.
 
 ---------------------------------------------------------------------------
@@ -648,14 +650,49 @@ end
 
 ---------------------------------------------------------------------------
 
+-- Local constant defined in Blizzard_ToyBox.lua; doesn't seem to be
+-- available anywhere else.
+local TOYS_PER_PAGE = 18
+
+local ToyContextMenu = class(WoWXIV.UI.ContextMenu)
+
 function ToyBoxHandler:__constructor()
+    -- ID of toy to select.  Used to move the cursor to the right place
+    -- when a toy's favorite flag is toggled.  Note that the logic around
+    -- this is a bit convoluted: we may transiently see the cursor at a
+    -- different icon or on a different page right after a favorite flag
+    -- toggle, and we don't want to overwrite the pending ID in that case,
+    -- so we can't just save the current ID in an EnterTarget() override;
+    -- instead, we have to explicitly record the ID, and then preserve it
+    -- until the page with that toy pops up.
+    self.find_toy = nil
+
     __super(self, ToyBox)
     self.cancel_func = CollectionsJournalHandler.CancelMenu
     self.tab_handler = CollectionsJournalHandler.instance.tab_handler
     self.on_prev_page = self.frame.PagingFrame.PrevPageButton
     self.on_next_page = self.frame.PagingFrame.NextPageButton
+    self.has_Button4 = true  -- Used to open context menu.
     hooksecurefunc("ToyBox_UpdateButtons",
                    function() self:RefreshTargets() end)
+
+    -- Toy context menu and associated cursor handler.
+    self.context_menu = ToyContextMenu()
+    self.context_menu_handler = MenuCursor.ContextMenuHandler(self.context_menu)
+end
+
+function ToyBoxHandler:OnShow()
+    self.find_toy = nil
+    __super(self)
+end
+
+function ToyBoxHandler:OnFocus()
+    if self.find_toy then
+        local page = ToyBox_FindPageForToyID(self.find_toy)
+        if page then
+            self.frame.PagingFrame:SetCurrentPage(page)
+        end
+    end
 end
 
 function ToyBoxHandler:RefreshTargets()
@@ -676,7 +713,6 @@ function ToyBoxHandler:SetTargets(old_target)
     }
 
     local buttons = {}
-    local TOYS_PER_PAGE = 18  -- local constant in Blizzard_ToyBox.lua
     for i = 1, TOYS_PER_PAGE do
         local button = f.iconsFrame["spellButton"..i]
         if not button or not button:IsShown() then break end
@@ -704,6 +740,10 @@ function ToyBoxHandler:SetTargets(old_target)
             self.targets[PrevPageButton].down = button
             self.targets[NextPageButton].down = button
         end
+        if self.find_toy and button.itemID == self.find_toy then
+            old_target = button
+            self.find_toy = nil
+        end
     end
 
     if old_target and not self.targets[old_target] then
@@ -711,6 +751,47 @@ function ToyBoxHandler:SetTargets(old_target)
         old_target = buttons[#buttons]
     end
     return old_target or buttons[1]
+end
+
+function ToyBoxHandler:OnAction(button)
+    assert(button == "Button4")
+    local target = self:GetTarget()
+    if target and target.itemID then
+        self.find_toy = target.itemID
+        self.context_menu:Open(target, target.itemID)
+    end
+end
+
+
+function ToyContextMenu:__constructor()
+    __super(self)
+
+    self.menuitem_use = self:CreateSecureButton("Use", {type="toy"})
+
+    self.menuitem_set_favorite = self:CreateButton("Set favorite",
+        function() self:DoSetFavorite(self.toy_id, true) end)
+
+    self.menuitem_remove_favorite = self:CreateButton("Remove favorite",
+        function() self:DoSetFavorite(self.toy_id, false) end)
+end
+
+function ToyContextMenu:Configure(button, toy_id)
+    self.toy_id = toy_id
+
+    self.menuitem_use:SetAttribute("toy", toy_id)
+    self:AppendButton(self.menuitem_use)
+
+    local favorite_item
+    if C_ToyBox.GetIsFavorite(toy_id) then
+        favorite_item = self.menuitem_remove_favorite
+    else
+        favorite_item = self.menuitem_set_favorite
+    end
+    self:AppendButton(favorite_item)
+end
+
+function ToyContextMenu:DoSetFavorite(toy_id, favorite)
+    C_ToyBox.SetIsFavorite(toy_id, favorite)
 end
 
 ---------------------------------------------------------------------------
