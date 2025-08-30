@@ -5,6 +5,8 @@ local MenuCursor = WoWXIV.Gamepad.MenuCursor
 local class = WoWXIV.class
 local strupper = string.upper
 
+assert(WoWXIV.UI.ContextMenu)  -- Ensure proper load order.
+
 ---------------------------------------------------------------------------
 
 local cache_TokenFilterDropdown = {}
@@ -14,6 +16,7 @@ local CharacterFrameHandler = class(MenuCursor.MenuFrame)
 MenuCursor.CharacterFrameHandler = CharacterFrameHandler  -- For exports.
 MenuCursor.Cursor.RegisterFrameHandler(CharacterFrameHandler)
 local PaperDollFrameHandler = class(MenuCursor.StandardMenuFrame)
+local EquippedItemContextMenu = class(WoWXIV.UI.ContextMenu)
 local ReputationFrameHandler = class(MenuCursor.StandardMenuFrame)
 local ReputationDetailFrameHandler = class(MenuCursor.StandardMenuFrame)
 local TokenFrameHandler = class(MenuCursor.StandardMenuFrame)
@@ -85,11 +88,16 @@ function CharacterFrameHandler:OnTabCycle(direction)
     tab:GetScript("OnClick")(tab, "LeftButton", true)
 end
 
+---------------------------------------------------------------------------
 
 function PaperDollFrameHandler:__constructor()
     __super(self, PaperDollFrame)
     self.cancel_func = CharacterFrameHandler.CancelMenu
     self.tab_handler = CharacterFrameHandler.instance.tab_handler
+    self.has_Button4 = true  -- Used to open context menu.
+
+    self.context_menu = EquippedItemContextMenu()
+    self.context_menu_handler = MenuCursor.ContextMenuHandler(self.context_menu)
 
     local left = {CharacterHeadSlot, CharacterNeckSlot,
                   CharacterShoulderSlot, CharacterBackSlot,
@@ -165,6 +173,85 @@ function PaperDollFrameHandler:OnClickSlot(slot)
     end
 end
 
+function PaperDollFrameHandler:OnAction(button)
+    assert(button == "Button4")
+    local target = self:GetTarget()
+    local item = target and GetInventoryItemID("player", target:GetID())
+    if item then
+        self.context_menu:Open(target)
+    end
+end
+
+
+function EquippedItemContextMenu:__constructor()
+    __super(self)
+
+    self.menuitem_unequip = self:CreateButton("Unequip",
+        function() self:UnequipSlot() end)
+
+    self.menuitem_expand_sockets = self:CreateButton("View sockets",
+        function() SocketInventoryItem(self.slot:GetID()) end)
+
+    self.menuitem_expand_azerite = self:CreateButton("View Azerite powers",
+        function()
+            OpenAzeriteEmpoweredItemUIFromItemLocation(
+                ItemLocation:CreateFromEquipmentSlot(self.slot:GetID()))
+        end)
+
+    self.menuitem_expand_azerheart = self:CreateButton("View Azerite essences",
+        function()
+            OpenAzeriteEssenceUIFromItemLocation(
+                ItemLocation:CreateFromEquipmentSlot(self.slot:GetID()))
+        end)
+end
+
+function EquippedItemContextMenu:Configure(slot)
+    self.slot = slot
+    local item = GetInventoryItemID("player", slot:GetID())
+    assert(item)
+
+    self:AppendButton(self.menuitem_unequip)
+
+    if C_Item.GetItemNumSockets(item) > 0 then
+        self:AppendButton(self.menuitem_expand_sockets)
+    elseif C_AzeriteEmpoweredItem.IsAzeriteEmpoweredItemByID(item) then
+        self:AppendButton(self.menuitem_expand_azerite)
+    else
+        local heart_loc = C_AzeriteItem.FindActiveAzeriteItem()
+        if heart_loc and heart_loc:IsEqualToEquipmentSlot(slot:GetID()) then
+            self:AppendButton(self.menuitem_expand_azerheart)
+        end
+    end
+end
+
+function EquippedItemContextMenu:UnequipSlot()
+    -- WoW doesn't have a generic "unequip item" command; instead,
+    -- we have to manually move the item to an empty inventory slot.
+    local slot_id = self.slot:GetID()
+    if IsInventoryItemLocked(slot_id) then
+        WoWXIV.Error("Item is locked.", true)
+        return
+    end
+    local item = GetInventoryItemID("player", slot_id)
+print(slot,slot_id,item)
+    assert(item)
+    local bag, slot = WoWXIV.FindInventorySlot(item)
+    if not bag then
+        WoWXIV.Error("No inventory slots available.", true)
+        return
+    end
+    ClearCursor()
+    assert(not GetCursorInfo())
+    PickupInventoryItem(slot_id)
+    assert(GetCursorInfo())
+    C_Container.PickupContainerItem(bag, slot)
+    if GetCursorInfo() then
+        WoWXIV.Error("Failed to unequip item.", true)
+        ClearCursor()
+    end
+end
+
+---------------------------------------------------------------------------
 
 function ReputationFrameHandler:__constructor()
     __super(self, ReputationFrame)
@@ -270,6 +357,7 @@ function ReputationDetailFrameHandler:OnAction(button)
     self:cancel_func()
 end
 
+---------------------------------------------------------------------------
 
 function TokenFrameHandler:__constructor()
     __super(self, TokenFrame)
@@ -512,8 +600,6 @@ end
 ---------------------------------------------------------------------------
 
 -- Exported function, called by ItemUpgradeFrame and ItemInteractionFrame.
--- (FIXME: this is a bit sloppy, revisit when PaperDollFrame is more fully
--- implemented)
 function CharacterFrameHandler.OpenForItemUpgrade()
     ToggleCharacter("PaperDollFrame", true)
     CharacterFrameHandler.instance_PaperDollFrame:Enable()  -- In case it was already open.

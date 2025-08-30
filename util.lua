@@ -270,6 +270,206 @@ StaticPopupDialogs["WOWXIV_CONFIRMATION"] = {
     hideOnEscape = true,
 }
 
+---------------------------------------------------------------------------
+-- Item management routines
+---------------------------------------------------------------------------
+
+-- Find an inventory bag and slot suitable for the given item (given by ID).
+-- If a count is also given, ensure that that many of the item can fit in
+-- the returned slot.  Returns a 3-tuple: bag ID, slot index, current stack
+-- count in selected slot.
+function WoWXIV.FindInventorySlot(item, count)
+    local function FindEmptySlot(bag_id)
+        for i = 1, C_Container.GetContainerNumSlots(bag_id) do
+            if not C_Container.GetContainerItemInfo(bag_id, i) then
+                return i
+            end
+        end
+        return nil
+    end
+
+    -- Look up item parameters.
+    local _, _, quality, _, _, _, _, max_stack, _, _, _, class, subclass =
+        C_Item.GetItemInfo(item)
+    assert(class)  -- Ensure the item ID is valid (and the data is loaded).
+
+    -- If no count was given, we take any stack which isn't full.
+    count = count or 1
+
+    -- First look for an existing stack we can add to.
+    local NUM_TOTAL_BAG_FRAMES = Constants.InventoryConstants.NumBagSlots + Constants.InventoryConstants.NumReagentBagSlots
+    for bag_id = 0, NUM_TOTAL_BAG_FRAMES do
+        for i = 1, C_Container.GetContainerNumSlots(bag_id) do
+            local slot_info = C_Container.GetContainerItemInfo(bag_id, i)
+            if slot_info and slot_item == item
+            and slot_info.stackCount + count <= max_stack
+            then
+                if not slot_info.isLocked then
+                    return bag_id, i, slot_info.stackCount
+                end
+            end
+        end
+    end
+
+    -- No viable stack found, so look for an appropriate empty slot.
+    if not target_bag and WoWXIV.IsItemReagent(item) then
+        for i = 1, Constants.InventoryConstants.NumReagentBagSlots do
+            local reagent_bag = Constants.InventoryConstants.NumBagSlots + i
+            local slot = FindEmptySlot(reagent_bag)
+            if slot then return reagent_bag, slot, 0 end
+        end
+    end
+    -- It looks like item-to-bag filtering code is not exposed to Lua,
+    -- so we have to reimplement it ourselves.
+    local type_flag
+    if quality == Enum.ItemQuality.Poor then
+        type_flag = Enum.BagSlotFlags.ClassJunk
+    elseif class == Enum.ItemClass.Consumable then
+        type_flag = Enum.BagSlotFlags.ClassConsumables
+    elseif class == Enum.ItemClass.Weapon or
+           class == Enum.ItemClass.Armor then
+        type_flag = Enum.BagSlotFlags.ClassEquipment
+    elseif class == Enum.ItemClass.Tradegoods then
+        type_flag = Enum.BagSlotFlags.ClassReagents
+    elseif class == Enum.ItemClass.Recipe or
+           class == Enum.ItemClass.Profession then
+        type_flag = Enum.BagSlotFlags.ClassProfessionGoods
+    end
+    if type_flag then
+        for bag_id = 1, Constants.InventoryConstants.NumBagSlots do
+            if C_Container.GetBagSlotFlag(bag_id, type_flag) then
+                local slot = FindEmptySlot(bag_id)
+                if slot then return bag_id, slot, 0 end
+            end
+        end
+    end
+    for bag_id = 0, Constants.InventoryConstants.NumBagSlots do
+        local slot = FindEmptySlot(bag_id)
+        if slot then return bag_id, slot, 0 end
+    end
+    return nil
+end
+
+-- Return whether the given item (given as a numeric ID) goes in the
+-- reagent bag.  (There doesn't seem to be a global API for this.)
+local REAGENT  -- Defined below.
+function WoWXIV.IsItemReagent(item)
+    return REAGENT:has(item)
+        or select(12, C_Item.GetItemInfo(item)) == Enum.ItemClass.Tradegoods
+end
+--[[local]] REAGENT = set(
+    -- Mechagon Tinkering reagents
+    166846,  -- Spare Parts
+    166970,  -- Energy Cell
+    166971,  -- Empty Energy Cell
+    168327,  -- Chain Ignitercoil
+    168832,  -- Galvanic Oscillator
+    169610,  -- S.P.A.R.E. Crate
+    -- Protoform Synthesis (Zereth Mortis) reagents
+    187633,  -- Bufonid Lattice
+    187634,  -- Ambystan Lattice
+    187635,  -- Cervid Lattice
+    187636,  -- Aurelid Lattice
+    188957,  -- Genesis Mote
+    189145,  -- Helicid Lattice
+    189146,  -- Geomental Lattice
+    189147,  -- Leporid Lattice
+    189148,  -- Poultrid Lattice
+    189149,  -- Proto Avian Lattice
+    189150,  -- Raptora Lattice
+    189151,  -- Scarabid Lattice
+    189152,  -- Tarachnid Lattice
+    189153,  -- Unformed Lattice
+    189154,  -- Vespoid Lattice
+    189155,  -- Viperid Lattice
+    189156,  -- Vombata Lattice
+    189157,  -- Glimmer of Animation
+    189158,  -- Glimmer of Cunning
+    189159,  -- Glimmer of Discovery
+    189160,  -- Glimmer of Focus
+    189161,  -- Glimmer of Malice
+    189162,  -- Glimmer of Metamorphosis
+    189163,  -- Glimmer of Motion
+    189164,  -- Glimmer of Multiplicity
+    189165,  -- Glimmer of Predation
+    189166,  -- Glimmer of Renewal
+    189167,  -- Glimmer of Satisfaction
+    189168,  -- Glimmer of Serenity
+    189169,  -- Glimmer of Survival
+    189170,  -- Glimmer of Vigilance
+    189171,  -- Bauble of Pure Innovation
+    189172,  -- Crystallized Echo of the First Song
+    189173,  -- Eternal Ragepearl
+    189174,  -- Lens of Focused Intention
+    189175,  -- Mawforged Bridle
+    189176,  -- Protoform Sentience Crown
+    189177,  -- Revelation Key
+    189178,  -- Tools of Incomprehensible Experimentation
+    189179,  -- Unalloyed Bronze Ingot
+    189180,  -- Wind's Infinite Call
+    190388   -- Lupine Lattice
+)
+
+-- Spell ID of the "Disenchant" spell.
+WoWXIV.SPELL_DISENCHANT = 13262
+-- Return whether the given item can be disenchanted.
+local DISENCHANTABLE_TYPES, DISENCHANTABLE_ITEMS  --  Defined below.
+function WoWXIV.IsItemDisenchantable(item)
+    local info = {C_Item.GetItemInfo(item)}
+    local quality, item_class, item_subclass = info[3], info[12], info[13]
+    if not item_subclass then return false end
+    local disenchantable = (DISENCHANTABLE_TYPES[item_class]
+                            or DISENCHANTABLE_ITEMS:has(item))
+    if type(disenchantable) == "table" then
+        disenchantable = disenchantable:has(item_subclass)
+    end
+    if quality >= Enum.ItemQuality.Legendary then
+        disenchantable = false
+    end
+    return disenchantable or false  -- Ensure it's a boolean return value.
+end
+--[[local]] DISENCHANTABLE_TYPES = {
+    [Enum.ItemClass.Weapon] = true,
+    [Enum.ItemClass.Armor] = set(
+        Enum.ItemArmorSubclass.Generic,
+        Enum.ItemArmorSubclass.Cloth,
+        Enum.ItemArmorSubclass.Leather,
+        Enum.ItemArmorSubclass.Mail,
+        Enum.ItemArmorSubclass.Plate,
+        -- Enum.ItemArmorSubclass.Cosmetic: not disenchantable!
+        Enum.ItemArmorSubclass.Shield
+    ),
+    [Enum.ItemClass.Profession] = true,
+    [Enum.ItemClass.Gem] = set(
+        Enum.ItemGemSubclass.Artifactrelic  -- Legion artifact relics
+    ),
+}
+--[[local]] DISENCHANTABLE_ITEMS = set(
+    -- FIXME: is there any more general way to detect these?
+    182067  -- Antique Duelist's Rapier (Revendreth enchanting WQ)
+)
+
+-- Return whether the given item is usable.  Wraps C_Item.IsUsableItem()
+-- but also handles usable items for which that function returns false.
+-- Does _not_ handle items which start quests (because the only API for
+-- identifying those requires a container slot rather than an item ID).
+local USABLE_ITEMS  -- Defined below.
+function WoWXIV.IsItemUsable(item)
+    return USABLE_ITEMS:has(item) or C_Item.IsUsableItem(item)
+end
+--[[local]] USABLE_ITEMS = set(
+    239567,   -- 11.2 utility curio: Tailwind Conduit
+    239568,   -- 11.2 utility curio: Audio Amplification Crystal
+    239569,   -- 11.2 utility curio: Battered Aegis
+    239570,   -- 11.2 utility curio: Temporal Decelerator Crystal
+    239571,   -- 11.2 utility curio: Sands of K'aresh
+    239573,   -- 11.2 combat curio: Ethereal Energy Converter
+    239576,   -- 11.2 combat curio: Mana-Tinted Glasses
+    239578,   -- 11.2 combat curio: Quizzical Device
+    239579,   -- 11.2 combat curio: Hatarang
+    239580    -- 11.2 combat curio: Nether Overlay Matrix
+)
+
 ------------------------------------------------------------------------
 -- Text formatting routines
 ------------------------------------------------------------------------
@@ -620,126 +820,6 @@ local CLASS_ATLAS = {rare = "UI-HUD-UnitFrame-Target-PortraitOn-Boss-Rare-Star",
 function WoWXIV.UnitClassificationIcon(unit)
     return CLASS_ATLAS[UnitClassification(unit)]
 end
-
--- Return whether the given item (given as a numeric ID) goes in the
--- reagent bag.  (There doesn't seem to be a global API for this.)
-local REAGENT  -- Defined below.
-function WoWXIV.IsItemReagent(item)
-    return REAGENT:has(item)
-        or select(12, C_Item.GetItemInfo(item)) == Enum.ItemClass.Tradegoods
-end
---[[local]] REAGENT = set(
-    -- Mechagon Tinkering reagents
-    166846,  -- Spare Parts
-    166970,  -- Energy Cell
-    166971,  -- Empty Energy Cell
-    168327,  -- Chain Ignitercoil
-    168832,  -- Galvanic Oscillator
-    169610,  -- S.P.A.R.E. Crate
-    -- Protoform Synthesis (Zereth Mortis) reagents
-    187633,  -- Bufonid Lattice
-    187634,  -- Ambystan Lattice
-    187635,  -- Cervid Lattice
-    187636,  -- Aurelid Lattice
-    188957,  -- Genesis Mote
-    189145,  -- Helicid Lattice
-    189146,  -- Geomental Lattice
-    189147,  -- Leporid Lattice
-    189148,  -- Poultrid Lattice
-    189149,  -- Proto Avian Lattice
-    189150,  -- Raptora Lattice
-    189151,  -- Scarabid Lattice
-    189152,  -- Tarachnid Lattice
-    189153,  -- Unformed Lattice
-    189154,  -- Vespoid Lattice
-    189155,  -- Viperid Lattice
-    189156,  -- Vombata Lattice
-    189157,  -- Glimmer of Animation
-    189158,  -- Glimmer of Cunning
-    189159,  -- Glimmer of Discovery
-    189160,  -- Glimmer of Focus
-    189161,  -- Glimmer of Malice
-    189162,  -- Glimmer of Metamorphosis
-    189163,  -- Glimmer of Motion
-    189164,  -- Glimmer of Multiplicity
-    189165,  -- Glimmer of Predation
-    189166,  -- Glimmer of Renewal
-    189167,  -- Glimmer of Satisfaction
-    189168,  -- Glimmer of Serenity
-    189169,  -- Glimmer of Survival
-    189170,  -- Glimmer of Vigilance
-    189171,  -- Bauble of Pure Innovation
-    189172,  -- Crystallized Echo of the First Song
-    189173,  -- Eternal Ragepearl
-    189174,  -- Lens of Focused Intention
-    189175,  -- Mawforged Bridle
-    189176,  -- Protoform Sentience Crown
-    189177,  -- Revelation Key
-    189178,  -- Tools of Incomprehensible Experimentation
-    189179,  -- Unalloyed Bronze Ingot
-    189180,  -- Wind's Infinite Call
-    190388   -- Lupine Lattice
-)
-
--- Spell ID of the "Disenchant" spell.
-WoWXIV.SPELL_DISENCHANT = 13262
--- Return whether the given item can be disenchanted.
-local DISENCHANTABLE_TYPES, DISENCHANTABLE_ITEMS  --  Defined below.
-function WoWXIV.IsItemDisenchantable(item)
-    local info = {C_Item.GetItemInfo(item)}
-    local quality, item_class, item_subclass = info[3], info[12], info[13]
-    if not item_subclass then return false end
-    local disenchantable = (DISENCHANTABLE_TYPES[item_class]
-                            or DISENCHANTABLE_ITEMS:has(item))
-    if type(disenchantable) == "table" then
-        disenchantable = disenchantable:has(item_subclass)
-    end
-    if quality >= Enum.ItemQuality.Legendary then
-        disenchantable = false
-    end
-    return disenchantable or false  -- Ensure it's a boolean return value.
-end
---[[local]] DISENCHANTABLE_TYPES = {
-    [Enum.ItemClass.Weapon] = true,
-    [Enum.ItemClass.Armor] = set(
-        Enum.ItemArmorSubclass.Generic,
-        Enum.ItemArmorSubclass.Cloth,
-        Enum.ItemArmorSubclass.Leather,
-        Enum.ItemArmorSubclass.Mail,
-        Enum.ItemArmorSubclass.Plate,
-        -- Enum.ItemArmorSubclass.Cosmetic: not disenchantable!
-        Enum.ItemArmorSubclass.Shield
-    ),
-    [Enum.ItemClass.Profession] = true,
-    [Enum.ItemClass.Gem] = set(
-        Enum.ItemGemSubclass.Artifactrelic  -- Legion artifact relics
-    ),
-}
---[[local]] DISENCHANTABLE_ITEMS = set(
-    -- FIXME: is there any more general way to detect these?
-    182067  -- Antique Duelist's Rapier (Revendreth enchanting WQ)
-)
-
--- Return whether the given item is usable.  Wraps C_Item.IsUsableItem()
--- but also handles usable items for which that function returns false.
--- Does _not_ handle items which start quests (because the only API for
--- identifying those requires a container slot rather than an item ID).
-local USABLE_ITEMS  -- Defined below.
-function WoWXIV.IsItemUsable(item)
-    return USABLE_ITEMS:has(item) or C_Item.IsUsableItem(item)
-end
---[[local]] USABLE_ITEMS = set(
-    239567,   -- 11.2 utility curio: Tailwind Conduit
-    239568,   -- 11.2 utility curio: Audio Amplification Crystal
-    239569,   -- 11.2 utility curio: Battered Aegis
-    239570,   -- 11.2 utility curio: Temporal Decelerator Crystal
-    239571,   -- 11.2 utility curio: Sands of K'aresh
-    239573,   -- 11.2 combat curio: Ethereal Energy Converter
-    239576,   -- 11.2 combat curio: Mana-Tinted Glasses
-    239578,   -- 11.2 combat curio: Quizzical Device
-    239579,   -- 11.2 combat curio: Hatarang
-    239580    -- 11.2 combat curio: Nether Overlay Matrix
-)
 
 -- Display an error message, optionally with an error sound.
 -- with_sound defaults to true if not specified.

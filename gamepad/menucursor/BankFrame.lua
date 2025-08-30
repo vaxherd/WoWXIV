@@ -10,88 +10,9 @@ local strsub = string.sub
 local tinsert = tinsert
 local yield = coroutine.yield
 
-
 assert(WoWXIV.UI.ItemSubmenu)  -- Ensure proper load order.
 
 local BankItemSubmenu = class(WoWXIV.UI.ItemSubmenu)
-
-
----------------------------------------------------------------------------
--- Utility routines
----------------------------------------------------------------------------
-
--- Find an inventory bag and slot suitable for the given item.  If a count
--- is also given, ensure that that many of the item can fit in the returned
--- slot.
-local function FindInventorySlot(info, count)
-    local function FindEmptySlot(bag_id)
-        for i = 1, C_Container.GetContainerNumSlots(bag_id) do
-            if not C_Container.GetContainerItemInfo(bag_id, i) then
-                return i
-            end
-        end
-        return nil
-    end
-
-    -- If no count was given, we take any stack which isn't full.
-    count = count or 1
-
-    -- First look for an existing stack we can add to.
-    local max_stack, _, _, _, class, subclass =
-        select(8, C_Item.GetItemInfo(info.itemID))
-    local NUM_TOTAL_BAG_FRAMES = Constants.InventoryConstants.NumBagSlots + Constants.InventoryConstants.NumReagentBagSlots
-    for bag_id = 0, NUM_TOTAL_BAG_FRAMES do
-        for i = 1, C_Container.GetContainerNumSlots(bag_id) do
-            local slot_info = C_Container.GetContainerItemInfo(bag_id, i)
-            if slot_info and slot_info.itemID == info.itemID
-            and slot_info.stackCount + count <= max_stack
-            then
-                if not slot_info.isLocked then
-                    return bag_id, i, slot_info.stackCount
-                end
-            end
-        end
-    end
-
-    -- No viable stack found, so look for an appropriate empty slot.
-    if not target_bag and WoWXIV.IsItemReagent(info.itemID) then
-        for i = 1, Constants.InventoryConstants.NumReagentBagSlots do
-            local reagent_bag = Constants.InventoryConstants.NumBagSlots + i
-            local slot = FindEmptySlot(reagent_bag)
-            if slot then return reagent_bag, slot, 0 end
-        end
-    end
-    -- It looks like item-to-bag filtering code is not exposed to Lua,
-    -- so we have to reimplement it ourselves.
-    local type_flag
-    if info.quality == Enum.ItemQuality.Poor then
-        type_flag = Enum.BagSlotFlags.ClassJunk
-    elseif class == Enum.ItemClass.Consumable then
-        type_flag = Enum.BagSlotFlags.ClassConsumables
-    elseif class == Enum.ItemClass.Weapon or
-           class == Enum.ItemClass.Armor then
-        type_flag = Enum.BagSlotFlags.ClassEquipment
-    elseif class == Enum.ItemClass.Tradegoods then
-        type_flag = Enum.BagSlotFlags.ClassReagents
-    elseif class == Enum.ItemClass.Recipe or
-           class == Enum.ItemClass.Profession then
-        type_flag = Enum.BagSlotFlags.ClassProfessionGoods
-    end
-    if type_flag then
-        for bag_id = 1, Constants.InventoryConstants.NumBagSlots do
-            if C_Container.GetBagSlotFlag(bag_id, type_flag) then
-                local slot = FindEmptySlot(bag_id)
-                if slot then return bag_id, slot, 0 end
-            end
-        end
-    end
-    for bag_id = 0, Constants.InventoryConstants.NumBagSlots do
-        local slot = FindEmptySlot(bag_id)
-        if slot then return bag_id, slot, 0 end
-    end
-    return nil
-end
-
 
 ---------------------------------------------------------------------------
 -- Menu handler for BankFrame
@@ -314,7 +235,8 @@ function BankItemSubmenu:TakeAllOrSome(bag, slot, link, count)
     -- If the player requested "take some" (and thus count is non-nil),
     -- require that many to fit onto the target stack; otherwise, look for
     -- any non-full stack and we'll split the stack ourselves if needed.
-    local target_bag, target_slot, target_count = FindInventorySlot(info, count)
+    local target_bag, target_slot, target_count =
+        WoWXIV.FindInventorySlot(info.itemID, count)
     if not target_bag then
         WoWXIV.Error("No inventory slots available.")
         return
