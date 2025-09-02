@@ -204,18 +204,18 @@ end)
 
 DefineCommand("itemsearch", {"isearch", "is"}, Green("ItemName"),
               {"Searches your inventory and equipment for an item.",
-               "Bag items equipped in inventory or bank slots are not listed.",
+               "Bag items equipped in inventory bag slots are not listed.",
                "When using a combined backpack, slots count from the bottom right: slot 10 is the bottom left corner, 31 is the right side of the 4th row from the bottom, and so on.",
                "",
                "Unlike the search box in the default backpack UI, this command does not search item descriptions, so it can be useful in narrowing down the search when you know the item's name.",
                "",
-               "Bank bags (other than the reagent bank) and void storage contents may be out of date if you log in from multiple computers. Visit the relevant NPC to update the cached data.",
+               "Bank tab results may be out of date if you log in from multiple computers. Visit a bank to update the cached data.",
                "",
                "Examples:",
                "    "..Yellow("/itemsearch Heart of Azeroth"),
                "     → Shows where your Heart of Azeroth is stored or equipped.",
                "    "..Yellow("/itemsearch wildercloth"),
-               "     → Finds all items with \"Wildercloth\" in the name, excluding any Wildercloth Bags equipped as inventory or bank bags."},
+               "     → Finds all items with \"Wildercloth\" in the name, excluding any Wildercloth Bags equipped as inventory bags."},
               WoWXIV.isearch)
 
 ---------------- /itemsort (/isort)

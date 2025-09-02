@@ -26,9 +26,9 @@ that of Final Fantasy XIV.  Specific features include:
 - An FFXIV-style chat window and combat log
 
 - Additional FFXIV-style text commands, notably `/itemsearch` to search
-  all item storage (even when not at a bank or void storage NPC) and
-  `/?` to display help text for a specific command (also with an API for
-  external addons to register their own help text)
+  all item storage (even when not at a bank) and `/?` to display help
+  text for a specific command (also with an API for external addons to
+  register their own help text)
 
 - Various improvements to gamepad support, including right-stick zoom
   and a menu cursor

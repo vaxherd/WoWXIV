@@ -510,7 +510,7 @@ function WoWXIV.isearch(arg)
             count = count + 1
         end
         if used_cache then
-            print(Red("Some results may be out of date. Visit the appropriate storage NPC to ensure current results."))
+            print(Red("Some results may be out of date. Visit a bank to ensure current results."))
         end
     else
         print(Red(" → No matching items found."))
