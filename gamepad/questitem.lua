@@ -402,8 +402,17 @@ local QUEST_ITEM = {
     },
 }
 
+-- Helper for zone item checks.
+local function HasAura(spell)
+    return C_UnitAuras.GetPlayerAuraBySpellID(spell)
+end
+local SPELL_PHASE_DIVING = 1214374
+
 -- Special cases for zone-specific items we always want to have available
--- when in that zone.
+-- when in that zone.  Keys are any of:
+--    - Number: specifies a map ID (as used on the world map frame)
+--    - String "Torghast": any Torghast map
+--    - Function: entry is active when function returns a true value
 local ZONE_ITEM = {
     ["Torghast"] = {  -- Special case because Torghast has so many maps.
         168035,  -- Mawrat Harness
@@ -415,7 +424,7 @@ local ZONE_ITEM = {
     [1970] = {  -- Zereth Mortis
         187908,  -- Firim's Spare Forge-Tap
     },
-    [2371] = {
+    [function(map) return map==2371 and HasAura(SPELL_PHASE_DIVING) end] = {
         247882,  -- Phase Regulator
     },
 }
@@ -704,28 +713,33 @@ function QuestItemButton:IterateQuestItems(predicate)
         end
     end
 
-    for map, items in pairs(ZONE_ITEM) do
-        local on_map
+    for zone, items in pairs(ZONE_ITEM) do
+        local in_zone
         if zone == "Torghast" then
             -- Torghast items are deleted when leaving, so we can
             -- unconditionally include them when in the inventory.
-            on_map = true
-        elseif player_map then
-            local cur_map = player_map
-            while true do
-                if cur_map == map then
-                    on_map = true
-                    break
+            in_zone = true
+        elseif type(zone) == "function" then
+            in_zone = zone(player_map)
+        else
+            assert(type(zone) == "number")
+            if player_map then
+                local cur_map = player_map
+                while true do
+                    if cur_map == map then
+                        in_zone = true
+                        break
+                    end
+                    local info = C_Map.GetMapInfo(cur_map)
+                    local parent = info and info.parentMapID
+                    if not parent or parent == cur_map then
+                        break
+                    end
+                    cur_map = parent
                 end
-                local info = C_Map.GetMapInfo(cur_map)
-                local parent = info and info.parentMapID
-                if not parent or parent == cur_map then
-                    break
-                end
-                cur_map = parent
             end
         end
-        if on_map then
+        if in_zone then
             for _, item in ipairs(items) do
                 if GetItemCount(item) > 0 then
                     index = index + 1
