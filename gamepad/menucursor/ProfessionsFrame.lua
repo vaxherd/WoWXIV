@@ -250,6 +250,7 @@ function SchematicFormHandler:__constructor()
         self.targets = {}  -- suppress update calls from CreateAllButton:Show() hook
     end
     self.has_Button3 = true  -- Used to craft the recipe.
+    self.has_Button4 = true  -- Used to remove reagents.
     self:SetTabSystem(ProfessionsFrame.TabSystem)
     self.multiple_quantity_input = MenuCursor.NumberInput(
         ProfessionsFrame.CraftingPage.CreateMultipleInputBox)
@@ -526,11 +527,31 @@ function SchematicFormHandler:UpdateMovement()
 end
 
 function SchematicFormHandler:OnAction(button)
-    assert(button == "Button3")
     local CraftingPage = ProfessionsFrame.CraftingPage
     local CreateButton = CraftingPage.CreateButton
-    if CreateButton:IsShown() and CreateButton:IsEnabled() then
-         CreateButton:GetScript("OnClick")(CreateButton, "LeftButton", true)
+    if (button == "Button3") then
+        if CreateButton:IsShown() and CreateButton:IsEnabled() then
+             CreateButton:GetScript("OnClick")(CreateButton, "LeftButton", true)
+        end
+    else
+        assert(button == "Button4")
+        -- At least as of 11.2.0, it's safe to blindly send a right-click
+        -- (in fact a right-mouse-down because that's the event the reagent
+        -- buttons respond to) because all buttons which _don't_ use
+        -- right-click to remove a reagent simply ignore that action.  But
+        -- we explicitly exclude the Create button just in case.
+        local target = self:GetTarget()
+        if target ~= CreateButton then
+            local target_OnMouseDown = target:GetScript("OnMouseDown")
+            if target_OnMouseDown then
+                target_OnMouseDown(target, "RightButton")
+                local target_OnMouseUp = target:GetScript("OnMouseUp")
+                if target_OnMouseUp then
+                    local upInside = true
+                    target_OnMouseUp(target, "RightButton", upInside)
+                end
+            end
+        end
     end
 end
 
