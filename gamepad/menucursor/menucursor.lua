@@ -123,32 +123,43 @@ end
 -- equal to that value.  The event (and event argument, if given) will be
 -- omitted from the arguments passed to the handler.
 function Cursor:RegisterFrameEvent(handler, event, event_arg)
-    local handler_name, wrapper
+    local handler_name = event
     if event_arg then
-        handler_name = event.."__"..tostring(event_arg)
-        local old_handler = self[handler_name]
-        if old_handler then
-            wrapper = function(cursor, event, arg1, ...)
-                old_handler(cursor, event, arg1, ...)
-                handler(...)
-            end
-        else
-            wrapper = function(cursor, event, arg1, ...) handler(...) end
+        handler_name = handler_name.."__"..tostring(event_arg)
+    end
+    local old_handler = self[handler_name]
+    local wrapper
+    if old_handler then
+        wrapper = function(cursor, ...)
+            old_handler(cursor, ...)
+            handler(...)
         end
     else
-        handler_name = event
-        local old_handler = self[handler_name]
-        if old_handler then
-            wrapper = function(cursor, event, ...)
-                old_handler(cursor, event, ...)
-                handler(...)
-            end
-        else
-            wrapper = function(cursor, event, ...) handler(...) end
-        end
+        wrapper = function(cursor, ...) handler(...) end
     end
     self[handler_name] = wrapper
     self:RegisterEvent(event)
+end
+
+-- Register a unit event handler for the given event and unit (only one
+-- unit may be specified, unlike Frame:RegisterUnitEvent()).  The event
+-- and unit will be omitted from the arguments passed to the handler.
+function Cursor:RegisterFrameUnitEvent(handler, event, unit)
+    assert(type(unit) == "string",
+           "Invalid arguments: [handler_method,] event, unit")
+    local handler_name = event.."__"..unit
+    local old_handler = self[handler_name]
+    local wrapper
+    if old_handler then
+        wrapper = function(cursor, ...)
+            old_handler(cursor, ...)
+            handler(...)
+        end
+    else
+        wrapper = function(cursor, ...) handler(...) end
+    end
+    self[handler_name] = wrapper
+    self:RegisterUnitEvent(event, unit)
 end
 
 -- Add the given frame (a MenuFrame instance) to the focus stack if it is
@@ -414,9 +425,9 @@ end
 -- Generic event handler.  Forwards events to same-named methods, optionally
 -- with the first argument appended to the method name.
 function Cursor:OnEvent(event, arg1, ...)
-    -- Use a double underscore to ensure no collisions with event names
-    -- (mostly on principle, since it probably wouldn't be a problem in
-    -- actual usage).
+    -- Use a double instead of single underscore as the event/argument
+    -- separator to ensure no collisions with event names (mostly on
+    -- principle, since it probably won't be a problem in actual usage).
     local event__arg1 = event .. "__" .. tostring(arg1)
     if self[event__arg1] then
         self[event__arg1](self, ...)
@@ -1663,13 +1674,30 @@ end
 function MenuFrame:RegisterEvent(handler, event, event_arg)
     if type(handler) ~= "function" then
         assert(type(handler) == "string",
-               "Invalid arguments: cursor, [handler_method,] event [, event_arg]")
+               "Invalid arguments: [handler_method,] event [, event_arg]")
         event, event_arg = handler, event
         handler = self[event]
         assert(handler, "Handler method is not defined")
     end
     global_cursor:RegisterFrameEvent(function(...) handler(self, ...) end,
                                      event, event_arg)
+end
+
+-- Register an instance method as a unit event handler with the global
+-- cursor instance.  Behavior is as for RegisterEvent(), except that an
+-- event argument filter may not be set.  Wraps
+-- Cursor:RegisterFrameUnitEvent().
+function MenuFrame:RegisterUnitEvent(handler, event, unit)
+    local USAGE = "Invalid arguments: [handler_method,] event, unit"
+    if type(handler) ~= "function" then
+        assert(type(handler) == "string", USAGE)
+        event, unit = handler, event
+        handler = self[event]
+        assert(handler, "Handler method is not defined")
+    end
+    assert(unit, USAGE)
+    global_cursor:RegisterFrameUnitEvent(function(...) handler(self, ...) end,
+                                         event, unit)
 end
 
 -- Hook a frame's Show/Hide/SetShown methods, calling the given instance
