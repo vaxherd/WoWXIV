@@ -766,7 +766,7 @@ function PartyList:__constructor()
     end
 
     self.events = {}
-    self.events["ACTIVE_PLAYER_SPECIALIZATION_CHANGED"] = self.OnPartyChange
+    self.events["ACTIVE_PLAYER_SPECIALIZATION_CHANGED"] = self.OnSpecChange
     self.events["GROUP_ROSTER_UPDATE"] = self.OnPartyChange
     self.events["PARTY_LEADER_CHANGED"] = self.OnPartyChange
     self.events["PLAYER_ENTERING_WORLD"] = self.OnPartyChange
@@ -810,6 +810,12 @@ function PartyList:__constructor()
     self.cursor = PartyCursor(self:GetFrameLevel() + 4)
 
     self:SetParty()
+end
+
+function PartyList:OnSpecChange()
+    -- It seems UnitPowerType() can return outdated data immediately
+    -- after a spec change, so delay a frame in that case.
+    RunNextFrame(function() self:SetParty() end)
 end
 
 function PartyList:OnPartyChange()
@@ -980,7 +986,6 @@ function PartyList:UpdateParty(unit, updateLabel)
     local member = self.party[unit]
     if not member then return end
     member:Update(updateLabel)
-
 end
 
 local function HateSort(a, b)  -- Helper for UpdateHate().
