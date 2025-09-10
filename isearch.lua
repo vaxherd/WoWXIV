@@ -303,11 +303,13 @@ function isearch_event_frame:BAG_UPDATE(bag_id)
             if size > 0 then
                 WoWXIV_isearch_cache[cache_id] = content
                 WoWXIV_isearch_cache[cache_id .. "_size"] = size
-                -- Special case to deal with account bank bag names not
-                -- being available when this event fires due to crafting
-                -- with reagents in the account bank.
+                -- Special case to deal with bank bag names not being
+                -- available when this event fires due to crafting with
+                -- reagents in the bank.
                 if (WoWXIV_isearch_cache[cache_id .. "_name"]
-                    and not (cache_id:sub(1,7) == "warbank" and bag_name:sub(-5) == "(???)"))
+                    and not ((cache_id:sub(1,4) == "bank"
+                              or cache_id:sub(1,7) == "warbank")
+                             and bag_name:sub(-5) == "(???)"))
                 then
                     WoWXIV_isearch_cache[cache_id .. "_name"] = bag_name
                 end
