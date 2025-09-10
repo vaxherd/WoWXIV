@@ -186,8 +186,8 @@ function MountJournalHandler:OnAction(button)
         self.frame.MountButton:Click("LeftButton", true)
     else
         assert(button == "Button4")
-        button:Click("LeftButton")
-        self.context_menu:Open(target_frame)
+        target_frame:Click("LeftButton")
+        self.context_menu:Open(target_frame.DragButton, target_frame)
     end
 end
 
@@ -211,12 +211,11 @@ function MountContextMenu:__constructor()
         function() self:DoSetFavorite(self.mount_button, false) end)
 end
 
-function MountContextMenu:Configure(button)
+function MountContextMenu:Configure(drag_button, button)
     self.mount_button = button
 
-    if not button.owned then return end
-
     local id = button.mountID
+    local index = button.index
     local needs_unwrap = C_MountJournal.NeedsFanfare(id)
 
     local mount_text
@@ -234,7 +233,7 @@ function MountContextMenu:Configure(button)
         return  -- No other options when mount is not unwrapped.
     end
 
-    if C_MountJournal.GetIsFavorite(button.index) then
+    if C_MountJournal.GetIsFavorite(index) then
         self:AppendButton(self.menuitem_remove_favorite)
     else
         self:AppendButton(self.menuitem_set_favorite)
