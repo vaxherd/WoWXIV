@@ -330,6 +330,8 @@ local ITEM_TARGET = {
     [237013] = "none",    -- Anima Vacuum (87413: Bird Bath)
     [237030] = "none",    -- Condenser Disc (87414: Medical Maneuvers)
     [237356] = "none",    -- Vermin Attuned Optic-Visualizer (87597: A Bag of Veilshards)
+    [237898] = "target",  -- Hemet's Waterin' Can (88667: Water Snakes)
+    [238216] = "none",    -- Hemet's Soothin' Flute (88670: Soothing Serpents)
     [239074] = "none",    -- Void Lure (86786: The Void Hunter)
 
     -- The following are scenario action spells:
