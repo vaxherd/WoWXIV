@@ -1119,6 +1119,11 @@ function WardrobeItemsFrameHandler:SetTargets(old_target)
 end
 
 function WardrobeItemsFrameHandler:EnterTarget(target)
+    -- HACK: avoid nil deref when this subframe was previously open and the
+    -- collections frame is opened
+    if target.GetParent and target:GetParent() == self.frame then
+        if not self.frame.transmogLocation then return end
+    end
     __super(self, target)
     if target.visualInfo then
         self.cur_item = target.visualInfo.visualID
