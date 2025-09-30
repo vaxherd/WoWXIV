@@ -446,7 +446,15 @@ end
 }
 --[[local]] DISENCHANTABLE_ITEMS = set(
     -- FIXME: is there any more general way to detect these?
-    182067  -- Antique Duelist's Rapier (Revendreth enchanting WQ)
+    182067,  -- Antique Duelist's Rapier (Revendreth enchanting WQ)
+    200939,  -- Chromatic Pocketwatch (Dragonflight bonus materials item)
+    200940,  -- Everflowing Inkwell (Dragonflight bonus materials item)
+    200941,  -- Seal of Order (Dragonflight bonus materials item)
+    200942,  -- Vibrant Emulsion (Dragonflight bonus materials item)
+    200943,  -- Whispering Band (Dragonflight bonus materials item)
+    200945,  -- Valiant Hammer (Dragonflight bonus materials item)
+    200946,  -- Thunderous Blade (Dragonflight bonus materials item)
+    200947   -- Carving of Awakening (Dragonflight bonus materials item)
 )
 
 -- Return whether the given item is usable.  Wraps C_Item.IsUsableItem()
