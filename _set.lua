@@ -24,7 +24,7 @@ The interface defined here draws largely from Python.  Notable
 differences from Python syntax and usage are documented below.
 
 
-Create a set instance by calling set() as a function:
+A set instance can be created by calling the set() function:
 
     s = set()  -- Creates an empty set.
 
@@ -42,7 +42,7 @@ Set instances support the usual operations on elements:
     s:has(x)  -- True if x is an element of s (Python "x in s")
     s:len()  -- Length of (number of elements in) s
     s:remove(x)  -- Remove x from s; error if not present
-    s:discard(x)  -- Remove x from s if present
+    s:discard(x)  -- Remove x from s if present (else do nothing)
     s:pop()  -- Remove and return an arbitrary element; error if empty
     s:clear()  -- Remove all elements
 
@@ -99,8 +99,8 @@ Sets also support set-to-set operations using standard binary operators:
     s1 < s2  -- s1:issubset(s2) and not s1:isequal(s2) ("proper subset")
 
 Note that unlike Python, we do not override the == operator, because Lua
-doesn't provide any other way to test whether two values refer to the
-same object.
+doesn't provide any other way to test whether two object references
+refer to the same object.
 
 
 All set methods which do not return an explicit value (add, remove,
@@ -130,10 +130,10 @@ A set is its own iterator:
         print(elem, "is an element of s")
     end
 
-The order of iteration is undefined, and may change from one loop to
-the next, though each individual loop is guaranteed to see each element
-of the set exactly once.  See sorted() below for iterating over elements
-in a specified order.
+The order of iteration is undefined and may change from one loop to the
+next, though each individual loop is guaranteed to see each element of
+the set exactly once.  See sorted() below for iterating over elements in
+a specified order.
 
 The caveat to Lua next() and pairs() about modifying the table argument
 (adding a key to the table causes undefined behavior) applies here as
@@ -166,14 +166,15 @@ and the sort can use an arbitrary comparator function like table.sort():
 
 The arrays returned by elements() and sorted() are _iterable arrays_, in
 that they can be used directly in a "for ... in" construct.  Thus, the
-following three statements are equivalent:
+following four statements are equivalent:
 
     for x in s do ... end
-    local array = s:elements(); for x in array do ... end
     for x in s:elements() do ... end
+    local array = s:elements(); for x in array do ... end
+    for _, x in ipairs(s:elements()) do ... end
 
-except that the latter two create an extra copy of the element list,
-while the construct:
+except that the latter three create an extra copy of the element list.
+Similarly, the construct:
 
     for x in s:sorted() do ... end
 
@@ -182,6 +183,27 @@ will iterate over all elements of s in ascending order.
 As for set iteration, this array iteration is somewhat slower than
 ipairs(), and ipairs() should be preferred if performance is important;
 the iteration operator is provided for convenience.
+
+
+When using object (table or userdata) references as set elements, the
+reference itself is taken as the element, not the content of the
+referenced object.  Consider this code:
+
+    local a = {1, 2, 3}   -- Create two distinct table objects.
+    local b = {1, 2, 3}
+    s:add(a)              -- |s| is assumed to be a set instance.
+    assert(not s:has(b))  -- The table referenced by |b| is not in the set.
+
+Even though both tables have exactly the same set of elements, the table
+referenced by variable |b| is considered not an element of set |s|
+because it is a distinct table object from table |a| which was added to
+the set.  Conversely, strings in Lua are pure values, not objects, and
+thus all instances of the same string data are treated as equal:
+
+    local a = "1 2 3"
+    local b = "1 2 3"
+    s:add(a)
+    assert(s:has(b))
 
 ]]--
 
@@ -461,7 +483,7 @@ local set_methods = {
     __mul = set_methods.intersection,
     __pow = set_methods.symmetric_difference,
     __le = set_methods.issubset,
-    __lt = function(s1, s2) return s1 <= s2 and not (s2 <= s1) end,
+    __lt = function(s1, s2) return (s1 <= s2) and not (s2 <= s1) end,
     __index = set_methods,
     __newindex = function() error(BAD_NEWINDEX_MSG, 2) end,
     __call = function(s, _, i) local x = next(s.__elements, i) return x end,
@@ -605,6 +627,31 @@ local tests = {
         assert(not s:has(10, 40, 30))
     end,
 
+    HasString = function()
+        local s = set()
+        local a = "abc"
+        s:add(a)
+        assert(s:has(a))
+        local b = "abc"
+        assert(s:has(b))  -- Because strings are not instanced.
+    end,
+
+    HasTable = function()
+        local s = set()
+        local t = {1, 2, 3}
+        s:add(t)
+        assert(s:has(t))
+    end,
+
+    HasIdenticalTable = function()
+        local s = set()
+        local t1 = {1, 2, 3}
+        local t2 = {1, 2, 3}
+        assert(t1 ~= t2)
+        s:add(t1)
+        assert(not s:has(t2)) -- Should be treated as a separate element.
+    end,
+
     HasNil = function()
         local s = set(10)
         assert(not s:has(nil))  -- False: nil can never be a member of a set.
@@ -650,6 +697,34 @@ local tests = {
         local s = set(10)
         s:add(10)
         assert(s:len() == 1)
+    end,
+
+    LenAddExistingString = function()
+        local s = set()
+        s:add("abc")
+        assert(s:len() == 1)
+        s:add("abc")  -- Should do nothing (strings are not instanced).
+        assert(s:len() == 1)
+    end,
+
+    LenAddExistingTable = function()
+        local s = set()
+        local t = {1, 2, 3}
+        s:add(t)
+        assert(s:len() == 1)
+        s:add(t)  -- Should do nothing (this is the same table instance).
+        assert(s:len() == 1)
+    end,
+
+    LenAddIdenticalTable = function()
+        local s = set()
+        local t1 = {1, 2, 3}
+        local t2 = {1, 2, 3}
+        assert(t1 ~= t2)
+        s:add(t1)
+        assert(s:len() == 1)
+        s:add(t2)  -- Should be treated as a separate element.
+        assert(s:len() == 2)
     end,
 
     -------- remove()
