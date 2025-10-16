@@ -177,12 +177,14 @@ function CastBar:OnEvent(event, unit)
         -- have a GUID.
         local _, display_name, _, start_ms, end_ms, _, not_interruptible =
             UnitChannelInfo(unit)
-        self.name = display_name
-        self.is_channel = true
-        self.start = start_ms / 1000
-        self.duration = (end_ms - start_ms) / 1000
-        self.interruptible = not not_interruptible
-        self.frame:SetScript("OnUpdate", function() self:OnUpdate() end)
+        if start_ms then  -- Possible client bug? (can rarely be nil)
+            self.name = display_name
+            self.is_channel = true
+            self.start = start_ms / 1000
+            self.duration = (end_ms - start_ms) / 1000
+            self.interruptible = not not_interruptible
+            self.frame:SetScript("OnUpdate", function() self:OnUpdate() end)
+        end
 
     elseif event == "DELAYED" then
         local _, _, _, new_start, new_end =  UnitCastingInfo(unit)
