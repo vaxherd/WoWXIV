@@ -226,6 +226,9 @@ function QuestFrameHandler:SetTargets(event, initial_id)
         for reward_frame in QuestInfoRewardsFrame.reputationRewardPool:EnumerateActive() do
             tinsert(rewards, {reward_frame, false})
         end
+        for reward_frame in QuestInfoRewardsFrame.followerRewardPool:EnumerateActive() do
+            tinsert(rewards, {reward_frame, false})
+        end
         for i, v in ipairs(rewards) do
             local frame = v[1]
             tinsert(rewards[i], frame:GetLeft())
