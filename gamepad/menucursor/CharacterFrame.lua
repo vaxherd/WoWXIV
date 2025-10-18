@@ -191,6 +191,9 @@ function EquippedItemContextMenu:__constructor()
 
     self.menuitem_expand_sockets = self:CreateButton("View sockets",
         function() SocketInventoryItem(self.slot:GetID()) end)
+    -- Legion artifact items also use the SocketContainerItem() API.
+    self.menuitem_expand_artifact = self:CreateButton("View artifact",
+        function()SocketInventoryItem(self.slot:GetID()) end)
 
     self.menuitem_expand_azerite = self:CreateButton("View Azerite powers",
         function()
@@ -214,6 +217,8 @@ function EquippedItemContextMenu:Configure(slot)
 
     if C_Item.GetItemNumSockets(item) > 0 then
         self:AppendButton(self.menuitem_expand_sockets)
+    elseif select(3, C_Item.GetItemInfo(item)) == Enum.ItemQuality.Artifact then
+        self:AppendButton(self.menuitem_expand_artifact)
     elseif C_AzeriteEmpoweredItem.IsAzeriteEmpoweredItemByID(item) then
         self:AppendButton(self.menuitem_expand_azerite)
     else
