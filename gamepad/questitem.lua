@@ -71,6 +71,7 @@ local ITEM_TARGET = {
     [137120] = "target",  -- Stack Of Vellums (39877: In the Loop)
     [137189] = "none",    -- Satyr Horn (41464: Not Here, Not Now, Not Ever)
     [137299] = "target",  -- Nightborne Spellblade (40947: Special Delivery / 42962: Secret Correspondence)
+    [137551] = "none",    -- Stealth Trap (42387: Assassin Entrapment)
     [139463] = "target",  -- Felbat Toxin Salve (43376: Problem Salver)
     [139882] = "target",  -- Vial of Hippogryph Pheromones (40963: Take Them in Claw)
     [140257] = "none",    -- Advanced Telemancy Beacon (43565: Bring Home the Beacon)
