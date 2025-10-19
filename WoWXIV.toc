@@ -87,6 +87,7 @@ gamepad/menucursor/PlayerSpellsFrame.lua
 gamepad/menucursor/ProfessionsBookFrame.lua
 gamepad/menucursor/ProfessionsFrame.lua
 gamepad/menucursor/QuestFrame.lua
+gamepad/menucursor/RemixArtifactFrame.lua
 gamepad/menucursor/ScrappingMachineFrame.lua
 gamepad/menucursor/SplashFrame.lua
 gamepad/menucursor/StackSplitFrame.lua
