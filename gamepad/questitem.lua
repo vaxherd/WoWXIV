@@ -334,6 +334,7 @@ local ITEM_TARGET = {
     [237898] = "target",  -- Hemet's Waterin' Can (88667: Water Snakes)
     [238216] = "none",    -- Hemet's Soothin' Flute (88670: Soothing Serpents)
     [239074] = "none",    -- Void Lure (86786: The Void Hunter)
+    [246808] = "skip",    -- Experiment Instructions (91061: Infinite Chaos)
 
     -- The following are scenario action spells:
     [-314955] = "none",   -- Sanity Restoration Orb (N'Zoth's Horrific Visions)
