@@ -35,7 +35,12 @@ function QuestFrameHandler:OnShow()
 end
 
 function QuestFrameHandler:QUEST_GREETING()
-    assert(QuestFrame:IsVisible())  -- FIXME: might be false if previous quest turn-in started a cutscene (e.g. The Underking Comes in the Legion Highmountain scenario)
+    if not QuestFrame:IsVisible() then
+        -- The frame might not be visible if the previous quest turn-in
+        -- started a cutscene (e.g. The Underking Comes in the Legion
+        -- Highmountain scenario).
+        return
+    end
     -- Quest progression often causes multiple quest events without
     -- intervening Hide operations, so make sure to clear cursor state
     -- before refreshing the target list.
