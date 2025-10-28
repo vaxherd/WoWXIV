@@ -861,7 +861,14 @@ function InventoryItemSubmenu:__constructor()
 
     self.menuitem_equip = self:CreateButton("Equip",
         function(bag, slot, info)
-            C_Item.EquipItemByName(info.hyperlink)
+            -- HACK: C_Container.UseContainerItem() is supposedly protected,
+            -- but calling it to equip an item seems to be permitted (at
+            -- least as of 11.2.5).  This is a good thing because
+            -- C_Item.EquipItemByName(info.hyperlink) can choose the wrong
+            -- item if multiple copies are in the inventory (even if they
+            -- have different attributes).
+            --[[ C_Item.EquipItemByName(info.hyperlink) ]]--
+            C_Container.UseContainerItem(bag, slot)
         end)
     self.menuitem_equip_ring1 = self:CreateButton("Equip (ring 1)",
         function(bag, slot, info)
