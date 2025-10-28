@@ -6,6 +6,9 @@ local class = WoWXIV.class
 
 local GameTooltip = GameTooltip
 
+local min = math.min
+local tinsert = tinsert
+
 ---------------------------------------------------------------------------
 
 local PlayerChoiceFrameHandler = class(MenuCursor.AddOnMenuFrame)
@@ -116,22 +119,54 @@ function PlayerChoiceFrameHandler:SetTargets(initial_option)
         end
     end
     if #buttons == 0 then return false end -- Ignore frame if no buttons found.
-    local initial_button
-    table.sort(buttons, function(a,b) return a:GetLeft() < b:GetLeft() end)
-    for i, button in ipairs(buttons) do
-        self.targets[button].left = buttons[i==1 and #buttons or i-1]
-        self.targets[button].right = buttons[i==#buttons and 1 or i+1]
-        if rewards[button] then
-            local reward = rewards[button]
-            self.targets[reward].left = rewards[self.targets[button].left]
-            self.targets[reward].right = rewards[self.targets[button].right]
+    -- Extra complexity to deal with the case of two buttons in a single choice
+    -- (e.g. Normal/Heroic World Tier in Remix).
+    local columns = {}
+    local col_x = {}
+    for _, button in ipairs(buttons) do
+        local x, y = button:GetLeft(), button:GetTop()
+        if not columns[x] then
+            tinsert(col_x, x)
+            columns[x] = {}
         end
-        if initial_option and self:ButtonID(button) == initial_option then
-            initial_button = button
+        tinsert(columns[x], {button, y})
+    end
+    table.sort(col_x)
+    for _, x in ipairs(col_x) do
+        local column = columns[x]
+        -- We assume multiple buttons in a choice are bottom-packed and
+        -- sort bottom-first.
+        table.sort(column, function(a,b) return a[2] < b[2] end)
+        for i = 1, #column do
+            column[i] = column[i][1]  -- {button,y} -> button
+        end
+    end
+    local initial_button
+    for ix, x in ipairs(col_x) do
+        local column = columns[x]
+        local left_col = columns[col_x[ix==1 and #col_x or ix-1]]
+        local right_col = columns[col_x[ix==#col_x and 1 or ix+1]]
+        for iy, button in ipairs(column) do
+            self.targets[button].left = left_col[min(iy, #left_col)]
+            self.targets[button].right = right_col[min(iy, #right_col)]
+            if iy > 1 then
+                self.targets[button].down = column[iy-1]
+            end
+            if iy < #column then
+                self.targets[button].up = column[iy+1]
+            end
+            if rewards[button] then
+                local reward = rewards[button]
+                self.targets[reward].left = rewards[self.targets[button].left]
+                self.targets[reward].right = rewards[self.targets[button].right]
+            end
+            if initial_option and self:ButtonID(button) == initial_option then
+                initial_button = button
+            end
         end
     end
 
-    local target = initial_button or buttons[1]
+    local target = initial_button or columns[col_x[1]][#columns[col_x[1]]]
     self.current_option = self:ButtonID(target)
 
     self.has_Button3 = false
