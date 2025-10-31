@@ -4,10 +4,14 @@ local MenuCursor = WoWXIV.Gamepad.MenuCursor
 
 local class = WoWXIV.class
 
+assert(WoWXIV.UI.ContextMenu)  -- Ensure proper load order.
+
 ---------------------------------------------------------------------------
 
 local ObjectiveTrackerFrameHandler = class(MenuCursor.CoreMenuFrame)
 MenuCursor.Cursor.RegisterFrameHandler(ObjectiveTrackerFrameHandler)
+
+local QuestContextMenu = class(WoWXIV.UI.ContextMenu)
 
 function ObjectiveTrackerFrameHandler:__constructor()
     __super(self, ObjectiveTrackerFrame, MenuCursor.MenuFrame.NOAUTOFOCUS)
@@ -23,6 +27,9 @@ function ObjectiveTrackerFrameHandler:__constructor()
                                    CheckContainerFrames)
     EventRegistry:RegisterCallback("ContainerFrame.CloseBag",
                                    CheckContainerFrames)
+
+    self.context_menu = QuestContextMenu()
+    self.context_menu_handler = MenuCursor.ContextMenuHandler(self.context_menu)
 end
 
 local BAGS = WoWXIV.maptn("ContainerFrame%n", 6)
@@ -83,6 +90,13 @@ local function ClickPOIButton(block)
 end
 
 function ObjectiveTrackerFrameHandler:SetTargets(old_target)
+    local function OpenContextMenu(block)
+        -- FIXME: it would be nice if we could reuse the native context menu
+        -- directly (see QuestObjectiveTrackerMixin:OnBlockHeaderClick() in
+        -- Blizzard_QuestObjectiveTracker.lua)
+        self.context_menu:Open(block.HeaderButton, block.id)
+    end
+
     self.targets = {}
     -- Modules are ObjectiveTrackerModuleTemplate instances,
     -- e.g. ScenarioObjectiveTracker.
@@ -106,8 +120,6 @@ function ObjectiveTrackerFrameHandler:SetTargets(old_target)
         local block, module = unpack(entry)
         local params =
             {on_click = ClickHeaderButton, is_default = (i==1),
-             -- FIXME: we need to roll our own because this pops up in the middle of the screen
-             --on_button4 = function(blk) blk:OnHeaderClick("RightButton") end,
              send_enter_leave = true, left = false, right = false,
              up = blocks[i==1 and #blocks or i-1][1],
              down = blocks[i==#blocks and 1 or i+1][1]}
@@ -117,6 +129,7 @@ function ObjectiveTrackerFrameHandler:SetTargets(old_target)
         -- being under the PoI button and a bit confusing).
         if block.poiButton and block.poiButton:IsVisible() then
             params.on_button3 = ClickPOIButton
+            params.on_button4 = OpenContextMenu
             local bx, by, _, bh = block:GetRect()
             local px, py, _, ph = block.poiButton:GetRect()
             by = by + bh/2
@@ -168,4 +181,59 @@ function ObjectiveTrackerFrameHandler:OnAction(button)
     assert(target)
     local handler = self.targets[target]["on_"..button:lower()]
     if handler then handler(target) end
+end
+
+
+function QuestContextMenu:__constructor()
+    __super(self)
+
+    self.menuitem_focus = self:CreateButton(SUPER_TRACK_QUEST,
+        function() C_SuperTrack.SetSuperTrackedQuestID(self.quest_id) end)
+    self.menuitem_unfocus = self:CreateButton(STOP_SUPER_TRACK_QUEST,
+        function() C_SuperTrack.SetSuperTrackedQuestID(0) end)
+
+    self.menuitem_show_details = self:CreateButton(OBJECTIVES_VIEW_IN_QUESTLOG,
+        function() QuestUtil.OpenQuestDetails(self.quest_id) end)
+    self.menuitem_hide_details = self:CreateButton(OBJECTIVES_VIEW_IN_QUESTLOG,
+        function() QuestUtil.OpenQuestDetails(self.quest_id) end)
+
+    self.menuitem_show_map = self:CreateButton(OBJECTIVES_SHOW_QUEST_MAP,
+        function() QuestMapFrame_OpenToQuestDetails(self.quest_id) end)
+
+    self.menuitem_untrack = self:CreateButton(OBJECTIVES_STOP_TRACKING,
+        function() C_QuestLog.RemoveQuestWatch(self.quest_id) end)
+
+    self.menuitem_share = self:CreateButton(SHARE_QUEST,
+        function() QuestUtil.ShareQuest(self.quest_id) end)
+
+    self.menuitem_abandon = self:CreateButton(ABANDON_QUEST_ABBREV,
+        function() QuestMapQuestOptions_AbandonQuest(self.quest_id) end)
+end
+
+function QuestContextMenu:Configure(header, quest_id)
+    self.quest_id = quest_id
+
+    if C_SuperTrack.GetSuperTrackedQuestID() ~= self.quest_id then
+        self:AppendButton(self.menuitem_focus)
+    else
+        self:AppendButton(self.menuitem_unfocus)
+    end
+
+    if QuestUtil.IsShowingQuestDetails(self.quest_id) then
+        self:AppendButton(self.menuitem_show_details)
+    else
+        self:AppendButton(self.menuitem_hide_details)
+    end
+
+    self:AppendButton(self.menuitem_show_map)
+
+    if QuestUtil.CanRemoveQuestWatch() then
+        self:AppendButton(self.menuitem_untrack)
+    end
+
+    if C_QuestLog.IsPushableQuest(self.quest_id) and IsInGroup() then
+        self:AppendButton(self.menuitem_share)
+    end
+
+    self:AppendButton(self.menuitem_abandon)
 end
