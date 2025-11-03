@@ -55,7 +55,7 @@ and other sets:
     s1:intersection(s2)  -- Set containing elements in both s1 and s2
     s1:intersection_update(s2)  -- Remove all elements not in s2 from s1
     s1:symmetric_difference(s2)  -- Set of elements in s1 or s2 but not both
-    s1:symmetric_difference_update(s2)  -- Keep elements in s1 or s2 but not both
+    s1:symmetric_difference_update(s2) --Keep elements in s1 or s2 but not both
     s1:issubset(s2)  -- True if every element in s1 is in s2
     s1:issuperset(s2)  -- True if every element in s2 is in s1
     s1:isequal(s2)  -- True if every element in s1 is in s2 and vice versa
@@ -103,9 +103,9 @@ doesn't provide any other way to test whether two object references
 refer to the same object.
 
 
-All set methods which do not return an explicit value (add, remove,
-discard, clear, and the update methods) return the set instance on which
-they operated, allowing chaining:
+All set methods which do not return an explicit value (specifically:
+add, remove, discard, clear, and the three update methods) return the
+set instance on which they operated, allowing chaining:
 
     s1:update(s2):difference_update(s3)  -- s1 = (s1 + s2) - s3
 
