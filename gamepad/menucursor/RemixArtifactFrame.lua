@@ -17,6 +17,12 @@ function RemixArtifactFrameHandler:__constructor()
     self.has_Button3 = true  -- Used to move the cursor to the commit button.
     self.has_Button4 = true  -- Used to refund a trait.
 
+    -- For handling selection-type trait buttons.
+    hooksecurefunc(self.frame, "ShowSelections",
+                   function(frame,...) self:OnShowSelections(...) end)
+    hooksecurefunc(self.frame, "HideSelections",
+                   function() self:OnHideSelections() end)
+
     -- We receive our first call during the show event, so wait a frame to
     -- let the initial button layout take place.
     EventRegistry:RegisterCallback(
@@ -77,8 +83,55 @@ function RemixArtifactFrameHandler:RefreshTargets()
     self:SetTarget(target)
 end
 
+function RemixArtifactFrameHandler:OnShowSelections(button, options)
+    assert(self.targets[button])
+    local left = self:NextTarget(button, "left")
+    local right = self:NextTarget(button, "right")
+    local children = self.frame.SelectionChoiceFrame.selectionFrameArray
+    assert(children)
+    assert(#children > 0)
+    local function PostClickSelectionButton()
+        self:SetTarget(button)
+    end
+    for i, child in ipairs(children) do
+        self.targets[child] = {selection_parent = button,
+                               can_activate = true, send_enter_leave = true,
+                               on_click = PostClickSelectionButton,
+                               up = false, down = button,
+                               left = children[i==1 and #children or i-1],
+                               right = children[i==#children and 1 or i+1]}
+    end
+    self.targets[button].up = children[1]
+    self.targets[button].left = left
+    self.targets[button].right = right
+    self.targets[button].has_selections = true
+end
+
+function RemixArtifactFrameHandler:OnHideSelections()
+    for target, params in pairs(self.targets) do
+        if params.selection_parent then
+            if self:GetTarget() == target then
+                self:SetTarget(params.selection_parent)
+            end
+            self.targets[target] = nil
+        elseif params.has_selection then
+            self.targets[target].has_selection = false
+            self.targets[target].up = nil
+            self.targets[target].left = nil
+            self.targets[target].right = nil
+        end
+    end
+end
+
 function RemixArtifactFrameHandler:OnMove(old_target, new_target)
     __super(self, old_target, new_target)
+    if old_target and self.targets[old_target].has_selections then
+        if not (new_target
+                and self.targets[new_target].selection_parent == old_target)
+        then
+            old_target:ClearSelections()
+        end
+    end
     self.node_id = new_target and new_target.nodeID
 end
 
