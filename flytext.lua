@@ -551,6 +551,7 @@ local CURRENCY_PAIRS = {
     {3286, 3287},  -- Carved Ethereal Crest
     {3288, 3289},  -- Runed Ethereal Crest
     {3290, 3291},  -- Gilded Ethereal Crest
+    {3252, 3372},  -- Bronze (Legion Remix)
 }
 local CURRENCY_PAIR_MAP = {}
 for _, pair in ipairs(CURRENCY_PAIRS) do
