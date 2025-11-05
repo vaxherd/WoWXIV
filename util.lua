@@ -596,8 +596,9 @@ function WoWXIV.map(func, ...)
     return unpack(WoWXIV.mapt(func, {...}))
 end
 
--- Return a table containing the return value of the given function
--- applied to each element of the input table.
+-- Return a table whose keys are the same as those of the input table and
+-- whose values are the return value of the given function applied to the
+-- corresponding value of the input table.
 function WoWXIV.mapt(func, table)
     local result = {}
     for k, v in pairs(table) do
@@ -606,14 +607,16 @@ function WoWXIV.mapt(func, table)
     return result
 end
 
--- Return a table containing the return value of the given function
--- applied to each integer in the given range.  |range| may be specified
--- one of two ways:
+-- Return a table mapping the integers in the given range to the return
+-- value of the given function applied to each such integer.  |range| may
+-- be specified one of two ways:
 --    maptn(func, start, end)  -- iterates from start to end inclusive
 --    maptn(func, end)         -- equivalent to maptn(func, 1, end)
--- As a special case, if |func| is a string, each entry in the returned
--- table is that string with all occurrences of "%n" replaced by the key.
--- Analogous to the Perl idiom "map {&func($_)} ($start..$end)".
+-- Equivalent to mapt(func, {start, ..., end}).
+--
+-- As a special case, if |func| is a string, each value in the returned
+-- table is that string with all occurrences of "%n" replaced by the
+-- corresponding integer key.
 function WoWXIV.maptn(func, range, ...)
     if type(func) == "string" then
         local s = func
