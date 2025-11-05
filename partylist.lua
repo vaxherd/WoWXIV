@@ -802,6 +802,10 @@ function PartyList:__constructor()
     self.events["UNIT_THREAT_LIST_UPDATE"] = self.OnTargetHateUpdate
     self:RegisterUnitEvent("UNIT_THREAT_LIST_UPDATE", "target")
 
+    -- UNIT_PET is a special case since we have a separate entry for the pet.
+    self.events["UNIT_PET"] = self.OnPlayerPetUpdate
+    self:RegisterUnitEvent("UNIT_PET", "player")
+
     self:SetScript("OnEvent", function(self, event, ...)
         if self.events[event] and self:IsShown() then
             self.events[event](self, ...)
@@ -841,6 +845,10 @@ end
 
 function PartyList:OnMemberUpdateName(unit)
     self:UpdateParty(unit, true)
+end
+
+function PartyList:OnPlayerPetUpdate(unit)
+    self:SetParty()
 end
 
 function PartyList:SetParty(is_retry)
