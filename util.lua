@@ -632,6 +632,28 @@ function WoWXIV.maptn(func, range, ...)
     return result
 end
 
+-- Return a list consisting of all argument lists concatenated together.
+-- All arguments are assumed to be list-style tables, i.e. tables whose
+-- only keys are integers numbered consecutively starting at 1.  The
+-- returned list is always a newly created table instance, even if only
+-- one argument is passed.
+function WoWXIV.lconcat(...)
+    local result = {}
+    local n = 0
+    for i = 1, select("#", ...) do
+        local arg = select(i, ...)
+        for _, elem in ipairs(arg) do
+            n = n+1
+            result[n] = elem
+        end
+    end
+    return result
+end
+
+------------------------------------------------------------------------
+-- Function wrapping operations
+------------------------------------------------------------------------
+
 -- Helper to create an overlay environment table for envcall() or deepcall().
 -- Pass a table of overlay values; the table will be modified as appropriate
 -- for passing as the "env" argument to those functions and returned.  Note

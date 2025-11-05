@@ -712,10 +712,11 @@ end
 
 local PartyList = class(Frame)
 
-local PARTY_UNIT_TOKENS = {"player", "vehicle"}
-for i = 1, 4 do tinsert(PARTY_UNIT_TOKENS, "party"..i) end
-tinsert(PARTY_UNIT_TOKENS, "pet")
-for i = 1, 40 do tinsert(PARTY_UNIT_TOKENS, "raid"..i) end
+local PARTY_UNIT_TOKENS = WoWXIV.lconcat(
+    {"player", "vehicle"},
+    WoWXIV.maptn("party%n", 4),
+    {"pet"},
+    WoWXIV.maptn("raid%n", 40))
 local PARTY_UNIT_ORDER = {}
 for i, token in ipairs(PARTY_UNIT_TOKENS) do
     PARTY_UNIT_ORDER[token] = i

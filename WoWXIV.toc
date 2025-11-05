@@ -11,6 +11,8 @@ WoWXIV.lua
 _class.lua
 _frame.lua
 _set.lua
+util.lua
+
 buffbar.lua
 buffbar.xml
 combat.lua
@@ -25,7 +27,6 @@ map.lua
 partylist.lua
 slashcmd.lua
 targetbar.lua
-util.lua
 
 # Must precede gamepad/ to avoid declaration ordering issues
 # (specifically subclassing of ContextMenu/ItemSubmenu).
