@@ -210,16 +210,17 @@ end
 
 function EquippedItemContextMenu:Configure(slot)
     self.slot = slot
-    local item = GetInventoryItemID("player", slot:GetID())
-    assert(item)
+    local id = GetInventoryItemID("player", slot:GetID())
+    assert(id)
+    local link = GetInventoryItemLink("player", slot:GetID())
 
     self:AppendButton(self.menuitem_unequip)
 
-    if C_Item.GetItemNumSockets(item) > 0 then
+    if C_Item.GetItemNumSockets(link) > 0 then
         self:AppendButton(self.menuitem_expand_sockets)
-    elseif select(3, C_Item.GetItemInfo(item)) == Enum.ItemQuality.Artifact then
+    elseif select(3, C_Item.GetItemInfo(link)) == Enum.ItemQuality.Artifact then
         self:AppendButton(self.menuitem_expand_artifact)
-    elseif C_AzeriteEmpoweredItem.IsAzeriteEmpoweredItemByID(item) then
+    elseif C_AzeriteEmpoweredItem.IsAzeriteEmpoweredItemByID(id) then
         self:AppendButton(self.menuitem_expand_azerite)
     else
         local heart_loc = C_AzeriteItem.FindActiveAzeriteItem()

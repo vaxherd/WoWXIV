@@ -1032,7 +1032,7 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
         end
     end
 
-    if C_Item.GetItemNumSockets(info.itemID) > 0 then
+    if C_Item.GetItemNumSockets(info.hyperlink) > 0 then
         self:AppendButton(self.menuitem_expand_sockets)
     elseif info.quality == Enum.ItemQuality.Artifact then
         self:AppendButton(self.menuitem_expand_artifact)
