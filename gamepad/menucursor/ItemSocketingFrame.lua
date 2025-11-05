@@ -16,40 +16,42 @@ function ItemSocketingFrameHandler:__constructor()
 end
 
 function ItemSocketingFrameHandler:SetTargets()
-    local f = self.frame
+    local f = self.frame.SocketingContainer
+    local sockets = WoWXIV.maptn(function(i) return f["Socket"..i] end, 3)
     self.targets = {
-        [f.Sockets[1]] =
+        [sockets[1]] =
             {can_activate = true,  -- Gem removal is a protected function.
              lock_highlight = true, is_default = true,
-             up = ItemSocketingSocketButton, down = ItemSocketingSocketButton,
-             left = f.Sockets[1], right = f.Sockets[1]},
-        [ItemSocketingSocketButton] =  -- the "Apply" button
+             up = f.ApplySocketsButton, down = f.ApplySocketsButton,
+             left = sockets[1], right = sockets[1]},
+        [f.ApplySocketsButton] =  -- the "Apply" button
             {can_activate = true, lock_highlight = true,
-             up = f.Sockets[1], down = f.Sockets[1],
+             up = sockets[1], down = sockets[1],
              left = false, right = false}
     }
     for i = 2, 3 do
-        socket = f.Sockets[i]
+        socket = sockets[i]
         if socket:IsShown() then
             self.targets[socket] =
                 {can_activate = true, lock_highlight = true,
-                 up = ItemSocketingSocketButton,
-                 down = ItemSocketingSocketButton,
-                 left = f.Sockets[i-1], right = f.Sockets[1]}
-            self.targets[f.Sockets[1]].left = socket
-            self.targets[f.Sockets[i-1]].right = socket
-            self.targets[ItemSocketingSocketButton].up = socket
-            self.targets[ItemSocketingSocketButton].down = socket
+                 up = f.ApplySocketsButton,
+                 down = f.ApplySocketsButton,
+                 left = sockets[i-1], right = sockets[1]}
+            self.targets[sockets[1]].left = socket
+            self.targets[sockets[i-1]].right = socket
+            self.targets[f.ApplySocketsButton].up = socket
+            self.targets[f.ApplySocketsButton].down = socket
         end
     end
 end
 
 function ItemSocketingFrameHandler:OnMove(old_target, new_target)
+    local f = self.frame.SocketingContainer
     for i = 1, 3 do
-        local socket = self.frame.Sockets[i]
+        local socket = f["Socket"..i]
         if new_target == socket then
-            self.targets[ItemSocketingSocketButton].up = socket
-            self.targets[ItemSocketingSocketButton].down = socket
+            self.targets[f.ApplySocketsButton].up = socket
+            self.targets[f.ApplySocketsButton].down = socket
             return
         end
     end
