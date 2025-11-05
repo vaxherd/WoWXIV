@@ -43,6 +43,10 @@ function MerchantFrameHandler:__constructor()
         self:HookShow(frame, self.OnShowItemButton,
                              self.OnHideItemButton)
     end
+    MerchantPrevPageButton:HookScript("OnClick",
+                                      function() self:OnPageChange() end)
+    MerchantNextPageButton:HookScript("OnClick",
+                                      function() self:OnPageChange() end)
 end
 
 function MerchantFrameHandler:OnShow()
@@ -135,13 +139,17 @@ end
 function MerchantFrameHandler:OnTabChange()
     local have_sell_junk = (self.targets[MerchantSellAllJunkButton] ~= nil)
     if have_sell_junk ~= MerchantSellAllJunkButton:IsShown() then
-        self:SetTarget(nil)
-        self:UpdateTargets()
-        self:UpdateMovement()
-        -- OnHideItemButton() ensures we always have a target at position 1.
-        assert(self.targets[MerchantItem1ItemButton])
-        self:SetTarget(MerchantItem1ItemButton)
+        self:OnPageChange()
     end
+end
+
+function MerchantFrameHandler:OnPageChange()
+    self:SetTarget(nil)
+    self:UpdateTargets()
+    self:UpdateMovement()
+    -- OnHideItemButton() ensures we always have a target at position 1.
+    assert(self.targets[MerchantItem1ItemButton])
+    self:SetTarget(MerchantItem1ItemButton)
 end
 
 local function OnEnterItemButton(button)
