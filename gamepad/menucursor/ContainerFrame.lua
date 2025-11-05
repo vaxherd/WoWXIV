@@ -847,6 +847,41 @@ end
 -- Item context menu implementation
 ---------------------------------------------------------------------------
 
+-- Helper function and data for equipping items.
+local function DoEquip(bag, bag_slot, equip_loc)
+    ClearCursor()
+    assert(not GetCursorInfo())
+    C_Container.PickupContainerItem(bag, bag_slot)
+    assert(GetCursorInfo() == "item")
+    PickupInventoryItem(equip_loc)
+    ClearCursor()
+end
+local invtype_loc_map = {
+    INVTYPE_HEAD = INVSLOT_HEAD,
+    INVTYPE_NECK = INVSLOT_NECK,
+    INVTYPE_SHOULDER = INVSLOT_SHOULDER,
+    INVTYPE_CLOAK = INVSLOT_BACK,
+    INVTYPE_CHEST = INVSLOT_CHEST,
+    INVTYPE_ROBE = INVSLOT_CHEST,
+    INVTYPE_BODY = INVSLOT_BODY,  -- i.e. shirt
+    INVTYPE_TABARD = INVSLOT_TABARD,
+    INVTYPE_WRIST = INVSLOT_WRIST,
+    INVTYPE_HAND = INVSLOT_HAND,
+    INVTYPE_WAIST = INVSLOT_WAIST,
+    INVTYPE_LEGS = INVSLOT_LEGS,
+    INVTYPE_FEET = INVSLOT_FEET,
+    INVTYPE_FINGER = INVSLOT_FINGER1,
+    INVTYPE_TRINKET = INVSLOT_TRINKET1,
+    INVTYPE_WEAPON = INVSLOT_MAINHAND,
+    INVTYPE_SHIELD = INVSLOT_OFFHAND,
+    INVTYPE_2HWEAPON = INVSLOT_HEAD,
+    INVTYPE_WEAPONMAINHAND = INVSLOT_MAINHAND,
+    INVTYPE_WEAPONOFFHAND = INVSLOT_OFFHAND,
+    INVTYPE_HOLDABLE = INVSLOT_OFFHAND,
+    INVTYPE_THROWN = INVSLOT_MAINHAND,
+    INVTYPE_RANGED = INVSLOT_MAINHAND,
+}
+
 function InventoryItemSubmenu:__constructor()
     __super(self)
 
@@ -861,30 +896,48 @@ function InventoryItemSubmenu:__constructor()
 
     self.menuitem_equip = self:CreateButton("Equip",
         function(bag, slot, info)
-            -- HACK: C_Container.UseContainerItem() is supposedly protected,
-            -- but calling it to equip an item seems to be permitted (at
-            -- least as of 11.2.5).  This is a good thing because
-            -- C_Item.EquipItemByName(info.hyperlink) can choose the wrong
-            -- item if multiple copies are in the inventory (even if they
-            -- have different attributes).
-            --[[ C_Item.EquipItemByName(info.hyperlink) ]]--
-            C_Container.UseContainerItem(bag, slot)
+            -- We have two options for directly (i.e., without using cursor
+            -- actions) equipping an item: C_Item.EquipItemByName() and
+            -- C_Container.UseContainerItem().  The former can choose the
+            -- wrong item if multiple copies of the same item are owned
+            -- (even if we pass a hyperlink and all copies of the item have
+            -- different attributes); the latter is nominally protected,
+            -- and while we can in fact successfully call it to equip an
+            -- item (at least in 11.2.5), "use" has a different meaning
+            -- depending on game context (for example, when at a merchant
+            -- it sells the item).  Neither of these is ideal, so we just
+            -- make do with the somewhat more verbose and potentially
+            -- desyncable cursor method - except for profession tools,
+            -- for which it's not worth the effort to find the proper slot
+            -- (and ambiguity seems unlikely to come up anyway - it's
+            -- mostly an issue with things like Remix where you get gear
+            -- items out the wazoo).
+            local equip_type = select(9, C_Item.GetItemInfo(info.itemID))
+            assert(equip_type and strsub(equip_type,1,8) == "INVTYPE_")
+            assert(equip_type ~= "INVTYPE_NON_EQUIP_IGNORE")
+            local equip_loc = invtype_loc_map[equip_type]
+            if equip_loc then
+                DoEquip(bag, slot, equip_loc)
+            else
+                C_Item.EquipItemByName(info.hyperlink)
+            end
         end)
     self.menuitem_equip_ring1 = self:CreateButton("Equip (ring 1)",
         function(bag, slot, info)
-            C_Item.EquipItemByName(info.hyperlink, INVSLOT_FINGER1)
+            -- See above for why we don't use EquipItemByName().
+            DoEquip(bag, slot, INVSLOT_FINGER1)
         end)
     self.menuitem_equip_ring2 = self:CreateButton("Equip (ring 2)",
         function(bag, slot, info)
-            C_Item.EquipItemByName(info.hyperlink, INVSLOT_FINGER2)
+            DoEquip(bag, slot, INVSLOT_FINGER2)
         end)
     self.menuitem_equip_trinket1 = self:CreateButton("Equip (trinket 1)",
         function(bag, slot, info)
-            C_Item.EquipItemByName(info.hyperlink, INVSLOT_TRINKET1)
+            DoEquip(bag, slot, INVSLOT_TRINKET1)
         end)
     self.menuitem_equip_trinket2 = self:CreateButton("Equip (trinket 2)",
         function(bag, slot, info)
-            C_Item.EquipItemByName(info.hyperlink, INVSLOT_TRINKET2)
+            DoEquip(bag, slot, INVSLOT_TRINKET2)
         end)
 
     self.menuitem_expand_sockets = self:CreateButton("View sockets",
