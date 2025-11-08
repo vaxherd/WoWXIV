@@ -2,6 +2,7 @@ local _, WoWXIV = ...
 WoWXIV.FlyText = {}
 
 local class = WoWXIV.class
+local list = WoWXIV.list
 local set = WoWXIV.set
 local Frame = WoWXIV.Frame
 
@@ -317,7 +318,7 @@ local FlyTextManager = class()
 
 function FlyTextManager:__constructor(parent)
     self.enabled = true
-    self.texts = {}
+    self.texts = list()
     self.dot = {}
     self.hot = {}
     self.last_left = 0
@@ -534,7 +535,7 @@ function FlyTextManager:OnLootItem(event, msg)
 end
 
 -- For duplicate currency event check, see below.
-local CURRENCY_PAIRS = {
+local CURRENCY_PAIRS = list(
     {2805, 2806},  -- Whelpling's Awakened Crest
     {2807, 2808},  -- Drake's Awakened Crest
     {2810, 2809},  -- Wyrm's Awakened Crest
@@ -551,10 +552,10 @@ local CURRENCY_PAIRS = {
     {3286, 3287},  -- Carved Ethereal Crest
     {3288, 3289},  -- Runed Ethereal Crest
     {3290, 3291},  -- Gilded Ethereal Crest
-    {3252, 3372},  -- Bronze (Legion Remix)
-}
+    {3252, 3372}   -- Bronze (Legion Remix)
+)
 local CURRENCY_PAIR_MAP = {}
-for _, pair in ipairs(CURRENCY_PAIRS) do
+for pair in CURRENCY_PAIRS do
     CURRENCY_PAIR_MAP[pair[1]] = pair[2]
     CURRENCY_PAIR_MAP[pair[2]] = pair[1]
 end
@@ -650,11 +651,11 @@ function FlyTextManager:AddText(text, left_side)
     local min_offset = 16
     if dt*dy < min_offset then
         local time_offset = (min_offset - dt*dy) / dy
-        for _, t in ipairs(self.texts) do
+        for t in self.texts do
             t:Push(time_offset)
         end
     end
-    tinsert(self.texts, text)
+    self.texts:append(text)
 end
 
 function FlyTextManager:OnUpdate()
@@ -676,7 +677,7 @@ function FlyTextManager:OnUpdate()
     if self.hot then
         for unit, amount in pairs(self.hot) do
             text = FlyText(FLYTEXT_HEAL_PASSIVE, unit, amount)
-            tinsert(self.texts, text)
+            self.texts:append(text)
         end
         self.hot = nil
     end
@@ -687,7 +688,7 @@ function FlyTextManager:OnUpdate()
         if texts[i]:OnUpdate() then
             i = i + 1
         else
-            tremove(texts, i)
+            texts:pop(i)
         end
     end
 end

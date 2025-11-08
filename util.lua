@@ -1,6 +1,7 @@
 local _, WoWXIV = ...
 
 local class = WoWXIV.class
+local list = WoWXIV.list
 local set = WoWXIV.set
 
 local floor = math.floor
@@ -635,24 +636,6 @@ function WoWXIV.maptn(func, range, ...)
     return result
 end
 
--- Return a list consisting of all argument lists concatenated together.
--- All arguments are assumed to be list-style tables, i.e. tables whose
--- only keys are integers numbered consecutively starting at 1.  The
--- returned list is always a newly created table instance, even if only
--- one argument is passed.
-function WoWXIV.lconcat(...)
-    local result = {}
-    local n = 0
-    for i = 1, select("#", ...) do
-        local arg = select(i, ...)
-        for _, elem in ipairs(arg) do
-            n = n+1
-            result[n] = elem
-        end
-    end
-    return result
-end
-
 ------------------------------------------------------------------------
 -- Function wrapping operations
 ------------------------------------------------------------------------
@@ -671,13 +654,13 @@ function WoWXIV.makefenv(env)
     -- See:
     --     https://github.com/Stanzilla/WoWUIBugs/issues/589
     --     https://github.com/WeakAuras/WeakAuras2/pull/5221
-    for _, name in ipairs(makefenv_hack_names) do
+    for name in makefenv_hack_names do
         env[name] = _G[name]
     end
     return setmetatable(env, {__index = _G, __newindex = _G})
 end
 -- NOTE: Make sure _frame.lua is kept in sync with this list!
-makefenv_hack_names = {
+makefenv_hack_names = list(
     "ColorMixin",
     "ItemLocationMixin",
     "ItemTransmogInfoMixin",
@@ -685,8 +668,8 @@ makefenv_hack_names = {
     "TransmogLocationMixin",
     "TransmogPendingInfoMixin",
     "Vector2DMixin",
-    "Vector3DMixin",
-}
+    "Vector3DMixin"
+)
 
 -- Call a function with a specified environment, restoring the function's
 -- original environment afterward.  Only the first return value (if any)

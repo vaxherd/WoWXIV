@@ -3,6 +3,7 @@ WoWXIV.Gamepad = WoWXIV.Gamepad or {}
 local Gamepad = WoWXIV.Gamepad
 
 local class = WoWXIV.class
+local list = WoWXIV.list
 local Button = WoWXIV.Button
 local Frame = WoWXIV.Frame
 
@@ -129,7 +130,7 @@ function CommandMenuColumn:__constructor(parent, title)
     highlight_tex:SetAlpha(0.4)
     highlight:Hide()
 
-    self.items = {}
+    self.items = list()
     self.default_item = 1
     self.position = 1
     self:Close()
@@ -154,7 +155,7 @@ function CommandMenuColumn:AddItem(name, help, func, is_default)
 end
 
 function CommandMenuColumn:SetItemEnabled(name, enabled, disabled_reason)
-    for _, item in ipairs(self.items) do
+    for item in self.items do
         if item.name == name then
             item.button:SetEnabled(enabled)
             item.help_suffix = not enabled and disabled_reason or nil
@@ -165,7 +166,7 @@ function CommandMenuColumn:SetItemEnabled(name, enabled, disabled_reason)
 end
 
 function CommandMenuColumn:IsItemEnabled(name)
-    for _, item in ipairs(self.items) do
+    for item in self.items do
         if item.name == name then
             return item.button:IsEnabled()
         end
@@ -174,7 +175,7 @@ function CommandMenuColumn:IsItemEnabled(name)
 end
 
 function CommandMenuColumn:SetItemSecureAction(name, action)
-    for _, item in ipairs(self.items) do
+    for item in self.items do
         if item.name == name then
             item.secure_action = action
             return
@@ -319,7 +320,7 @@ function CommandMenuColumn:OnUpdate()
         self.menu:ClearAllPoints()
         self.menu:SetPoint("TOPLEFT", self.highlight, "TOPLEFT",
                            0, self.menu_offset)
-        for _, item in ipairs(self.items) do
+        for item in self.items do
             local above = max(item.button:GetTop() - self.highlight:GetTop(), 0)
             item.button:SetAlpha(1 - 0.6 * min(above/40, 1))
         end
@@ -569,14 +570,14 @@ function CommandMenu:__constructor()
     WoWXIV.SetUITexture(background, 252, 256, 64, 112)
     background:SetTextureSliceMargins(1, 16, 1, 16)
 
-    local columns = {CharacterColumn(self),
-                     ContentColumn(self),
-                     CollectionsColumn(self),
-                     CommunicationColumn(self),
-                     SystemColumn(self)}
+    local columns = list(CharacterColumn(self),
+                         ContentColumn(self),
+                         CollectionsColumn(self),
+                         CommunicationColumn(self),
+                         SystemColumn(self))
     self.columns = columns
     local title_width = 0
-    for _, column in ipairs(columns) do
+    for column in columns do
         local width = column:GetTitleWidth()
         title_width = max(title_width, width)
     end
@@ -628,7 +629,7 @@ function CommandMenu:OnHide()
     self:UpdateBindings(false)
     self:SetScript("OnUpdate", nil)
     self.brm:StopRepeat()
-    for _, column in ipairs(self.columns) do
+    for column in self.columns do
         column:Close()
     end
 end

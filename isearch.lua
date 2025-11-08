@@ -1,6 +1,7 @@
 local module_name, WoWXIV = ...
 
 local class = WoWXIV.class
+local list = WoWXIV.list
 local strfind = string.find
 local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 local tinsert = tinsert
@@ -183,7 +184,7 @@ end
 local function BAGDEF(getter, cache_id, in_combined)
     return {getter = getter, cache_id = cache_id, in_combined = in_combined}
 end
-local BAGS = {
+local BAGS = list(
     BAGDEF(BagGetter(Enum.BagIndex.Backpack, "Backpack", false), nil, true),
     BAGDEF(BagGetter(Enum.BagIndex.Bag_1, "Bag 1", true), nil, true),
     BAGDEF(BagGetter(Enum.BagIndex.Bag_2, "Bag 2", true), nil, true),
@@ -200,15 +201,15 @@ local BAGS = {
     BAGDEF(BankTabGetter(Enum.BankType.Account, 2, "Warband Bank Tab 2"), "warbank2"),
     BAGDEF(BankTabGetter(Enum.BankType.Account, 3, "Warband Bank Tab 3"), "warbank3"),
     BAGDEF(BankTabGetter(Enum.BankType.Account, 4, "Warband Bank Tab 4"), "warbank4"),
-    BAGDEF(BankTabGetter(Enum.BankType.Account, 5, "Warband Bank Tab 5"), "warbank5"),
-}
+    BAGDEF(BankTabGetter(Enum.BankType.Account, 5, "Warband Bank Tab 5"), "warbank5")
+)
 
 -- For equipment, names are available as global constants, but again they
 -- don't provide a way to distinguish between multiple slots of the same type.
 local function EQUIPDEF(id, name)
     return {id = id, name = name}
 end
-local EQUIPS = {
+local EQUIPS = list(
     EQUIPDEF("HEADSLOT", "Head"),
     EQUIPDEF("NECKSLOT", "Neck"),
     EQUIPDEF("SHOULDERSLOT", "Shoulders"),
@@ -237,8 +238,8 @@ local EQUIPS = {
     EQUIPDEF("COOKINGGEAR0SLOT", "Cooking Accessory"),
     EQUIPDEF("FISHINGTOOLSLOT", "Fishing Rod"),
     EQUIPDEF("FISHINGGEAR0SLOT", "Fishing Accessory 1"),
-    EQUIPDEF("FISHINGGEAR1SLOT", "Fishing Accessory 2"),
-}
+    EQUIPDEF("FISHINGGEAR1SLOT", "Fishing Accessory 2")
+)
 
 local function NameIsMatch(name, search_key)
     return name and strstr(name:lower(), search_key)
@@ -296,7 +297,7 @@ end
 
 isearch_event_frame:RegisterEvent("BAG_UPDATE")
 function isearch_event_frame:BAG_UPDATE(bag_id)
-    for _, bag in ipairs(BAGS) do
+    for bag in BAGS do
         local cache_id = bag.cache_id
         if cache_id and bag.getter:BagID() == bag_id then
             local bag_name, size, content = bag.getter:Get()
@@ -328,7 +329,7 @@ end
 isearch_event_frame:RegisterEvent("BANKFRAME_OPENED")
 function isearch_event_frame:BANKFRAME_OPENED()
     self.bankframe_open = true
-    for _, bag in ipairs(BAGS) do
+    for bag in BAGS do
         local cache_id = bag.cache_id
         if cache_id and strstr(cache_id, "bank") then
             local bag_name, size, content = bag.getter:Get()
@@ -362,9 +363,10 @@ function isearch_event_frame:ADDON_LOADED(name)
     if name == module_name then
         if WoWXIV_isearch_cache.bank0 then
             -- Delete cache data from pre-11.2.0 bank bags and void storage.
-            local tags = {"bank0", "bank1", "bank2", "bank3", "bank4", "bank5",
-                          "bank6", "bank7", "bankR", "void1", "void2"}
-            for _, tag in ipairs(tags) do
+            local tags = list("bank0", "bank1", "bank2", "bank3", "bank4",
+                              "bank5", "bank6", "bank7", "bankR", "void1",
+                              "void2")
+            for tag in tags do
                 WoWXIV_isearch_cache[tag] = nil
                 WoWXIV_isearch_cache[tag.."_name"] = nil
                 WoWXIV_isearch_cache[tag.."_size"] = nil
@@ -386,7 +388,7 @@ function WoWXIV.isearch(arg)
     print("Searching for " .. Yellow(arg))
     search_key = arg:lower()
 
-    local results = {}
+    local results = list()
     local used_cache = false
 
     if is_combined_bags then
@@ -419,12 +421,12 @@ function WoWXIV.isearch(arg)
         if next(found_slots, nil) then
             for item, slots in pairs(found_slots) do
                 local s = SlotsString(slots)
-                tinsert(results, {item, " found in " .. Blue("Combined Backpack" .. s)})
+                results:append({item, " found in " .. Blue("Combined Backpack" .. s)})
             end
         end
     end
 
-    for _, bag in ipairs(BAGS) do
+    for bag in BAGS do
         if not (is_combined_bags and bag.in_combined) then
             local bag_name, size, content = bag.getter:Get()
             local cache_id = bag.cache_id
@@ -475,13 +477,13 @@ function WoWXIV.isearch(arg)
             if next(found_slots, nil) then
                 for item, slots in pairs(found_slots) do
                     local s = SlotsString(slots)
-                    tinsert(results, {item, " found in " .. Blue(bag_name .. s)})
+                    results:append({item, " found in " .. Blue(bag_name .. s)})
                 end
             end
         end
     end
 
-    for _, slot in ipairs(EQUIPS) do
+    for slot in EQUIPS do
         local slot_info = GetInventorySlotInfo(slot.id)
         assert(slot_info)
         local loc = ItemLocation:CreateFromEquipmentSlot(slot_info)
@@ -489,7 +491,7 @@ function WoWXIV.isearch(arg)
             local name = C_Item.GetItemName(loc)
             if NameIsMatch(name, search_key) then
                 local link = C_Item.GetItemLink(loc)
-                tinsert(results, {link, " equipped on " .. Blue(slot.name)})
+                results:append({link, " equipped on " .. Blue(slot.name)})
             end
         end
     end
@@ -500,9 +502,11 @@ function WoWXIV.isearch(arg)
         for i, v in ipairs(results) do
             tinsert(v, i)
         end
-        table.sort(results, function(a,b) return a[1] < b[1] or (a[1] == b[1] and a[#a] < b[#b]) end)
+        results:sort(function(a,b)
+                         return a[1] < b[1] or (a[1] == b[1] and a[#a] < b[#b])
+        end)
         local count = 0
-        for _, result in ipairs(results) do
+        for result in results do
             if count >= MAX_RESULTS then
                 print(Red("More than "..MAX_RESULTS.." results, stopping here."))
                 break

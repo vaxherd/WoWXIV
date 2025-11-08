@@ -2,6 +2,7 @@ local _, WoWXIV = ...
 WoWXIV.HateList = {}
 
 local class = WoWXIV.class
+local list = WoWXIV.list
 local Frame = WoWXIV.Frame
 
 local CLM = WoWXIV.CombatLogManager
@@ -153,9 +154,9 @@ function HateList:__allocator()
 end
 
 function HateList:__constructor()
-    self.enemies = {}  -- 1 per enemy slot (all precreated)
-    self.guids = {}    -- Mapping from enemy GUID to enemies[] slot
-    self.unit_not_seen = {}  -- Safety net, see OnPeriodicUpdate()
+    self.enemies = list()        -- 1 per enemy slot (all precreated)
+    self.guids = {}              -- Mapping from enemy GUID to enemies[] slot
+    self.unit_not_seen = list()  -- Safety net, see OnPeriodicUpdate()
 
     self.base_y = -(UIParent:GetHeight()/2) -- May be pushed down by party list
 
@@ -182,8 +183,8 @@ function HateList:__constructor()
 
     for i = 1, 8 do
         local y = -2-27*(i-1)
-        tinsert(self.enemies, Enemy(self, y))
-        tinsert(self.unit_not_seen, 0)
+        self.enemies:append(Enemy(self, y))
+        self.unit_not_seen:append(0)
     end
 
     C_Timer.After(1, function() self:OnPeriodicUpdate() end)
@@ -218,7 +219,7 @@ function HateList:Refresh(rescan)
         self.guids = {}
         self:InternalRefresh(1)
     else
-        for _, enemy in ipairs(self.enemies) do
+        for enemy in self.enemies do
             if enemy:UnitGUID() then
                 enemy:Update(enemy:UnitName())
             end
@@ -255,7 +256,7 @@ function HateList:OnEvent(event, unit)
     if event == "PLAYER_REGEN_ENABLED" then
         -- If we left combat, then by definition we have no aggro.
         assert(not InCombatLockdown())
-        for _, enemy in ipairs(self.enemies) do
+        for enemy in self.enemies do
             enemy:SetUnit(nil)
         end
         self:ResizeFrame(0)

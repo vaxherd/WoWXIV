@@ -2,6 +2,7 @@ local _, WoWXIV = ...
 WoWXIV.PartyList = {}
 
 local class = WoWXIV.class
+local list = WoWXIV.list
 local Button = WoWXIV.Button
 local Frame = WoWXIV.Frame
 
@@ -691,7 +692,7 @@ function PartyCursor:SetPartyList(party_list)
     local cur_unit = f:GetAttribute("cur_unit")
     local have_cur_unit = false
     local unitlist = ""
-    for _, member in ipairs(party_list) do
+    for member in party_list do
         local unit = member:GetUnit()
         unitlist = unitlist .. unit .. " "
         f:SetFrameRef("frame_"..unit, member:GetFrame())
@@ -712,11 +713,10 @@ end
 
 local PartyList = class(Frame)
 
-local PARTY_UNIT_TOKENS = WoWXIV.lconcat(
-    {"player", "vehicle"},
-    WoWXIV.maptn("party%n", 4),
-    {"pet"},
-    WoWXIV.maptn("raid%n", 40))
+local PARTY_UNIT_TOKENS = (list("player", "vehicle") +
+                           WoWXIV.maptn("party%n", 4) +
+                           {"pet"} + 
+                           WoWXIV.maptn("raid%n", 40))
 local PARTY_UNIT_ORDER = {}
 for i, token in ipairs(PARTY_UNIT_TOKENS) do
     PARTY_UNIT_ORDER[token] = i
@@ -763,7 +763,7 @@ function PartyList:__constructor()
     bg2_b:SetVertexColor(0, 0, 0, 1)
     bg2_b:Hide()
 
-    for _, unit in ipairs(PARTY_UNIT_TOKENS) do
+    for unit in PARTY_UNIT_TOKENS do
         self.party[unit] = Member(self, unit)
     end
 
@@ -898,8 +898,8 @@ function PartyList:SetParty(is_retry)
         narrow = false
     end
 
-    local party_order = {}
-    for _, unit in ipairs(PARTY_UNIT_TOKENS) do
+    local party_order = list()
+    for unit in PARTY_UNIT_TOKENS do
         local member = self.party[unit]
         assert(member)
         local id = UnitGUID(unit)
@@ -923,9 +923,9 @@ function PartyList:SetParty(is_retry)
             end
         end
         if id then
-            tinsert(party_order,
-                    {member, unit=="player" and -2 or
-                             unit=="vehicle" and -1 or member:GetRole()})
+            party_order:append(
+                {member, unit=="player" and -2 or
+                         unit=="vehicle" and -1 or member:GetRole()})
         else
             member:Hide()
         end
@@ -934,10 +934,10 @@ function PartyList:SetParty(is_retry)
     local do_sort = WoWXIV_config["partylist_sort"]
     local do_bindkeys = do_sort and WoWXIV_config["partylist_fn_override"]
     if do_sort then
-        table.sort(party_order, function(a,b) return a[2] < b[2] end)
+        party_order:sort(function(a,b) return a[2] < b[2] end)
     end
 
-    local cursor_list = {}
+    local cursor_list = list()
     local col_width = narrow and 228 or 256
     local row_height = Member.HEIGHT
     local col_spacing = col_width + (narrow and 0 or 8)
@@ -945,7 +945,7 @@ function PartyList:SetParty(is_retry)
     local x0, y0 = 0, -4
     local row, col, ncols = 0, 0, 0
     local index = 1
-    for _, v in ipairs(party_order) do
+    for v in party_order do
         local member = v[1]
         member:SetBinding(do_bindkeys, index)
         local x = x0 + col*(col_spacing)
@@ -965,7 +965,7 @@ function PartyList:SetParty(is_retry)
             row = 0
         end
         if unit ~= "vehicle" then
-            tinsert(cursor_list, member)
+            cursor_list:append(member)
             index = index + 1
         end
     end

@@ -3,6 +3,7 @@ WoWXIV.UI = WoWXIV.UI or {}
 local UI = WoWXIV.UI
 
 local class = WoWXIV.class
+local list = WoWXIV.list
 local Button = WoWXIV.Button
 local Frame = WoWXIV.Frame
 
@@ -18,9 +19,9 @@ function ContextMenu:__allocator()
 end
 
 function ContextMenu:__constructor()
-    self.MIN_EDGE = 4  -- Don't get closer than this to the screen edge.
-    self.SPACING = 1   -- Vertical spacing between buttons.
-    self.buttons = {}  -- List of buttons currently shown in the layout.
+    self.MIN_EDGE = 4      -- Don't get closer than this to the screen edge.
+    self.SPACING = 1       -- Vertical spacing between buttons.
+    self.buttons = list()  -- List of buttons currently shown in the layout.
 
     self:Hide()
     self:SetFrameStrata("DIALOG")
@@ -72,10 +73,10 @@ function ContextMenu:Close()
 end
 
 function ContextMenu:OnHide()
-    for _, button in ipairs(self.buttons) do
+    for button in self.buttons do
         button:Hide()
     end
-    self.buttons = {}
+    self.buttons:clear()
     self.bag, self.slot = nil, nil
 end
 
@@ -83,7 +84,7 @@ function ContextMenu:ClearLayout()
     self.layout_prev = nil
     self.layout_width = 64  -- Set a sensible minimum width.
     self.layout_height = 0
-    self.buttons = {}
+    self.buttons:clear()
 end
 
 function ContextMenu:AppendLayout(element)
@@ -106,7 +107,7 @@ end
 
 function ContextMenu:AppendButton(button)
     self:AppendLayout(button)
-    tinsert(self.buttons, button)
+    self.buttons:append(button)
     button:Show()
 end
 

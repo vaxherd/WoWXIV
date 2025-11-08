@@ -2,6 +2,7 @@ local _, WoWXIV = ...
 WoWXIV.Config = {}
 
 local class = WoWXIV.class
+local list = WoWXIV.list
 
 local floor = math.floor
 local function round(x) return math.floor(x+0.5) end
@@ -165,7 +166,7 @@ function CPCheckButton:__constructor(panel, x, y, text, setting_or_state,
     end
     self.on_change = on_change
     self.depends_on = depends_on
-    self.dependents = {}
+    self.dependents = list()
 
     local indent = depends_on and 1 or 0
     local button = CreateFrame("CheckButton", nil, panel.frame,
@@ -187,7 +188,7 @@ function CPCheckButton:GetSpacing()
 end
 
 function CPCheckButton:AddDependent(dependent)
-    tinsert(self.dependents, dependent)
+    self.dependents:append(dependent)
 end
 
 function CPCheckButton:SetSensitive(sensitive) -- SetEnable() plus color change
@@ -209,7 +210,7 @@ function CPCheckButton:OnClick()
     -- This is called _after_ the UIButton state has been toggled, so we
     -- only need to perform appropriate updates.
     local checked = self.button:GetChecked()
-    for _, dep in ipairs(self.dependents) do
+    for _dep in self.dependents do
         dep:SetSensitive(checked)
     end
     if self.setting then
@@ -267,7 +268,6 @@ function CPRadioButton:__constructor(panel, x, y, text, group, value)
 
     self.on_change = on_change
     self.depends_on = depends_on
-    self.dependents = {}
 
     local button = CreateFrame("CheckButton", nil, panel.frame,
                                "UIRadioButtonTemplate")
@@ -395,7 +395,7 @@ function CPGamepadBinding:Activate()
                             self:OnGamePadButtonUp(...)
                         end)
     self.frame:SetScript("OnKeyUp", function(_,...) self:OnKeyUp(...) end)
-    self.buttons_down = {}
+    self.buttons_down = list()
     self.new_binding = ""
     self.button_text:SetTextColor(WHITE_FONT_COLOR:GetRGB())
     self.button_text:SetText("Waiting...")
@@ -422,10 +422,10 @@ function CPGamepadBinding:OnGamePadButtonDown(button)
     -- We only accept the first (possibly modified) button, but we track
     -- all pressed buttons and only release the input lock once all
     -- buttons have been released.
-    for _,b in ipairs(self.buttons_down) do
+    for b in self.buttons_down do
         assert(b ~= button)
     end
-    tinsert(self.buttons_down, button)
+    self.buttons_down:append(button)
     if #self.buttons_down == 1 then
         local modifiers = ""
         if IsAltKeyDown() then modifiers = modifiers .. "ALT-" end
@@ -442,15 +442,7 @@ function CPGamepadBinding:OnGamePadButtonDown(button)
 end
 
 function CPGamepadBinding:OnGamePadButtonUp(button)
-    local found = false
-    for i,b in ipairs(self.buttons_down) do
-        if b == button then
-            tremove(self.buttons_down, i)
-            found = true
-            break
-        end
-    end
-    assert(found)
+    self.buttons_down:remove(button)
     if #self.buttons_down == 0 and self.new_binding ~= "" then
         self:Deactivate()
         self:SetBinding(self.new_binding)

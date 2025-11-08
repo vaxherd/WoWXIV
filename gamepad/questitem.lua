@@ -5,6 +5,7 @@ local Gamepad = WoWXIV.Gamepad
 assert(Gamepad.GamepadBoundButton)  -- Ensure proper load order.
 
 local class = WoWXIV.class
+local list = WoWXIV.list
 
 local GameTooltip = GameTooltip
 local GetItemCount = C_Item.GetItemCount
@@ -352,66 +353,66 @@ local QUEST_ITEM = {
     -- manually.
     [11891] = {
         map = 63,  -- Ashenvale
-        items = {
+        items = list(
             35237,  -- Orb of the Crawler
-            35828,  -- Totemic Beacon
-        }
+            35828   -- Totemic Beacon
+        )
     },
     -- Marasmius daily quest: Go Beyond! [Lonely Matriarch]
     [60188] = {
         map = 1565,  -- Ardenweald
-        items = {
-            178464,  -- Discarded Harp
-        }
+        items = list(
+            178464   -- Discarded Harp
+        )
     },
     -- Ardenweald world quest: Who Devours the Devourers?
     [60609] = {
         map = 1565,  -- Ardenweald
-        items = {
+        items = list(
             180008,       -- Resonating Anima Core
-            {180009, 5},  -- Resonating Anima Mote
-        }
+            {180009, 5}   -- Resonating Anima Mote
+        )
     },
     -- Zereth Mortis world quest: Feed the Annelids
     -- The quest properly switches its item as you progress, but we
     -- add this entry to provide a count requirement for Piece of Goop.
     [64960] = {
         map = 1970,  -- Zereth Mortis
-        items = {
+        items = list(
             187816,       -- Irresistible Goop
-            {187820, 6},  -- Piece of Goop
-        }
+            {187820, 6}   -- Piece of Goop
+        )
     },
     -- Waking Shores sidequest: Rapid Fire Plans
     [66439] = {
         map = 2022,  -- Waking Shores
-        items = {
-            {192545, 8},  -- Primal Flame Fragment
-        }
+        items = list(
+            {192545, 8}  -- Primal Flame Fragment
+        )
     },
     -- Isle of Dorn sidequest: Playing in the Mud
     [78755] = {
         map = 2248,  -- Isle of Dorn
-        items = {
-            211483,  -- Frenzied Sand Globule
+        items = list(
+            211483  -- Frenzied Sand Globule
             -- Could also be 211484, Frenzied Water Globule
-        }
+        )
     },
     -- Ringing Deeps world quest: Special Assignment: Shadows Below
     [81691] = {
         map = 2214,  -- Ringing Deeps
-        items = {
-            {224292, 3},  -- Radiant Fuel Shard
-        }
+        items = list(
+            {224292, 3}  -- Radiant Fuel Shard
+        )
     },
     -- Undermine sidequest: Garbage Day
     [84672] = {
         map = 2346,  -- Undermine
-        items = {
+        items = list(
             229805,  -- Last Week's Undermine Inquirer
             229824,  -- Banana Peel
-            229825,  -- Dented Can of Kaja'Cola
-        }
+            229825   -- Dented Can of Kaja'Cola
+        )
     },
 }
 
@@ -427,19 +428,19 @@ local SPELL_PHASE_DIVING = 1214374
 --    - String "Torghast": any Torghast map
 --    - Function: entry is active when function returns a true value
 local ZONE_ITEM = {
-    ["Torghast"] = {  -- Special case because Torghast has so many maps.
+    ["Torghast"] = list(  -- Special case because Torghast has so many maps.
         168035,  -- Mawrat Harness
         170498,  -- Deadsoul Hound Harness
         170499,  -- Maw Seeker Harness
         170540,  -- Ravenous Anima Cell
-        187186,  -- Orb of Deception
-    },
-    [1970] = {  -- Zereth Mortis
-        187908,  -- Firim's Spare Forge-Tap
-    },
-    [function(map) return map==2371 and HasAura(SPELL_PHASE_DIVING) end] = {
-        247882,  -- Phase Regulator
-    },
+        187186   -- Orb of Deception
+    ),
+    [1970] = list(  -- Zereth Mortis
+        187908   -- Firim's Spare Forge-Tap
+    ),
+    [function(map) return map==2371 and HasAura(SPELL_PHASE_DIVING) end] = list(
+        247882   -- Phase Regulator
+    ),
 }
 
 ------------------------------------------------------------------------
@@ -513,7 +514,7 @@ function QuestItemButton:__constructor()
     -- We could theoretically dissect ZoneAbilityFrame and work out exactly
     -- which events trigger show/hide of the frame, but the frame itself
     -- makes for a convenient proxy.
-    for _, name in ipairs({"Show", "Hide", "SetShown"}) do
+    for name in list("Show", "Hide", "SetShown") do
         hooksecurefunc(ZoneAbilityFrame, name,
                        function() self:UpdateQuestItem(true) end)
     end
@@ -753,7 +754,7 @@ function QuestItemButton:IterateQuestItems(predicate)
             end
         end
         if in_zone then
-            for _, item in ipairs(items) do
+            for item in items do
                 if GetItemCount(item) > 0 then
                     index = index + 1
                     if predicate and predicate(item) then
@@ -767,7 +768,7 @@ function QuestItemButton:IterateQuestItems(predicate)
     for quest, info in pairs(QUEST_ITEM) do
         if C_QuestLog.IsOnQuest(quest) then
             if player_map == info.map then
-                for _, quest_item in ipairs(info.items) do
+                for quest_item in info.items do
                     local amount = 1
                     if type(quest_item) == "table" then
                         quest_item, amount = unpack(quest_item)

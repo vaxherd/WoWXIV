@@ -1,6 +1,7 @@
 local _, WoWXIV = ...
 WoWXIV.SlashCmd = {}
 
+local list = WoWXIV.list
 local set = WoWXIV.set
 
 local tinsert = tinsert
@@ -158,16 +159,16 @@ function(arg)
                 end
             end
         end
-        local list = {}
+        local found = list()
         for key, cmd in pairs(found_keys) do
-            tinsert(list, key)
+            found:append(key)
         end
-        table.sort(list, function(a,b) return found_keys[a] < found_keys[b] end)
-        if #list > 0 then
+        if #found > 0 then
+            found:sort(function(a,b) return found_keys[a] < found_keys[b] end)
             print(("Found %d command%s%s:"):format(
-                      #list, #list==1 and "" or "s",
+                      #found, #found==1 and "" or "s",
                       #arg>0 and " matching "..Yellow(arg) or ""))
-            for _,key in ipairs(list) do
+            for key in found do
                 local alias_str = Yellow("/"..found_keys[key])
                 local first_alias = true
                 for _,cmd in ipairs(aliases[key]) do

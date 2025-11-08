@@ -3,6 +3,7 @@ WoWXIV.Gamepad = WoWXIV.Gamepad or {}
 local Gamepad = WoWXIV.Gamepad
 
 local class = WoWXIV.class
+local list = WoWXIV.list
 local Button = WoWXIV.Button
 
 local strsub = string.sub
@@ -57,17 +58,17 @@ end
 
 -- Pass (setting,command) pairs to bind.
 function GamepadBoundButton:__constructor(...)
-    self.bindings = {}
+    self.bindings = list()
     for i = 1, select("#",...), 2 do
         local setting, command = select(i, ...)
-        tinsert(self.bindings, {setting, command})
+        self.bindings:append({setting, command})
     end
     self:UpdateBinding()
 end
 
 function GamepadBoundButton:UpdateBinding()
     ClearOverrideBindings(self)
-    for _, binding in ipairs(self.bindings) do
+    for binding in self.bindings do
         SetOverrideBinding(self, false,
                            WoWXIV_config[binding[1]], binding[2])
     end
@@ -193,19 +194,19 @@ function GamePadListener:OnGamePadStick(stick, x, y)
 
     -- Handle scrolling text frames.  There are two types of these, so we
     -- need two lists.
-    local SCROLL_FRAMES = {  -- ScrollFrameTemplate
+    local SCROLL_FRAMES = list(  -- ScrollFrameTemplate
         ItemTextScrollFrame,
         OpenMailScrollFrame,
         QuestDetailScrollFrame,
         QuestMapDetailsScrollFrame,
         QuestRewardScrollFrame,
-        "ItemSocketingScrollFrame",
-    }
-    local SCROLLBOX_FRAMES = {  -- WowScrollBoxList
-        GossipFrame.GreetingPanel.ScrollBox,
-    }
+        "ItemSocketingScrollFrame"
+    )
+    local SCROLLBOX_FRAMES = list(  -- WowScrollBoxList
+        GossipFrame.GreetingPanel.ScrollBox
+    )
     local scroll_frame, scroll_current, scroll_SetScroll
-    for _, frame in ipairs(SCROLL_FRAMES) do
+    for frame in SCROLL_FRAMES do
         if type(frame) == "string" then
             frame = _G[frame]
         end
@@ -223,7 +224,7 @@ function GamePadListener:OnGamePadStick(stick, x, y)
             break
         end
     end
-    for _, frame in ipairs(SCROLLBOX_FRAMES) do
+    for frame in SCROLLBOX_FRAMES do
         if frame:IsVisible() then
             local limit = frame:GetDerivedScrollRange()
             if limit >= 0.01 then
