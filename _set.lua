@@ -9,6 +9,10 @@ the module, for use with Lua require().  Module sources using this
 syntax are assumed to import the "set" identifier locally with
 "local set = module.set" or similar.
 
+This implementation makes use of the related "list" type, which should
+either be pre-imported into the module table or available via
+require("_list").
+
 
 A set is an unordered collection of values; in Lua terms, it is similar
 to a table with only keys and no values.  Sets are useful in algorithms
@@ -151,12 +155,12 @@ keys and arbitrary constants as table values may be a better choice.
 
 The elements in the set can be returned as an unsorted array:
 
-    array = s:elements()
+    local array = s:elements()
     for i, elem in ipairs(array) do ... end
 
 or sorted:
 
-    array = s:sorted()
+    local array = s:sorted()
     for i = 2, #array do assert(array[i] >= array[i-1]) end
 
 and the sort can use an arbitrary comparator function like table.sort():
@@ -164,9 +168,10 @@ and the sort can use an arbitrary comparator function like table.sort():
     local function Compare(a, b) return a.value < b.value end
     local sorted_elements = s:sorted(Compare)
 
-The arrays returned by elements() and sorted() are _iterable arrays_, in
-that they can be used directly in a "for ... in" construct.  Thus, the
-following four statements are equivalent:
+The arrays returned by elements() and sorted() are _iterable arrays_,
+in that they can be used directly in a "for ... in" construct (in fact,
+they are instances of the list type; see the list() documentation for
+details).  Thus, the following four statements are equivalent:
 
     for x in s do ... end
     for x in s:elements() do ... end
@@ -214,6 +219,9 @@ thus all instances of the same string data are treated as equal:
 local _, module = ...
 module = module or {} -- so the file can also be loaded with a simple require()
 
+-- Import the list type if needed.
+local list = module.list or require("_list").list or error("list() not found")
+
 -- Localize some commonly called functions to reduce lookup cost.
 local getmetatable = getmetatable
 local setmetatable = setmetatable
@@ -241,36 +249,6 @@ function module.set(...)
 end
 
 local set = module.set
-
-
--- Helper for elements().
-local function make_iterable(t)
-    local i
-    return setmetatable(t, {
-        --[[
-            Generic "for" expects a function taking two arguments, but
-            since we give it a callable table, the table itself is
-            prepended as a |self| argument.  The first ("state") argument
-            to the iterator will always be nil when using our documented
-            iteration syntax, but we have |self|, so there's no need for
-            a separate state argument.
-
-            In order to avoid leaking the iterator index to the caller
-            and thus allow straightforward iteration as documented, we
-            use the previous-value argument as a flag: if it is nil, this
-            must be the first call, so we reset the index in that case.
-        ]]--
-        __call = function(self, _, prev)
-            if prev == nil then i = 0 end
-            if i < #self then
-                i = i+1
-                return self[i]
-            else
-                return nil
-            end
-        end,
-    })
-end
 
 
 local set_methods = {
@@ -455,25 +433,24 @@ local set_methods = {
     copy = function(s) return s:union() end,
 
     elements = function(s)
-        local array = {}
-        -- Extending the table using an explicit index is slightly faster
+        local array = list()
+        -- Extending the list using an explicit index is slightly faster
         -- than calling table.insert() because the latter is still a
-        -- function call (it is not optimized out to a primitive).
-        -- Similarly for omitting the iterator and assigning to
-        -- array[#array+1], presumably because #array also performs a
-        -- function call.
+        -- function call (it is not optimized out to a primitive), and
+        -- naturally faster than calling list:append().  Similarly for
+        -- omitting the iterator and assigning to array[#array+1],
+        -- presumably because #array also performs a function call.
         local i = 0
         for x in s do
             i = i+1
             array[i] = x
         end
-        return make_iterable(array)
+        return array
     end,
 
     sorted = function(s, ...)
         local array = s:elements()
-        table.sort(array, ...)
-        return array
+        return array:sort(...)
     end,
 }
 
@@ -657,6 +634,12 @@ local tests = {
         assert(not s:has(nil))  -- False: nil can never be a member of a set.
     end,
 
+    HasMultipleNil = function()
+        local s = set()
+        s:add(10, 20, 30)
+        assert(not s:has(10, nil, 30))
+    end,
+
     -------- len()
 
     LenEmpty = function()
@@ -738,14 +721,14 @@ local tests = {
 
     RemoveNone = function()
         local s = set(10)
-        s:remove()
+        assert(s:remove() == s)
         assert(s:has(10))
         assert(s:len() == 1)
     end,
 
     RemoveMultiple = function()
         local s = set(10, 20, 30, 40, 50)
-        s:remove(10, 30, 40)
+        assert(s:remove(10, 30, 40) == s)
         assert(not s:has(10))
         assert(s:has(20))
         assert(not s:has(30))
@@ -782,6 +765,15 @@ local tests = {
         assert(s:len() == 1)
     end,
 
+    RemoveMultipleNil = function()
+        local s = set(10, 20, 30)
+        local result, errmsg = pcall(function() s:remove(10, nil, 30) end)
+        assert(result == false)
+        assert(errmsg:find(NO_ELEMENT_MSG, 1, true), errmsg)
+        assert(s:has(20))
+        assert(s:len() >= 1)
+    end,
+
     -------- discard()
 
     Discard = function()
@@ -793,14 +785,14 @@ local tests = {
 
     DiscardNone = function()
         local s = set(10)
-        s:discard()
+        assert(s:discard() == s)
         assert(s:has(10))
         assert(s:len() == 1)
     end,
 
     DiscardMultiple = function()
         local s = set(10, 20, 30, 40, 50)
-        s:discard(10, 30, 40)
+        assert(s:discard(10, 30, 40) == s)
         assert(not s:has(10))
         assert(s:has(20))
         assert(not s:has(30))
@@ -809,9 +801,18 @@ local tests = {
         assert(s:len() == 2)
     end,
 
+    DiscardAll = function()
+        local s = set(10, 20, 30)
+        assert(s:discard(10, 20, 30) == s)
+        assert(not s:has(10))
+        assert(not s:has(20))
+        assert(not s:has(30))
+        assert(s:len() == 0)
+    end,
+
     DiscardNotFound = function()
         local s = set(10)
-        s:discard(20)  -- Should not error.
+        assert(s:discard(20) == s)  -- Call should not error.
         assert(s:has(10))
         assert(not s:has(20))
         assert(s:len() == 1)
@@ -819,23 +820,34 @@ local tests = {
 
     DiscardEmpty = function()
         local s = set()
-        s:discard(10) -- Should not error.
+        assert(s:discard(10) == s)  -- Call should not error.
         assert(not s:has(10))
         assert(s:len() == 0)
     end,
 
     DiscardNil = function()
         local s = set(10)
-        s:discard(nil)  -- Should not error.
+        assert(s:discard(nil) == s)  -- Call should not error.
         assert(s:has(10))
         assert(s:len() == 1)
+    end,
+
+    DiscardMultipleNil = function()
+        local s = set(10, 20, 30, 40, 50)
+        assert(s:discard(10, nil, 40) == s)  -- Call should not error.
+        assert(not s:has(10))
+        assert(s:has(20))
+        assert(s:has(30))
+        assert(not s:has(40))
+        assert(s:has(50))
+        assert(s:len() == 3)
     end,
 
     -------- pop()
 
     Pop = function()
         local s = set(10)
-        local x = s:pop(10)
+        local x = s:pop()
         assert(x == 10)
         assert(not s:has(10))
         assert(s:len() == 0)
@@ -887,7 +899,7 @@ local tests = {
 
     ClearMultiple = function()
         local s = set(10, 20, 30)
-        s:clear()
+        assert(s:clear() == s)
         assert(not s:has(10))
         assert(not s:has(20))
         assert(not s:has(30))
@@ -896,7 +908,7 @@ local tests = {
 
     ClearEmpty = function()
         local s = set()
-        s:clear() -- No-op.
+        assert(s:clear() == s) -- No-op.
         assert(not s:has(10))
         assert(s:len() == 0)
     end,
@@ -1058,7 +1070,7 @@ local tests = {
 
     UpdateSelf = function()
         local s = set(10, 30)
-        s:update(s)
+        assert(s:update(s) == s)
         assert(s:has(10))
         assert(s:has(30))
         assert(s:len() == 2)
@@ -1066,7 +1078,7 @@ local tests = {
 
     UpdateSelfMultiple = function()
         local s = set(10, 30)
-        s:update(set(20), s, set(40))
+        assert(s:update(set(20), s, set(40)) == s)
         assert(s:has(10))
         assert(s:has(20))
         assert(s:has(30))
@@ -1250,7 +1262,7 @@ local tests = {
 
     DifferenceUpdateSelf = function()
         local s = set(10, 20, 30, 40, 50)
-        s:difference_update(s)
+        assert(s:difference_update(s) == s)
         assert(not s:has(10))
         assert(not s:has(20))
         assert(not s:has(30))
@@ -1261,7 +1273,7 @@ local tests = {
 
     DifferenceUpdateSelfMultiple = function()
         local s = set(10, 20, 30, 40, 50)
-        s:difference_update(set(20), s, set(40))
+        assert(s:difference_update(set(20), s, set(40)) == s)
         assert(not s:has(10))
         assert(not s:has(20))
         assert(not s:has(30))
@@ -1443,7 +1455,7 @@ local tests = {
 
     IntersectionUpdateSelf = function()
         local s = set(10, 20, 30, 40, 50)
-        s:intersection_update(s)
+        assert(s:intersection_update(s) == s)
         assert(s:has(10))
         assert(s:has(20))
         assert(s:has(30))
@@ -1454,7 +1466,7 @@ local tests = {
 
     IntersectionUpdateSelfMultiple = function()
         local s = set(10, 20, 30, 40, 50)
-        s:intersection_update(set(20, 40), s, set(40))
+        assert(s:intersection_update(set(20, 40), s, set(40)) == s)
         assert(not s:has(10))
         assert(not s:has(20))
         assert(not s:has(30))
@@ -1599,7 +1611,8 @@ local tests = {
     end,
 
     SymmetricDifferenceUpdateMultipleElements = function()
-        local s = set(10, 20, 30, 40, 50):symmetric_difference_update(set(20, 40, 60))
+        local s = set(10, 20, 30, 40, 50)
+            :symmetric_difference_update(set(20, 40, 60))
         assert(s:has(10))
         assert(not s:has(20))
         assert(s:has(30))
@@ -1611,7 +1624,7 @@ local tests = {
 
     SymmetricDifferenceUpdateSelf = function()
         local s = set(10, 20, 30)
-        s:symmetric_difference_update(s)
+        assert(s:symmetric_difference_update(s) == s)
         assert(not s:has(10))
         assert(not s:has(20))
         assert(not s:has(30))
@@ -1844,6 +1857,11 @@ local tests = {
         assert(s2)
         assert(s2:has(10))
         assert(s2:len() == 1)
+        -- The two sets should be independent.
+        assert(s2 ~= s)
+        s2:add(20)
+        assert(s2:has(20))
+        assert(not s:has(20))
     end,
 
     CopyMultiple = function()
@@ -1854,12 +1872,20 @@ local tests = {
         assert(s2:has(20))
         assert(s2:has(30))
         assert(s2:len() == 3)
+        assert(s2 ~= s)
+        s2:add(40)
+        assert(s2:has(40))
+        assert(not s:has(40))
     end,
 
     CopyEmpty = function()
         local s = set()
         local s2 = s:copy()
         assert(s2:len() == 0)
+        assert(s2 ~= s)
+        s2:add(10)
+        assert(s2:has(10))
+        assert(not s:has(10))
     end,
 
     -------- Iteration
@@ -1966,13 +1992,6 @@ local tests = {
         assert(array[1] + array[2] + array[3] == 7)
         -- Make sure there are no stray elements in the returned table.
         assert(next(array, next(array, next(array, next(array)))) == nil)
-        -- Check that the returned array's metatable is clean except for
-        -- our iterator method.
-        local mt = getmetatable(array)
-        assert(mt)
-        assert(type(mt.__call) == "function")
-        assert(next(mt) == "__call")
-        assert(next(mt, "__call") == nil)
         -- s should be unmodified.
         assert(s:has(1))
         assert(s:has(2))
@@ -2016,13 +2035,6 @@ local tests = {
         assert(array[3] == 30)
         -- Make sure there are no stray elements in the returned table.
         assert(next(array, next(array, next(array, next(array)))) == nil)
-        -- Check that the returned array's metatable is clean except for
-        -- our iterator method.
-        local mt = getmetatable(array)
-        assert(mt)
-        assert(type(mt.__call) == "function")
-        assert(next(mt) == "__call")
-        assert(next(mt, "__call") == nil)
         -- s should be unmodified.
         assert(s:has(10))
         assert(s:has(20))
@@ -2041,7 +2053,7 @@ local tests = {
     end,
 
     SortedComparator = function()
-        function gt(a, b) return a > b end
+        local function gt(a, b) return a > b end
         local array = set(10, 20, 30):sorted(gt)
         assert(#array == 3)
         assert(array[1] == 30)

@@ -10,6 +10,7 @@
 WoWXIV.lua
 _class.lua
 _frame.lua
+_list.lua
 _set.lua
 util.lua
 
