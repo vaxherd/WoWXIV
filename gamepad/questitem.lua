@@ -343,6 +343,7 @@ local ITEM_TARGET = {
     [-357857] = "none",   -- Activate Empowerment (Torghast)
     [-469853] = "none",   -- Drop Candle (Delve: Kriegval's Rest, 11.0 only)
     [-469854] = "none",   -- Drop Air Totem (Delve: Earthen Waterworks, 11.0 only)
+    [-1232808] = "skip",  -- Unraveling Sands (Legion Remix)
 }
 
 -- Special cases for quests which don't have items assigned but really should.
@@ -712,17 +713,22 @@ function QuestItemButton:IterateQuestItems(predicate)
     if WoWXIV_config["questitem_scenario_action"] and ScenarioObjectiveTracker:IsShown() then
         for _, ability in ipairs(C_ZoneAbility.GetActiveAbilities()) do
             index = index + 1
-            if predicate and predicate(-ability.spellID) then
-                return -ability.spellID, index, true
+            local item = -(ability.spellID)
+            if ITEM_TARGET[item] ~= "skip" then
+                if predicate and predicate(item) then
+                    return item, index, true
+                end
             end
         end
         for frame in ScenarioObjectiveTracker.spellFramePool:EnumerateActive() do
             index = index + 1
             -- The spell button doesn't have a getter equivalent to SetSpell(),
             -- so we have to break encapsulation here.
-            local spell_id = frame.SpellButton.spellID
-            if predicate and predicate(-spell_id) then
-                return -spell_id, index, true
+            local item = -(frame.SpellButton.spellID)
+            if ITEM_TARGET[item] ~= "skip" then
+                if predicate and predicate(item) then
+                    return item, index, true
+                end
             end
         end
     end
