@@ -191,8 +191,10 @@ A list is its own iterator:
 This is effectively identical to "for _,elem in ipairs(l)" but avoids
 the need for an explicit ipairs() call or placeholder variable, at a
 moderate cost in execution time (because the iteration is implemented in
-Lua rather than native code).  Where performance is critical, explicit
-use of ipairs() may be a better choice.
+Lua rather than native code) and the limitation that such loops cannot
+be nested (because the hidden iterator would be shared between them).
+Where performance is critical or nested loops are needed, explicit use
+of ipairs() is a better choice.
 
 
 When using object (table or userdata) references as list elements, the
@@ -604,20 +606,24 @@ local list_metatable = {
     mt.tostring = "list" .. strsub(str, 6)
 
     --[[
-        Generic "for" expects a function taking two arguments, but
-        since we give it a callable table, the table itself is
-        prepended as a |self| argument.  The first ("state") argument
-        to the iterator will always be nil when using our documented
-        iteration syntax, but we have |self|, so there's no need for
-        a separate state argument.
+        Generic "for" expects a function taking two arguments (an invariant
+        state argument and a previous-value argument), but since we give it
+        a callable table as the iterator function, the table itself is
+        prepended as a |self| argument, thus the three-parameter definition
+        below.
 
-        In order to avoid leaking the iterator index to the caller
-        and thus allow straightforward iteration as documented, we
-        use the previous-value argument as a flag: if it is nil, this
-        must be the first call, so we reset the index in that case.
+        The state argument to the iterator will always be nil when using
+        our documented iteration syntax; consequently, we have no way to
+        distinguish between nested loops.  We accept this as the cost of
+        having a convenient iteration syntax.
+
+        In order to avoid leaking the iterator index to the caller and
+        thus allow straightforward iteration as documented, we use the
+        previous-value argument as a flag: if it is nil, this must be the
+        first call, so we reset the index in that case.
     ]]--
     local i
-    mt.__call = function(self, _, prev)
+    mt.__call = function(self, _, prev)  -- closure over i
         if prev == nil then i = 0 end
         if i < #self then
             i = i+1
