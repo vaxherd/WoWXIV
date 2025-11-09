@@ -2584,6 +2584,34 @@ local tests = {
         assert(l2[3][2] == 40)
     end,
 
+    -------- Iteration
+
+    Iterate = function()
+        local l = list(10, 20, 30)
+        local i = 0
+        for x in l do
+            i = i+1
+            assert(x == l[i])
+        end
+        assert(i == 3)
+    end,
+
+    IterateSingle = function()
+        local i = 0
+        for x in list(10) do
+            i = i+1
+            assert(i == 1)
+            assert(x == 10)
+        end
+        assert(i == 1)
+    end,
+
+    IterateEmpty = function()
+        for x in list() do
+            assert(false)
+        end
+    end,
+
 }
 
 function module.listTests(verbose)

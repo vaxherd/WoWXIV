@@ -10,7 +10,7 @@ syntax are assumed to import the "set" identifier locally with
 "local set = module.set" or similar.
 
 This implementation makes use of the related "list" type, which should
-either be pre-imported into the module table or available via
+be either pre-imported into the module table or available via
 require("_list").
 
 
