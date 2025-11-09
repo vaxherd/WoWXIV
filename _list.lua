@@ -119,8 +119,8 @@ For replace() and slice():
      Python, and default to the beginning of the list (1), the end of
      the list (#l), and 1, respectively; thus, l:slice() with no
      arguments has the same effect as l:copy() (but is slightly less
-     efficient).  A value of nil passed to any of these arguments is
-     treated the same as an omitted argument.
+     efficient).  An argument value of nil for any of these parameters
+     is treated the same as an omitted argument.
    - If specified, the start-of-range argument i must be a valid index
      for insertion, i.e. an integer in the range [1,#l+1], or the method
      will raise an error.  The end-of-range index j is silently clamped
