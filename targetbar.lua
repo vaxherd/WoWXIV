@@ -389,6 +389,8 @@ end
 -- Create the global target and focus bar instances, and hide the native
 -- target/focus frame if desired.
 function WoWXIV.TargetBar.Create()
+    if not WoWXIV_config["targetbar_enable"] then return end
+
     WoWXIV.TargetBar.target_bar = TargetBar(false)
     WoWXIV.TargetBar.focus_bar = TargetBar(true)
     if WoWXIV_config["targetbar_hide_native"] then

@@ -62,7 +62,9 @@ local CONFIG_DEFAULT = {
     -- Gamepad: camera zoom modifier for right stick
     gamepad_zoom_modifier = "ALT",
 
-    -- Buff bars: show distance for skyriding glyph?
+    -- Player buff/debuff bar: enable?
+    buffbar_enable = true,
+    -- All buff bars: show distance for skyriding glyph?
     buffbar_dragon_glyph_distance = true,
 
     -- Enmity list: enable?
@@ -101,6 +103,8 @@ local CONFIG_DEFAULT = {
     -- Quest item button: also use for scenario actions?
     questitem_scenario_action = true,
 
+    -- Target bar: enable? (applies to both target and focus bars)
+    targetbar_enable = true,
     -- Target bar: hide the native target and focus frames?
     targetbar_hide_native = true,
     -- Target bar: show target's power bar?
@@ -526,6 +530,8 @@ function ConfigPanel:__constructor()
     self.y = self.y - 10
 
     self:AddHeader("Buff/debuff bar settings")
+    self:AddCheckButton("Enable buff/debuff bars |cffff0000(requires reload)|r",
+                        "buffbar_enable")
     self:AddCheckButton("Show direction/distance for Skyriding Glyph Resonance",
                         "buffbar_dragon_glyph_distance")
     self:AddComment("Note: Dragon Isles glyphs show distance instead of direction, updated every 5 seconds.")
@@ -588,8 +594,10 @@ function ConfigPanel:__constructor()
                         "questitem_scenario_action")
 
     self:AddHeader("Target bar settings")
+    self:AddCheckButton("Enable target/focus bars |cffff0000(requires reload)|r",
+                        "targetbar_enable")
     self:AddCheckButton("Hide native target frames |cffff0000(requires reload)|r",
-                        "targetbar_hide_native")
+                        "targetbar_hide_native", nil, "targetbar_enable")
     self:AddCheckButton("Show target's power bar", "targetbar_power",
                         WoWXIV.TargetBar.Refresh)
     self:AddCheckButton("Only for bosses", "targetbar_power_boss_only",

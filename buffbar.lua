@@ -71,6 +71,8 @@ end
 
 -- Create the player buff/debuff bars, and hide the default UI's buff frame.
 function WoWXIV.BuffBar.Create()
+    if not WoWXIV_config["buffbar_enable"] then return end
+
     WoWXIV.HideBlizzardFrame(BuffFrame)
     WoWXIV.HideBlizzardFrame(DebuffFrame)
 
