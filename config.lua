@@ -210,7 +210,7 @@ function CPCheckButton:OnClick()
     -- This is called _after_ the UIButton state has been toggled, so we
     -- only need to perform appropriate updates.
     local checked = self.button:GetChecked()
-    for _dep in self.dependents do
+    for dep in self.dependents do
         dep:SetSensitive(checked)
     end
     if self.setting then
