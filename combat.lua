@@ -273,6 +273,7 @@ end
 
 -- Create the combat log manager.  Called at addon initialization time.
 function WoWXIV.CombatLogManager.Create()
+    if not CombatLogGetCurrentEventInfo then return end  -- FIXME: temp for Midnight
     Manager.Start()
 end
 
