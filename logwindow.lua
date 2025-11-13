@@ -4,6 +4,16 @@ WoWXIV.LogWindow = {}
 local class = WoWXIV.class
 local Frame = WoWXIV.Frame
 
+-- FIXME: temp for Midnight
+local ChatFrame_ConfigEventHandler =
+    ChatFrame_ConfigEventHandler or ChatFrameMixin.ConfigEventHandler
+local ChatFrame_RegisterForChannels =
+    ChatFrame_RegisterForChannels or ChatFrameMixin.RegisterForChannels
+local ChatFrame_MessageEventHandler =
+    ChatFrame_MessageEventHandler or ChatFrameMixin.MessageEventHandler
+local ChatFrame_SystemEventHandler =
+    ChatFrame_SystemEventHandler or ChatFrameMixin.SystemEventHandler
+
 local CLM = WoWXIV.CombatLogManager
 local band = bit.band
 local bor = bit.bor
@@ -1297,6 +1307,7 @@ function LogWindow:GetFont() return self.frame:GetFontObject() end
 function LogWindow:GetID() return 1 end
 function LogWindow:IsShown() return true end
 function LogWindow:SetHyperlinksEnabled(enable) end
+function LogWindow:UpdateColorByID() end
 -- This is only meaningfully called from FCF_RemoveAllMessagesFromChanSender(),
 -- which in turn is only called in response to PLAYER_REPORT_SUBMITTED.
 -- We take the position that no messages should be removed except upon
