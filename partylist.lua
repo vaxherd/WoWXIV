@@ -920,6 +920,9 @@ function PartyList:SetParty(is_retry)
                 -- to the player, so hide them from the list.
                 local name = UnitName(unit)
                 if name and strstr(name, "[DNT]") then id = nil end
+            elseif unit == "pet" then
+                -- Some vehicles with combat actions are also treated as pets.
+                if UnitGUID("vehicle") == id then id = nil end
             end
         end
         if id then
