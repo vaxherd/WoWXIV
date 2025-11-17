@@ -524,6 +524,7 @@ function Member:Refresh()
     if not self.narrow then
         self.alt_power:SetShown(self.alt_power_type ~= nil)
     end
+    self.buffbar:Refresh()
     self:Update(true)
 end
 
