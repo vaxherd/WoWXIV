@@ -239,7 +239,6 @@ function EquippedItemContextMenu:UnequipSlot()
         return
     end
     local item = GetInventoryItemID("player", slot_id)
-print(slot,slot_id,item)
     assert(item)
     local bag, slot = WoWXIV.FindInventorySlot(item)
     if not bag then
