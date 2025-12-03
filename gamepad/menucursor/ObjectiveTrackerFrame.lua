@@ -63,7 +63,8 @@ end
 
 function ObjectiveTrackerFrameHandler:OnFocus()
     -- Always reset to the top when receiving focus.
-    self:SetTarget(self:GetDefaultTarget())
+    -- As long as we're at it, make sure targets are up to date.
+    self:SetTarget(self:SetTargets())
 end
 
 function ObjectiveTrackerFrameHandler:RefreshTargets()
