@@ -4,16 +4,6 @@ WoWXIV.LogWindow = {}
 local class = WoWXIV.class
 local Frame = WoWXIV.Frame
 
--- FIXME: temp for Midnight
-local ChatFrame_ConfigEventHandler =
-    ChatFrame_ConfigEventHandler or ChatFrameMixin.ConfigEventHandler
-local ChatFrame_RegisterForChannels =
-    ChatFrame_RegisterForChannels or ChatFrameMixin.RegisterForChannels
-local ChatFrame_MessageEventHandler =
-    ChatFrame_MessageEventHandler or ChatFrameMixin.MessageEventHandler
-local ChatFrame_SystemEventHandler =
-    ChatFrame_SystemEventHandler or ChatFrameMixin.SystemEventHandler
-
 local CLM = WoWXIV.CombatLogManager
 local band = bit.band
 local bor = bit.bor
@@ -987,7 +977,7 @@ function LogWindow:__constructor()
     -- Stuff needed by the common chat code
     self.channelList = {}
     self.zoneChannelList = {}
-    ChatFrame_RegisterForChannels(self, GetChatWindowChannels(1))
+    ChatFrameMixin.RegisterForChannels(self, GetChatWindowChannels(1))
 
     frame:SetScript("OnEvent", function(frame, event, ...)
                                    if self[event] then
@@ -1137,26 +1127,26 @@ function LogWindow:PLAYER_ENTERING_WORLD(event)
     self.lang_default = GetDefaultLanguage()
     self.lang_alt = GetAlternativeDefaultLanguage()
     self.current_event = event
-    ChatFrame_ConfigEventHandler(self, event)
+    ChatFrameMixin.ConfigEventHandler(self, event)
     self.current_event = nil
 end
 
 function LogWindow:ALTERNATIVE_DEFAULT_LANGUAGE_CHANGED(event)
     self.lang_alt = GetAlternativeDefaultLanguage()
     self.current_event = event
-    ChatFrame_ConfigEventHandler(self, event)
+    ChatFrameMixin.ConfigEventHandler(self, event)
     self.current_event = nil
 end
 
 function LogWindow:UPDATE_CHAT_COLOR(event, ...)
     self.current_event = event
-    ChatFrame_ConfigEventHandler(self, event, ...)
+    ChatFrameMixin.ConfigEventHandler(self, event, ...)
     self.current_event = nil
 end
 
 function LogWindow:UPDATE_CHAT_COLOR_NAME_BY_CLASS(event, ...)
     self.current_event = event
-    ChatFrame_ConfigEventHandler(self, event, ...)
+    ChatFrameMixin.ConfigEventHandler(self, event, ...)
     self.current_event = nil
 end
 
@@ -1185,13 +1175,13 @@ end
 
 function LogWindow:OnChatMsg(event, ...)
     self.current_event = event
-    ChatFrame_MessageEventHandler(self, event, ...)
+    ChatFrameMixin.MessageEventHandler(self, event, ...)
     self.current_event = nil
 end
 
 function LogWindow:OnNonChatMsg(event, ...)
     self.current_event = event
-    ChatFrame_SystemEventHandler(self, event, ...)
+    ChatFrameMixin.SystemEventHandler(self, event, ...)
     self.current_event = nil
 end
 
