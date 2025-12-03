@@ -19,6 +19,7 @@ function ObjectiveTrackerFrameHandler:__constructor()
     self.has_Button3 = true  -- Used to toggle quest tracking.
     self.has_Button4 = true  -- Used to open objective submenus.
     hooksecurefunc(self.frame, "Update", function() self:RefreshTargets() end)
+    hooksecurefunc(self.frame, "ForceExpand", function() self:RefreshTargets() end)
     -- Watch for any bags being opened and disable ourselves while we're
     -- covered up.
     self.is_covered = false
