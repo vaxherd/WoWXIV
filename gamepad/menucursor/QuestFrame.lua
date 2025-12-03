@@ -216,6 +216,9 @@ function QuestFrameHandler:SetTargets(event, initial_id)
             button2 = QuestFrameDeclineButton
         end
         local rewards = {}
+        if QuestInfoPlayerTitleFrame:IsVisible() then
+            tinsert(rewards, {QuestInfoPlayerTitleFrame, false})
+        end
         if QuestInfoSkillPointFrame:IsVisible() then
             tinsert(rewards, {QuestInfoSkillPointFrame, false})
         end
