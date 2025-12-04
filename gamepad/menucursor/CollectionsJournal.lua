@@ -724,6 +724,14 @@ function ToyBoxHandler:RefreshTargets()
 end
 
 function ToyBoxHandler:SetTargets(old_target)
+    -- See note in button loop below.
+    local function OnEnterToyButton(button)
+        self:OnEnterToyButton(button)
+    end
+    local function OnLeaveToyButton(button)
+        self:OnLeaveToyButton(button)
+    end
+
     local f = self.frame
     local PrevPageButton = f.PagingFrame.PrevPageButton
     local NextPageButton = f.PagingFrame.NextPageButton
@@ -741,12 +749,19 @@ function ToyBoxHandler:SetTargets(old_target)
         tinsert(buttons, button)
     end
     for i, button in ipairs(buttons) do
+        -- Toy button OnEnter behavior has two issues:
+        -- (1) If we blindly set send_enter_leave, we get a GameTooltip
+        --     error on open because apparently button.itemID is not set
+        --     until later.
+        -- (2) If we use send_enter_leave at all, we taint the button in
+        --     a way that blocks toys from working.  (As a corollary, we
+        --     can't clear the new-toy fanfare by moving the menu cursor
+        --     to it.)
         self.targets[button] = {can_activate = true, lock_highlight = true,
+                                on_enter = OnEnterToyButton,
+                                on_leave = OnLeaveToyButton,
                                 left = buttons[i==1 and #buttons or i-1],
                                 right = buttons[i==#buttons and 1 or i+1]}
-        -- If we blindly set send_enter_leave, we get an error on open
-        -- because apparently button.itemID is not set until later.
-        self.targets[button].send_enter_leave = (button.itemID ~= nil)
         if (i-1)%3 == 2 then
             self.targets[button].down = NextPageButton
             self.targets[NextPageButton].up = button
@@ -785,6 +800,21 @@ function ToyBoxHandler:OnAction(button)
         self.find_toy = target.itemID
         self.context_menu:Open(target, target.itemID)
     end
+end
+
+function ToyBoxHandler:OnEnterToyButton(button)
+    if button.itemID then
+        GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
+        if GameTooltip:SetToyByItemID(button.itemID) then
+            button.UpdateTooltip = function(...) self:OnEnterToyButton(...) end
+        else
+            button.UpdateTooltip = nil
+        end
+    end
+end
+
+function ToyBoxHandler:OnLeaveToyButton(button)
+    GameTooltip:Hide()
 end
 
 
