@@ -308,6 +308,7 @@ local ITEM_TARGET = {
     [230731] = "target",  -- Pitz's Masterwork Invention (84675: Showdown in the Attic)
     [230795] = "none",    -- Experimental Go-Pack (84252: Peak Precision)
     [231164] = "target",  -- Goblin Grapnel (85396: Heaps o' Scrap)
+    [231791] = "target",  -- Redeemer's Sigil (84936: To Cleanse Shadow's Stain)
     [231900] = "none",    -- Sample Potion (85515: Free Samples!)
     [232323] = "none",    -- Watering Jug (85460: Ecological Succession)
     [232432] = "none",    -- Condenser Disc (86184: Diminishing Returns)
