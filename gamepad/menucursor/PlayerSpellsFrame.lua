@@ -200,6 +200,11 @@ end
 
 -- Returns the new cursor target.
 function SpellBookFrameHandler:RefreshTargets()
+    -- Work around rare layout delay (FIXME: should figure out why it happens)
+    if not self.frame.CategoryTabSystem.tabs[1]:GetLeft() then
+        return RunNextFrame(function() self:RefreshTargets() end)
+    end
+
     local old_target = self:GetTarget()
     self:SetTarget(nil)
 
