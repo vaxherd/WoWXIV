@@ -744,6 +744,9 @@ function ToyBoxHandler:SetTargets(old_target)
         self.targets[button] = {can_activate = true, lock_highlight = true,
                                 left = buttons[i==1 and #buttons or i-1],
                                 right = buttons[i==#buttons and 1 or i+1]}
+        -- If we blindly set send_enter_leave, we get an error on open
+        -- because apparently button.itemID is not set until later.
+        self.targets[button].send_enter_leave = (button.itemID ~= nil)
         if (i-1)%3 == 2 then
             self.targets[button].down = NextPageButton
             self.targets[NextPageButton].up = button
