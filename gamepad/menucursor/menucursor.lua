@@ -22,6 +22,10 @@ local global_cursor = nil
 -- Use the new HD cursor icons (true) or classic icons (false)?
 local USE_HD_CURSOR = true
 
+-- Offset of held-item icon from cursor icon.
+local HELD_ITEM_XOFS = 15
+local HELD_ITEM_YOFS = -8
+
 
 ---------------------------------------------------------------------------
 -- Core implementation
@@ -105,7 +109,7 @@ function Cursor:__constructor()
     self.held_item_icon = held
     held:Hide()
     held:SetSize(30, 30)
-    held:SetPoint("TOPLEFT", 15, -8)
+    held:SetPoint("TOPLEFT", HELD_ITEM_XOFS, HELD_ITEM_YOFS)
 end
 
 
@@ -880,11 +884,14 @@ function Cursor:OnUpdate(dt)
     self:SetCursorPoint(focus, target)
 
     self.texture:ClearPointsOffset()
+    self.held_item_icon:ClearPointsOffset()
     if self.cursor_type == "default" then
         local t = GetTime()
         t = t - floor(t)
         local xofs = -4 * math.sin(t * math.pi)
         self.texture:AdjustPointsOffset(xofs, 0)
+        self.held_item_icon:AdjustPointsOffset(HELD_ITEM_XOFS + xofs,
+                                               HELD_ITEM_YOFS)
     end
 
     self:SetAlpha(target_frame and target_frame:GetAlpha() or 1)
