@@ -19,6 +19,9 @@ local tremove = tremove
 -- Static reference to the singleton MenuCursor instance.
 local global_cursor = nil
 
+-- Use the new HD cursor icons (true) or classic icons (false)?
+local USE_HD_CURSOR = true
+
 
 ---------------------------------------------------------------------------
 -- Core implementation
@@ -458,18 +461,33 @@ end
 -- Set the appropriate cursor texture for the current cursor type.
 function Cursor:SetCursorTexture()
     local texture = self.texture
+    local function SetAtlasFlipped(atlas)
+        local info = C_Texture.GetAtlasInfo(atlas)
+        assert(info)
+        texture:SetTexture(info.file or info.filename)
+        texture:SetTexCoord(info.rightTexCoord, info.leftTexCoord,
+                            info.topTexCoord, info.bottomTexCoord)
+    end
     if self.cursor_type == "map" then
         WoWXIV.SetUITexture(texture, 0, 40, 80, 120)
     elseif self.cursor_type == "cast" then
         -- Flipped as for the default cursor.
-        texture:SetTexture("Interface/CURSOR/Cast")
-        texture:SetTexCoord(1, 0, 0, 1)
+        if USE_HD_CURSOR then
+            SetAtlasFlipped("Cursor_cast_32")
+        else
+            texture:SetTexture("Interface/CURSOR/Cast")
+            texture:SetTexCoord(1, 0, 0, 1)
+        end
     else
         assert(self.cursor_type == "default")
         -- Use the default mouse cursor image (pointing gauntlet), but
         -- flip it horizontally to distinguish it from the mouse cursor.
-        texture:SetTexture("Interface/CURSOR/Point")
-        texture:SetTexCoord(1, 0, 0, 1)
+        if USE_HD_CURSOR then
+            SetAtlasFlipped("Cursor_Point_32")
+        else
+            texture:SetTexture("Interface/CURSOR/Point")
+            texture:SetTexCoord(1, 0, 0, 1)
+        end
     end
 end
 
