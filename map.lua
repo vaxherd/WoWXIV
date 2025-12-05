@@ -152,7 +152,7 @@ function WoWXIV.Map.Init()
                              WoWXIV_config["map_show_coords_minimap"])
 end
 
-function WoWXIV.Map.SetShowCoords(show_worldmap, show_minimap)
-    WoWXIV.Map.map_overlay:Enable(show_worldmap)
-    WoWXIV.Map.minimap_overlay:Enable(show_minimap)
+function WoWXIV.Map.SetShowCoords(show_on_worldmap, show_on_minimap)
+    WoWXIV.Map.map_overlay:Enable(show_on_worldmap)
+    WoWXIV.Map.minimap_overlay:Enable(show_on_minimap)
 end
