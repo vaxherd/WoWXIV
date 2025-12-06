@@ -302,7 +302,7 @@ function WoWXIV.FindInventorySlot(item, count)
     for bag_id = 0, NUM_TOTAL_BAG_FRAMES do
         for i = 1, C_Container.GetContainerNumSlots(bag_id) do
             local slot_info = C_Container.GetContainerItemInfo(bag_id, i)
-            if slot_info and slot_item == item
+            if slot_info and slot_info.itemID == item
             and slot_info.stackCount + count <= max_stack
             then
                 if not slot_info.isLocked then
