@@ -48,7 +48,6 @@ function EventToastManagerFrameHandler:SetTargets()
             x_offset = text_x - hide_x, y_offset = text_y - hide_y,
             up = false, down = false, left = false, right = false},
     }
-    
 
     if self.mode == "Torghast" then
         local toast = self.frame.currentDisplayingToast

@@ -491,7 +491,7 @@ function Member:Refresh()
                                       or UnitGroupRolesAssigned(unit))
     local alt_power_type = UnitAlternatePowerType(unit)
     if (id == self.current_id
-        and spec_role == self.current_spec_role 
+        and spec_role == self.current_spec_role
         and alt_power_type == self.alt_power_type)
     then
         return
@@ -716,7 +716,7 @@ local PartyList = class(Frame)
 
 local PARTY_UNIT_TOKENS = (list("player", "vehicle") +
                            WoWXIV.maptn("party%n", 4) +
-                           {"pet"} + 
+                           {"pet"} +
                            WoWXIV.maptn("raid%n", 40))
 local PARTY_UNIT_ORDER = {}
 for i, token in ipairs(PARTY_UNIT_TOKENS) do
@@ -1049,7 +1049,7 @@ function WoWXIV.PartyList.Create()
     end
 
     WoWXIV.PartyList.list = PartyList()
-    
+
     if enable_party then
         WoWXIV.HideBlizzardFrame(PartyFrame)
         -- Technically not needed, but avoids tons and tons of taint errors:

@@ -568,7 +568,7 @@ function QualityDialogHandler:__constructor()
     self.on_next_page = self.on_prev_page
     self.quantity_inputs = {}
     for _, container in ipairs(self.frame.containers) do
-        tinsert(self.quantity_inputs, 
+        tinsert(self.quantity_inputs,
                 MenuCursor.NumberInput(container.EditBox))
     end
     self.targets = {

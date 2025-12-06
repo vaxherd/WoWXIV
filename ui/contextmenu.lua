@@ -120,7 +120,7 @@ end
 -- (or self:AppendLayout()) for each desired element in the menu.  Receives
 -- all arguments passed to ContextMenu:Open().
 function ContextMenu:Configure(button, ...)
-end  
+end
 
 -- Convenience functions for creating button instances.
 --

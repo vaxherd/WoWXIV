@@ -1119,7 +1119,7 @@ function WardrobeItemsFrameHandler:SetTargets(old_target)
                 self.targets[item].up = top_row[i]
             end
         end
-    end 
+    end
 
     if f.WeaponDropdown:IsShown() then
         self.targets[f.WeaponDropdown] =

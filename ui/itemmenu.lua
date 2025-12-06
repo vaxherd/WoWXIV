@@ -41,7 +41,7 @@ end
 -- self:AppendLayout()) for each desired element in the menu.  Receives
 -- bag/slot and all arguments after "slot" passed to ItemSubmenu:Open().
 function ItemSubmenu:ConfigureForItem(bag, slot, ...)
-end  
+end
 
 -- Override these to create ItemSubmenuButtons instead of ContextMenuButtons.
 function ItemSubmenu:CreateButton(text, ExecuteInsecure)
