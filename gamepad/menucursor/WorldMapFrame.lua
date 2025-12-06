@@ -35,7 +35,9 @@ function WorldMapFrameHandler:__constructor()
     self.cursor_highlight = nil
 
     __super(self, WorldMapFrame)
-    self.has_Button3 = true
+    self.on_prev_page = function() self:OnCycleFloor(-1) end
+    self.on_next_page = function() self:OnCycleFloor(1) end
+    self.has_Button3 = true  -- Used to jump to the parent map.
 
     -- Dummy frame we use to provide a target for the map cursor.
     self.cursor_frame =
@@ -66,6 +68,51 @@ function WorldMapFrameHandler:OnShow()
     self.cursor_highlight = nil
     self:UpdateCursorTarget()
     __super(self)
+end
+
+function WorldMapFrameHandler:OnCycleFloor(direction)
+    -- The floor dropdown has neither a global name nor an explicit field
+    -- in WorldMapFrame, so we have to find it by matching method pointers.
+    local floor_dropdown
+    local RefreshMenu = WorldMapFloorNavigationFrameMixin.RefreshMenu
+    assert(RefreshMenu)
+    for _, frame in pairs(WorldMapFrame.overlayFrames) do
+        if frame.RefreshMenu == RefreshMenu then
+            floor_dropdown = frame
+            break
+        end
+    end
+    assert(floor_dropdown)
+    if floor_dropdown:IsShown() then
+        -- There's no easy way to get the menu items directly out of the
+        -- menu, since they're encapsulated in a callback function passed
+        -- to SetupMenu().  But that callback function itself is available,
+        -- so we call it ourselves to obtain the item list, relying on the
+        -- fact that the current (11.2.7) implementation only calls SetTag()
+        -- and CreateRadio() on the passed-in rootDescription object and
+        -- doesn't reference the menu object itself at all.
+        local items = {}
+        local index
+        local dummy_rootDescription = {
+            SetTag = function() end,
+            CreateRadio = function(_, text, IsSelected, SetSelected, data)
+                tinsert(items, {SetSelected, data})
+                if IsSelected(data) then
+                    index = #items
+                end
+            end,
+        }
+        floor_dropdown.menuGenerator(nil, dummy_rootDescription)
+        assert(index)
+        local new_index = index + direction
+        if new_index < 1 then
+            new_index = #items
+        elseif new_index > #items then
+            new_index = 1
+        end
+        local SetSelected, data = unpack(items[new_index])
+        SetSelected(data)
+    end
 end
 
 function WorldMapFrameHandler:OnGamePadButton(button, down)
