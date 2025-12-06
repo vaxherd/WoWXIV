@@ -392,9 +392,9 @@ function CatalogContentHandler:SetTargets()
 
         local function Filter(element, index)
             local id = element.entryID.recordID
-            local is_current = (id == self.item_id)
-            return {id = id, can_activate = true, send_enter_leave = true},
-                   is_current
+            local attrib = {id = id, can_activate = true,
+                            send_enter_leave = true}
+            return attrib, (id == self.item_id)
         end
         local list, match = self:AddScrollBoxTargets_3Column(
             self.frame.OptionsContainer.ScrollBox, Filter)

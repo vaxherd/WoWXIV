@@ -6,6 +6,7 @@ local StandardMenuFrame = MenuCursor.StandardMenuFrame
 
 local class = WoWXIV.class
 
+local max = math.max
 local min = math.min
 local tinsert = tinsert
 
@@ -673,64 +674,31 @@ function ItemFlyoutHandler:RefreshTargets(initial_item)
                           RunNextFrame(function() self:RefreshTargets() end)
                       end},
     }
-    -- We can't use AddScrollBoxTargets() here because we have multiple
-    -- elements per row.  We also can't use SortTargetGrid() because not
-    -- all elements will have frames if the list overflows the frame
-    -- (such as for embellishment reagents), so we rely on the current
-    -- implementation details that (1) three items are displayed per row
-    -- and (2) the items are displayed in ScrollBox element index order.
-    local first, default
-    local rows = {}
-    if ItemScroll:GetDataProvider() then
-        local index = 0
-        ItemScroll:ForEachElementData(function(element)
-            index = index + 1
-            local data = ItemScroll:FindElementData(index)
-            local pseudo_frame =
-                self.PseudoFrameForScrollElement(ItemScroll, index)
-            self.targets[pseudo_frame] = {
-                is_scroll_box = true, send_enter_leave = true,
-                on_click = function(target) self:ClickItem(target) end,
-                up = false, down = false, left = false, right = false}
-            if index % 3 == 1 then
-                tinsert(rows, {})
-            end
-            tinsert(rows[#rows], pseudo_frame)
-            if initial_item and data.item:GetItemID() == initial_item then
-                default = pseudo_frame
-            end
-        end)
-        assert(#rows > 0)  -- Must be true if ItemScroll:GetDataProvider()~=nil
-        local first_row = rows[1]
-        first = first_row[1]
-        local last_row = rows[#rows]
-        for i, row in ipairs(rows) do
-            local prev_row = i > 1 and rows[i-1]
-            local next_row = i < #rows and rows[i+1]
-            for j, pseudo_frame in ipairs(row) do
-                local target_info = self.targets[pseudo_frame]
-                target_info.up = prev_row and prev_row[j] or checkbox
-                target_info.down = next_row and (next_row[j] or next_row[#next_row]) or checkbox
-                if j > 1 then
-                    target_info.left = row[j-1]
-                elseif prev_row then
-                    target_info.left = prev_row[#prev_row]
-                else
-                    target_info.left = last_row[#last_row]
-                end
-                if j < #row then
-                    target_info.right = row[j+1]
-                elseif next_row then
-                    target_info.right = next_row[1]
-                else
-                    target_info.right = first_row[1]
-                end
+
+    local function Filter(element, index)
+        local attrib = {send_enter_leave = true,
+                        on_click = function(target) self:ClickItem(target) end}
+        return attrib, initial_item and data.item:GetItemID() == initial_item
+    end
+    local list, default = self:AddScrollBoxTargets_3Column(ItemScroll, Filter)
+    local n = #list
+    if n > 0 then
+        local i_lastrow = n - (n-1)%3
+        for i = 1, min(3, n) do
+            self.targets[list[i]].up = checkbox
+        end
+        for i = i_lastrow, n do
+            self.targets[list[i]].down = checkbox
+        end
+        if n > 3 and n-2 < i_lastrow then
+            for i = n-2, i_lastrow-1 do
+                self.targets[list[i]].down = list[n]
             end
         end
-        self.targets[checkbox].up = last_row[1]
-        self.targets[checkbox].down = first_row[1]
+        self.targets[checkbox].up = list[i_lastrow]
+        self.targets[checkbox].down = list[1]
     end
-    local item = default or first
+    local item = default or list[1]
     if item and not self:GetTargetFrame(item) then
         ItemScroll:ScrollToElementDataIndex(item.index, ScrollBoxConstants.AlignEnd)
     end
