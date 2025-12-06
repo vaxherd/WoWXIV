@@ -2003,6 +2003,88 @@ function MenuFrame:AddScrollBoxTargets(scrollbox, filter, foreach_override)
     return top, bottom, other
 end
 
+-- Add elements from a ScrollBox as frame targets, returning up to two
+-- values: (1) the list of added targets in row-major order (top left,
+-- top middle, top right, second row left, second row middle, and so on),
+-- and optionally (2) the target selected by the filter function.
+-- All arguments are as for AddScrollBoxTargets().
+--
+-- This is a variant of AddScrollBoxTargets() for cases in which the list
+-- has three columns of item buttons, and is currently used with the item
+-- flyout in the crafting (professions) menu and the housing decor list.
+-- Targets will be created with all four directional attributes set so
+-- that vertical movement scrolls within a single column (except when
+-- moving onto an incomplete bottom row) and horizontal movement scrolls
+-- through the entire list, wrapping around from the right column of one
+-- row to the left column of the next row and from the last target to the
+-- first one.
+function MenuFrame:AddScrollBoxTargets_3Column(scrollbox, filter,
+                                               foreach_override)
+    if not scrollbox:GetDataProvider() then return end
+    local list = {}
+    local other
+    local index = 0
+    local function ProcessElement(data)
+        index = index + 1
+        local attributes, is_other = filter(data, index)
+        if attributes then
+            local pseudo_frame =
+                MenuFrame.PseudoFrameForScrollElement(scrollbox, index)
+            attributes.is_scroll_box = true
+            attributes.up = false
+            attributes.down = false
+            attributes.left = false
+            attributes.right = false
+            local n = #list
+            if n >= 1 then
+                self.targets[list[n]].right = pseudo_frame
+                attributes.left = list[n]
+            end
+            if n >= 3 then
+                self.targets[list[n-2]].down = pseudo_frame
+                attributes.up = list[n-2]
+            end
+            self.targets[pseudo_frame] = attributes
+            tinsert(list, pseudo_frame)
+            if is_other then other = pseudo_frame end
+        end
+    end
+    if foreach_override then
+        foreach_override(ProcessElement)
+    else
+        scrollbox:ForEachElementData(ProcessElement)
+    end
+    local n = #list
+    if n > 1 then
+        self.targets[list[1]].left = list[n]
+        self.targets[list[n]].right = list[1]
+    end
+    if n > 3 then
+        local bl, bc, br
+        if n%3 == 1 then
+            self.targets[list[n-2]].down = list[n]
+            self.targets[list[n-1]].down = list[n]
+            bl = list[n]
+        elseif n%3 == 2 then
+            self.targets[list[n-2]].down = list[n]
+            bl, bc = list[n-1], list[n]
+        else
+            bl, bc, br = list[n-2], list[n-1], list[n]
+        end
+        self.targets[list[1]].up = bl
+        self.targets[list[2]].up = bc or bl
+        self.targets[list[3]].up = br or bc or bl
+        self.targets[bl].down = list[1]
+        if bc then
+            self.targets[bc].down = list[2]
+        end
+        if br then
+            self.targets[br].down = list[3]
+        end
+    end
+    return list, other
+end
+
 -- Add widgets in the given WidgetContainer whose type is one of the
 -- given types (supported: "Spell", "Item", "Bar") to the given target list.
 -- |{up,down,left,right}_target| give the targets immediately in each

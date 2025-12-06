@@ -429,10 +429,15 @@ local CommunicationColumn = class(CommandMenuColumn)
 
 function CommunicationColumn:__constructor(parent)
     __super(self, parent, "Communication")
+    self:AddItem("Housing",
+                 "Open the housing dashboard.",
+                 HousingFramesUtil.ToggleHousingDashboard,
+                 true)
+    self:SetItemEnabled("Housing", not PlayerIsTimerunning(),
+                        "(Housing is not available for Timerunner characters.)")
     self:AddItem("Guild & Communities",
                  "View your current guild, or look for guilds or communities to join.",
-                 ToggleGuildFrame,
-                 true)
+                 ToggleGuildFrame)
     self:AddItem("Friends",
                  "Open the friends list.",
                  ToggleFriendsFrame)

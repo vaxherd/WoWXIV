@@ -67,6 +67,8 @@ gamepad/menucursor/FlightMapFrame.lua
 gamepad/menucursor/GarrisonCapacitiveDisplayFrame.lua
 gamepad/menucursor/GenericTraitFrame.lua
 gamepad/menucursor/GossipFrame.lua
+gamepad/menucursor/HousingCornerstonePurchaseFrame.lua
+gamepad/menucursor/HousingDashboardFrame.lua
 gamepad/menucursor/InboxFrame.lua
 gamepad/menucursor/ItemInteractionFrame.lua
 gamepad/menucursor/ItemSocketingFrame.lua

@@ -12,10 +12,10 @@ MenuCursor.Cursor.RegisterFrameHandler(MajorFactionRenownFrameHandler)
 
 function MajorFactionRenownFrameHandler:__constructor()
     __super(self, MajorFactionRenownFrame)
+    local f = self.frame
     self.cancel_func = nil
-    self.cancel_button = self.frame.CloseButton
-    hooksecurefunc(self.frame, "SetRewards",
-                   function() self:RefreshTargets() end)
+    self.cancel_button = f.CloseButton
+    hooksecurefunc(f, "SetRewards", function() self:RefreshTargets() end)
 end
 
 function MajorFactionRenownFrameHandler:RefreshTargets()
