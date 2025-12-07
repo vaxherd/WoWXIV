@@ -62,13 +62,23 @@ end
 
 function AchievementFrameHandler:ClickAchievement(target)
     local button = self:GetTargetFrame(target)
+    local extent = target.box:GetElementExtent(target.index)  -- For below.
     -- Clicking the achievement closed also clears the highlight, so do an
     -- explicit LeaveTarget/EnterTarget around the click.
     assert(target == self:GetTarget())
     self:LeaveTarget(target)
     button:Click("LeftButton", true)
-    self:ScrollToTarget(target)  -- Might have expanded outside the frame.
     self:EnterTarget(target)
+    -- The achievement might have expanded to extend below the bottom of
+    -- the scroll viewport, so re-scroll to the target.  But in at least
+    -- some cases (or perhaps due to a behavior change in a patch?), this
+    -- may not happen until the next frame, so handle that case as well.
+    local new_extent = target.box:GetElementExtent(target.index)
+    if new_extent ~= extent then
+        self:ScrollToTarget(target)
+    else
+        RunNextFrame(function() self:ScrollToTarget(target) end)
+    end
 end
 
 function AchievementFrameHandler:RefreshTargets()
