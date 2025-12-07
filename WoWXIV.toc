@@ -43,6 +43,7 @@ gamepad/leavevehicle.lua
 gamepad/questitem.lua
 
 gamepad/menucursor/menucursor.lua
+gamepad/menucursor/AbandonHouseConfirmationDialog.lua
 gamepad/menucursor/AchievementFrame.lua
 gamepad/menucursor/AdventureMapQuestChoiceDialog.lua
 gamepad/menucursor/AnimaDiversionFrame.lua
@@ -67,8 +68,11 @@ gamepad/menucursor/FlightMapFrame.lua
 gamepad/menucursor/GarrisonCapacitiveDisplayFrame.lua
 gamepad/menucursor/GenericTraitFrame.lua
 gamepad/menucursor/GossipFrame.lua
+gamepad/menucursor/HousingControlsFrame.lua
+gamepad/menucursor/HousingCornerstoneHouseInfoFrame.lua
 gamepad/menucursor/HousingCornerstonePurchaseFrame.lua
 gamepad/menucursor/HousingDashboardFrame.lua
+gamepad/menucursor/HousingHouseSettingsFrame.lua
 gamepad/menucursor/InboxFrame.lua
 gamepad/menucursor/ItemInteractionFrame.lua
 gamepad/menucursor/ItemSocketingFrame.lua

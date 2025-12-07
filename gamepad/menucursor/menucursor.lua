@@ -1040,14 +1040,14 @@ end
 -- dir gives the direction, one of the strings "up", "down", "left", or
 -- "right".
 function Cursor:Move(dir)
-    if not self:IsShown() then
+    local focus, target = self:GetFocusAndTarget()
+    if target and not self:IsShown() then
         -- We got a directional input event while in mouse input mode.
         -- Rather than immediately moving the cursor, just show it at its
         -- current position and let the next input do the actual movement.
         self:UpdateCursor()
         return
     end
-    local focus, target = self:GetFocusAndTarget()
     local new_target = focus:NextTarget(target, dir)
     if new_target and new_target ~= target then
         self:SetTargetForFrame(focus, new_target)
@@ -2307,8 +2307,10 @@ function MenuFrame.SetupDropdownMenu(dropdown, cache, getIndex, onClick)
             pseudo_frame.button = element
             local attributes = {
                 is_scroll_box = true, is_default = (index == 1),
-                on_enter = OnEnterDropdownItem, on_leave = OnLeaveDropdownItem,
-                on_click = OnClickDropdownItem}
+                on_enter = OnEnterDropdownItem, on_leave = OnLeaveDropdownItem}
+            if element:IsEnabled() then
+                attributes.on_click = OnClickDropdownItem
+            end
             if last then
                 menu_manager.targets[last].down = pseudo_frame
                 attributes.up = last

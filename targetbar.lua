@@ -428,15 +428,36 @@ function WoWXIV.TargetBar.Create()
             PlayerPowerBarAlt[name] = WoWXIV.lockfunc(
                 PlayerPowerBarAlt[name], true, lock)
         end
-        function f:UI_SCALE_CHANGED(...)
-            local offset_x = UIParent:GetWidth() * 0.262
-            UIWidgetTopCenterContainerFrame:ClearAllPoints()
-            UIWidgetTopCenterContainerFrame:SetPoint(
-                "BOTTOM", UIParent, "BOTTOM", offset_x, 15)
+        function f:UI_SCALE_CHANGED()
+            local relpos = HousingMicroButton:IsShown() and 0.256 or 0.262
+            local offset_x = UIParent:GetWidth() * relpos
+            local function MoveFrame(frame, offset_y, lock)
+                if lock then
+                    frame:ClearAllPoints(lock)
+                    frame:SetPoint(lock, "BOTTOM", UIParent, "BOTTOM",
+                                   offset_x, offset_y)
+                else
+                    frame:ClearAllPoints()
+                    frame:SetPoint("BOTTOM", UIParent, "BOTTOM",
+                                   offset_x, offset_y)
+                end
+            end
+            MoveFrame(UIWidgetTopCenterContainerFrame, 15)
             -- Seen in the Vigilant Guardian encounter in SL Sepulcher.
-            PlayerPowerBarAlt:ClearAllPoints(lock)
-            PlayerPowerBarAlt:SetPoint(
-                lock, "BOTTOM", UIParent, "BOTTOM", offset_x, 15)
+            MoveFrame(PlayerPowerBarAlt, lock, 30)
+            -- Housing controls are also top-center.  FIXME: this will
+            -- probably muck with the tutorials?
+            if HousingControlsFrame then
+                MoveFrame(HousingControlsFrame, 30)
+            else
+                function f:ADDON_LOADED(addon)
+                    if addon == "Blizzard_HousingControls" then
+                        MoveFrame(HousingControlsFrame, 30)
+                        f:UnregisterEvent("ADDON_LOADED")
+                    end
+                end
+                f:RegisterEvent("ADDON_LOADED")
+            end
         end
     end
 end
