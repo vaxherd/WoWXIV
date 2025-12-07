@@ -184,9 +184,7 @@ function HouseUpgradeFrameHandler:OnDPad(dir)
     local f = self.frame
     local track = f.TrackFrame
     assert(self:GetTarget() == f.TrackFrame)
-    if f.displayLevel < f.actualLevel then
-        f.LevelSkipButton:OnClick()
-    elseif dir == "left" then
+    if dir == "left" then
         -- This TrackFrame doesn't support mouse scrolling (bug?)
         -- so we have to implement it manually.
         local index = track:GetCenterIndex()
