@@ -1,6 +1,29 @@
 local _, WoWXIV = ...
 WoWXIV.FlyText = {}
 
+-- Add FFXIV style font from LSM apply to flytext.
+local LSM = nil
+if LibStub ~= nil then
+    LSM = LibStub("LibSharedMedia-3.0")
+end
+
+local HOEFLER_FONT_PATH, HOEFLER_ITALIC_FONT_PATH
+
+if LSM then
+    HOEFLER_FONT_PATH = LSM:Fetch("font", "hoefler-text")
+    HOEFLER_ITALIC_FONT_PATH = LSM:Fetch("font", "hoefler-text-italic")
+end
+    
+if not HOEFLER_FONT_PATH then
+    HOEFLER_FONT_PATH = "Fonts\\FRIZQT__.TTF"
+end
+if not HOEFLER_ITALIC_FONT_PATH then
+    HOEFLER_ITALIC_FONT_PATH = "Fonts\\FRIZQT__.TTF"
+end
+
+local DEFAULT_FONT_FILE, DEFAULT_FONT_SIZE, DEFAULT_FONT_FLAGS = GameFontNormal:GetFont()
+
+
 local class = WoWXIV.class
 local list = WoWXIV.list
 local set = WoWXIV.set
@@ -13,6 +36,7 @@ local strfind = string.find
 local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 local strsub = string.sub
 local tinsert = tinsert
+local random = math.random
 
 local typeof = type  -- Renamed so we can use "type" as an ordinary name.
 
@@ -21,7 +45,37 @@ local typeof = type  -- Renamed so we can use "type" as an ordinary name.
 local FlyText = class()
 
 -- Length of time a flying text string will be displayed (seconds).
+
 local FLYTEXT_TIME = 4.5
+local FLYTEXT_UP_TIME = 1.5
+local FLYTEXT_PASSIVE_TIME = 0.8
+
+local FLYTEXT_NOTFLY_OFFSET_X_MIN = 20
+local FLYTEXT_NOTFLY_OFFSET_X_MAX = 40
+local FLYTEXT_NOTFLY_OFFSET_Y_MIN = 15
+local FLYTEXT_NOTFLY_OFFSET_Y_MAX = 30
+
+local FLYTEXT_CRIT_OFFSET_FACTOR = 1.5
+
+-- Flytext move offset in Y direction.
+local FLYTEXT_DY_FACTOR = 0.2
+local FLYTEXT_DY_UP_FACTOR = 0.12
+
+local FLYTEXT_DY_ISUP = 1
+
+-- Default scale factor for text.
+local FLYTEXT_FONT_SCALE = 0.95
+-- Scale factor for critical hits.
+local FLYTEXT_CRIT_SCALE = FLYTEXT_FONT_SCALE * 1.4
+-- Scale factor for "Miss" text.
+local FLYTEXT_MISS_SCALE = FLYTEXT_FONT_SCALE * 0.9
+-- Scale factor for ffxiv style font since it's smaller than regular text.
+local FLYTEXT_VALUE_SCALE = FLYTEXT_FONT_SCALE * 1.5    
+
+-- Apply when pushing non-flying text.
+local FLYTEXT_FASTFORWARD_SHORT = 0.2
+local FLYTEXT_FASTFORWARD_MIDDLE = 0.4
+local FLYTEXT_FASTFORWARD_LONG = 0.6
 
 -- Damage types for type argument to constructor.
 local FLYTEXT_DAMAGE_DIRECT  = 1  -- direct damage, or DoT from channeling
@@ -34,11 +88,20 @@ local FLYTEXT_DEBUFF_ADD     = 7
 local FLYTEXT_DEBUFF_REMOVE  = 8
 local FLYTEXT_LOOT_MONEY     = 9
 local FLYTEXT_LOOT_ITEM      = 10
+local FLYTEXT_OTHER_DAMAGE_DIRECT   = 11
+local FLYTEXT_OTHER_DAMAGE_PASSIVE  = 12
+local FLYTEXT_OTHER_HEAL_DIRECT     = 13
+local FLYTEXT_OTHER_HEAL_PASSIVE    = 14
+local FLYTEXT_OTHER_BUFF_ADD        = 15
+local FLYTEXT_OTHER_BUFF_REMOVE     = 16  -- TODO: not implemented
+local FLYTEXT_OTHER_DEBUFF_ADD      = 17
+local FLYTEXT_OTHER_DEBUFF_REMOVE   = 18  -- TODO: not implemented
 
 -- Corresponding text colors.
 local COLOR_RED   = {1, 0.753, 0.761}
 local COLOR_GREEN = {0.929, 1, 0.906}
 local COLOR_BLUE  = {0.790, 0.931, 0.970}
+local COLOR_ORANGE = {1, 0.882, 0.8}
 local COLOR_WHITE = {1, 1, 1}
 local COLOR_GRAY  = {0.7, 0.7, 0.7}
 local FLYTEXT_COLORS = {
@@ -52,6 +115,12 @@ local FLYTEXT_COLORS = {
     [FLYTEXT_DEBUFF_REMOVE]  = COLOR_GRAY,
     [FLYTEXT_LOOT_MONEY]     = COLOR_WHITE,
     [FLYTEXT_LOOT_ITEM]      = COLOR_WHITE,
+    [FLYTEXT_OTHER_DAMAGE_DIRECT]  = COLOR_ORANGE,
+    [FLYTEXT_OTHER_DAMAGE_PASSIVE] = COLOR_RED,
+    [FLYTEXT_OTHER_HEAL_DIRECT] = COLOR_GREEN,
+    [FLYTEXT_OTHER_HEAL_PASSIVE] = COLOR_GREEN,
+    [FLYTEXT_OTHER_BUFF_ADD] = COLOR_GREEN,
+    [FLYTEXT_OTHER_DEBUFF_ADD] = COLOR_ORANGE,
 }
 
 -- Internal helpers to pool frames (since we can't explicitly delete them).
@@ -118,21 +187,43 @@ function FlyText:FreePooledFrame(f)
 end
 
 -- Static method: Return scroll offset per second for flying text.
-function FlyText:GetDY()
-    return -(UIParent:GetHeight()*0.3 / FLYTEXT_TIME)
+function FlyText:GetDY(isUpDirection)
+    local factor = FLYTEXT_DY_FACTOR
+    local time = FLYTEXT_TIME
+
+    if isUpDirection == FLYTEXT_DY_ISUP then
+        factor = FLYTEXT_DY_UP_FACTOR
+        time = FLYTEXT_UP_TIME
+    end
+
+    return -(UIParent:GetHeight()* factor / time)
 end
 
 -- Direct damage/heal: (type, unit, spell_id, school, amount, crit_flag)
+-- Other direct damage: (type, unit, spell_id, school, amount, crit_flag, nameplate)
 -- Passive damage/heal: (type, unit, amount)
+-- Other Passive damage/heal: (type, unit, amount, nameplate)
 -- Buff/debuff: (type, unit, spell_id, school, stacks)
+-- Other debuff add: (type, unit, spell_id, school, stacks, nameplate)
 -- Loot money: (type, amount)
 -- Loot item: (type, item_icon, item_name, name_color, count [default 1])
 function FlyText:__constructor(type, ...)
     self.type = type
+    self.isFly = true
     if type == FLYTEXT_DAMAGE_PASSIVE or type == FLYTEXT_HEAL_PASSIVE then
+        self.isFly = false
         self.unit, self.amount = ...
     elseif type >= FLYTEXT_DAMAGE_DIRECT and type <= FLYTEXT_DEBUFF_REMOVE then
         self.unit, self.spell_id, self.school, self.amount, self.crit_flag = ...
+    elseif type == FLYTEXT_OTHER_DAMAGE_DIRECT or type == FLYTEXT_OTHER_HEAL_DIRECT then
+        self.unit, self.spell_id, self.school, self.amount,
+            self.crit_flag, self.nameplate = ...
+        self.isFly = not (self.unit == "other" and self.crit_flag)
+    elseif type == FLYTEXT_OTHER_DAMAGE_PASSIVE or type == FLYTEXT_OTHER_HEAL_PASSIVE then
+        self.isFly = false
+        self.unit, self.amount, self.nameplate = ...
+    elseif type == FLYTEXT_OTHER_DEBUFF_ADD or type == FLYTEXT_OTHER_BUFF_ADD then
+        self.unit, self.spell_id, self.school, self.amount, self.crit_flag, self.nameplate = ...
     elseif type == FLYTEXT_LOOT_MONEY then
         self.unit = "player"
         self.amount = ...
@@ -148,20 +239,48 @@ function FlyText:__constructor(type, ...)
 
     -- There seems to be no API for getting the screen position of a unit,
     -- so we can't draw anything for units other than the player.
-    if self.unit ~= "player" then
+    if self.unit ~= "player" and self.unit ~= "other" then
         self.frame = nil
         return self
     end
 
-    self.time = FLYTEXT_TIME
+    if (not self.isFly) and self.crit_flag then
+        self.time = FLYTEXT_UP_TIME
+    elseif not self.isFly then
+        self.time = FLYTEXT_PASSIVE_TIME
+    elseif self.unit == "other" then
+        self.time = FLYTEXT_UP_TIME
+    else 
+        self.time = FLYTEXT_TIME
+    end
+
     self.start = GetTime()
     if type == FLYTEXT_HEAL_DIRECT or type == FLYTEXT_HEAL_PASSIVE then
         self.x = -(UIParent:GetWidth()*0.01)
+    elseif type == FLYTEXT_OTHER_DAMAGE_PASSIVE then
+        self.x = UIParent:GetWidth()*0.025
     else
         self.x = UIParent:GetWidth()*0.05
     end
     self.y = 0
-    self.dy = FlyText:GetDY()
+
+    if type == FLYTEXT_OTHER_DAMAGE_DIRECT and self.crit_flag then
+        self.x = self.x - (FLYTEXT_NOTFLY_OFFSET_X_MIN * FLYTEXT_CRIT_OFFSET_FACTOR) 
+                        + random(FLYTEXT_NOTFLY_OFFSET_X_MIN * FLYTEXT_CRIT_OFFSET_FACTOR, FLYTEXT_NOTFLY_OFFSET_X_MAX * FLYTEXT_CRIT_OFFSET_FACTOR)
+        self.y = self.y + (FLYTEXT_NOTFLY_OFFSET_X_MIN * FLYTEXT_CRIT_OFFSET_FACTOR) 
+                        - random(FLYTEXT_NOTFLY_OFFSET_Y_MIN * FLYTEXT_CRIT_OFFSET_FACTOR, FLYTEXT_NOTFLY_OFFSET_Y_MAX * FLYTEXT_CRIT_OFFSET_FACTOR)
+    elseif not self.isFly then
+        self.x = self.x + random(FLYTEXT_NOTFLY_OFFSET_X_MIN, FLYTEXT_NOTFLY_OFFSET_X_MAX)
+        self.y = self.y - random(FLYTEXT_NOTFLY_OFFSET_Y_MIN, FLYTEXT_NOTFLY_OFFSET_Y_MAX)
+    end
+
+    if not self.isFly then
+        self.dy = 0
+    elseif self.unit == "other" then
+        self.dy = FlyText:GetDY(FLYTEXT_DY_ISUP)
+    else
+        self.dy = FlyText:GetDY()
+    end
 
     local f = FlyText:AllocPooledFrame()
     self.frame = f
@@ -179,8 +298,11 @@ function FlyText:__constructor(type, ...)
     name:SetTextColor(r, g, b)
     value:SetTextColor(r, g, b)
 
-    if type == FLYTEXT_DAMAGE_DIRECT or type == FLYTEXT_HEAL_DIRECT then
+    if type == FLYTEXT_DAMAGE_DIRECT or type == FLYTEXT_HEAL_DIRECT or
+       type == FLYTEXT_OTHER_DAMAGE_DIRECT or type == FLYTEXT_OTHER_HEAL_DIRECT then
         local spell_info = self.spell_id and C_Spell.GetSpellInfo(self.spell_id) or nil
+        value:SetFont(HOEFLER_FONT_PATH, DEFAULT_FONT_SIZE, DEFAULT_FONT_FLAGS)
+
         if spell_info and spell_info.name then
             name:SetText(spell_info.name)
         else
@@ -205,20 +327,24 @@ function FlyText:__constructor(type, ...)
         end
         value:SetText(amount)
 
-    elseif type == FLYTEXT_DAMAGE_PASSIVE or type == FLYTEXT_HEAL_PASSIVE then
+    elseif type == FLYTEXT_DAMAGE_PASSIVE or type == FLYTEXT_HEAL_PASSIVE or
+           type == FLYTEXT_OTHER_DAMAGE_PASSIVE or type == FLYTEXT_OTHER_HEAL_PASSIVE then
+        value:SetFont(HOEFLER_FONT_PATH, DEFAULT_FONT_SIZE, DEFAULT_FONT_FLAGS)
         name:Hide()
         icon:Hide()
         value:ClearAllPoints()
         value:SetPoint("LEFT", f, "CENTER", 10, 0)
         value:SetText(self.amount)
 
-    elseif type >= FLYTEXT_BUFF_ADD and type <= FLYTEXT_DEBUFF_REMOVE then
+    elseif (type >= FLYTEXT_BUFF_ADD and type <= FLYTEXT_DEBUFF_REMOVE) or type == FLYTEXT_OTHER_DEBUFF_ADD or type == FLYTEXT_OTHER_BUFF_ADD then
+        value:SetFont(DEFAULT_FONT_FILE, DEFAULT_FONT_SIZE, DEFAULT_FONT_FLAGS)
+        value:SetTextScale(FLYTEXT_FONT_SCALE)
         name:Hide()
         local spell_info = C_Spell.GetSpellInfo(self.spell_id)
         icon:SetSize(24, 24)
         local border = w.border
         border:SetSize(22, 26)
-        if type == FLYTEXT_BUFF_ADD or type == FLYTEXT_BUFF_REMOVE then
+        if type == FLYTEXT_BUFF_ADD or type == FLYTEXT_BUFF_REMOVE or type == FLYTEXT_OTHER_BUFF_ADD then
             icon:SetMask(WoWXIV.makepath("textures/buff-mask.png"))
             WoWXIV.SetUITexture(border, 99, 121, 14, 40)
         else
@@ -234,13 +360,16 @@ function FlyText:__constructor(type, ...)
         value:ClearAllPoints()
         value:SetPoint("LEFT", icon, "RIGHT", 2, 0)
         WoWXIV.SetFont(value, "FLYTEXT_DEFAULT")
-        if type == FLYTEXT_BUFF_ADD or type == FLYTEXT_DEBUFF_ADD then
+        if type == FLYTEXT_BUFF_ADD or type == FLYTEXT_DEBUFF_ADD or
+           type == FLYTEXT_OTHER_DEBUFF_ADD or type == FLYTEXT_OTHER_BUFF_ADD then
             value:SetText("+" .. spell_info.name)
         else
             value:SetText("-" .. spell_info.name)
         end
 
     elseif type == FLYTEXT_LOOT_MONEY then
+        value:SetFont(DEFAULT_FONT_FILE, DEFAULT_FONT_SIZE, DEFAULT_FONT_FLAGS)
+        value:SetTextScale(FLYTEXT_FONT_SCALE)
         name:Hide()
         icon:Hide()
         value:ClearAllPoints()
@@ -255,6 +384,8 @@ function FlyText:__constructor(type, ...)
         value:SetText(GetMoneyString(self.amount))
 
     elseif type == FLYTEXT_LOOT_ITEM then
+        value:SetFont(DEFAULT_FONT_FILE, DEFAULT_FONT_SIZE, DEFAULT_FONT_FLAGS)
+        value:SetTextScale(FLYTEXT_FONT_SCALE)
         name:Hide()
         icon:SetSize(24, 24)
         icon:SetMask("")
@@ -274,7 +405,18 @@ function FlyText:__constructor(type, ...)
         WoWXIV.SetFont(value, "FLYTEXT_DEFAULT")
         value:SetTextColor(unpack(COLOR_BLUE))
         value:SetText(text)
+    end
+end
 
+-- Reduce remaining display time of non-flying text by adjust it's start time.
+function FlyText:FastForward(textInstance)
+    if not (textInstance.time == self.time) then
+        return
+    end
+    if self.crit_flag then
+        self.start = self.start - FLYTEXT_FASTFORWARD_MIDDLE
+    else
+        self.start = self.start - FLYTEXT_FASTFORWARD_MIDDLE
     end
 end
 
@@ -282,7 +424,6 @@ end
 function FlyText:OnUpdate()
     local f = self.frame
     if not f then return false end
-
     local now = GetTime()
     local t = now - self.start
     if t >= self.time then
@@ -291,22 +432,61 @@ function FlyText:OnUpdate()
         return false
     end
 
-    if t < 0.25 then
-        f:SetAlpha(t/0.25)
-    elseif t > self.time - 0.5 then
+    -- Non-flying text has different alpha handling.
+    -- TODO: Other units' buff/debuff add/remove from themselves has same alpha handling as well. Not Implemented.
+    if not self.isFly and not self.crit_flag then
         local left = self.time - t
-        f:SetAlpha(left/0.5)
+        local alpha = 0
+        if t < 0.1 then
+            alpha = t/0.1
+        elseif left < 0.2 then
+            alpha = left/0.2
+        else 
+            alpha = 1
+        end
+
+        if alpha - 0.25 < 0 then alpha = 0.25 end
+        f:SetAlpha(alpha - 0.25)
     else
-        f:SetAlpha(1)
+        if t < 0.25 then
+            f:SetAlpha(t/0.25)
+        elseif t > self.time - 0.5 then
+            local left = self.time - t
+            f:SetAlpha(left/0.5)
+        else
+            f:SetAlpha(1)
+        end
     end
+
+    if self.crit_flag then
+        if t < 0.01 then
+            f:SetScale(0.9)
+        elseif t < 0.1 then
+            f:SetScale(0.9 + (t - 0.01)/0.09 * 0.2)
+        elseif t < 0.125 then
+            f:SetScale(1.1 - (t - 0.1)/0.025 * 0.1)
+        else
+            f:SetScale(1.0)
+        end
+    end
+
     f:ClearAllPoints()
-    f:SetPoint("CENTER", nil, "CENTER", self.x, self.y + self.dy*t)
+    if self.unit == "other" then
+        -- For other units, anchor should be their nameplate.
+        f:SetPoint("CENTER", self.nameplate, "LEFT", self.x - 30, self.y - 50 - self.dy*t)
+    else
+        f:SetPoint("CENTER", nil, "CENTER", self.x, self.y + self.dy*t)
+    end
     return true
 end
 
 -- Push text forward by the given number of seconds.
 function FlyText:Push(dt)
-    self.y = self.y + dt * self.dy
+    if self.unit == "other" then
+        self.y = self.y - dt * self.dy
+    else
+        self.y = self.y + dt * self.dy
+    end
 end
 
 ------------------------------------------------------------------------
@@ -318,8 +498,11 @@ function FlyTextManager:__constructor(parent)
     self.texts = list()
     self.dot = {}
     self.hot = {}
+    self.last_move_times = {}
+
     self.last_left = 0
     self.last_right = 0
+    self.last_up = 0
     self.zone_entered = 0
     self.last_money = GetMoney()
     self.last_item_icon = nil
@@ -369,44 +552,92 @@ function FlyTextManager:OnCombatLogEvent(event)
     end
 
     local unit = event.dest
+    local nameplate = nil
     if unit == UnitGUID("player") or (UnitInVehicle("player") and unit == UnitGUID("vehicle")) then
         unit = "player"
-    else
-        return  -- Can't draw flying text for non-player units.
+
+    -- Draw flying text for other units positioned by their nameplates.
+    -- Define combat subtype explicitly to avoid unexpected behavior.
+    -- TODO: If nameplate is hidden, define a absolute position on screen?
+    elseif event.source == UnitGUID("player") and (event.subtype == "DAMAGE" or event.subtype == "HEAL" or
+            event.subtype == "PERIODIC_HEAL" or event.subtype == "PERIODIC_DAMAGE" or
+            event.subtype == "AURA_APPLIED" or event.subtype == "AURA_APPLIED_DOSE" or
+            event.subtype == "AURA_REFRESH") then
+        local unitid = UnitTokenFromGUID(event.dest)
+        if unitid ~= nil and unitid ~= "nil" then
+            nameplate = C_NamePlate.GetNamePlateForUnit(unitid)
+            unit = "other"
+        else
+            return
+        end
+    else 
+        return  -- Can't draw flying text for non-player units with not DAMAGE TYPE.
     end
 
     local text = nil
     local left_side = false
+    local fly_direction = "right"
     local is_aura = false
-    if event.subtype == "DAMAGE" then
+    if event.subtype == "DAMAGE" and unit == "player" then
         text = FlyText(FLYTEXT_DAMAGE_DIRECT, unit, event.spell_id,
                        event.spell_school, event.amount, event.critical)
-    elseif event.subtype == "PERIODIC_DAMAGE" then
-        self.dot = self.dot or {}
-        self.dot[unit] = (self.dot[unit] or 0) + event.amount
+    elseif event.subtype == "DAMAGE" and unit == "other" then
+        fly_direction = "up"
+        text = FlyText(FLYTEXT_OTHER_DAMAGE_DIRECT, unit, event.spell_id,
+                       event.spell_school, event.amount, event.critical, nameplate)
+    elseif event.subtype == "PERIODIC_DAMAGE" and unit == "player" then
+        text = FlyText(FLYTEXT_DAMAGE_PASSIVE, unit, event.amount, nameplate)
+    elseif event.subtype == "PERIODIC_DAMAGE" and unit == "other" then
+        text = FlyText(FLYTEXT_OTHER_DAMAGE_PASSIVE, unit, event.amount, nameplate)
+        -- self.dot = self.dot or {}
+        -- self.dot[unit] = (self.dot[unit] or 0) + event.amount
     elseif event.subtype == "MISSED" then
         -- Note: absorbed heals are reported as "heal for 0" with the
         -- amount absorbed in event.absorbed, so we don't have to worry
         -- about separating them out here.
         text = FlyText(FLYTEXT_DAMAGE_DIRECT, unit, event.spell_id,
                        event.spell_school, event.amount and 0 or nil)
-    elseif event.subtype == "HEAL" then
-        left_side = true
+    elseif event.subtype == "HEAL" and unit == "player" then
+        fly_direction = "left"
         text = FlyText(FLYTEXT_HEAL_DIRECT, unit, event.spell_id,
                        event.spell_school, event.amount, event.critical)
-    elseif event.subtype == "PERIODIC_HEAL" then
-        self.hot = self.hot or {}
-        self.hot[unit] = (self.hot[unit] or 0) + event.amount
-    elseif event.subtype == "AURA_APPLIED" then
+    elseif event.subtype == "HEAL" and unit == "other" then
+        fly_direction = "up"
+        text = FlyText(FLYTEXT_OTHER_HEAL_DIRECT, unit, event.spell_id,
+                       event.spell_school, event.amount, event.critical, nameplate)
+    elseif event.subtype == "PERIODIC_HEAL" and unit == "player" then
+        text = FlyText(FLYTEXT_HEAL_PASSIVE, unit, event.amount, nameplate)
+        -- self.hot = self.hot or {}
+        -- self.hot[unit] = (self.hot[unit] or 0) + event.amount
+    elseif event.subtype == "PERIODIC_HEAL" and unit == "other" then
+        text = FlyText(FLYTEXT_OTHER_HEAL_PASSIVE, unit, event.amount, nameplate)
+        -- self.hot = self.hot or {}
+        -- self.hot[unit] = (self.hot[unit] or 0) + event.amount
+    elseif event.subtype == "AURA_APPLIED" and unit == "player" then
         is_aura = true
         self:DoAura((event.aura_type=="BUFF" and FLYTEXT_BUFF_ADD
                                              or FLYTEXT_DEBUFF_ADD),
                     unit, event.spell_id, event.spell_school)
-    elseif event.subtype == "AURA_APPLIED_DOSE" then
+    elseif event.subtype == "AURA_APPLIED_DOSE" and unit == "player" then
         is_aura = true
         self:DoAura((event.aura_type=="BUFF" and FLYTEXT_BUFF_ADD
                                              or FLYTEXT_DEBUFF_ADD),
                     unit, event.spell_id, event.spell_school, event.amount)
+    elseif (event.subtype == "AURA_APPLIED" or event.subtype == "AURA_APPLIED_DOSE" or event.subtype == "AURA_REFRESH") and unit == "other" then
+        -- TODO: repeated AURA_REFRESH may cause spam for healers.
+        if event.aura_type == "BUFF" and event.subtype == "AURA_REFRESH" then
+            return
+        end
+
+        if event.aura_type == "BUFF" then
+            text = FlyText(FLYTEXT_OTHER_BUFF_ADD, unit, event.spell_id, event.spell_school, false, false, nameplate)
+        else
+            text = FlyText(FLYTEXT_OTHER_DEBUFF_ADD, unit, event.spell_id, event.spell_school, event.amount, false, nameplate)
+        end
+        -- is_aura = true
+        -- self:DoAura((event.aura_type=="BUFF" and FLYTEXT_BUFF_ADD
+        --                                      or FLYTEXT_DEBUFF_ADD),
+        --             unit, event.spell_id, event.spell_school)
     elseif event.subtype == "AURA_REMOVED" then
         is_aura = true
         self:DoAura((event.aura_type=="BUFF" and FLYTEXT_BUFF_REMOVE
@@ -420,7 +651,7 @@ function FlyTextManager:OnCombatLogEvent(event)
         self.last_aura_set = nil
     end
     if text then
-        self:AddText(text, left_side)
+        self:AddText(text, fly_direction)
     end
 end
 
@@ -634,24 +865,78 @@ function FlyTextManager:OnPlayerMoney()
     end
 end
 
-function FlyTextManager:AddText(text, left_side)
+function FlyTextManager:AddText(text, direction)
     local now = GetTime()
-    local dt
-    if left_side then
-        dt = now - self.last_left
-        self.last_left = now
-    else
-        dt = now - self.last_right
-        self.last_right = now
+
+    local is_player = (text.unit == "player")
+    local is_moving = text.isFly
+
+    local tracking_key = is_player and "player" or text.nameplate
+
+    if not is_player and not tracking_key then
+        self.texts:append(text)
+        return
     end
-    local dy = math.abs(FlyText:GetDY())
-    local min_offset = 16
-    if dt*dy < min_offset then
-        local time_offset = (min_offset - dt*dy) / dy
-        for t in self.texts do
-            t:Push(time_offset)
+
+    -- For text that is flying, manage it's last added time by nameplate separately
+    -- then push it's y offset if needed.
+    if is_moving then
+        local last_time = self.last_move_times[tracking_key] or 0
+        local dt_since_last = now - last_time
+
+        local dy = math.abs(FlyText:GetDY())
+        if not is_player then
+            dy = math.abs(FlyText:GetDY(FLYTEXT_DY_ISUP))
+        end
+
+        local min_offset = 18 * FLYTEXT_FONT_SCALE
+
+        if dt_since_last*dy < min_offset then
+
+            local time_offset = (min_offset - dt_since_last*dy) / dy
+            
+            for existing_text in self.texts do
+                local match_group = false
+                
+                if is_player then
+                    if existing_text.unit == "player" and existing_text.isFly then
+                        match_group = true
+                    end
+                else
+                    if existing_text.unit == "other" and existing_text.nameplate == tracking_key and existing_text.isFly then
+                        match_group = true
+                    end
+                end
+
+                if match_group then
+                    existing_text:Push(time_offset)
+                end
+            end
+        end
+
+        self.last_move_times[tracking_key] = now
+    
+    -- For non-flying text, reduce display time.
+    else
+        for existing_text in self.texts do
+            local match_group = false
+
+            if is_player then
+                if existing_text.unit == "player" and not existing_text.isFly then
+                    match_group = true
+                end
+            else
+                if existing_text.unit == "other" and existing_text.nameplate == tracking_key and (not existing_text.isFly or existing_text.crit_flag) then
+                    match_group = true
+                end
+            end
+
+            if match_group then
+                existing_text:FastForward(text) 
+            end
         end
     end
+
     self.texts:append(text)
 end
 
