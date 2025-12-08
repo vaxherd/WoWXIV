@@ -178,7 +178,7 @@ local function SendToItemUpgrade(bag, slot, info)
     MenuCursor.ItemUpgradeFrameHandler.FocusUpgradeButton()
 end
 
--- Send an item to the BfA scrapping machine.
+-- Send an item to a scrapping machine (BfA, Remix etc).
 local function SendToScrapper(bag, slot, info)
     ClearCursor()
     assert(not GetCursorInfo())
@@ -216,8 +216,9 @@ local function SendToScrapper(bag, slot, info)
     if GetCursorInfo() then
         -- If the item is invalid for the scrapper or the scrapper is
         -- busy, the DropPending call will fail and leave the item on the
-        -- cursor.  We could report an error and clear the cursor, but we
-        -- might as well let the player rearrange their inventory instead.
+        -- cursor.  Report an error so the user knows to wait.
+        WoWXIV.Error("The scrapping machine is busy.", true)
+        ClearCursor()
         return
     end
     if not FindSlot() then
