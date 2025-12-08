@@ -52,6 +52,7 @@ gamepad/menucursor/AzeriteEmpoweredItemUI.lua
 gamepad/menucursor/AzeriteEssenceUI.lua
 gamepad/menucursor/BankFrame.lua
 gamepad/menucursor/BonusRollFrame.lua
+gamepad/menucursor/ChallengesKeystoneFrame.lua
 gamepad/menucursor/CharacterFrame.lua
 gamepad/menucursor/CinematicFrame.lua
 gamepad/menucursor/ClassTrainerFrame.lua

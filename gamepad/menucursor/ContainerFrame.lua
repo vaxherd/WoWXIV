@@ -287,6 +287,25 @@ local function SendToSocket(bag, slot, info)
     WoWXIV.Error(error)
 end
 
+-- Insert a keystone item into the keystone slot in a Mythic dungeon's
+-- Font of Power interface.  The item is assumed to be a valid keystone
+-- and the interface is assumed to be open.
+local function SocketKeystone(bag, slot, info)
+    ClearCursor()
+    assert(not GetCursorInfo())
+    if info.isLocked then
+        WoWXIV.Error("Item is locked.")
+        return
+    end
+    C_Container.PickupContainerItem(bag, slot)
+    -- SlotKeystone() will display its own error message if the keystone
+    -- is invalid.
+    C_ChallengeMode.SlotKeystone()
+    if C_ChallengeMode.HasSlottedKeystone() then
+        MenuCursor.ChallengesKeystoneFrameHandler.FocusActivateButton()
+    end
+end
+
 -- Start an auto-deposit operation.
 -- This displays a confirmation dialog, which when confirmed will start
 -- the actual auto-deposit sequence.
@@ -797,35 +816,52 @@ function ContainerFrameHandler:ClickItem()
         -- Apply whatever's on the cursor to this slot.  We rely on the
         -- game to deal with an inappropriate selection (empty slot, etc).
         C_Container.PickupContainerItem(bag, slot)
+
     elseif not info then
         -- Nothing to see here, move along.
+
     elseif AuctionHouseFrame and AuctionHouseFrame:IsShown() then
         if C_AuctionHouse.IsSellItemValid(item_loc, false) then
             SendToAuctionHouse(item_loc, info)
         else
             WoWXIV.Error("You can't sell this item.")
         end
+
     elseif BankFrame and BankFrame:IsShown() then
         SendToBank(bag, slot, info)
+
     elseif ItemInteractionFrame and ItemInteractionFrame:IsShown() then
         if C_Item.IsItemConvertibleAndValidForPlayer(item_loc) then
             SendToItemInteraction(item_loc, info)
         else
             WoWXIV.Error("Invalid selection.")
         end
+
     elseif ItemUpgradeFrame and ItemUpgradeFrame:IsShown() then
         if C_ItemUpgrade.CanUpgradeItem(item_loc) then
             SendToItemUpgrade(bag, slot, info)
         else
             WoWXIV.Error("Item cannot be upgraded.")
         end
+
     elseif MerchantFrame and MerchantFrame:IsShown() then
         -- See notes at InventoryItemSubmenu:ConfigureForItem().
         if C_MerchantFrame.IsSellAllJunkEnabled() then
             SellItem(item, bag, slot, info)
         end
+
     elseif ScrappingMachineFrame and ScrappingMachineFrame:IsShown() then
         SendToScrapper(bag, slot, info)
+
+    elseif ChallengesKeystoneFrame and ChallengesKeystoneFrame:IsShown() then
+        if (C_Item.IsItemKeystoneByID(info.itemID)
+            and C_ChallengeMode.CanUseKeystoneInCurrentMap(item_loc))
+        then
+            SocketKeystone(bag, slot, info)
+        else
+            WoWXIV.Error("Invalid selection.")
+        end
+
     else
         if info.isLocked then
             WoWXIV.Error("Item is locked.")
@@ -980,6 +1016,8 @@ function InventoryItemSubmenu:__constructor()
         end)
 
     self.menuitem_socket = self:CreateButton("Socket", SendToSocket)
+    self.menuitem_socket_keystone = self:CreateButton("Insert keystone",
+                                                      SocketKeystone)
 
     self.menuitem_disenchant = self:CreateSecureButton("Disenchant",
         {type="spell", spell=WoWXIV.SPELL_DISENCHANT})
@@ -1001,8 +1039,8 @@ function InventoryItemSubmenu:__constructor()
 end
 
 function InventoryItemSubmenu:ConfigureForItem(bag, slot)
-    local guid =
-        C_Item.GetItemGUID(ItemLocation:CreateFromBagAndSlot(bag, slot))
+    local location = ItemLocation:CreateFromBagAndSlot(bag, slot)
+    local guid = C_Item.GetItemGUID(location)
     local bagslot = strformat("%d %d", bag, slot)
     local info = C_Container.GetContainerItemInfo(bag, slot)
     local equip_type, _, _, item_class = select(9, C_Item.GetItemInfo(guid))
@@ -1036,6 +1074,13 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
     elseif ItemSocketingFrame and ItemSocketingFrame:IsShown() then
         if item_class == Enum.ItemClass.Gem then
             self:AppendButton(self.menuitem_socket)
+        end
+
+    elseif ChallengesKeystoneFrame and ChallengesKeystoneFrame:IsShown() then
+        if (C_Item.IsItemKeystoneByID(info.itemID)
+            and C_ChallengeMode.CanUseKeystoneInCurrentMap(location))
+        then
+            self:AppendButton(self.menuitem_socket_keystone)
         end
 
     elseif not C_Item.IsEquippableItem(guid) then

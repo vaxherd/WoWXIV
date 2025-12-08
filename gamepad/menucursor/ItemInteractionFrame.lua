@@ -9,8 +9,8 @@ local class = WoWXIV.class
 local cache_ItemInfoDropdown = {}
 
 local ItemInteractionFrameHandler = class(MenuCursor.AddOnMenuFrame)
-MenuCursor.ItemInteractionFrameHandler = ItemInteractionFrameHandler  -- for exports
 ItemInteractionFrameHandler.ADDON_NAME = "Blizzard_ItemInteractionUI"
+MenuCursor.ItemInteractionFrameHandler = ItemInteractionFrameHandler  -- For exports.
 MenuCursor.Cursor.RegisterFrameHandler(ItemInteractionFrameHandler)
 
 function ItemInteractionFrameHandler:__constructor()
