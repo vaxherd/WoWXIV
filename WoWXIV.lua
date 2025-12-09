@@ -7,7 +7,8 @@
 local module_name
 module_name, WoWXIV = ...
 
-WoWXIV.VERSION = "0.1+"
+WoWXIV.VERSION = C_AddOns.GetAddOnMetadata(module_name, "Version")
+WoWXIV.PATH_PREFIX = "Interface/AddOns/"..module_name.."/"
 
 WoWXIV.startup_frame = CreateFrame("Frame", "WoWXIV_StartupFrame")
 WoWXIV.startup_frame:RegisterEvent("ADDON_LOADED")

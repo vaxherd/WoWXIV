@@ -522,7 +522,7 @@ end
 -- Set the given Texture instance to reference the shared UI texture,
 -- and optionally set the texture coordinates (as for SetUITexCoord()).
 function WoWXIV.SetUITexture(texture, ...)
-    texture:SetTexture("Interface/Addons/WowXIV/textures/ui.png")
+    texture:SetTexture(WoWXIV.makepath("textures/ui.png"))
     if select("#", ...) >= 4 then
         WoWXIV.SetUITexCoord(texture, ...)
     end
@@ -825,17 +825,23 @@ end
 -- Miscellaneous
 ------------------------------------------------------------------------
 
-local CLASS_ATLAS = {rare = "UI-HUD-UnitFrame-Target-PortraitOn-Boss-Rare-Star",
-                     elite = "nameplates-icon-elite-gold",
-                     rareelite = "nameplates-icon-elite-silver"}
+-- Return an absolute pathname for the given local resource file.
+function WoWXIV.makepath(path)
+    return WoWXIV.PATH_PREFIX .. path
+end
 
 -- Return the texture atlas ID of the classification icon for the given
 -- unit's classification (rare, elite, etc.), or nil if no icon should
 -- be displayed for the unit.  The unit must be a standard unit token
 -- (like "target" or "boss1").
+local CLASS_ATLAS
 function WoWXIV.UnitClassificationIcon(unit)
     return CLASS_ATLAS[UnitClassification(unit)]
 end
+--[[local]] CLASS_ATLAS = {
+    rare = "UI-HUD-UnitFrame-Target-PortraitOn-Boss-Rare-Star",
+    elite = "nameplates-icon-elite-gold",
+    rareelite = "nameplates-icon-elite-silver"}
 
 -- Display an error message, optionally with an error sound.
 -- with_sound defaults to true if not specified.
