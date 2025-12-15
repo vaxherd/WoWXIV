@@ -65,6 +65,9 @@ and other sets:
     s1:isequal(s2)  -- True if every element in s1 is in s2 and vice versa
     s1:isdisjoint(s2)  -- True if s1 and s2 have no elements in common
 
+Note that due to Lua limitations, "#s" is _not_ equivalent to "s:len()";
+the explicit method call is required.
+
 
 Most methods which take one argument can also take multiple arguments:
 
