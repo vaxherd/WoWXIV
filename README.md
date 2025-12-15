@@ -3,7 +3,7 @@ WoWXIV - Final Fantasy XIV-style UI tweaks for World of Warcraft
 
 Author: vaxherd  
 Source: https://github.com/vaxherd/WoWXIV  
-License: Public domain
+License: Public domain (with exceptions, see below)
 
 
 Overview
@@ -60,3 +60,16 @@ probably break at different resolutions or UI scale factors.  I'll try
 to respond to feature requests or bug reports as time permits, but if
 you're interested in significantly expanding this addon, you'll probably
 have more luck forking it and improving it yourself.
+
+
+License details
+---------------
+This addon is released into the public domain; you can change or copy it
+as you like, though I would appreciate credit if you find any parts of
+the addon useful in other projects.
+
+As an exception to the above, the font file `fonts/VeraMono.ttf` is
+distributed under its own license, which may be found in
+`fonts/COPYRIGHT.TXT`.  This license also allows free-of-charge
+redistribution, subject to certain limitations; see the license for
+details.

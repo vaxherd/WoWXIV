@@ -29,6 +29,10 @@ partylist.lua
 slashcmd.lua
 targetbar.lua
 
+dev/editor/buffer.lua
+dev/editor/frame.lua
+dev/editor/frame.xml
+
 # Must precede gamepad/ to avoid declaration ordering issues
 # (specifically subclassing of ContextMenu/ItemSubmenu).
 ui/aurabar.lua
