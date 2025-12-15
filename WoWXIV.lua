@@ -1,9 +1,7 @@
 -- The WoW API seems to provide each addon an empty table to use as a
 -- module structure, so we take advantage of that to avoid requiring
--- this module to be loaded first.  We still export the table under a
--- global name for external scripting convenience.  (The first argument
--- is just the addon name, which we have no need of except when checking
--- against an ADDON_LOADED event.)
+-- this file to be loaded first.  We still export the table under a
+-- global name for external scripting convenience.
 local module_name
 module_name, WoWXIV = ...
 

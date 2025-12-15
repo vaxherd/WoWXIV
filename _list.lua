@@ -170,7 +170,8 @@ arguments causes an error (other than a runtime error like "out of
 memory") to be raised, it is unspecified how many of the remaining
 arguments are processed; however, the state of the list when the error
 is raised will be consistent with some number of valid arguments having
-been completely processed.
+been completely processed and all other arguments having not been
+processed at all.
 
 
 All list methods which do not return an explicit value (specifically:
