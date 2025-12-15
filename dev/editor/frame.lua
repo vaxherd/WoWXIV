@@ -34,6 +34,7 @@ end
 function EditorFrame:__constructor(filename, text)
     self.filename = filename
     self.buffer = Editor.Buffer(text or "", self.TextView)
+    self.buffer:SetScrollCallback(function() self:UpdateTitle() end)
 
     -- List of keys which are currently pressed, in press order.  Each
     -- element is a {key, ch} pair; if |ch| is not nil, it is the text
@@ -114,6 +115,10 @@ function EditorFrame:OnKeyUp(key)
         end
     end
     error("Received OnKeyUp for unpressed key "..tostring(key))
+end
+
+function EditorFrame:OnMouseWheel(delta)
+    self.TextView.ScrollBar:ScrollStepInDirection(-delta)
 end
 
 function EditorFrame:OnTitleDragStart()

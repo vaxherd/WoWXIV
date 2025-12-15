@@ -11,6 +11,7 @@ local set = WoWXIV.set
 
 local floor = math.floor
 local min = math.min
+local round = function(x) return floor(x+0.5) end
 local strbyte = string.byte
 local strfind = string.find
 local strformat = string.format
@@ -18,7 +19,7 @@ local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 local strsub = string.sub
 
 
--- Constant larger than any reasonably sized line, used to force the
+-- Constant larger than any reasonably-sized line, used to force the
 -- cursor to the end of a line.
 local END_OF_LINE = 999999999
 
@@ -55,10 +56,18 @@ function Buffer:__constructor(text, view)
     self.top_string = 1         -- Index of the topmost displayed string.
     self.linepool_free = set()  -- Pool of created but unused FontStrings.
     self.linepool_used = set()  -- FontStrings which are currently in used.
+    self.on_scroll = nil        -- Callback for scroll events.
 
+    self:InitScrollBar()
     self:MeasureView()
     self:LayoutText()
     self:RefreshView()
+end
+
+-- Set a function to be called whenever the text view is scrolled using the
+-- scrollbar widget.  Pass nil to remove any previously set callback.
+function Buffer:SetScrollCallback(func)
+    self.on_scroll = func
 end
 
 function Buffer:GetText()
@@ -487,6 +496,27 @@ function Buffer:SetCursorPosInternal(line, col, preserve_col)
     self.cur_col = col
 end
 
+-- Set the (logical) cursor position to match the given string index and
+-- column.  The new position is assumed to be "near" the current position
+-- (and thus we do a simple linear search from the current position rather
+-- than a binary search over the entire buffer).
+function Buffer:SetCursorPosFromStringPos(s, c)
+    local line = self.cur_line
+    local line_map = self.line_map
+    while line > 1 and s < line_map[line] do
+        line = line-1
+    end
+    while line < #line_map and s >= line_map[line+1] do
+        line = line+1
+    end
+    local strings = self.strings
+    c = min(c, #strings[s])
+    for i = line_map[line], s-1 do
+        c = c + #strings[i]
+    end
+    self.cur_line, self.cur_col = line, c
+end
+
 -- Return the current cursor position as a string index and and offset into
 -- that string, along with the indexes of the first and last strings for
 -- the current logical line.
@@ -505,6 +535,27 @@ function Buffer:GetStringPos()
         c = c - len
     end
     error("unreachable")
+end
+
+-- Set up the scroll bar widget in the text view frame.
+function Buffer:InitScrollBar()
+    local scrollbar = self.view.ScrollBar
+
+    -- Suppress the up/down arrow buttons, and extend the track to the
+    -- entire height of the frame.
+    scrollbar.Back:Hide()
+    scrollbar.Forward:Hide()
+    scrollbar.Track:ClearAllPoints()
+    scrollbar.Track:SetPoint("TOP")
+    scrollbar.Track:SetPoint("BOTTOM")
+
+    -- Override default scroll bar behavior to always display the thumb
+    -- widget even when it covers the entire track.
+    scrollbar.HasScrollableExtent = function() return true end
+
+    scrollbar:Init(0, 0)
+    scrollbar:RegisterCallback("OnScroll",
+                               function(_,target) self:OnScroll(target) end)
 end
 
 function Buffer:MeasureView()
@@ -556,19 +607,23 @@ function Buffer:LayoutText()
 end
 
 -- Redisplay the current view and update the cursor display state.
--- If the string corresponding to the current cursor position is not
--- displayed, shift the viewport to display that string in the middle.
-function Buffer:RefreshView()
+-- If |recenter| is true or omitted and the string corresponding to the
+-- current cursor position is not displayed, shift the viewport to display
+-- that string in the middle.
+function Buffer:RefreshView(recenter)
     local top_string = self.top_string
     local bottom_ofs = self.view_lines - 1
-    local focus_s = self:GetStringPos()
-    if focus_s < top_string or focus_s > top_string + bottom_ofs then
-        local top_limit = #self.strings - bottom_ofs
-        top_string = max(1, min(top_limit, focus_s - floor(bottom_ofs/2)))
-        assert(top_string >= 1)
-        assert(top_string + bottom_ofs <= #self.strings)
-        self.top_string = top_string
+    if recenter ~= false then
+        local focus_s = self:GetStringPos()
+        if focus_s < top_string or focus_s > top_string + bottom_ofs then
+            local top_limit = #self.strings - bottom_ofs
+            top_string = max(1, min(top_limit, focus_s - floor(bottom_ofs/2)))
+            assert(top_string >= 1)
+            assert(top_string + bottom_ofs <= #self.strings)
+            self.top_string = top_string
+        end
     end
+
     local top_line = self.cur_line
     while top_line > 1 and self.line_map[top_line] > top_string do
         top_line = top_line - 1
@@ -601,6 +656,19 @@ function Buffer:RefreshView()
         prev = fs
     end
 
+    local scrollbar = self.view.ScrollBar
+    if #self.strings <= self.view_lines then
+        scrollbar:SetVisibleExtentPercentage(1)
+        scrollbar:SetPanExtentPercentage(0)
+        ScrollControllerMixin.SetScrollPercentage(scrollbar, 0)
+    else
+        scrollbar:SetVisibleExtentPercentage(self.view_lines / #self.strings)
+        scrollbar:SetPanExtentPercentage(1 / (#self.strings - self.view_lines))
+        ScrollControllerMixin.SetScrollPercentage(
+            scrollbar, (self.top_string-1) / (#self.strings - self.view_lines))
+    end
+    scrollbar:Update()
+
     self:RefreshCursor()
 end
 
@@ -610,6 +678,27 @@ function Buffer:RefreshCursor()
     local y = (s - self.top_string) * self.cell_h
     local x = c * self.cell_w
     self.cursor:SetPointsOffset(x, -y)
+end
+
+-- Callback for scroll bar movement.
+function Buffer:OnScroll(target)
+    if #self.strings <= self.view_lines then
+        return  -- Nothing to scroll.
+    end
+    local top = round(target * (#self.strings - self.view_lines)) + 1
+    if top ~= self.top_string then
+        self.top_string = top
+        local bottom = top + (self.view_lines - 1)
+        local s = self:GetStringPos()
+        local new_s = max(top+1, min(bottom-1, s))
+        if new_s ~= s then
+            self:SetCursorPosFromStringPos(new_s, 0)
+        end
+        self:RefreshView(false)
+        if self.on_scroll then
+            self.on_scroll()
+        end
+    end
 end
 
 -- Acquire a FontString instance for a single line of text from the

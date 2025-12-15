@@ -94,15 +94,6 @@
               <Anchor point="TOPRIGHT" relativePoint="TOPLEFT" x="-3"/>
               <Anchor point="BOTTOMRIGHT" relativePoint="BOTTOMLEFT" x="-3"/>
             </Anchors>
-            <Scripts>
-              <OnLoad inherit="append">
-                self.Back:Hide()
-                self.Forward:Hide()
-                self.Track:ClearAllPoints()
-                self.Track:SetPoint("TOP")
-                self.Track:SetPoint("BOTTOM")
-              </OnLoad>
-            </Scripts>
           </EventFrame>
         </Frames>
       </Frame>
@@ -133,6 +124,7 @@
       <OnKeyDown>self:OnKeyDown(key)</OnKeyDown>
       <OnKeyUp>self:OnKeyUp(key)</OnKeyUp>
       <OnLeave>self:OnLeave()</OnLeave>
+      <OnMouseWheel>self:OnMouseWheel(delta)</OnMouseWheel>
     </Scripts>
 
   </Frame>
