@@ -61,6 +61,12 @@ to respond to feature requests or bug reports as time permits, but if
 you're interested in significantly expanding this addon, you'll probably
 have more luck forking it and improving it yourself.
 
+WoWXIV is not and will not be compatible with Midnight (WoW patch 12.0).
+Blizzard has explicitly stated an intent to prevent addons from adding
+features not in the base UI, which encompasses most of what this addon
+does, and I have no desire to try and see what pieces of it might still
+function in that environment.
+
 
 License details
 ---------------
