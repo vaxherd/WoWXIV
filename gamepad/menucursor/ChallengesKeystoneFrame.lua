@@ -53,7 +53,7 @@ function ChallengesKeystoneFrameHandler:SetTargets(old_target)
         self.targets[f.StartButton].up = f.Affixes[1]
         local i = 2
         while f.Affixes[i] and f.Affixes[i]:IsShown() do
-            self.targets[f.Affixes[1]] = {
+            self.targets[f.Affixes[i]] = {
                 send_enter_leave = true,
                 up = f.KeystoneSlot, down = f.StartButton,
                 left = f.Affixes[i-1], right = f.Affixes[1]}
