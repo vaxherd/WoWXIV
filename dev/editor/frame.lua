@@ -34,7 +34,7 @@ end
 function EditorFrame:__constructor(filename, text)
     self.filename = filename
     self.buffer = Editor.Buffer(text or "", self.TextView)
-    self.buffer:SetScrollCallback(function() self:UpdateTitle() end)
+    self.buffer:SetScrollCallback(function() self:OnBufferChange() end)
 
     -- List of keys which are currently pressed, in press order.  Each
     -- element is a {key, ch} pair; if |ch| is not nil, it is the text
@@ -127,8 +127,7 @@ function EditorFrame:OnMouseDown(button)
             x, y = x/scale, y/scale
             self.buffer:SetCursorPosFromMouse(x - self.TextView:GetLeft(),
                                               self.TextView:GetTop() - y)
-            self:UpdateTitle()
-            self.cursor_timer = 0
+            self:OnBufferChange()
         end
     end
 end
@@ -173,8 +172,7 @@ function EditorFrame:OnUpdate()
         self.repeat_delay = repeat_delay
         if send then
             self:HandleKey(unpack(self.keys[#self.keys]))
-            self:UpdateTitle()
-            self.cursor_timer = 0
+            self:OnBufferChange()
         end
     end
 
@@ -236,6 +234,12 @@ function EditorFrame:SetFocused(focused)
             self.keys:clear()
         end
     end)
+end
+
+-- Called from various places when some change has occurred in the buffer.
+function EditorFrame:OnBufferChange()
+    self:UpdateTitle()
+    self.cursor_timer = 0
 end
 
 function EditorFrame:UpdateTitle()
