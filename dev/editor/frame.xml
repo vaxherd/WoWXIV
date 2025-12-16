@@ -124,6 +124,8 @@
       <OnKeyDown>self:OnKeyDown(key)</OnKeyDown>
       <OnKeyUp>self:OnKeyUp(key)</OnKeyUp>
       <OnLeave>self:OnLeave()</OnLeave>
+      <OnMouseDown>self:OnMouseDown(button)</OnMouseDown>
+      <OnMouseUp>self:OnMouseUp(button)</OnMouseUp>
       <OnMouseWheel>self:OnMouseWheel(delta)</OnMouseWheel>
     </Scripts>
 

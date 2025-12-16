@@ -28,6 +28,10 @@ local END_OF_LINE = 999999999
 -- Text buffer implementation
 --
 -- Stores the text content of an editor window and manages text rendering.
+--
+-- FIXME: There's probably an argument for splitting editing and rendering
+-- functionality.  I can't be bothered because the addon will be dead in a
+-- few months anyway.
 ---------------------------------------------------------------------------
 
 local Buffer = class()
@@ -70,6 +74,7 @@ function Buffer:SetScrollCallback(func)
     self.on_scroll = func
 end
 
+-- Return the text content of the buffer as a string.
 function Buffer:GetText()
     local text = ""
     local line = 1
@@ -83,17 +88,33 @@ function Buffer:GetText()
     return text
 end
 
+-- Set whether the text cursor should be displayed.
 function Buffer:SetShowCursor(show)
     self.show_cursor = not not show  -- Force to boolean.
     self.cursor:SetShown(show)
 end
 
+-- Set the cursor position within the buffer.
 function Buffer:SetCursorPos(line, col)
     assert(type(line) == "number" and line > 0 and floor(line) == line,
            "line must be a positive integer")
     assert(type(col) == "number" and col >= 0 and floor(col) == col,
            "col must be a nonnegative integer")
     self:SetCursorPosInternal(line, col)
+    self:RefreshView()
+end
+
+-- Set the cursor position based on graphical coordinates (such as from a
+-- mouse click).  |x| and |y| should be relative to the top left corner of
+-- the text view frame, with |y| increasing downward.
+function Buffer:SetCursorPosFromMouse(x, y)
+    assert(type(x) == "number", "x must be a number")
+    assert(type(y) == "number", "y must be a number")
+    local rel_s = max(0, min(self.view_lines-1, floor(y / self.cell_h)))
+    local c = max(0, min(self.view_columns-1, floor(x / self.cell_w)))
+    local s = min(self.top_string + rel_s, #self.strings)
+    self:SetCursorPosFromStringPos(s, c)
+    self:RefreshView()
 end
 
 -- Return the current cursor position.

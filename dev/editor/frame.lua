@@ -56,6 +56,8 @@ function EditorFrame:__constructor(filename, text)
     -- Timestamp of last OnUpdate() call, used for repeat and cursor blink
     -- timing.
     self.now = GetTime()
+    -- Is the mouse cursor currently set to the "I-bar" text editing cursor?
+    self.cursor_ibar = false
 
     -- Keymap for this frame.  Key names follow OnKeyDown argument values;
     -- modifiers follow Emacs style, and must be given in the order
@@ -117,6 +119,24 @@ function EditorFrame:OnKeyUp(key)
     error("Received OnKeyUp for unpressed key "..tostring(key))
 end
 
+function EditorFrame:OnMouseDown(button)
+    if button == "LeftButton" then
+        if self.TextView:IsMouseOver() then
+            local x, y = GetCursorPosition()
+            local scale = self.TextView:GetEffectiveScale()
+            x, y = x/scale, y/scale
+            self.buffer:SetCursorPosFromMouse(x - self.TextView:GetLeft(),
+                                              self.TextView:GetTop() - y)
+            self:UpdateTitle()
+            self.cursor_timer = 0
+        end
+    end
+end
+
+function EditorFrame:OnMouseUp(button)
+    -- Nothing to do yet.
+end
+
 function EditorFrame:OnMouseWheel(delta)
     self.TextView.ScrollBar:ScrollStepInDirection(-delta)
 end
@@ -161,6 +181,23 @@ function EditorFrame:OnUpdate()
     local cursor_timer = self.cursor_timer
     self.buffer:SetShowCursor(cursor_timer < CURSOR_BLINK_PERIOD/2)
     self.cursor_timer = (cursor_timer + dt) % CURSOR_BLINK_PERIOD
+
+    self:SetCursorType(self.TextView:IsMouseOver())
+end
+
+function EditorFrame:SetCursorType(ibar)
+    ibar = not not ibar  -- Force to boolean.
+    if self.cursor_ibar ~= ibar then
+        self.cursor_ibar = ibar
+        if ibar then
+            -- FIXME: this doesn't actually work because SetCursor() ignores
+            -- all directory components of the path and always searches under
+            -- Interface/Cursor in the builtin asset archive
+            --SetCursor(WoWXIV.makepath("textures/text-cursor.png"))
+        else
+            SetCursor(nil)
+        end
+    end
 end
 
 function EditorFrame:HandleKey(key, ch)
@@ -187,6 +224,7 @@ function EditorFrame:SetFocused(focused)
         self:SetScript("OnUpdate", self.OnUpdate)
     else
         self:SetScript("OnUpdate", nil)
+        SetCursor(nil)
         self.buffer:SetShowCursor(false)
     end
 
