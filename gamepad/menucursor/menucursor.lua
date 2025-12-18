@@ -2459,7 +2459,7 @@ function ContextMenuHandler:SetTargets()
                                 up = f.buttons[i==1 and #f.buttons or i-1],
                                 down = f.buttons[i==#f.buttons and 1 or i+1]}
         local type = button:GetAttribute("type")
-        if type then
+        if button:IsEnabled() and type then
             -- We can't indirectly click user-created buttons due to taint,
             -- so we have the menu cursor execute the action directly.
             local click_action = {type = type}
