@@ -1103,9 +1103,8 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
                     is_usable = true
                 end
             end
-            if is_usable then
-                self:AppendButton(self.menuitem_use)
-            end
+            self:AppendButton(self.menuitem_use)
+            self.menuitem_use:SetEnabled(is_usable)
         end
     end
 
