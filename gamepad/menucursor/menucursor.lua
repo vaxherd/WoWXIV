@@ -2471,6 +2471,8 @@ function ContextMenuHandler:SetTargets()
             -- Because we execute the action ourselves, the menu item's
             -- PostClick handler won't be called, and we have to close
             -- the menu ourselves.
+            -- FIXME: this fails with items that throw up a confirmation dialog
+            -- (e.g. housing decor items) because of the focus change
             self.targets[button].on_click = function() self.frame:Close() end
         end
         initial = initial or button
