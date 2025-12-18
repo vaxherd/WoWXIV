@@ -52,7 +52,7 @@ function ItemSubmenu:CreateButton(text, ExecuteInsecure)
     return button
 end
 function ItemSubmenu:CreateSecureButton(text, attributes)
-    local button = ItemSubmenuButton(self, text, false)
+    local button = ItemSubmenuButton(self, text, true)
     for attrib, value in pairs(attributes or {}) do
         button:SetAttribute(attrib, value)
     end

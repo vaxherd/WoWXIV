@@ -138,7 +138,7 @@ function ContextMenu:CreateButton(text, OnClick)
     return button
 end
 function ContextMenu:CreateSecureButton(text, attributes)
-    local button = ContextMenuButton(self, text, false)
+    local button = ContextMenuButton(self, text, true)
     for attrib, value in pairs(attributes or {}) do
         button:SetAttribute(attrib, value)
     end
