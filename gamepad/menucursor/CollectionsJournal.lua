@@ -1275,9 +1275,13 @@ function WardrobeSetsFrameHandler:SetTargets()
     self.targets = {}
     if self.in_details then
         local dropdown = f.DetailsFrame.VariantSetsDropdown
-        self.targets[dropdown] =
-            {on_click = function() self:OnClickDropdown() end,
-             lock_highlight = true}
+        if dropdown:IsShown() then
+            self.targets[dropdown] =
+                {on_click = function() self:OnClickDropdown() end,
+                 lock_highlight = true}
+        else
+            dropdown = false  -- For item up/down links.
+        end
         local items = {}
         for item in f.DetailsFrame.itemFramesPool:EnumerateActive() do
             tinsert(items, item)
@@ -1289,7 +1293,7 @@ function WardrobeSetsFrameHandler:SetTargets()
                                   left = items[i==1 and #items or i-1],
                                   right = items[i==#items and 1 or i+1]}
         end
-        return items[1] or dropdown
+        return items[1] or dropdown or nil
     else
         local function ClickSet(target)
             self:GetTargetFrame(target):Click("LeftButton")
