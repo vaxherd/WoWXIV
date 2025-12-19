@@ -95,14 +95,17 @@ function CollectionsJournalHandler:OnTabCycle(direction)
             return
         end
     end
-    local new_index =
-        (PanelTemplates_GetSelectedTab(self.frame) or 0) + direction
-    if new_index < 1 then
-        new_index = self.frame.numTabs
-    elseif new_index > self.frame.numTabs then
-        new_index = 1
+    local new_index = PanelTemplates_GetSelectedTab(self.frame) or 0
+    local tab
+    while not (tab and tab:IsShown()) do
+        new_index = new_index + direction
+        if new_index < 1 then
+            new_index = self.frame.numTabs
+        elseif new_index > self.frame.numTabs then
+            new_index = 1
+        end
+        tab = self.frame.Tabs[new_index]
     end
-    local tab = self.frame.Tabs[new_index]
     tab:GetScript("OnClick")(tab, "LeftButton", true)
     if WardrobeCollectionFrame:IsShown() then
         -- We just tabbed onto Appearances, so select the proper sub-tab.
