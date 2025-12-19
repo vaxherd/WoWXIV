@@ -59,6 +59,9 @@ local ITEM_TARGET = {
     [130944] = "none",    -- Needle Coral (40364: Bubble Trouble)
     [131931] = "none",    -- Khadgar's Wand (39987: Trail of Echoes)
     [132120] = "skip",    -- Stormwind Portal Stone (40519: Legion: The Legion Returns)
+    [132471] = "none",    -- Grand Feast of Valhallas (40615: Halls of Valor: Odyn's Blessing)
+    [132749] = "none",    -- Legion Portal Fragment (40678: Twisted Power)
+    [132750] = "none",    -- Greater Legion Portal Stone (40678: Twisted Power)
     [132883] = "none",    -- First Arcanist's Token (40011: Oculeth's Workshop)
     [133756] = "none",    -- Fresh Mound of Flesh (40901: Grimwing the Devourer)
     [133882] = "none",    -- Trap Rune (40965: Lay Waste, Lay Mines)
@@ -365,6 +368,14 @@ local QUEST_ITEM = {
         items = list(
             35237,  -- Orb of the Crawler
             35828   -- Totemic Beacon
+        )
+    },
+    -- Legion artifact quest: Twisted Power
+    [40678] = {
+        map = 630,  -- Azsuna
+        items = list(
+            132750,      -- Greater Legion Portal Stone
+            {132749, 5}  -- Legion Portal Fragment
         )
     },
     -- Marasmius daily quest: Go Beyond! [Lonely Matriarch]
