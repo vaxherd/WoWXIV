@@ -287,9 +287,11 @@ function EditorFrame:GetDefaultKeymap()
             ["C-HOME"] = EditorFrame.HandleMovementKey,
             ["END"] = EditorFrame.HandleMovementKey,
             ["C-END"] = EditorFrame.HandleMovementKey,
-            ["ENTER"] = function(self) self.buffer:InsertNewline() end,
-            ["BACKSPACE"] = function(self) self.buffer:DeleteChar(false) end,
-            ["DELETE"] = function(self) self.buffer:DeleteChar(true) end,
+            ["PAGEUP"] = EditorFrame.HandleMovementKey,
+            ["PAGEDOWN"] = EditorFrame.HandleMovementKey,
+            ["ENTER"] = EditorFrame.HandleEnter,
+            ["BACKSPACE"] = EditorFrame.HandleBackspace,
+            ["DELETE"] = EditorFrame.HandleDelete,
         }
     end
     return EditorFrame.DEFAULT_KEYMAP
@@ -297,4 +299,16 @@ end
 
 function EditorFrame:HandleMovementKey(key)
     self.buffer:MoveCursor(key)
+end
+
+function EditorFrame:HandleEnter(key)
+    self.buffer:InsertNewline()
+end
+
+function EditorFrame:HandleBackspace(key)
+    self.buffer:DeleteChar(false)
+end
+
+function EditorFrame:HandleDelete(key)
+    self.buffer:DeleteChar(true)
 end

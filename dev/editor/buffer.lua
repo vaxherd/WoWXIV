@@ -228,6 +228,26 @@ function Buffer:MoveCursor(dir)
     elseif dir == "C-END" then
         self:SetCursorPosInternal(#self.line_map, END_OF_LINE)
 
+    elseif dir == "PAGEUP" or dir == "PAGEDOWN" then
+        local s, c = self:GetStringPos()
+        local page_size = self.view_lines - 2
+        local target
+        if dir == "PAGEUP" then
+            -- Avoid scrolling back past the first line if the cursor isn't
+            -- at the top of the viewport.
+            local top_offset = s - self.top_string
+            target = max(s - page_size, 1 + top_offset)
+        else
+            -- We're fine with scrolling the bottom of the viewport past
+            -- the last line.
+            target = min(s + page_size, #self.strings)
+        end
+        if target ~= s then
+            local delta = target - s
+            self.top_string = self.top_string + delta
+            self:SetCursorPosFromStringPos(target, c)
+        end
+
     else
         error("Invalid movement direction: "..tostring(dir))
     end
