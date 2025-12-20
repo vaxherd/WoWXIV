@@ -58,6 +58,10 @@ function EditorFrame:__constructor(filename, text)
     self.now = GetTime()
     -- Is the mouse cursor currently set to the "I-bar" text editing cursor?
     self.cursor_ibar = false
+    -- Is the user currently performing a text-selection mouse drag?
+    self.drag_select = false
+    -- Text most recently deleted with a "kill" command (C-w), nil if none.
+    self.yank_text = nil
 
     -- Keymap for this frame.  Key names follow OnKeyDown argument values;
     -- modifiers follow Emacs style, and must be given in the order
@@ -83,7 +87,11 @@ function EditorFrame:OnEnter()
 end
 
 function EditorFrame:OnLeave()
-    self:SetFocused(false)
+    -- If the user is dragging, keep focus as long the mouse button is down.
+    -- (FIXME: do we even get an OnLeave during a drag?)
+    if not self.drag_select then
+        self:SetFocused(false)
+    end
 end
 
 function EditorFrame:OnKeyDown(key)
@@ -122,18 +130,25 @@ end
 function EditorFrame:OnMouseDown(button)
     if button == "LeftButton" then
         if self.TextView:IsMouseOver() then
-            local x, y = GetCursorPosition()
-            local scale = self.TextView:GetEffectiveScale()
-            x, y = x/scale, y/scale
-            self.buffer:SetCursorPosFromMouse(x - self.TextView:GetLeft(),
-                                              self.TextView:GetTop() - y)
+            self.buffer:SetCursorPosFromMouse(self:MouseToTextCoords())
             self:OnBufferStateChange()
+            self.drag_select = true
         end
     end
 end
 
+function EditorFrame:MouseToTextCoords()
+    local x, y = GetCursorPosition()
+    local scale = self.TextView:GetEffectiveScale()
+    x, y = x/scale, y/scale
+    return x - self.TextView:GetLeft(), self.TextView:GetTop() - y
+end
+
 function EditorFrame:OnMouseUp(button)
-    -- Nothing to do yet.
+    self.drag_select = false
+    if not self:IsMouseOver() then
+        self:SetFocused(false)
+    end
 end
 
 function EditorFrame:OnMouseWheel(delta)
@@ -181,6 +196,9 @@ function EditorFrame:OnUpdate()
     self.cursor_timer = (cursor_timer + dt) % CURSOR_BLINK_PERIOD
 
     self:SetCursorType(self.TextView:IsMouseOver())
+    if self.drag_select then
+        self.buffer:SetMarkPosFromMouse(self:MouseToTextCoords())
+    end
 end
 
 function EditorFrame:SetCursorType(ibar)
@@ -275,23 +293,42 @@ end
 function EditorFrame:GetDefaultKeymap()
     if not EditorFrame.DEFAULT_KEYMAP then
         EditorFrame.DEFAULT_KEYMAP = {
-            ["UP"] = EditorFrame.HandleMovementKey,
-            ["C-UP"] = EditorFrame.HandleMovementKey,
-            ["DOWN"] = EditorFrame.HandleMovementKey,
-            ["C-DOWN"] = EditorFrame.HandleMovementKey,
-            ["LEFT"] = EditorFrame.HandleMovementKey,
-            ["C-LEFT"] = EditorFrame.HandleMovementKey,
-            ["RIGHT"] = EditorFrame.HandleMovementKey,
-            ["C-RIGHT"] = EditorFrame.HandleMovementKey,
-            ["HOME"] = EditorFrame.HandleMovementKey,
-            ["C-HOME"] = EditorFrame.HandleMovementKey,
-            ["END"] = EditorFrame.HandleMovementKey,
-            ["C-END"] = EditorFrame.HandleMovementKey,
-            ["PAGEUP"] = EditorFrame.HandleMovementKey,
-            ["PAGEDOWN"] = EditorFrame.HandleMovementKey,
             ["ENTER"] = EditorFrame.HandleEnter,
             ["BACKSPACE"] = EditorFrame.HandleBackspace,
             ["DELETE"] = EditorFrame.HandleDelete,
+
+            ["C-W"] = EditorFrame.HandleKill,
+            ["C-Y"] = EditorFrame.HandleYank,
+            ["F2"] = EditorFrame.HandleYank,
+
+            ["UP"] = EditorFrame.HandleMovementKey,
+            ["S-UP"] = EditorFrame.HandleSelectionKey,
+            ["C-UP"] = EditorFrame.HandleMovementKey,
+            ["S-C-UP"] = EditorFrame.HandleSelectionKey,
+            ["DOWN"] = EditorFrame.HandleMovementKey,
+            ["S-DOWN"] = EditorFrame.HandleSelectionKey,
+            ["C-DOWN"] = EditorFrame.HandleMovementKey,
+            ["S-C-DOWN"] = EditorFrame.HandleSelectionKey,
+            ["LEFT"] = EditorFrame.HandleMovementKey,
+            ["S-LEFT"] = EditorFrame.HandleSelectionKey,
+            ["C-LEFT"] = EditorFrame.HandleMovementKey,
+            ["S-C-LEFT"] = EditorFrame.HandleSelectionKey,
+            ["RIGHT"] = EditorFrame.HandleMovementKey,
+            ["S-RIGHT"] = EditorFrame.HandleSelectionKey,
+            ["C-RIGHT"] = EditorFrame.HandleMovementKey,
+            ["S-C-RIGHT"] = EditorFrame.HandleSelectionKey,
+            ["HOME"] = EditorFrame.HandleMovementKey,
+            ["S-HOME"] = EditorFrame.HandleSelectionKey,
+            ["C-HOME"] = EditorFrame.HandleMovementKey,
+            ["S-C-HOME"] = EditorFrame.HandleSelectionKey,
+            ["END"] = EditorFrame.HandleMovementKey,
+            ["S-END"] = EditorFrame.HandleSelectionKey,
+            ["C-END"] = EditorFrame.HandleMovementKey,
+            ["S-C-END"] = EditorFrame.HandleSelectionKey,
+            ["PAGEUP"] = EditorFrame.HandleMovementKey,
+            ["S-PAGEUP"] = EditorFrame.HandleSelectionKey,
+            ["PAGEDOWN"] = EditorFrame.HandleMovementKey,
+            ["S-PAGEDOWN"] = EditorFrame.HandleSelectionKey,
         }
     end
     return EditorFrame.DEFAULT_KEYMAP
@@ -301,14 +338,32 @@ function EditorFrame:HandleMovementKey(key)
     self.buffer:MoveCursor(key)
 end
 
-function EditorFrame:HandleEnter(key)
+function EditorFrame:HandleSelectionKey(key)
+    assert(strsub(key, 1, 2) == "S-")
+    self.buffer:MoveMark(strsub(key, 3))
+end
+
+function EditorFrame:HandleEnter()
     self.buffer:InsertNewline()
 end
 
-function EditorFrame:HandleBackspace(key)
+function EditorFrame:HandleBackspace()
     self.buffer:DeleteChar(false)
 end
 
-function EditorFrame:HandleDelete(key)
+function EditorFrame:HandleDelete()
     self.buffer:DeleteChar(true)
+end
+
+function EditorFrame:HandleKill()
+    local text = self.buffer:DeleteRegion()
+    if text then
+        self.yank_text = text
+    end
+end
+
+function EditorFrame:HandleYank()
+    if self.yank_text then
+        self.buffer:InsertText(self.yank_text)
+    end
 end

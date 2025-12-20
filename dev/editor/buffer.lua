@@ -23,6 +23,10 @@ local strsub = string.sub
 -- cursor to the end of a line.
 local END_OF_LINE = 999999999
 
+-- Color used for selected text.  (We currently do not perform any
+-- background highlighting for the selected region.)
+local REGION_COLOR = {0.25, 1, 0.25}
+
 
 ---------------------------------------------------------------------------
 -- Text buffer implementation
@@ -57,6 +61,8 @@ function Buffer:__constructor(text, view)
     self.line_map = list(1)     -- Map from physical line to string index.
     self.cur_line = 1           -- Logical cursor position.
     self.cur_col = 0
+    self.mark_line = nil        -- Second endpoint of selection, nil if none.
+    self.mark_col = nil
     self.top_string = 1         -- Index of the topmost displayed string.
     self.linepool_free = set()  -- Pool of created but unused FontStrings.
     self.linepool_used = set()  -- FontStrings which are currently in used.
@@ -100,7 +106,9 @@ function Buffer:SetCursorPos(line, col)
            "line must be a positive integer")
     assert(type(col) == "number" and col >= 0 and floor(col) == col,
            "col must be a nonnegative integer")
-    self:SetCursorPosInternal(line, col)
+    local clamped_line = min(line, #self.line_map)
+    local clamped_col = min(col, self:LineLength(self.cur_line))
+    self:SetCursorPosInternal(clamped_line, clamped_col)
     self:RefreshView()
 end
 
@@ -113,19 +121,37 @@ function Buffer:SetCursorPosFromMouse(x, y)
     local rel_s = max(0, min(self.view_lines-1, floor(y / self.cell_h)))
     local c = max(0, min(self.view_columns-1, floor(x / self.cell_w)))
     local s = min(self.top_string + rel_s, #self.strings)
-    self:SetCursorPosFromStringPos(s, c)
+    self:SetCursorPosInternal(self:StringToLinePos(s, c))
     self:RefreshView()
+end
+
+-- Set the mark position based on graphical coordinates (such as from a
+-- mouse drag).  |x| and |y| should be relative to the top left corner of
+-- the text view frame, with |y| increasing downward.
+function Buffer:SetMarkPosFromMouse(x, y)
+    assert(type(x) == "number", "x must be a number")
+    assert(type(y) == "number", "y must be a number")
+    local rel_s = max(0, min(self.view_lines-1, floor(y / self.cell_h)))
+    local c = max(0, min(self.view_columns-1, floor(x / self.cell_w)))
+    local s = min(self.top_string + rel_s, #self.strings)
+    local line, col = self:StringToLinePos(s, c)
+    -- Don't RefreshView unless the mark has actually changed, to avoid
+    -- excessive CPU load if we're called every frame during a drag.
+    local compare_line, compare_col
+    if self.mark_line then
+        compare_line, compare_col = self.mark_line, self.mark_col
+    else
+        compare_line, compare_col = self.cur_line, self.cur_col
+    end
+    if line ~= compare_line or col ~= compare_col then
+        self.mark_line, self.mark_col = line, col
+        self:RefreshView()
+    end
 end
 
 -- Return the current cursor position.
 function Buffer:GetCursorPos()
-    local line, col = self.cur_line, self.cur_col
-    -- Temporarily clamp to line length to return the actual column.
-    self:SetCursorPosInternal(line, col)
-    local clamped_col = self.cur_col
-    -- Restore original column.
-    self.cur_col = col
-    return line, clamped_col
+    return self.cur_line, min(self.cur_col, self:LineLength(self.cur_line))
 end
 
 -- Return the character at the current cursor position, or the empty
@@ -137,121 +163,27 @@ end
 
 -- Return whether the cursor is currently on an empty line.
 function Buffer:IsCursorOnEmptyLine()
-    local line = self.cur_line
-    local s = self.line_map[line]
-    local next = (line < #self.line_map
-                  and self.line_map[line+1] or #self.line_map)
-    return next == s+1 and #self.strings[s] == 0
+    return self:IsEmptyLine(self.cur_line)
 end
 
 -- Move the cursor in the specified manner.  |dir| is a directional key
 -- name with optional Emacs-style modifier prefix.
 function Buffer:MoveCursor(dir)
-    if dir == "UP" then
-        if self.cur_line > 1 then
-            self:SetCursorPosInternal(self.cur_line-1, self.cur_col, true)
-        else
-            self:SetCursorPosInternal(1, 0)
-        end
+    self:SetCursorPosInternal(
+        self:ApplyMovement(self.cur_line, self.cur_col, dir))
+    self:RefreshView()
+end
 
-    elseif dir == "C-UP" then
-        -- The end result of this will be that either the cursor is on an
-        -- empty line (at column 0) or a non-blank line 1 (and thus set to
-        -- column 0 for trying to move past the beginning of the file), so
-        -- we can unconditionally set column 0 here.
-        while self.cur_line > 1 and self:IsCursorOnEmptyLine() do
-            self:SetCursorPosInternal(self.cur_line-1, 0)
-        end
-        while self.cur_line > 1 and not self:IsCursorOnEmptyLine() do
-            self:SetCursorPosInternal(self.cur_line-1, 0)
-        end
-
-    elseif dir == "DOWN" then
-        if self.cur_line < #self.line_map then
-            self:SetCursorPosInternal(self.cur_line+1, self.cur_col, true)
-        else
-            -- Let SetCursorPosInternal() find the end of the line.
-            self:SetCursorPosInternal(#self.line_map, END_OF_LINE)
-        end
-
-    elseif dir == "C-DOWN" then
-        while self.cur_line < #self.line_map and self:IsCursorOnEmptyLine() do
-            self:SetCursorPosInternal(self.cur_line+1, END_OF_LINE)
-        end
-        while self.cur_line < #self.line_map and not self:IsCursorOnEmptyLine() do
-            self:SetCursorPosInternal(self.cur_line+1, END_OF_LINE)
-        end
-
-    elseif dir == "LEFT" then
-        if self.cur_col > 0 then
-            -- cur_col might be past the end of the line (after up/down
-            -- movement from a longer line), so first force it to the
-            -- actual end of the line.
-            self:SetCursorPosInternal(self.cur_line, self.cur_col)
-            self:SetCursorPosInternal(self.cur_line, self.cur_col-1)
-        elseif self.cur_line > 1 then
-            self.cur_line = self.cur_line - 1
-            local s, _, first, last = self:GetStringPos()
-            local len = 0
-            for i = first, last do
-                len = len + #self.strings[i]
-            end
-            self.cur_col = len
-        end
-
-    elseif dir == "C-LEFT" then
-        self:MoveToWord(false)
-
-    elseif dir == "RIGHT" then
-        local s, c, first, last = self:GetStringPos()
-        if s == #self.strings and c == #self.strings[s] then
-            -- Already at the end of the last line, nothing to do.
-        elseif s < last or c < #self.strings[s] then
-            self.cur_col = self.cur_col + 1
-        else
-            self.cur_line = self.cur_line + 1
-            self.cur_col = 0
-        end
-
-    elseif dir == "C-RIGHT" then
-        self:MoveToWord(true)
-
-    elseif dir == "HOME" then
-        self:SetCursorPosInternal(self.cur_line, 0)
-
-    elseif dir == "C-HOME" then
-        self:SetCursorPosInternal(1, 0)
-
-    elseif dir == "END" then
-        self:SetCursorPosInternal(self.cur_line, END_OF_LINE)
-
-    elseif dir == "C-END" then
-        self:SetCursorPosInternal(#self.line_map, END_OF_LINE)
-
-    elseif dir == "PAGEUP" or dir == "PAGEDOWN" then
-        local s, c = self:GetStringPos()
-        local page_size = self.view_lines - 2
-        local target
-        if dir == "PAGEUP" then
-            -- Avoid scrolling back past the first line if the cursor isn't
-            -- at the top of the viewport.
-            local top_offset = s - self.top_string
-            target = max(s - page_size, 1 + top_offset)
-        else
-            -- We're fine with scrolling the bottom of the viewport past
-            -- the last line.
-            target = min(s + page_size, #self.strings)
-        end
-        if target ~= s then
-            local delta = target - s
-            self.top_string = self.top_string + delta
-            self:SetCursorPosFromStringPos(target, c)
-        end
-
+-- Adjust the mark (region endpoint) in the specified manner.  |dir| is a
+-- directional key name with optional Emacs-style modifier prefix.
+function Buffer:MoveMark(dir)
+    local line, col
+    if self.mark_line then
+        line, col = self.mark_line, self.mark_col
     else
-        error("Invalid movement direction: "..tostring(dir))
+        line, col = self.cur_line, self.cur_col
     end
-
+    self.mark_line, self.mark_col = self:ApplyMovement(line, col, dir)
     self:RefreshView()
 end
 
@@ -262,6 +194,7 @@ end
 function Buffer:InsertChar(ch)
     assert(type(ch) == "string" and #ch == 1,
            "ch must be a one-character string")
+    assert(ch ~= "\n", "ch must not be a newline")
     local s, c, first, last = self:GetStringPos()
     local str = self.strings[s]
     if s == last and #str < self.view_columns - 1 then
@@ -293,7 +226,7 @@ function Buffer:InsertChar(ch)
             s = s+1  -- Focus the cursor's new string, not the old one.
         end
     end
-    self.cur_col = self.cur_col + 1
+    self:SetCursorPosInternal(self.cur_line, self.cur_col + 1)
     self:RefreshView()
 end
 
@@ -305,8 +238,7 @@ function Buffer:InsertNewline()
 
     -- The logical cursor position will always advance to the beginning of
     -- the next line, so update it now.
-    self.cur_line = cur_line + 1
-    self.cur_col = 0
+    self:SetCursorPosInternal(cur_line + 1, 0)
 
     -- Special case: breaking a line right after a wrap point doesn't
     -- move the physical cursor position.
@@ -362,6 +294,66 @@ function Buffer:InsertNewline()
     self:RefreshView()
 end
 
+-- Insert text |text| at the current cursor position and advance the cursor
+-- to the end of the inserted text.  Equivalent to (but more efficient than)
+-- calling InsertChar() or InsertNewline() as appropriate for each character
+-- of |text|.
+function Buffer:InsertText(text)
+    assert(type(text) == "string", "text must be a string")
+    local lines = list()
+    local i, j = 1, strstr(text, "\n")
+    while j do
+        lines:append(strsub(text, i, j-1))
+        i = j+1
+        j = strstr(text, "\n", i)
+    end
+    lines:append(strsub(text, i))
+
+    local line = self.cur_line
+    local s, c, _, line_end = self:LineToStringPos(self.cur_line, self.cur_col)
+    local before_text = strsub(self.strings[s], 1, c)
+    local after_text = strsub(self.strings[s], c+1)
+    for i = s+1, line_end do
+        after_text = after_text .. self.strings[i]
+    end
+    local str_limit = self.view_columns - 1
+    for i, str in ipairs(lines) do
+        if i > 1 then
+            line = line+1
+            self.line_map:insert(line, s)
+        end
+        if i == 1 then
+            str = before_text .. str
+        end
+        if i == #lines then
+            self.cur_col = #str
+            str = str .. after_text
+        end
+        while true do  -- do...while
+            if s > line_end then
+                self.strings:insert(s, strsub(str, 1, str_limit))
+            else
+                self.strings[s] = strsub(str, 1, str_limit)
+            end
+            str = strsub(str, str_limit+1)
+            s = s+1
+            if #str == 0 then break end
+        end
+    end
+    local delta = (s-1) - line_end
+    assert(delta >= 0)
+    if delta > 0 then
+        for i = line+1, #self.line_map do
+            self.line_map[i] = self.line_map[i] + delta
+        end
+    end
+    self.cur_line = line
+    self.mark_line, self.mark_col = nil, nil
+    self:ValidateStrings()
+
+    self:RefreshView()
+end
+
 -- Delete one character either before (|forward| false) or after
 -- (|forward| true) the current cursor position.  Does nothing if there
 -- is no character to delete in the specified direction.
@@ -407,11 +399,192 @@ function Buffer:DeleteChar(forward)
         end
     end
 
+    self.mark_line, self.mark_col = nil, nil
     self:RefreshView()
+end
+
+-- Delete the current region, and return the deleted text.  Returns nil
+-- if there was no region or the region was empty (zero length).
+function Buffer:DeleteRegion()
+    local s1, c1, s2, c2 = self:GetRegion()
+    if not s1 then
+        return nil
+    end
+    local l1 = self:StringToLinePos(s1, c1)
+    local l2 = self:StringToLinePos(s2, c2)
+
+    local text
+    if s1 == s2 then
+        text = strsub(self.strings[s1], c1+1, c2)
+    else
+        local line = l1
+        text = strsub(self.strings[s1], c1+1)
+        for i = s1+1, s2 do
+            if line < #self.line_map and i == self.line_map[line+1] then
+                text = text .. "\n"
+                line = line+1
+            end
+            if i < s2 then
+                text = text .. self.strings[i]
+            else
+                text = text .. strsub(self.strings[s2], 1, c2)
+            end
+        end
+    end
+
+    -- Line map updates are simple: we merge [l1,l2] into a single line l1.
+    for i = l1+1, l2 do
+        self.line_map:pop(l1+1)
+    end
+
+    -- String updates are more complex, because we have to re-wrap the
+    -- merged first and last strings.
+    local str =
+        strsub(self.strings[s1], 1, c1) .. strsub(self.strings[s2], c2+1)
+    local old_end = (l1 == #self.line_map
+                     and #self.strings or self.line_map[l1+1] - 1)
+    for i = s2+1, old_end do
+        str = str .. self.strings[i]
+    end
+    local new_end = s1
+    local str_limit = self.view_columns - 1
+    self.strings[new_end] = strsub(str, 1, str_limit)
+    local ofs = str_limit + 1
+    while ofs <= #str do
+        new_end = new_end + 1
+        self.strings[new_end] = strsub(str, ofs, ofs + str_limit - 1)
+        ofs = ofs + str_limit
+    end
+    assert(new_end <= old_end)
+    local s_delta = old_end - new_end
+    for i = 1, s_delta do
+        self.strings:pop(new_end + 1)
+    end
+    for i = l1+1, #self.line_map do
+        self.line_map[i] = self.line_map[i] - s_delta
+    end
+    self:ValidateStrings()
+
+    self.mark_line, self.mark_col = nil, nil
+    self:RefreshView()
+    return text
 end
 
 
 -------- The remaining methods and variables are private.
+
+-- Set the cursor position to the given (logical) line and column, and
+-- clear the mark if it is set.
+function Buffer:SetCursorPosInternal(line, col)
+    self.cur_line, self.cur_col = line, col
+    self.mark_line, self.mark_col = nil, nil
+end
+
+-- Apply movement action |action| to position |line|,|col| and return the
+-- resulting line and column.
+function Buffer:ApplyMovement(line, col, action)
+    if action == "UP" then
+        if line > 1 then
+            line = line-1
+        else
+            line, col = 1, 0
+        end
+
+    elseif action == "C-UP" then
+        -- The end result of this will be that either the cursor is on an
+        -- empty line (at column 0) or a non-blank line 1 (and thus set to
+        -- column 0 for trying to move past the beginning of the file), so
+        -- we can unconditionally set column 0 here.
+        while line > 1 and self:IsEmptyLine(line) do
+            line = line-1
+        end
+        while line > 1 and not self:IsEmptyLine(line) do
+            line = line-1
+        end
+
+    elseif action == "DOWN" then
+        if line < #self.line_map then
+            line = line+1
+        else
+            col = self:LineLength(line)
+        end
+
+    elseif action == "C-DOWN" then
+        while line < #self.line_map and self:IsEmptyLine(line) do
+            line = line+1
+        end
+        while line < #self.line_map and not self:IsEmptyLine(line) do
+            line = line+1
+        end
+        col = self:LineLength(line)
+
+    elseif action == "LEFT" then
+        -- col might be past the end of the line (after up/down movement
+        -- from a longer line), so first force it to the actual end of
+        -- the line.
+        col = min(col, self:LineLength(line))
+        if col > 0 then
+            col = col-1
+        elseif line > 1 then
+            line = line-1
+            col = self:LineLength(line)
+        end
+
+    elseif action == "C-LEFT" then
+        line, col = self:MoveToWord(line, col, false)
+
+    elseif action == "RIGHT" then
+        local line_len = self:LineLength(line)
+        if line == #self.line_map and col == line_len then
+            -- Already at the end of the last line, nothing to do.
+        elseif col < line_len then
+            col = col + 1
+        else
+            line, col = line + 1, 0
+        end
+
+    elseif action == "C-RIGHT" then
+        line, col = self:MoveToWord(line, col, true)
+
+    elseif action == "HOME" then
+        col = 0
+
+    elseif action == "C-HOME" then
+        line, col = 1, 0
+
+    elseif action == "END" then
+        col = self:LineLength(line)
+
+    elseif action == "C-END" then
+        line = #self.line_map
+        col = self:LineLength(line)
+
+    elseif action == "PAGEUP" or action == "PAGEDOWN" then
+        local s, c = self:LineToStringPos(line, col)
+        local page_size = self.view_lines - 2
+        local target
+        if action == "PAGEUP" then
+            -- Avoid scrolling back past the first line if the cursor isn't
+            -- at the top of the viewport.
+            local top_offset = s - self.top_string
+            target = max(s - page_size, 1 + top_offset)
+        else
+            -- We're fine with scrolling the bottom of the viewport past
+            -- the last line.
+            target = min(s + page_size, #self.strings)
+        end
+        if target ~= s then
+            local delta = target - s
+            self.top_string = self.top_string + delta
+            line, col = self:StringToLinePos(target, c)
+        end
+
+    else
+        error("Invalid movement action: "..tostring(action))
+    end
+
+    return line, col
+end
 
 -- Set of characters in a "word" for MoveToWord().
 local WORD_CHARS = set()
@@ -423,12 +596,11 @@ for i = 0, 25 do
     WORD_CHARS:add(97+i)  -- "a".."z"
 end
 
--- Move the cursor backward to the next beginning-of-word (|forward| false)
--- or forward to the next end-of-word (|forward| true), where "word" is
--- defined as any sequence of alphanumeric characters.
-function Buffer:MoveToWord(forward)
-    local line = self.cur_line
-    local s, c, line_start, line_end = self:GetStringPos()
+-- Adjust the given position backward to the next beginning-of-word
+-- (|forward| false) or forward to the next end-of-word (|forward| true),
+-- where "word" is defined as any sequence of alphanumeric characters.
+function Buffer:MoveToWord(line, col, forward)
+    local s, c, line_start, line_end = self:LineToStringPos(line, col)
     local str = self.strings[s]
 
     -- has() wrappers.  End-of-line is treated as not in a word.
@@ -513,35 +685,59 @@ function Buffer:MoveToWord(forward)
     for i = self.line_map[line], s-1 do
         c = c + #self.strings[i]
     end
-    self:SetCursorPosInternal(line, c)
+    return line, c
 end
 
--- Set the cursor position, bounding it to the current buffer size and
--- line length.  If |preserve_col| is true, do not clamp the current
--- column to the line length (used to allow up/down cursor movement to
--- stay at the end of each line regardless of line length).
-function Buffer:SetCursorPosInternal(line, col, preserve_col)
-    line = min(line, #self.line_map)
-    self.cur_line = line
-
-    if not preserve_col then
-        local line_start = self.line_map[line]
-        local line_end = (line == #self.line_map
-                          and #self.strings or self.line_map[line+1] - 1)
-        local len = 0
-        for i = line_start, line_end do
-            len = len + #self.strings[i]
-        end
-        col = min(col, len)
+-- Return the length of the given (logical) line.
+function Buffer:LineLength(line)
+    local line_start = self.line_map[line]
+    local line_end = (line == #self.line_map
+                      and #self.strings or self.line_map[line+1] - 1)
+    local len = 0
+    for i = line_start, line_end do
+        len = len + #self.strings[i]
     end
-    self.cur_col = col
+    return len
 end
 
--- Set the (logical) cursor position to match the given string index and
--- column.  The new position is assumed to be "near" the current position
--- (and thus we do a simple linear search from the current position rather
--- than a binary search over the entire buffer).
-function Buffer:SetCursorPosFromStringPos(s, c)
+-- Return whether the given (logical) line is empty.
+function Buffer:IsEmptyLine(line)
+    return #self.strings[self.line_map[line]] == 0
+end
+
+-- Return the current cursor position as a string index and offset into
+-- that string, along with the indexes of the first and last strings for
+-- the current logical line.
+function Buffer:GetStringPos()
+    return self:LineToStringPos(self.cur_line, self.cur_col)
+end
+
+-- Convert the given logical (line-based) position to a physical
+-- (string-based) position.  Returns the string index, column, and
+-- (for convenience) the indexes of the first and last strings
+-- corresponding to the selected line.
+function Buffer:LineToStringPos(line, col)
+    local line_start = self.line_map[line]
+    local line_end = (line == #self.line_map
+                      and #self.strings or self.line_map[line+1] - 1)
+    local c = col
+    for s = line_start, line_end do
+        local len = #self.strings[s]
+        if c < len then
+            return s, c, line_start, line_end
+        elseif s == line_end then  -- At or past the end of the line.
+            return s, len, line_start, line_end
+        end
+        c = c - len
+    end
+    error("unreachable")
+end
+
+-- Convert the given physical (string-based) position to a logical
+-- (line-based) position.  The given position is assumed to be "near"
+-- the current position, and thus we do a simple linear search from the
+-- current position rather than a binary search over the entire buffer.
+function Buffer:StringToLinePos(s, c)
     local line = self.cur_line
     local line_map = self.line_map
     while line > 1 and s < line_map[line] do
@@ -555,27 +751,30 @@ function Buffer:SetCursorPosFromStringPos(s, c)
     for i = line_map[line], s-1 do
         c = c + #strings[i]
     end
-    self.cur_line, self.cur_col = line, c
+    return line, c
 end
 
--- Return the current cursor position as a string index and and offset into
--- that string, along with the indexes of the first and last strings for
--- the current logical line.
-function Buffer:GetStringPos()
-    local line_start = self.line_map[self.cur_line]
-    local line_end = (self.cur_line == #self.line_map
-                      and #self.strings or self.line_map[self.cur_line+1] - 1)
-    local c = self.cur_col
-    for s = line_start, line_end do
-        local len = #self.strings[s]
-        if c < len then
-            return s, c, line_start, line_end
-        elseif s == line_end then  -- At or past the end of the line.
-            return s, len, line_start, line_end
+-- Return the endpoints of the current region as a 4-tuple:
+--     start_string, start_col, end_string, end_col
+-- or no values if there is currently no region or the region has zero
+-- length.  The region starts at the earlier of the cursor position and
+-- mark position (inclusive) and extends up to the later of the two
+-- positions (exclusive).
+function Buffer:GetRegion()
+    local cl, cc = self.cur_line, self.cur_col
+    local ml, mc = self.mark_line, self.mark_col
+    if ml and not (ml == cl and mc == cc) then
+        local cs, ms
+        cs, cc = self:LineToStringPos(cl, cc)
+        ms, mc = self:LineToStringPos(ml, mc)
+        if ms < cs or (ms == cs and mc < cc) then
+            return ms, mc, cs, cc
+        else
+            return cs, cc, ms, mc
         end
-        c = c - len
+    else
+        return  -- no values
     end
-    error("unreachable")
 end
 
 -- Set up the scroll bar widget in the text view frame.
@@ -615,6 +814,7 @@ function Buffer:MeasureView()
     self.cursor:SetHeight(self.cell_h)
 end
 
+-- Rebuild the string list from the buffer text.
 function Buffer:LayoutText()
     local wrap = self.view_columns - 1
     local text = self:GetText()
@@ -645,6 +845,36 @@ function Buffer:LayoutText()
     if line_map[#line_map] == #strings+1 then
         strings[#strings+1] = ""  -- Empty line at the end of the buffer.
     end
+
+    self:ValidateStrings()
+end
+
+-- Verify that the line map and string list are consistent.
+function Buffer:ValidateStrings()
+    assert(#self.line_map > 0)
+    assert(#self.strings > 0)
+    assert(self.line_map[1] == 1)
+    local line = 1
+    local line_end = (line == #self.line_map
+                      and #self.strings or self.line_map[line+1] - 1)
+    local str_limit = self.view_columns - 1
+    for i = 1, #self.strings do
+        if i < line_end then
+            assert(#self.strings[i] == str_limit)
+        else
+            assert(#self.strings[i] <= str_limit)
+            if i == #self.strings then
+                assert(line == #self.line_map)
+            else
+                assert(line < #self.line_map)
+                line = line+1
+                local new_end = (line == #self.line_map
+                                 and #self.strings or self.line_map[line+1] - 1)
+                assert(new_end > i)
+                line_end = new_end
+            end
+        end
+    end
 end
 
 -- Redisplay the current view and update the cursor display state.
@@ -664,6 +894,8 @@ function Buffer:RefreshView(recenter)
             self.top_string = top_string
         end
     end
+
+    local region_s1, region_c1, region_s2, region_c2 = self:GetRegion()
 
     local top_line = self.cur_line
     while top_line > 1 and self.line_map[top_line] > top_string do
@@ -692,6 +924,16 @@ function Buffer:RefreshView(recenter)
             fs:SetPoint("TOPLEFT", prev, 0, -self.cell_h)
         else
             fs:SetPoint("TOPLEFT")
+        end
+        if region_s1 and i >= region_s1 and i <= region_s2 then
+            local c1 = (i == region_s1) and region_c1 or 0
+            local c2 = (i == region_s2) and region_c2 or #str
+            if c2 > c1 then
+                local region_text = strsub(str, c1+1, c2)
+                str = (strsub(str, 1, c1)
+                       .. WoWXIV.FormatColoredText(region_text, REGION_COLOR)
+                       .. strsub(str, c2+1))
+            end
         end
         fs:SetText(str)
         prev = fs
@@ -733,7 +975,7 @@ function Buffer:OnScroll(target)
         local s = self:GetStringPos()
         local new_s = max(top+1, min(bottom-1, s))
         if new_s ~= s then
-            self:SetCursorPosFromStringPos(new_s, 0)
+            self:SetCursorPosInternal(self:StringToLinePos(new_s, 0))
         end
         self:RefreshView(false)
         if self.on_scroll then
