@@ -564,7 +564,7 @@ end
 function Buffer:GetStringPos()
     local line_start = self.line_map[self.cur_line]
     local line_end = (self.cur_line == #self.line_map
-                      and #self.strings or self.line_map[line_start+1] - 1)
+                      and #self.strings or self.line_map[self.cur_line+1] - 1)
     local c = self.cur_col
     for s = line_start, line_end do
         local len = #self.strings[s]
