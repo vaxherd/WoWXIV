@@ -210,7 +210,8 @@ function Buffer:InsertChar(ch)
             ch = strsub(str, #str)
             c = 0
         end
-        str = ch .. self.strings[last]
+        str = self.strings[last]
+        str = strsub(str, 1, c) .. ch .. strsub(str, c+1)
         local width = self.view_columns
         if #str < width then
             self.strings[last] = str
