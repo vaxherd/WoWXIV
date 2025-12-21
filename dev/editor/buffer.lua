@@ -15,6 +15,7 @@ local round = function(x) return floor(x+0.5) end
 local strbyte = string.byte
 local strfind = string.find
 local strformat = string.format
+local strgsub = string.gsub
 local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 local strsub = string.sub
 
@@ -930,11 +931,13 @@ function Buffer:RefreshView(recenter)
             local c1 = (i == region_s1) and region_c1 or 0
             local c2 = (i == region_s2) and region_c2 or #str
             if c2 > c1 then
-                local region_text = strsub(str, c1+1, c2)
-                str = (strsub(str, 1, c1)
+                local region_text = strgsub(strsub(str, c1+1, c2), "|", "||")
+                str = (strgsub(strsub(str, 1, c1), "|", "||")
                        .. WoWXIV.FormatColoredText(region_text, REGION_COLOR)
-                       .. strsub(str, c2+1))
+                       .. strgsub(strsub(str, c2+1), "|", "||"))
             end
+        else
+            str = strgsub(str, "|", "||")
         end
         fs:SetText(str)
         prev = fs

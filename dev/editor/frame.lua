@@ -9,6 +9,7 @@ local Frame = WoWXIV.Frame
 local list = WoWXIV.list
 
 local strformat = string.format
+local strgsub = string.gsub
 
 
 -- Key auto-repeat delay and period, in seconds.
@@ -262,8 +263,8 @@ end
 
 function EditorFrame:UpdateTitle()
     local line, col = self.buffer:GetCursorPos()
-    local title =
-        strformat("%s - L%d C%d", self.filename or "(Untitled)", line, col)
+    local name_escaped = strgsub(self.filename or "(Untitled)", "|", "||")
+    local title = strformat("%s - L%d C%d", name_escaped, line, col)
     self.Border.Title:SetText(title)
 end
 
