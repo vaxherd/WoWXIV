@@ -575,9 +575,8 @@ function FlyTextManager:OnCombatLogEvent(event)
             fly_direction = "up"
         end
     elseif event.subtype == "PERIODIC_DAMAGE" then
-        args = {FLYTEXT_DAMAGE_PASSIVE, unit, event.amount}
-        -- self.dot = self.dot or {}
-        -- self.dot[unit] = (self.dot[unit] or 0) + event.amount
+        self.dot = self.dot or {}
+        self.dot[unit] = (self.dot[unit] or 0) + event.amount
     elseif event.subtype == "MISSED" then
         -- Note: Absorbed heals are reported as "heal for 0" with the
         -- amount absorbed in event.absorbed, so we don't have to worry
@@ -589,9 +588,8 @@ function FlyTextManager:OnCombatLogEvent(event)
         args = {FLYTEXT_HEAL_DIRECT, unit, event.spell_id,
                 event.spell_school, event.amount, event.critical}
     elseif event.subtype == "PERIODIC_HEAL" then
-        args = {FLYTEXT_HEAL_PASSIVE, unit, event.amount}
-        -- self.hot = self.hot or {}
-        -- self.hot[unit] = (self.hot[unit] or 0) + event.amount
+        self.hot = self.hot or {}
+        self.hot[unit] = (self.hot[unit] or 0) + event.amount
     elseif event.subtype == "AURA_APPLIED" then
         is_aura = true
         self:DoAura((event.aura_type=="BUFF" and FLYTEXT_BUFF_ADD
