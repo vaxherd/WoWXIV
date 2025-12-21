@@ -5,11 +5,11 @@ Dev.Editor = Dev.Editor or {}
 local Editor = Dev.Editor
 
 local class = WoWXIV.class
-local Frame = WoWXIV.Frame
 local list = WoWXIV.list
 local set = WoWXIV.set
 
 local floor = math.floor
+local max = math.max
 local min = math.min
 local round = function(x) return floor(x+0.5) end
 local strbyte = string.byte
@@ -58,12 +58,13 @@ function Buffer:__constructor(text, view)
     -- logical line which fit on a single physical line).
     -- FIXME: "string" is a terrible term because we'll confuse it with
     -- other uses of the word; any better options?
-    self.strings = list(text)   -- The buffer text, broken up into strings.
-    self.line_map = list(1)     -- Map from physical line to string index.
+    self.strings = list()       -- The buffer text, broken up into strings.
+    self.line_map = list()      -- Map from physical line to string index.
     self.cur_line = 1           -- Logical cursor position.
     self.cur_col = 0
     self.mark_line = nil        -- Second endpoint of selection, nil if none.
     self.mark_col = nil
+    self.mark_active = false    -- True to highlight the region.
     self.top_string = 1         -- Index of the topmost displayed string.
     self.linepool_free = set()  -- Pool of created but unused FontStrings.
     self.linepool_used = set()  -- FontStrings which are currently in used.
@@ -71,9 +72,12 @@ function Buffer:__constructor(text, view)
 
     self:InitScrollBar()
     self:MeasureView()
-    self:LayoutText()
+    self:LayoutText(text)
     self:RefreshView()
 end
+
+
+-------- General utility methods
 
 -- Set a function to be called whenever the text view is scrolled using the
 -- scrollbar widget.  Pass nil to remove any previously set callback.
@@ -95,6 +99,9 @@ function Buffer:GetText()
     return text
 end
 
+
+-------- Cursor/mark management
+
 -- Set whether the text cursor should be displayed.
 function Buffer:SetShowCursor(show)
     self.show_cursor = not not show  -- Force to boolean.
@@ -108,9 +115,40 @@ function Buffer:SetCursorPos(line, col)
     assert(type(col) == "number" and col >= 0 and floor(col) == col,
            "col must be a nonnegative integer")
     local clamped_line = min(line, #self.line_map)
-    local clamped_col = min(col, self:LineLength(self.cur_line))
+    local clamped_col = min(col, self:LineLength(clamped_line))
     self:SetCursorPosInternal(clamped_line, clamped_col)
     self:RefreshView()
+end
+
+-- Set the mark position within the buffer.  The mark and cursor position
+-- together define the region for region-based operations like killing text.
+-- If |active| is true, the region will be highlighted in the text view.
+-- Passing nil for both line and col is equivalent to calling ClearMark().
+function Buffer:SetMarkPos(line, col, active)
+    if line == nil and pos == nil then
+        self:ClearMark()
+        return
+    end
+    assert(type(line) == "number" and line > 0 and floor(line) == line,
+           "line must be nil or a positive integer")
+    assert(type(col) == "number" and col >= 0 and floor(col) == col,
+           "col must be nil or a nonnegative integer")
+    local clamped_line = min(line, #self.line_map)
+    local clamped_col = min(col, self:LineLength(clamped_line))
+    self:SetMarkPosInternal(clamped_line, clamped_col)
+    self.mark_active = not not active  -- Force to boolean.
+    self:RefreshView()
+end
+
+-- Activate or deactivate the mark without moving it.
+function Buffer:SetMarkActive(active)
+    self.mark_active = not not active  -- Force to boolean.
+end
+
+-- Clear the buffer's mark.
+function Buffer:ClearMark()
+    self:SetMarkPosInternal(nil, nil)
+    self.mark_active = false
 end
 
 -- Set the cursor position based on graphical coordinates (such as from a
@@ -129,13 +167,14 @@ end
 -- Set the mark position based on graphical coordinates (such as from a
 -- mouse drag).  |x| and |y| should be relative to the top left corner of
 -- the text view frame, with |y| increasing downward.
-function Buffer:SetMarkPosFromMouse(x, y)
+function Buffer:SetMarkPosFromMouse(x, y, active)
     assert(type(x) == "number", "x must be a number")
     assert(type(y) == "number", "y must be a number")
     local rel_s = max(0, min(self.view_lines-1, floor(y / self.cell_h)))
     local c = max(0, min(self.view_columns-1, floor(x / self.cell_w)))
     local s = min(self.top_string + rel_s, #self.strings)
     local line, col = self:StringToLinePos(s, c)
+    active = not not active  -- Force to boolean.
     -- Don't RefreshView unless the mark has actually changed, to avoid
     -- excessive CPU load if we're called every frame during a drag.
     local compare_line, compare_col
@@ -144,8 +183,10 @@ function Buffer:SetMarkPosFromMouse(x, y)
     else
         compare_line, compare_col = self.cur_line, self.cur_col
     end
-    if line ~= compare_line or col ~= compare_col then
-        self.mark_line, self.mark_col = line, col
+    if line ~= compare_line or col ~= compare_col or active ~= self.mark_active
+    then
+        self:SetMarkPosInternal(self.mark_line, self.mark_col)
+        self.mark_active = active
         self:RefreshView()
     end
 end
@@ -155,11 +196,19 @@ function Buffer:GetCursorPos()
     return self.cur_line, min(self.cur_col, self:LineLength(self.cur_line))
 end
 
--- Return the character at the current cursor position, or the empty
--- string if the cursor is at the end of a line.
-function Buffer:GetCharAtCursor()
-    local s, c = self:GetStringPos()
-    return strsub(self.strings[s], c+1, c+1)
+-- Return the current mark position, or nil if the mark is not set.
+function Buffer:GetMarkPos()
+    if self.mark_line then
+        return self.mark_line, min(self.mark_col,
+                                   self:LineLength(self.mark_line))
+    else
+        return nil, nil
+    end
+end
+
+-- Return whether the mark is currently active.
+function Buffer:IsMarkActive()
+    return self.mark_line ~= nil and self.mark_active
 end
 
 -- Return whether the cursor is currently on an empty line.
@@ -184,8 +233,18 @@ function Buffer:MoveMark(dir)
     else
         line, col = self.cur_line, self.cur_col
     end
-    self.mark_line, self.mark_col = self:ApplyMovement(line, col, dir)
+    self:SetMarkPosInternal(self:ApplyMovement(line, col, dir))
     self:RefreshView()
+end
+
+
+-------- Buffer text manipulation methods
+
+-- Return the character at the current cursor position, or the empty
+-- string if the cursor is at the end of a line.
+function Buffer:GetCharAtCursor()
+    local s, c = self:GetStringPos()
+    return strsub(self.strings[s], c+1, c+1)
 end
 
 -- Insert character |ch| at the current cursor position and advance the
@@ -350,7 +409,7 @@ function Buffer:InsertText(text)
         end
     end
     self.cur_line = line
-    self.mark_line, self.mark_col = nil, nil
+    self:SetMarkPosInternal(nil, nil)
     self:ValidateStrings()
 
     self:RefreshView()
@@ -401,7 +460,7 @@ function Buffer:DeleteChar(forward)
         end
     end
 
-    self.mark_line, self.mark_col = nil, nil
+    self:SetMarkPosInternal(nil, nil)
     self:RefreshView()
 end
 
@@ -443,8 +502,7 @@ function Buffer:DeleteRegion()
     -- merged first and last strings.
     local str =
         strsub(self.strings[s1], 1, c1) .. strsub(self.strings[s2], c2+1)
-    local old_end = (l1 == #self.line_map
-                     and #self.strings or self.line_map[l1+1] - 1)
+    local old_end = self:LastStringForLine(l1)
     for i = s2+1, old_end do
         str = str .. self.strings[i]
     end
@@ -467,19 +525,110 @@ function Buffer:DeleteRegion()
     end
     self:ValidateStrings()
 
-    self.mark_line, self.mark_col = nil, nil
+    self:SetMarkPosInternal(nil, nil)
     self:RefreshView()
     return text
 end
 
 
--------- The remaining methods and variables are private.
+-------- Buffer search/replace methods
 
--- Set the cursor position to the given (logical) line and column, and
--- clear the mark if it is set.
+-- Search for text |str| in the buffer, starting from the current cursor
+-- position and searching forward (|forward| true) or backward (|forward|
+-- false).  If |as_pattern| is true, |str| is treated as a Lua pattern
+-- rather than a literal string.  If |match_case| is false, case is folded
+-- when matching.
+--
+-- If a match is found:
+--    - Set the cursor position to the end (|forward| true) or beginning
+--      (|forward| false) of the match.
+--    - If |highlight| is true, set the mark to the other side of the match
+--      and activate it, so the match will be displayed highlighted.
+--    - Return true.
+-- Otherwise, return false.
+function Buffer:Search(str, as_pattern, match_case, forward, highlight)
+    -- FIXME: This method makes a strong argument for storing the buffer
+    -- as a single string instead of as numerous view-sized fragments.
+    -- Maybe we'll get to that someday.
+    local text = self:GetText()
+    -- Lua doesn't seem to have any explicit case-insensitive-compare
+    -- functions, so we handle case folding by pre-converting to lowercase.
+    -- We assume that patterns don't contain any inverted class tokens
+    -- (which is currently always the case, see frame.lua:RegexToPattern()).
+    if not match_case then
+        text = text:lower()
+        str = str:lower()
+    end
+    local index = self:LinePosToIndex(self.cur_line, self.cur_col)
+    local found, found_end
+    if forward then
+        found, found_end = strfind(text, str, index, not as_pattern)
+    else
+        local i, i_end = strfind(text, str, 1, not as_pattern)
+        while i and i < index do
+            found, found_end = i, i_end
+            i, i_end = strfind(text, str, i_end+1, not as_pattern)
+        end
+    end
+    if found then
+        local match_start, match_end = found, found_end+1
+        local cursor_index = forward and match_end or match_start
+        local mark_index = forward and match_start or match_end
+        self:SetCursorPosInternal(self:IndexToLinePos(cursor_index))
+        if highlight then
+            local line, col = self:IndexToLinePos(mark_index)
+            self:SetMarkPosInternal(line, col)
+            self.mark_active = true
+        end
+        self:RefreshView()
+        return true
+    else
+        if highlight then
+            self.mark_active = false
+            self:RefreshView()
+        end
+        return false
+    end
+end
+
+-- Replace all occurrences of text |from| in the buffer with text |to|
+-- from the current cursor position to the end of the buffer, and return
+-- the number of replacements done (which may be zero).  If |as_pattern|
+-- is true, |from| and |to| are treated as Lua pattern strings; otherwise,
+-- both are treated as literal strings.  Case folding is never performed.
+function Buffer:Replace(from, to, as_pattern)
+    if not as_pattern then
+        from = strgsub(from, "%W", "%%%0")  -- %W: all nonalphanumerics
+        to = strgsub(to, "%%", "%%%%")
+    end
+    local text = self:GetText()
+    local index = self:LinePosToIndex(self.cur_line, self.cur_col)
+    -- For simplicity, we simply perform replacement on the linear text
+    -- and reformat it afterward.
+    local before_cursor = strsub(text, 1, index-1)
+    local after_cursor = strsub(text, index)
+    local new_after, n_repl = strgsub(after_cursor, from, to)
+    if n_repl > 0 then
+        self:LayoutText(before_cursor .. new_after)
+        self:RefreshView()
+    end
+    return n_repl
+end
+
+
+-------- The remaining methods are private.
+
+-- Set the cursor position to the given (logical) line and column.
+-- Also deactivates the mark if it was active.
 function Buffer:SetCursorPosInternal(line, col)
     self.cur_line, self.cur_col = line, col
-    self.mark_line, self.mark_col = nil, nil
+    self.mark_active = false
+end
+
+-- Set the mark position to the given (logical) line and column.
+-- Pass nil to clear the mark.
+function Buffer:SetMarkPosInternal(line, col)
+    self.mark_line, self.mark_col = line, col
 end
 
 -- Apply movement action |action| to position |line|,|col| and return the
@@ -616,8 +765,7 @@ function Buffer:MoveToWord(line, col, forward)
     -- Helper to update line_start/line_end after changing logical lines.
     local function UpdateLine()
         line_start = self.line_map[line]
-        line_end = (line < #self.line_map
-                    and self.line_map[line+1]-1 or #self.strings)
+        line_end = self:LastStringForLine(line)
     end
 
     if forward then
@@ -693,8 +841,7 @@ end
 -- Return the length of the given (logical) line.
 function Buffer:LineLength(line)
     local line_start = self.line_map[line]
-    local line_end = (line == #self.line_map
-                      and #self.strings or self.line_map[line+1] - 1)
+    local line_end = self:LastStringForLine(line)
     local len = 0
     for i = line_start, line_end do
         len = len + #self.strings[i]
@@ -705,6 +852,15 @@ end
 -- Return whether the given (logical) line is empty.
 function Buffer:IsEmptyLine(line)
     return #self.strings[self.line_map[line]] == 0
+end
+
+-- Return the index of the last (physical) string for the given (logical) line.
+function Buffer:LastStringForLine(line)
+    if line < #self.line_map then
+        return self.line_map[line+1] - 1
+    else
+        return #self.strings
+    end
 end
 
 -- Return the current cursor position as a string index and offset into
@@ -720,8 +876,7 @@ end
 -- corresponding to the selected line.
 function Buffer:LineToStringPos(line, col)
     local line_start = self.line_map[line]
-    local line_end = (line == #self.line_map
-                      and #self.strings or self.line_map[line+1] - 1)
+    local line_end = self:LastStringForLine(line)
     local c = col
     for s = line_start, line_end do
         local len = #self.strings[s]
@@ -754,6 +909,46 @@ function Buffer:StringToLinePos(s, c)
         c = c + #strings[i]
     end
     return line, c
+end
+
+-- Convert a line/column position to a 1-based string index into the
+-- composite buffer string (as would be returned by GetText()).
+function Buffer:LinePosToIndex(line, col)
+    local index = 1 + col
+    for i = 1, line-1 do
+        for s = self.line_map[i], self.line_map[i+1] - 1 do
+            index = index + #self.strings[s]
+        end
+        index = index+1  -- newline
+    end
+    return index
+end
+
+-- Convert a 1-based string index into the composite buffer string to a
+-- line/column position.
+function Buffer:IndexToLinePos(index)
+    index = index - 1
+    local line, s, c = 1, 1, 0
+    local line_end = self:LastStringForLine(line)
+    while s < #self.strings do
+        local len = #self.strings[s]
+        if index < len then
+            return line, c + index
+        end
+        index = index - len
+        if s < line_end then
+            c = c + len
+        elseif index == 0 then  -- Cursor is at the line break.
+            return line, c + len
+        else
+            index = index-1  -- newline
+            line = line+1
+            line_end = self:LastStringForLine(line)
+            c = 0
+        end
+        s = s+1
+    end
+    return line, c + index
 end
 
 -- Return the endpoints of the current region as a 4-tuple:
@@ -813,13 +1008,12 @@ function Buffer:MeasureView()
     self:ReleaseLine(line)
     self.view_columns = floor((self.view:GetWidth() + 0.5) / self.cell_w)
     self.view_lines = floor((self.view:GetHeight() + 0.5) / self.cell_h)
-    self.cursor:SetHeight(self.cell_h)
+    self.cursor:SetSize(1, self.cell_h)
 end
 
--- Rebuild the string list from the buffer text.
-function Buffer:LayoutText()
+-- Rebuild the string list from the given linear buffer text.
+function Buffer:LayoutText(text)
     local wrap = self.view_columns - 1
-    local text = self:GetText()
     local len = #text
     local strings = self.strings
     local line_map = self.line_map
@@ -857,8 +1051,7 @@ function Buffer:ValidateStrings()
     assert(#self.strings > 0)
     assert(self.line_map[1] == 1)
     local line = 1
-    local line_end = (line == #self.line_map
-                      and #self.strings or self.line_map[line+1] - 1)
+    local line_end = self:LastStringForLine(line)
     local str_limit = self.view_columns - 1
     for i = 1, #self.strings do
         if i < line_end then
@@ -870,8 +1063,7 @@ function Buffer:ValidateStrings()
             else
                 assert(line < #self.line_map)
                 line = line+1
-                local new_end = (line == #self.line_map
-                                 and #self.strings or self.line_map[line+1] - 1)
+                local new_end = self:LastStringForLine(line)
                 assert(new_end > i)
                 line_end = new_end
             end
@@ -897,11 +1089,13 @@ function Buffer:RefreshView(recenter)
         end
     end
 
-    local region_s1, region_c1, region_s2, region_c2 = self:GetRegion()
-
     local top_line = self.cur_line
     while top_line > 1 and self.line_map[top_line] > top_string do
         top_line = top_line - 1
+    end
+    local region_s1, region_c1, region_s2, region_c2
+    if self.mark_active then
+        region_s1, region_c1, region_s2, region_c2 = self:GetRegion()
     end
 
     self:ReleaseAllLines()
@@ -909,12 +1103,7 @@ function Buffer:RefreshView(recenter)
     local line = top_line
     for i = top_string, min(top_string + bottom_ofs, #self.strings) do
         local str = self.strings[i]
-        local is_final
-        if line < #self.line_map then
-            is_final = (i == self.line_map[line+1] - 1)
-        else
-            is_final = (i == #self.strings)
-        end
+        local is_final = (i == self:LastStringForLine(line))
         if is_final then
             line = line+1
         else
