@@ -668,7 +668,7 @@ function FlyTextManager:OnUpdate()
 
     if self.dot then
         for unit, amount in pairs(self.dot) do
-            text = FlyText(FLYTEXT_DAMAGE_PASSIVE, unit, amount)
+            local text = FlyText(FLYTEXT_DAMAGE_PASSIVE, unit, amount)
             self:AddText(text, false)
         end
         self.dot = nil
@@ -676,7 +676,7 @@ function FlyTextManager:OnUpdate()
 
     if self.hot then
         for unit, amount in pairs(self.hot) do
-            text = FlyText(FLYTEXT_HEAL_PASSIVE, unit, amount)
+            local text = FlyText(FLYTEXT_HEAL_PASSIVE, unit, amount)
             self:AddText(text, true)
         end
         self.hot = nil
