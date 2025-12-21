@@ -34,7 +34,7 @@ local FLYTEXT_NOTFLY_OFFSET_Y_MAX = 30
 local FLYTEXT_CRIT_OFFSET_FACTOR = 1.5
 
 -- Flytext move offset in Y direction.
-local FLYTEXT_DY_FACTOR = 0.2
+local FLYTEXT_DY_FACTOR = 0.3
 local FLYTEXT_DY_UP_FACTOR = 0.12
 
 local FLYTEXT_DY_ISUP = 1
@@ -142,7 +142,7 @@ function FlyText:AllocPooledFrame()
         stacks:SetPoint("TOPRIGHT", icon, "TOPRIGHT", 0, 2)
         local value = f:CreateFontString(nil, "ARTWORK")
         w.value = value
-        WoWXIV.SetFont(value, "FLYTEXT_DAMAGE")
+        (value, "FLYTEXT_DAMAGE")
         value:SetPoint("LEFT", icon, "RIGHT")
         -- Use a separate text instance with a larger font size and slight
         -- spacing offset for the "!" critical indicator because it looks
