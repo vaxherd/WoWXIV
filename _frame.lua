@@ -8,6 +8,12 @@ the same way they would for any class defined with class().  Instances
 of Frame-derived classes can be passed to WoW API functions just like
 ordinary frames.
 
+The following native frame types are currently supported:
+   - Button
+   - Frame
+Other types can be added as needed by including them in the
+SUPPORTED_CLASSES list below.
+
 
 Create a native-frame-derived class by passing the appropriate type name
 to class(), for example:
@@ -42,9 +48,48 @@ constructor arguments would be passed to CreateFrame(), probably
 resulting in incorrect behavior.
 
 
-The following native frame types are supported:
-   - Button
-   - Frame
+As a convenience, this file also provides a FramePool class which
+provides functionality similar to the Blizzard CreateFramePool() API,
+allowing a caller to dynamically acquire (allocate) and release (free)
+frames from a common pool.  This functionality is needed because Frame
+instances are never freed by the WoW engine once created, even if the
+associated Lua object becomes unreferenced.
+
+Create a frame pool by instantiating the FramePool class, passing a
+reference to the Frame subclass to be managed:
+
+    local class = module.class
+    local Frame = module.Frame
+    local FramePool = module.FramePool
+    MyFrame = class(Frame)
+    pool = FramePool(MyFrame)
+
+Frames can then be acquired and released by calling the relevant methods
+on the frame pool:
+
+    instance = pool:Acquire()  -- calls Show() on the acquired frame
+    pool:Release(instance)  -- calls Hide() on the released frame
+    pool:ReleaseAll()  -- releases all currently acquired instances
+
+If the managed class has methods named OnAcquire and OnRelease, they
+will be called when an existing instance is returned from Acquire() and
+when an instance is passed to Release() (or the instance is released
+during a call to ReleaseAll()), respectively.  OnAcquire() is _not_
+called when an instance is newly created in Acquire() because there are
+no free instances in the pool; the managed class's constructor should
+call OnAcquire() itself if this behavior is needed.
+
+A FramePool instance can be used as an iterator in a generic "for"
+statement to iterate over all acquired instances:
+
+    for instance in pool do
+        assert(instance:IsShown())
+    end
+
+As with other cases of iteration in Lua, behavior is undefined if a new
+instance is acquired during such a loop, but releasing instances during
+the loop is safe (and if an instance is released before it has been
+iterated over, it will not be seen by the loop).
 
 ]]--
 
@@ -85,6 +130,7 @@ module.class = function(...)
     end
     return classdef
 end
+local class = module.class
 
 
 local SUPPORTED_CLASSES = {"Button", "Frame"}
@@ -119,4 +165,70 @@ for _, frame_type in ipairs(SUPPORTED_CLASSES) do
     end
 
     module[frame_type] = frame_class
+end
+
+
+local FramePool = class()
+module.FramePool = FramePool
+
+function FramePool:__constructor(managed_class)
+    -- We don't localize this at file scope to avoid unnecessary
+    -- load-order dependencies.
+    local set = module.set
+
+    self.managed_class = managed_class
+    self.used = set()
+    self.free = set()
+
+    -- Wrap the self.used set iterator to use as our own iterator.
+    -- This doesn't violate encapsulation because we're just making
+    -- the same call that generic "for" would make on the set.
+    local mt = getmetatable(self)
+    mt.__call = function(s, _, i) return self.used(_, i) end
+end
+
+-- Acquire an instance of the managed class.  If a free instance is
+-- available, it will be shown (with Show()) and its OnAcquire() method
+-- (if any) will be called; otherwise, a new instance will be created
+-- and returned.
+function FramePool:Acquire()
+    local instance
+    if self.free:len() > 0 then
+        instance = self.free:pop()
+        instance:Show()
+        if instance.OnAcquire then
+            instance:OnAcquire()
+        end
+    else
+        instance = self.managed_class()
+    end
+    self.used:add(instance)
+    return instance
+end
+
+-- Release a previously acquired instance of the managed class.  The
+-- instance's OnRelease() method (if any) will be called, and the frame
+-- will be hidden (with Hide()).
+function FramePool:Release(instance)
+    -- Remove from self.used first so we error out immediately if the
+    -- instance is not one of ours.
+    self.used:remove(instance)
+    if instance.OnRelease then
+        instance:OnRelease()
+    end
+    instance:Hide()
+    self.free:add(instance)
+end
+
+-- Release all currently acquired instances, as if Release() had been
+-- called on each one.
+function FramePool:ReleaseAll()
+    for instance in self.used do
+        if instance.OnRelease then
+            instance:OnRelease()
+        end
+        instance:Hide()
+        self.free:add(instance)
+    end
+    self.used:clear()
 end
