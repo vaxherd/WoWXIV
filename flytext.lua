@@ -1,29 +1,6 @@
 local _, WoWXIV = ...
 WoWXIV.FlyText = {}
 
--- Add FFXIV style font from LSM apply to flytext.
-local LSM = nil
-if LibStub ~= nil then
-    LSM = LibStub("LibSharedMedia-3.0")
-end
-
-local HOEFLER_FONT_PATH, HOEFLER_ITALIC_FONT_PATH
-
-if LSM then
-    HOEFLER_FONT_PATH = LSM:Fetch("font", "hoefler-text")
-    HOEFLER_ITALIC_FONT_PATH = LSM:Fetch("font", "hoefler-text-italic")
-end
-    
-if not HOEFLER_FONT_PATH then
-    HOEFLER_FONT_PATH = "Fonts\\FRIZQT__.TTF"
-end
-if not HOEFLER_ITALIC_FONT_PATH then
-    HOEFLER_ITALIC_FONT_PATH = "Fonts\\FRIZQT__.TTF"
-end
-
-local DEFAULT_FONT_FILE, DEFAULT_FONT_SIZE, DEFAULT_FONT_FLAGS = GameFontNormal:GetFont()
-
-
 local class = WoWXIV.class
 local list = WoWXIV.list
 local set = WoWXIV.set
@@ -45,7 +22,6 @@ local typeof = type  -- Renamed so we can use "type" as an ordinary name.
 local FlyText = class()
 
 -- Length of time a flying text string will be displayed (seconds).
-
 local FLYTEXT_TIME = 4.5
 local FLYTEXT_UP_TIME = 1.5
 local FLYTEXT_PASSIVE_TIME = 0.8
@@ -64,7 +40,7 @@ local FLYTEXT_DY_UP_FACTOR = 0.12
 local FLYTEXT_DY_ISUP = 1
 
 -- Default scale factor for text.
-local FLYTEXT_FONT_SCALE = 0.95
+local FLYTEXT_FONT_SCALE = 1
 -- Scale factor for critical hits.
 local FLYTEXT_CRIT_SCALE = FLYTEXT_FONT_SCALE * 1.4
 -- Scale factor for "Miss" text.
@@ -92,9 +68,9 @@ local FLYTEXT_OTHER_DAMAGE_DIRECT   = 11
 local FLYTEXT_OTHER_DAMAGE_PASSIVE  = 12
 local FLYTEXT_OTHER_HEAL_DIRECT     = 13
 local FLYTEXT_OTHER_HEAL_PASSIVE    = 14
-local FLYTEXT_OTHER_BUFF_ADD        = 15
+local FLYTEXT_OTHER_BUFF_ADD        = 15  -- TODO: partially implemented
 local FLYTEXT_OTHER_BUFF_REMOVE     = 16  -- TODO: not implemented
-local FLYTEXT_OTHER_DEBUFF_ADD      = 17
+local FLYTEXT_OTHER_DEBUFF_ADD      = 17  -- TODO: partially implemented
 local FLYTEXT_OTHER_DEBUFF_REMOVE   = 18  -- TODO: not implemented
 
 -- Corresponding text colors.
@@ -174,8 +150,10 @@ function FlyText:AllocPooledFrame()
         local exclam = f:CreateFontString(nil, "ARTWORK")
         w.exclam = exclam
         WoWXIV.SetFont(exclam, "FLYTEXT_EXCLAM")
+        -- TODO: exclam x offset should be variable with font size.
         exclam:SetPoint("LEFT", value, "RIGHT", 2, 0)
         exclam:SetText("!")
+        exclam:SetRotation(math.pi * -(20/360))
         exclam:Hide()
         return f
     end
@@ -187,6 +165,7 @@ function FlyText:FreePooledFrame(f)
 end
 
 -- Static method: Return scroll offset per second for flying text.
+-- FIXME: More elegant and reuseable implmentaion.
 function FlyText:GetDY(isUpDirection)
     local factor = FLYTEXT_DY_FACTOR
     local time = FLYTEXT_TIME
@@ -237,13 +216,23 @@ function FlyText:__constructor(type, ...)
         return self
     end
 
-    -- There seems to be no API for getting the screen position of a unit,
-    -- so we can't draw anything for units other than the player.
+    -- Using nameplate's position to draw flytext for non-player
+    -- TODO: If non-player's nameplate not visible on screen, specify a fixed position?
     if self.unit ~= "player" and self.unit ~= "other" then
         self.frame = nil
         return self
     end
 
+    -- We have different types of (non-)flying texts which has different behavior,
+    --     also with different display time.
+    -- For non-player, we handle damage/heal/auras applied by player.
+    -- And player's all damage/heal/auras applied by everyone.
+    -- 1)  Non-player damage/healing without critical and auras flies from bottom to top.
+    -- 2)  Non-player damage/healing with critical 
+    --     has "bump" animation and does not fly, with a large random x/y offset.
+    -- 3)  Non-player dot/hot does not fly, with a random x/y offset.
+    -- 4)  Player's damage/heal/auras flies from top to bottom, whether being critical or not.
+    -- 5)  Player's dot/hot does not fly, with a random x/y offset.
     if (not self.isFly) and self.crit_flag then
         self.time = FLYTEXT_UP_TIME
     elseif not self.isFly then
@@ -301,7 +290,7 @@ function FlyText:__constructor(type, ...)
     if type == FLYTEXT_DAMAGE_DIRECT or type == FLYTEXT_HEAL_DIRECT or
        type == FLYTEXT_OTHER_DAMAGE_DIRECT or type == FLYTEXT_OTHER_HEAL_DIRECT then
         local spell_info = self.spell_id and C_Spell.GetSpellInfo(self.spell_id) or nil
-        value:SetFont(HOEFLER_FONT_PATH, DEFAULT_FONT_SIZE, DEFAULT_FONT_FLAGS)
+        WoWXIV.SetFont(value, "FLYTEXT_DAMAGE")
 
         if spell_info and spell_info.name then
             name:SetText(spell_info.name)
@@ -329,7 +318,7 @@ function FlyText:__constructor(type, ...)
 
     elseif type == FLYTEXT_DAMAGE_PASSIVE or type == FLYTEXT_HEAL_PASSIVE or
            type == FLYTEXT_OTHER_DAMAGE_PASSIVE or type == FLYTEXT_OTHER_HEAL_PASSIVE then
-        value:SetFont(HOEFLER_FONT_PATH, DEFAULT_FONT_SIZE, DEFAULT_FONT_FLAGS)
+        WoWXIV.SetFont(value, "FLYTEXT_DAMAGE")
         name:Hide()
         icon:Hide()
         value:ClearAllPoints()
@@ -337,8 +326,8 @@ function FlyText:__constructor(type, ...)
         value:SetText(self.amount)
 
     elseif (type >= FLYTEXT_BUFF_ADD and type <= FLYTEXT_DEBUFF_REMOVE) or type == FLYTEXT_OTHER_DEBUFF_ADD or type == FLYTEXT_OTHER_BUFF_ADD then
-        value:SetFont(DEFAULT_FONT_FILE, DEFAULT_FONT_SIZE, DEFAULT_FONT_FLAGS)
-        value:SetTextScale(FLYTEXT_FONT_SCALE)
+        WoWXIV.SetFont(value, "FLYTEXT_DEFAULT")
+        -- value:SetTextScale(FLYTEXT_FONT_SCALE)
         name:Hide()
         local spell_info = C_Spell.GetSpellInfo(self.spell_id)
         icon:SetSize(24, 24)
@@ -368,8 +357,8 @@ function FlyText:__constructor(type, ...)
         end
 
     elseif type == FLYTEXT_LOOT_MONEY then
-        value:SetFont(DEFAULT_FONT_FILE, DEFAULT_FONT_SIZE, DEFAULT_FONT_FLAGS)
-        value:SetTextScale(FLYTEXT_FONT_SCALE)
+        -- Set font back to DEFAULT since we modified it for XIV style above.
+        WoWXIV.SetFont(value, "FLYTEXT_DEFAULT")
         name:Hide()
         icon:Hide()
         value:ClearAllPoints()
@@ -384,8 +373,8 @@ function FlyText:__constructor(type, ...)
         value:SetText(GetMoneyString(self.amount))
 
     elseif type == FLYTEXT_LOOT_ITEM then
-        value:SetFont(DEFAULT_FONT_FILE, DEFAULT_FONT_SIZE, DEFAULT_FONT_FLAGS)
-        value:SetTextScale(FLYTEXT_FONT_SCALE)
+        -- Set font back to DEFAULT since we modified it for XIV style above.
+        WoWXIV.SetFont(value, "FLYTEXT_DEFAULT")
         name:Hide()
         icon:SetSize(24, 24)
         icon:SetMask("")
@@ -432,6 +421,7 @@ function FlyText:OnUpdate()
         return false
     end
 
+    -- Alpha and Scaling animation for flytext.
     -- Non-flying text has different alpha handling.
     -- TODO: Other units' buff/debuff add/remove from themselves has same alpha handling as well. Not Implemented.
     if not self.isFly and not self.crit_flag then
@@ -499,10 +489,6 @@ function FlyTextManager:__constructor(parent)
     self.dot = {}
     self.hot = {}
     self.last_move_times = {}
-
-    self.last_left = 0
-    self.last_right = 0
-    self.last_up = 0
     self.zone_entered = 0
     self.last_money = GetMoney()
     self.last_item_icon = nil
@@ -571,7 +557,7 @@ function FlyTextManager:OnCombatLogEvent(event)
             return
         end
     else 
-        return  -- Can't draw flying text for non-player units with not DAMAGE TYPE.
+        return
     end
 
     local text = nil
