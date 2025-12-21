@@ -10,6 +10,7 @@ local strfind = string.find
 local strgsub = string.gsub
 local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 
+
 ------------------------------------------------------------------------
 -- Timing routines
 ------------------------------------------------------------------------
@@ -107,6 +108,7 @@ end
 -- Perform an initial call to kickstart the offset estimation.
 local _ = WoWXIV.timePrecise()
 
+
 ------------------------------------------------------------------------
 -- Button auto-repeat manager class
 ------------------------------------------------------------------------
@@ -154,6 +156,7 @@ function ButtonRepeatManager:CheckRepeat(callback)
         end
     end
 end
+
 
 ------------------------------------------------------------------------
 -- Frame management routines
@@ -270,6 +273,7 @@ StaticPopupDialogs["WOWXIV_CONFIRMATION"] = {
     timeout = 0,
     hideOnEscape = true,
 }
+
 
 ---------------------------------------------------------------------------
 -- Item management routines
@@ -479,6 +483,7 @@ end
     239580    -- 11.2 combat curio: Nether Overlay Matrix
 )
 
+
 ------------------------------------------------------------------------
 -- Text formatting routines
 ------------------------------------------------------------------------
@@ -515,6 +520,7 @@ function WoWXIV.FormatItemColor(text, quality)
     return ("|cnIQ%d:%s|r"):format(quality, text)
 end
 
+
 ------------------------------------------------------------------------
 -- Shared UI texture access
 ------------------------------------------------------------------------
@@ -542,6 +548,112 @@ function WoWXIV.SetUITexCoord(texture, ...)
         texture:SetTexCoord(u0/w, u1/w, v0/h, v1/h)
     end
 end
+
+
+------------------------------------------------------------------------
+-- Font access
+------------------------------------------------------------------------
+
+-- Set a FontInstance object to use the given font.
+--
+-- Font parameters can be overridden by manually adding an entry to the
+-- global configuration array (WoWXIV_config) in the same form as those
+-- in the FONTS table below:
+--     WoWXIV_config["font_<FONTID>"] = {
+--         -- Name of the base font object to apply (GameFontNormal etc.)
+--         base = "<fontname>",
+--         -- Optional font file override (flags optional, defaults to "")
+--         font = {"<pathname>", <size>, "<flags>"},
+--         -- Optional scale factor (applied to <size> if a font override
+--         -- is specified, otherwise to the base font's size)
+--         scale = <scale>,
+--     }
+-- WoWXIV_config entries may omit the "base" field to reuse the base font
+-- specification from the FONTS table.  "font" and "scale" are always
+-- taken from the WoWXIV_config entry if it exists.
+--
+-- To support fonts available via the LibSharedMedia framework, a
+-- <pathname> of the form "LSM:<name>" ("LSM" in uppercase) will fetch
+-- the font file using the call:
+--     LibSharedMedia:Fetch("font", "<name>")
+-- This will raise an error if LibSharedMedia is not available or the
+-- font is not found.
+
+local FONTS  -- Defined below.
+function WoWXIV.SetFont(object, fontid)
+    local info = FONTS[fontid]
+    local override = WoWXIV_config["font_"..fontid]
+    if override then
+        assert(type(override) == "table")
+        assert(override.base == nil or type(override.base) == "string")
+        assert(override.font == nil or type(override.font) == "table")
+        assert(override.scale == nil or type(override.scale) == "number")
+        if override.font then
+            assert(#override.font >= 2)
+            assert(type(override.font[1]) == "string")
+            assert(type(override.font[2]) == "number")
+            assert(override.font[3] == nil or type(override.font[3]) == "string")
+        end
+    end
+
+    local base = (override and override.base) or info.base
+    local base_fontobj = _G[info.base]
+    assert(base_fontobj)
+    object:SetFontObject(base_fontobj)
+
+    local fontinfo
+    if override then
+        fontinfo = override.font
+    else     
+        fontinfo = info.font
+    end
+    if fontinfo then
+        local font, size, flags = unpack(fontinfo)
+        if strsub(font, 1, 4) == "LSM:" then
+            local resource = strsub(font, 5)
+            assert(LibStub, "LibStub is not loaded")
+            local LSM = LibStub("LibSharedMedia-3.0")
+            assert(LSM, "LibSharedMedia is not loaded")
+            font = LSM:Fetch("font", strsub(font, 5))
+            assert(font, "Font \""..resource.."\" is not available")
+        end
+        object:SetFont(font, size, flags or "")
+    end
+
+    local scale
+    if override then
+        scale = override.scale
+    else
+        scale = info.scale
+    end
+    if scale and scale ~= 1 then
+        local font, size, flags = object:GetFont()
+        object:SetFont(font, size * scale, flags)
+    end
+end
+
+--[[local]] FONTS = {
+    -- Font used for stack numbers on buff/debuff icons.
+    AURA_STACKS = {base = "NumberFont_Shadow_Med"},
+    -- Font used for timers under buff/debuff icons.
+    AURA_TIMER = {base = "GameFontNormalSmall"},
+
+    -- Font used for the editor.
+    EDITOR = {base = "ChatFontNormal",
+              font = {"Interface/AddOns/WoWXIV/fonts/VeraMono.ttf", 14, ""}},
+
+    -- Font used for all flying text except damage numbers.
+    FLYTEXT_DEFAULT = {base = "GameFontNormal", scale = 1.1},
+    -- Font used for standard damage numbers in flying text.
+    FLYTEXT_DAMAGE = {base = "GameFontNormal", scale = 1.1},
+    -- Font used for critical damage numbers in flying text.
+    FLYTEXT_CRIT = {base = "GameFontNormal", scale = 2.0},
+    -- Font used for the "!" appended to critical damage in flying text.
+    FLYTEXT_EXCLAM = {base = "GameFontNormal", scale = 2.3},
+    -- Font used for "Miss" in flying text.
+    FLYTEXT_MISS = {base = "GameFontNormal", scale = 0.9},
+}
+
 
 ------------------------------------------------------------------------
 -- Convenience operations

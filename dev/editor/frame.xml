@@ -1,9 +1,5 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
 
-  <Font name="WoWXIV_EditorFont" font="Interface/AddOns/WoWXIV/fonts/VeraMono.ttf" justifyH="LEFT" height="14">
-    <Color r="1.0" g="1.0" b="1.0" a="1.0"/>
-  </Font>
-
   <!-- "enableKeyboard=false propagateKeyboardInput=true" is intentional;
        when we have keyboard focus, we consume all input, but we don't take
        that focus unless we also have mouse focus (controlled by OnEnter
@@ -105,7 +101,7 @@
         </Anchors>
         <Layers>
           <Layer level="ARTWORK">
-            <FontString parentKey="Text" wordwrap="false" inherits="WoWXIV_EditorFont">
+            <FontString parentKey="Text" justifyH="LEFT" wordwrap="false">
               <Anchors>
                 <Anchor point="TOPLEFT" x="11"/>
                 <Anchor point="BOTTOMRIGHT" x="-5"/>

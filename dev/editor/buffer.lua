@@ -1185,7 +1185,8 @@ function Buffer:AcquireLine()
         line = self.linepool_free:pop()
         line:Show()
     else
-        line = self.view:CreateFontString(nil, "ARTWORK", "WoWXIV_EditorFont")
+        line = self.view:CreateFontString(nil, "ARTWORK")
+        WoWXIV.SetFont(line, "EDITOR")
     end
     self.linepool_used:add(line)
     return line

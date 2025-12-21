@@ -41,6 +41,7 @@ function EditorFrame:__constructor(filename, text)
     self.filename = filename
     self.buffer = Editor.Buffer(text or "", self.TextView)
     self.buffer:SetScrollCallback(function() self:OnBufferStateChange() end)
+    WoWXIV.SetFont(self.CommandLine.Text, "EDITOR")
 
     -- List of keys which are currently pressed, in press order.  Each
     -- element is a {key, ch} pair; if |ch| is not nil, it is the text

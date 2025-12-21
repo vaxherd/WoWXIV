@@ -23,13 +23,6 @@ local FlyText = class()
 -- Length of time a flying text string will be displayed (seconds).
 local FLYTEXT_TIME = 4.5
 
--- Default scale factor for text.
-local FLYTEXT_FONT_SCALE = 1.1
--- Scale factor for critical hits.
-local FLYTEXT_CRIT_SCALE = FLYTEXT_FONT_SCALE * 2
--- Scale factor for "Miss" text.
-local FLYTEXT_MISS_SCALE = FLYTEXT_FONT_SCALE * 0.9
-
 -- Damage types for type argument to constructor.
 local FLYTEXT_DAMAGE_DIRECT  = 1  -- direct damage, or DoT from channeling
 local FLYTEXT_DAMAGE_PASSIVE = 2  -- DoT from auras
@@ -76,7 +69,7 @@ function FlyText:AllocPooledFrame()
         -- elements are either hidden or empty.
         w.name:Show()
         w.icon:Show()
-        w.value:SetTextScale(FLYTEXT_FONT_SCALE)
+        WoWXIV.SetFont(w.value, "FLYTEXT_DAMAGE")
         w.value:Show()
         w.exclam:Hide()
         w.border:Hide()
@@ -88,30 +81,31 @@ function FlyText:AllocPooledFrame()
         f:SetFrameStrata("BACKGROUND")
         f.WoWXIV = {}
         local w = f.WoWXIV
-        local name = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+        local name = f:CreateFontString(nil, "ARTWORK")
         w.name = name
+        WoWXIV.SetFont(name, "FLYTEXT_DEFAULT")
         name:SetPoint("RIGHT", f, "CENTER")
-        name:SetTextScale(FLYTEXT_FONT_SCALE)
         local icon = f:CreateTexture(nil, "ARTWORK")
         w.icon = icon
         icon:SetPoint("LEFT", f, "CENTER")
         local border = f:CreateTexture(nil, "OVERLAY")
         w.border = border
         border:SetPoint("TOPLEFT", icon, "TOPLEFT", 1, 1)
-        local stacks = f:CreateFontString(nil, "OVERLAY", "NumberFont_Shadow_Med")
+        local stacks = f:CreateFontString(nil, "OVERLAY")
         w.stacks = stacks
+        WoWXIV.SetFont(stacks, "AURA_STACKS")
         stacks:SetPoint("TOPRIGHT", icon, "TOPRIGHT", 0, 2)
-        local value = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+        local value = f:CreateFontString(nil, "ARTWORK")
         w.value = value
+        WoWXIV.SetFont(value, "FLYTEXT_DAMAGE")
         value:SetPoint("LEFT", icon, "RIGHT")
-        value:SetTextScale(FLYTEXT_FONT_SCALE)
-        -- Use a separate text instance with a larger font size for the
-        -- "!" critical indicator because it looks too much like a "1"
-        -- in the game font.
-        local exclam = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+        -- Use a separate text instance with a larger font size and slight
+        -- spacing offset for the "!" critical indicator because it looks
+        -- too much like a "1" in the default font.
+        local exclam = f:CreateFontString(nil, "ARTWORK")
         w.exclam = exclam
-        exclam:SetPoint("LEFT", value, "RIGHT")
-        exclam:SetTextScale(FLYTEXT_CRIT_SCALE * 1.15)
+        WoWXIV.SetFont(exclam, "FLYTEXT_EXCLAM")
+        exclam:SetPoint("LEFT", value, "RIGHT", 2, 0)
         exclam:SetText("!")
         exclam:Hide()
         return f
@@ -201,10 +195,10 @@ function FlyText:__constructor(type, ...)
         end
         local amount = self.amount
         if not amount then
-            value:SetTextScale(FLYTEXT_MISS_SCALE)
+            WoWXIV.SetFont(value, "FLYTEXT_MISS")
             amount = "Miss"
         elseif self.crit_flag then
-            value:SetTextScale(FLYTEXT_CRIT_SCALE)
+            WoWXIV.SetFont(value, "FLYTEXT_CRIT")
             local exclam = w.exclam
             exclam:SetTextColor(r, g, b)
             exclam:Show()
@@ -239,6 +233,7 @@ function FlyText:__constructor(type, ...)
         end
         value:ClearAllPoints()
         value:SetPoint("LEFT", icon, "RIGHT", 2, 0)
+        WoWXIV.SetFont(value, "FLYTEXT_DEFAULT")
         if type == FLYTEXT_BUFF_ADD or type == FLYTEXT_DEBUFF_ADD then
             value:SetText("+" .. spell_info.name)
         else
@@ -250,6 +245,7 @@ function FlyText:__constructor(type, ...)
         icon:Hide()
         value:ClearAllPoints()
         value:SetPoint("LEFT", f, "CENTER")
+        WoWXIV.SetFont(value, "FLYTEXT_DEFAULT")
         -- GetMoneyString() is a Blizzard API function, defined in
         -- Interface/SharedXML/FormattingUtil.lua, which creates a
         -- gold/silver/copper money string with embedded icons.
@@ -275,6 +271,7 @@ function FlyText:__constructor(type, ...)
         end
         value:ClearAllPoints()
         value:SetPoint("LEFT", icon, "RIGHT", 2, 0)
+        WoWXIV.SetFont(value, "FLYTEXT_DEFAULT")
         value:SetTextColor(unpack(COLOR_BLUE))
         value:SetText(text)
 
