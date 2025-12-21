@@ -31,7 +31,7 @@ function PlayerChoiceFrameHandler:__constructor()
     __super(self, PlayerChoiceFrame)
     self.has_Button3 = false  -- Used to select Reroll button in Torghast.
     self:RegisterEvent("PLAYER_CHOICE_UPDATE")
-    self.current_option = nil  -- ID of currently selected option
+    self.current_option = nil  -- ID of currently selected option.
 end
 
 -- Returns the numeric ID associated with a choice button.
@@ -240,7 +240,7 @@ end
 
 function PlayerChoiceToggleButtonHandler:OnShow()
     __super(self)
-    if PlayerChoiceFrame:IsShown() then
+    if PlayerChoiceFrameHandler.instance:IsEnabled() then
         PlayerChoiceFrameHandler.instance:Focus()
     end
 end
