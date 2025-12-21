@@ -104,14 +104,16 @@ function Aura:__constructor(frame, is_secure_player_aura)
     dispel:SetSize(28, 9)
     WoWXIV.SetUITexture(dispel, 96, 124, 91, 100)
 
-    local stack_label = f:CreateFontString(nil, "OVERLAY", "NumberFont_Shadow_Med")
+    local stack_label = f:CreateFontString(nil, "OVERLAY")
     self.stack_label = stack_label
+    WoWXIV.SetFont(stack_label, "AURA_STACKS")
     stack_label:SetTextScale(1)
     stack_label:SetText("")
 
-    local timer = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    local timer = f:CreateFontString(nil, "OVERLAY")
     self.timer = timer
     timer:SetPoint("BOTTOM", f, "BOTTOM", 0, 0)
+    WoWXIV.SetFont(timer, "AURA_TIMER")
     timer:SetTextScale(1)
     timer:SetText("")
 

@@ -773,7 +773,10 @@ function WoWXIV.Config.Create()
     end
     for k, v in pairs(WoWXIV_config) do
         if CONFIG_DEFAULT[k] == nil then
-            WoWXIV_config[k] = nil
+            -- Skip over font_* settings (see util.lua:SetFont())
+            if strsub(k,1,5) ~= "font_" then
+                WoWXIV_config[k] = nil
+            end
         end
     end
 
