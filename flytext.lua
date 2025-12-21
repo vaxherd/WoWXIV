@@ -136,13 +136,20 @@ function FlyText:__constructor()
     value:SetPoint("LEFT", icon, "RIGHT")
     WoWXIV.SetFont(value, "FLYTEXT_DAMAGE")
 
-    -- Use a separate text instance with a larger font size for the
-    -- "!" critical indicator because it looks too much like a "1"
-    -- in the game font.
+    -- Use a separate text instance with an alternate font ID for the
+    -- "!" critical indicator because it looks too much like a "1" in
+    -- the game font.
     local exclam = self:CreateFontString(nil, "ARTWORK")
     self.exclam = exclam
-    exclam:SetPoint("LEFT", value, "RIGHT")
     WoWXIV.SetFont(exclam, "FLYTEXT_EXCLAM")
+    local exclam_font = exclam:GetFont()
+    exclam:SetPoint("LEFT", value, "RIGHT")
+    -- If this font is different from the value font, assume it's an
+    -- explicit italic font; otherwise, apply a slight rotation to
+    -- help differentiate the character from a "1".
+    if exclam_font == value:GetFont() then
+        exclam:SetRotation(math.rad(-10))
+    end
     exclam:SetText("!")
     exclam:Hide()
 
