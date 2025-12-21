@@ -62,14 +62,6 @@ local FLYTEXT_DEBUFF_ADD     = 7
 local FLYTEXT_DEBUFF_REMOVE  = 8
 local FLYTEXT_LOOT_MONEY     = 9
 local FLYTEXT_LOOT_ITEM      = 10
-local FLYTEXT_OTHER_DAMAGE_DIRECT   = 11
-local FLYTEXT_OTHER_DAMAGE_PASSIVE  = 12
-local FLYTEXT_OTHER_HEAL_DIRECT     = 13
-local FLYTEXT_OTHER_HEAL_PASSIVE    = 14
-local FLYTEXT_OTHER_BUFF_ADD        = 15  -- TODO: partially implemented
-local FLYTEXT_OTHER_BUFF_REMOVE     = 16  -- TODO: not implemented
-local FLYTEXT_OTHER_DEBUFF_ADD      = 17  -- TODO: partially implemented
-local FLYTEXT_OTHER_DEBUFF_REMOVE   = 18  -- TODO: not implemented
 
 -- Corresponding text colors.
 local COLOR_RED   = {1, 0.753, 0.761}
@@ -78,7 +70,7 @@ local COLOR_BLUE  = {0.790, 0.931, 0.970}
 local COLOR_ORANGE = {1, 0.882, 0.8}
 local COLOR_WHITE = {1, 1, 1}
 local COLOR_GRAY  = {0.7, 0.7, 0.7}
-local FLYTEXT_COLORS = {
+local FLYTEXT_COLORS_PLAYER = {
     [FLYTEXT_DAMAGE_DIRECT]  = COLOR_RED,
     [FLYTEXT_DAMAGE_PASSIVE] = COLOR_RED,
     [FLYTEXT_HEAL_DIRECT]    = COLOR_GREEN,
@@ -89,12 +81,16 @@ local FLYTEXT_COLORS = {
     [FLYTEXT_DEBUFF_REMOVE]  = COLOR_GRAY,
     [FLYTEXT_LOOT_MONEY]     = COLOR_WHITE,
     [FLYTEXT_LOOT_ITEM]      = COLOR_WHITE,
-    [FLYTEXT_OTHER_DAMAGE_DIRECT]  = COLOR_ORANGE,
-    [FLYTEXT_OTHER_DAMAGE_PASSIVE] = COLOR_RED,
-    [FLYTEXT_OTHER_HEAL_DIRECT] = COLOR_GREEN,
-    [FLYTEXT_OTHER_HEAL_PASSIVE] = COLOR_GREEN,
-    [FLYTEXT_OTHER_BUFF_ADD] = COLOR_GREEN,
-    [FLYTEXT_OTHER_DEBUFF_ADD] = COLOR_ORANGE,
+}
+local FLYTEXT_COLORS_OTHER = {
+    [FLYTEXT_DAMAGE_DIRECT]  = COLOR_ORANGE,
+    [FLYTEXT_DAMAGE_PASSIVE] = COLOR_RED,
+    [FLYTEXT_HEAL_DIRECT]    = COLOR_GREEN,
+    [FLYTEXT_HEAL_PASSIVE]   = COLOR_GREEN,
+    [FLYTEXT_BUFF_ADD]       = COLOR_GREEN,
+    [FLYTEXT_BUFF_REMOVE]    = COLOR_GRAY,
+    [FLYTEXT_DEBUFF_ADD]     = COLOR_ORANGE,
+    [FLYTEXT_DEBUFF_REMOVE]  = COLOR_GRAY,
 }
 
 ------------------------------------------------------------------------
@@ -103,7 +99,7 @@ local FlyText = class(Frame)
 
 -- Static method: Return scroll offset per second for flying text.
 -- FIXME: More elegant and reuseable implmentaion.
-function FlyText:GetDY(isUpDirection)
+function FlyText.GetDY(isUpDirection)
     local factor = FLYTEXT_DY_FACTOR
     local time = FLYTEXT_TIME
 
@@ -179,21 +175,18 @@ function FlyText:OnAcquire()
 end
 
 -- TODO(vaxherd): added for rebase, pending cleanup
-function FlyText.GetAddInfo(type, ...)
+function FlyText.GetAddInfo(type, unit, ...)
     if type == FLYTEXT_DAMAGE_PASSIVE or type == FLYTEXT_HEAL_PASSIVE then
-        return true, false, "player", FLYTEXT_PASSIVE_TIME
-    elseif type >= FLYTEXT_DAMAGE_DIRECT and type <= FLYTEXT_DEBUFF_REMOVE then
-        local unit, spell_id, school, amount, crit_flag = ...
-        return true, true, "player", FLYTEXT_TIME
-    elseif type == FLYTEXT_OTHER_DAMAGE_DIRECT or type == FLYTEXT_OTHER_HEAL_DIRECT then
-        local unit, spell_id, school, amount, crit_flag, nameplate = ...
-        local is_moving = not (unit == "other" and crit_flag)
-        return unit == "player", is_moving, unit == "player" and "player" or nameplate, (not is_moving and crit_flag) and FLYTEXT_UP_TIME or (not is_moving) and FLYTEXT_PASSIVE_TIME or (unit == "other") and FLYTEXT_UP_TIME or FLYTEXT_TIME
-    elseif type == FLYTEXT_OTHER_DAMAGE_PASSIVE or type == FLYTEXT_OTHER_HEAL_PASSIVE then
-        local unit, amount, nameplate = ...
+        local nameplate = C_NamePlate.GetNamePlateForUnit(unit)
         return unit == "player", false, unit == "player" and "player" or nameplate, FLYTEXT_PASSIVE_TIME
-    elseif type == FLYTEXT_OTHER_DEBUFF_ADD or type == FLYTEXT_OTHER_BUFF_ADD then
-        return unit == "player", true, unit == "player" and "player" or nameplate, unit == "other" and FLYTEXT_UP_TIME or FLYTEXT_TIME
+    elseif type >= FLYTEXT_DAMAGE_DIRECT and type <= FLYTEXT_DEBUFF_REMOVE then
+        local spell_id, school, amount, crit_flag = ...
+        local is_moving = not (unit ~= "player" and crit_flag)
+        local nameplate = C_NamePlate.GetNamePlateForUnit(unit)
+        return unit == "player", is_moving, unit == "player" and "player" or nameplate, (not is_moving and crit_flag) and FLYTEXT_UP_TIME or (not is_moving) and FLYTEXT_PASSIVE_TIME or (unit ~= "player") and FLYTEXT_UP_TIME or FLYTEXT_TIME
+    elseif type == FLYTEXT_BUFF_ADD or type == FLYTEXT_DEBUFF_ADD then
+        local nameplate = C_NamePlate.GetNamePlateForUnit(unit)
+        return unit == "player", true, unit == "player" and "player" or nameplate, unit ~= "player" and FLYTEXT_UP_TIME or FLYTEXT_TIME
     elseif type == FLYTEXT_LOOT_MONEY then
         return true, true, "player", FLYTEXT_TIME
     elseif type == FLYTEXT_LOOT_ITEM then
@@ -202,48 +195,32 @@ function FlyText.GetAddInfo(type, ...)
     error("unreachable")
 end
 
--- Initialize a newly acquired FlyText instance.  Additional arguments
+-- Initialize a newly acquired FlyText instance.  |unit| gives the target
+-- unit with which the flying text is associated.  Additional arguments
 -- vary by type:
---     - Direct damage/heal: (type, unit, spell_id, school, amount, crit_flag)
---     - Other direct damage: (type, unit, spell_id, school, amount, crit_flag, nameplate)
---     - Passive damage/heal: (type, unit, amount)
---     - Other Passive damage/heal: (type, unit, amount, nameplate)
---     - Buff/debuff: (type, unit, spell_id, school, stacks)
---     - Other debuff add: (type, unit, spell_id, school, stacks, nameplate)
---     - Loot money: (type, amount)
---     - Loot item: (type, item_icon, item_name, name_color, count [default 1])
-function FlyText:Init(type, ...)
+--     - Direct damage/heal: spell_id, school, amount, crit_flag
+--     - Passive damage/heal: amount
+--     - Buff/debuff: spell_id, school, stacks
+--     - Loot money: amount
+--     - Loot item: item_icon, item_name, name_color, count [default 1]
+function FlyText:Init(type, unit, ...)
     self.type = type
-    self.isFly = select(2, FlyText.GetAddInfo(type, ...))
+    self.unit = unit
+    self.nameplate = C_NamePlate.GetNamePlateForUnit(unit)
+    self.isFly = select(2, FlyText.GetAddInfo(type, unit, ...))
     if type == FLYTEXT_DAMAGE_PASSIVE or type == FLYTEXT_HEAL_PASSIVE then
-        self.unit, self.amount = ...
+        self.amount = ...
     elseif type >= FLYTEXT_DAMAGE_DIRECT and type <= FLYTEXT_DEBUFF_REMOVE then
-        self.unit, self.spell_id, self.school, self.amount, self.crit_flag = ...
-    elseif type == FLYTEXT_OTHER_DAMAGE_DIRECT or type == FLYTEXT_OTHER_HEAL_DIRECT then
-        self.unit, self.spell_id, self.school, self.amount,
-            self.crit_flag, self.nameplate = ...
-    elseif type == FLYTEXT_OTHER_DAMAGE_PASSIVE or type == FLYTEXT_OTHER_HEAL_PASSIVE then
-        self.unit, self.amount, self.nameplate = ...
-    elseif type == FLYTEXT_OTHER_DEBUFF_ADD or type == FLYTEXT_OTHER_BUFF_ADD then
-        self.unit, self.spell_id, self.school, self.amount, self.crit_flag, self.nameplate = ...
+        self.spell_id, self.school, self.amount, self.crit_flag = ...
     elseif type == FLYTEXT_LOOT_MONEY then
-        self.unit = "player"
         self.amount = ...
     elseif type == FLYTEXT_LOOT_ITEM then
-        self.unit = "player"
         self.item_icon, self.item_name, self.item_quality_or_color,
             self.amount = ...
     else
         print("FlyText error: invalid type", type)
         self.type = nil
         return
-    end
-
-    -- Using nameplate's position to draw flytext for non-player
-    -- TODO: If non-player's nameplate not visible on screen, specify a fixed position?
-    if self.unit ~= "player" and self.unit ~= "other" then
-        self.frame = nil
-        return self
     end
 
     -- We have different types of (non-)flying texts which has different behavior,
@@ -260,23 +237,23 @@ function FlyText:Init(type, ...)
         self.time = FLYTEXT_UP_TIME
     elseif not self.isFly then
         self.time = FLYTEXT_PASSIVE_TIME
-    elseif self.unit == "other" then
+    elseif self.unit ~= "player" then
         self.time = FLYTEXT_UP_TIME
     else
         self.time = FLYTEXT_TIME
     end
 
     self.start = GetTime()
-    if type == FLYTEXT_HEAL_DIRECT or type == FLYTEXT_HEAL_PASSIVE then
+    if unit == "player" and (type == FLYTEXT_HEAL_DIRECT or type == FLYTEXT_HEAL_PASSIVE) then
         self.x = -(UIParent:GetWidth()*0.01)
-    elseif type == FLYTEXT_OTHER_DAMAGE_PASSIVE then
+    elseif type == FLYTEXT_DAMAGE_PASSIVE then
         self.x = UIParent:GetWidth()*0.025
     else
         self.x = UIParent:GetWidth()*0.05
     end
     self.y = 0
 
-    if type == FLYTEXT_OTHER_DAMAGE_DIRECT and self.crit_flag then
+    if unit ~= "player" and type == FLYTEXT_DAMAGE_DIRECT and self.crit_flag then
         self.x = self.x - (FLYTEXT_NOTFLY_OFFSET_X_MIN * FLYTEXT_CRIT_OFFSET_FACTOR)
                         + random(FLYTEXT_NOTFLY_OFFSET_X_MIN * FLYTEXT_CRIT_OFFSET_FACTOR, FLYTEXT_NOTFLY_OFFSET_X_MAX * FLYTEXT_CRIT_OFFSET_FACTOR)
         self.y = self.y + (FLYTEXT_NOTFLY_OFFSET_X_MIN * FLYTEXT_CRIT_OFFSET_FACTOR)
@@ -288,7 +265,7 @@ function FlyText:Init(type, ...)
 
     if not self.isFly then
         self.dy = 0
-    elseif self.unit == "other" then
+    elseif self.unit ~= "player" then
         self.dy = FlyText:GetDY(FLYTEXT_DY_ISUP)
     else
         self.dy = FlyText:GetDY()
@@ -303,12 +280,13 @@ function FlyText:Init(type, ...)
     local icon = self.icon
     local value = self.value
 
-    local r, g, b = unpack(FLYTEXT_COLORS[type])
+    local colors = (self.unit == "player"
+                    and FLYTEXT_COLORS_PLAYER or FLYTEXT_COLORS_OTHER)
+    local r, g, b = unpack(colors[type])
     name:SetTextColor(r, g, b)
     value:SetTextColor(r, g, b)
 
-    if type == FLYTEXT_DAMAGE_DIRECT or type == FLYTEXT_HEAL_DIRECT or
-       type == FLYTEXT_OTHER_DAMAGE_DIRECT or type == FLYTEXT_OTHER_HEAL_DIRECT then
+    if type == FLYTEXT_DAMAGE_DIRECT or type == FLYTEXT_HEAL_DIRECT then
         local spell_info = (self.spell_id
                             and C_Spell.GetSpellInfo(self.spell_id) or nil)
         if spell_info and spell_info.name then
@@ -336,8 +314,7 @@ function FlyText:Init(type, ...)
         end
         value:SetText(amount)
 
-    elseif type == FLYTEXT_DAMAGE_PASSIVE or type == FLYTEXT_HEAL_PASSIVE or
-           type == FLYTEXT_OTHER_DAMAGE_PASSIVE or type == FLYTEXT_OTHER_HEAL_PASSIVE then
+    elseif type == FLYTEXT_DAMAGE_PASSIVE or type == FLYTEXT_HEAL_PASSIVE then
         WoWXIV.SetFont(value, "FLYTEXT_DAMAGE")
         name:Hide()
         icon:Hide()
@@ -345,14 +322,14 @@ function FlyText:Init(type, ...)
         value:SetPoint("LEFT", self, "CENTER", 10, 0)
         value:SetText(self.amount)
 
-    elseif (type >= FLYTEXT_BUFF_ADD and type <= FLYTEXT_DEBUFF_REMOVE) or type == FLYTEXT_OTHER_DEBUFF_ADD or type == FLYTEXT_OTHER_BUFF_ADD then
+    elseif type >= FLYTEXT_BUFF_ADD and type <= FLYTEXT_DEBUFF_REMOVE then
         WoWXIV.SetFont(value, "FLYTEXT_DEFAULT")
         name:Hide()
         local spell_info = C_Spell.GetSpellInfo(self.spell_id)
         icon:SetSize(24, 24)
         local border = self.border
         border:SetSize(22, 26)
-        if type == FLYTEXT_BUFF_ADD or type == FLYTEXT_BUFF_REMOVE or type == FLYTEXT_OTHER_BUFF_ADD then
+        if type == FLYTEXT_BUFF_ADD or type == FLYTEXT_BUFF_REMOVE then
             icon:SetMask(WoWXIV.makepath("textures/buff-mask.png"))
             WoWXIV.SetUITexture(border, 99, 121, 14, 40)
         else
@@ -368,8 +345,7 @@ function FlyText:Init(type, ...)
         value:ClearAllPoints()
         value:SetPoint("LEFT", icon, "RIGHT", 2, 0)
         WoWXIV.SetFont(value, "FLYTEXT_DEFAULT")
-        if type == FLYTEXT_BUFF_ADD or type == FLYTEXT_DEBUFF_ADD or
-           type == FLYTEXT_OTHER_DEBUFF_ADD or type == FLYTEXT_OTHER_BUFF_ADD then
+        if type == FLYTEXT_BUFF_ADD or type == FLYTEXT_DEBUFF_ADD then
             value:SetText("+" .. spell_info.name)
         else
             value:SetText("-" .. spell_info.name)
@@ -484,7 +460,7 @@ function FlyText:OnUpdate()
     end
 
     self:ClearAllPoints()
-    if self.unit == "other" then
+    if self.unit ~= "player" then
         -- For other units, anchor should be their nameplate.
         self:SetPoint("CENTER", self.nameplate, "LEFT", self.x - 30, self.y - 50 - self.dy*t)
     else
@@ -495,7 +471,7 @@ end
 
 -- Push text forward by the given number of seconds.
 function FlyText:Push(dt)
-    if self.unit == "other" then
+    if self.unit ~= "player" then
         self.y = self.y - dt * self.dy
     else
         self.y = self.y + dt * self.dy
@@ -568,7 +544,6 @@ function FlyTextManager:OnCombatLogEvent(event)
     end
 
     local unit = event.dest
-    local nameplate = nil
     if unit == UnitGUID("player") or (UnitInVehicle("player") and unit == UnitGUID("vehicle")) then
         unit = "player"
 
@@ -581,8 +556,7 @@ function FlyTextManager:OnCombatLogEvent(event)
             event.subtype == "AURA_REFRESH") then
         local unitid = UnitTokenFromGUID(event.dest)
         if unitid ~= nil and unitid ~= "nil" then
-            nameplate = C_NamePlate.GetNamePlateForUnit(unitid)
-            unit = "other"
+            unit = unitid
         else
             return
         end
@@ -594,17 +568,14 @@ function FlyTextManager:OnCombatLogEvent(event)
     local left_side = false
     local fly_direction = "right"
     local is_aura = false
-    if event.subtype == "DAMAGE" and unit == "player" then
+    if event.subtype == "DAMAGE" then
         args = {FLYTEXT_DAMAGE_DIRECT, unit, event.spell_id,
                 event.spell_school, event.amount, event.critical}
-    elseif event.subtype == "DAMAGE" and unit == "other" then
-        fly_direction = "up"
-        args = {FLYTEXT_OTHER_DAMAGE_DIRECT, unit, event.spell_id,
-                event.spell_school, event.amount, event.critical, nameplate}
-    elseif event.subtype == "PERIODIC_DAMAGE" and unit == "player" then
-        args = {FLYTEXT_DAMAGE_PASSIVE, unit, event.amount, nameplate}
-    elseif event.subtype == "PERIODIC_DAMAGE" and unit == "other" then
-        args = {FLYTEXT_OTHER_DAMAGE_PASSIVE, unit, event.amount, nameplate}
+        if unit ~= "player" then
+            fly_direction = "up"
+        end
+    elseif event.subtype == "PERIODIC_DAMAGE" then
+        args = {FLYTEXT_DAMAGE_PASSIVE, unit, event.amount}
         -- self.dot = self.dot or {}
         -- self.dot[unit] = (self.dot[unit] or 0) + event.amount
     elseif event.subtype == "MISSED" then
@@ -613,47 +584,24 @@ function FlyTextManager:OnCombatLogEvent(event)
         -- about separating them out here.
         args = {FLYTEXT_DAMAGE_DIRECT, unit, event.spell_id,
                 event.spell_school, event.amount and 0 or nil}
-    elseif event.subtype == "HEAL" and unit == "player" then
-        fly_direction = "left"
+    elseif event.subtype == "HEAL" then
+        fly_direction = (unit == "player") and "left" or "up"
         args = {FLYTEXT_HEAL_DIRECT, unit, event.spell_id,
                 event.spell_school, event.amount, event.critical}
-    elseif event.subtype == "HEAL" and unit == "other" then
-        fly_direction = "up"
-        args = {FLYTEXT_OTHER_HEAL_DIRECT, unit, event.spell_id,
-                event.spell_school, event.amount, event.critical, nameplate}
-    elseif event.subtype == "PERIODIC_HEAL" and unit == "player" then
-        args = {FLYTEXT_HEAL_PASSIVE, unit, event.amount, nameplate}
+    elseif event.subtype == "PERIODIC_HEAL" then
+        args = {FLYTEXT_HEAL_PASSIVE, unit, event.amount}
         -- self.hot = self.hot or {}
         -- self.hot[unit] = (self.hot[unit] or 0) + event.amount
-    elseif event.subtype == "PERIODIC_HEAL" and unit == "other" then
-        args = {FLYTEXT_OTHER_HEAL_PASSIVE, unit, event.amount, nameplate}
-        -- self.hot = self.hot or {}
-        -- self.hot[unit] = (self.hot[unit] or 0) + event.amount
-    elseif event.subtype == "AURA_APPLIED" and unit == "player" then
+    elseif event.subtype == "AURA_APPLIED" then
         is_aura = true
         self:DoAura((event.aura_type=="BUFF" and FLYTEXT_BUFF_ADD
                                              or FLYTEXT_DEBUFF_ADD),
                     unit, event.spell_id, event.spell_school)
-    elseif event.subtype == "AURA_APPLIED_DOSE" and unit == "player" then
+    elseif event.subtype == "AURA_APPLIED_DOSE" then
         is_aura = true
         self:DoAura((event.aura_type=="BUFF" and FLYTEXT_BUFF_ADD
                                              or FLYTEXT_DEBUFF_ADD),
                     unit, event.spell_id, event.spell_school, event.amount)
-    elseif (event.subtype == "AURA_APPLIED" or event.subtype == "AURA_APPLIED_DOSE" or event.subtype == "AURA_REFRESH") and unit == "other" then
-        -- TODO: repeated AURA_REFRESH may cause spam for healers.
-        if event.aura_type == "BUFF" and event.subtype == "AURA_REFRESH" then
-            return
-        end
-
-        if event.aura_type == "BUFF" then
-            args = {FLYTEXT_OTHER_BUFF_ADD, unit, event.spell_id, event.spell_school, false, false, nameplate}
-        else
-            args = {FLYTEXT_OTHER_DEBUFF_ADD, unit, event.spell_id, event.spell_school, event.amount, false, nameplate}
-        end
-        -- is_aura = true
-        -- self:DoAura((event.aura_type=="BUFF" and FLYTEXT_BUFF_ADD
-        --                                      or FLYTEXT_DEBUFF_ADD),
-        --             unit, event.spell_id, event.spell_school)
     elseif event.subtype == "AURA_REMOVED" then
         is_aura = true
         self:DoAura((event.aura_type=="BUFF" and FLYTEXT_BUFF_REMOVE
@@ -779,7 +727,7 @@ function FlyTextManager:OnLootItem(event, msg)
     local base_name, _, _, _, _, _, _, _, _, icon = GetItemInfo(id)
     if not name then name = base_name end
     if name and icon then
-        self:AddText({FLYTEXT_LOOT_ITEM, icon, name, color, count})
+        self:AddText({FLYTEXT_LOOT_ITEM, "player", icon, name, color, count})
     end
 end
 
@@ -870,7 +818,7 @@ function FlyTextManager:OnCurrencyUpdate(event, id, total, change)
         name = "Renown"
     end
 
-    self:AddText({FLYTEXT_LOOT_ITEM,
+    self:AddText({FLYTEXT_LOOT_ITEM, "player",
                   info.iconFileID, name, info.quality, change})
     if CURRENCY_PAIR_MAP[id] then
         self.last_currency = {id, change}
@@ -882,7 +830,7 @@ function FlyTextManager:OnPlayerMoney()
     local diff = money - self.last_money
     self.last_money = money
     if diff > 0 then
-        self:AddText({FLYTEXT_LOOT_MONEY, diff})
+        self:AddText({FLYTEXT_LOOT_MONEY, "player", diff})
     end
 end
 
@@ -917,7 +865,7 @@ function FlyTextManager:AddText(args, direction)
                             match_group = true
                         end
                     else
-                        if existing_text.unit == "other" and existing_text.nameplate == tracking_key and existing_text.isFly then
+                        if existing_text.unit ~= "player" and existing_text.nameplate == tracking_key and existing_text.isFly then
                             match_group = true
                         end
                     end
@@ -940,7 +888,7 @@ function FlyTextManager:AddText(args, direction)
                         match_group = true
                     end
                 else
-                    if existing_text.unit == "other" and existing_text.nameplate == tracking_key and (not existing_text.isFly or existing_text.crit_flag) then
+                    if existing_text.unit ~= "player" and existing_text.nameplate == tracking_key and (not existing_text.isFly or existing_text.crit_flag) then
                         match_group = true
                     end
                 end
