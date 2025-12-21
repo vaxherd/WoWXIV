@@ -185,7 +185,7 @@ function Buffer:SetMarkPosFromMouse(x, y, active)
     end
     if line ~= compare_line or col ~= compare_col or active ~= self.mark_active
     then
-        self:SetMarkPosInternal(self.mark_line, self.mark_col)
+        self:SetMarkPosInternal(line, col)
         self.mark_active = active
         self:RefreshView()
     end

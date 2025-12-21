@@ -124,7 +124,6 @@ end
 
 function EditorFrame:OnLeave()
     -- If the user is dragging, keep focus as long the mouse button is down.
-    -- (FIXME: do we even get an OnLeave during a drag?)
     if not self.drag_select then
         self:SetFocused(false)
     end
@@ -177,7 +176,8 @@ function EditorFrame:MouseToTextCoords()
     local x, y = GetCursorPosition()
     local scale = self.TextView:GetEffectiveScale()
     x, y = x/scale, y/scale
-    return x - self.TextView:GetLeft(), self.TextView:GetTop() - y
+    x, y = x - self.TextView:GetLeft(), self.TextView:GetTop() - y
+    return floor(x), floor(y)
 end
 
 function EditorFrame:OnMouseUp(button)
@@ -252,7 +252,8 @@ function EditorFrame:OnUpdate()
 
     self:SetCursorType(self.TextView:IsMouseOver())
     if self.drag_select then
-        self.buffer:SetMarkPosFromMouse(self:MouseToTextCoords())
+        local line, col = self:MouseToTextCoords()
+        self.buffer:SetMarkPosFromMouse(line, col, true)
     end
 end
 
