@@ -607,8 +607,10 @@ function WoWXIV.SetFont(object, fontid)
     else     
         fontinfo = info.font
     end
+    local font, size, flags
     if fontinfo then
-        local font, size, flags = unpack(fontinfo)
+        font, size, flags = unpack(fontinfo)
+        flags = flags or ""
         if strsub(font, 1, 4) == "LSM:" then
             local resource = strsub(font, 5)
             assert(LibStub, "LibStub is not loaded")
@@ -617,7 +619,8 @@ function WoWXIV.SetFont(object, fontid)
             font = LSM:Fetch("font", strsub(font, 5))
             assert(font, "Font \""..resource.."\" is not available")
         end
-        object:SetFont(font, size, flags or "")
+    else
+        font, size, flags = base_fontobj:GetFont()
     end
 
     local scale
@@ -626,10 +629,11 @@ function WoWXIV.SetFont(object, fontid)
     else
         scale = info.scale
     end
-    if scale and scale ~= 1 then
-        local font, size, flags = object:GetFont()
-        object:SetFont(font, size * scale, flags)
+    if scale then
+        size = size * scale
     end
+
+    object:SetFont(font, size, flags)
 end
 
 --[[local]] FONTS = {
