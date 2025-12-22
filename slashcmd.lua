@@ -4,6 +4,9 @@ WoWXIV.SlashCmd = {}
 local list = WoWXIV.list
 local set = WoWXIV.set
 
+local strfind = string.find
+local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
+local strsub = string.sub
 local tinsert = tinsert
 
 local FCT = function(...)
@@ -300,12 +303,19 @@ if WoWXIV_config["DEBUG"] then
 
     DefineCommand("xivd", nil, nil, "WoWXIV debugging command.",
     function(arg)
-        local showhide = StaticPopup_Show
-        if arg:sub(1,1) == "-" then
-            showhide = StaticPopup_Hide
-            arg = arg:sub(2,-1)
+        local space = strstr(arg, " ") or #arg+1
+        local token = strsub(arg, 1, space-1)
+        local rest = strsub(arg, space+1)
+        if token == strsub("flytext", 1, #token) then
+            WoWXIV.FlyText.Test()
+        elseif token == strsub("popup", 1, #token) then
+            local showhide = StaticPopup_Show
+            if strsub(rest, 1, 1) == "-" then
+                showhide = StaticPopup_Hide
+                rest = strsub(rest, 2)
+            end
+            showhide("XIV_TEST"..rest)
         end
-        showhide("XIV_TEST"..arg)
     end)
 
 end  -- if WoWXIV_config["DEBUG"]

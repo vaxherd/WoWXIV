@@ -129,7 +129,6 @@ local CONFIG_DEFAULT = {
     targetbar_focus_cast_bar = true,
     -- Target bar: move top-center info widget to bottom right?
     targetbar_move_top_center = true,
-
 }
 
 ------------------------------------------------------------------------
@@ -773,8 +772,12 @@ function WoWXIV.Config.Create()
     end
     for k, v in pairs(WoWXIV_config) do
         if CONFIG_DEFAULT[k] == nil then
-            -- Skip over font_* settings (see util.lua:SetFont())
             if strsub(k,1,5) ~= "font_" then
+                -- Skip over font_* settings (see util.lua:SetFont())
+            elseif k == "DEBUG" then
+                -- Pass through (omitted from CONFIG_DEFAULT to hide its
+                -- presence)
+            else
                 WoWXIV_config[k] = nil
             end
         end

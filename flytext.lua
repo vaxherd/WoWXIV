@@ -1148,3 +1148,43 @@ function WoWXIV.FlyText.Enable(enable)
         WoWXIV.FlyText.manager:Enable(enable)
     end
 end
+
+-- Test all flying text types.  Non-player flying text require a unit with
+-- a nameplate to be.
+function WoWXIV.FlyText.Test()
+    local combat_texts = list(
+        {FLYTEXT_DAMAGE_DIRECT, nil, 1, 12345, false},
+        {FLYTEXT_DAMAGE_DIRECT, 585, 2, 56789, true},
+        {FLYTEXT_DAMAGE_PASSIVE, 1000},
+        {FLYTEXT_DAMAGE_PASSIVE, 234},
+        {FLYTEXT_HEAL_DIRECT, 439, 2, 23456, false},
+        {FLYTEXT_HEAL_DIRECT, 2061, 2, 45678, true},
+        {FLYTEXT_BUFF_ADD, 17, 2},
+        {FLYTEXT_BUFF_REMOVE, 17, 2},
+        {FLYTEXT_DEBUFF_ADD, 246, 32, 1},
+        {FLYTEXT_DEBUFF_ADD, 246, 32, 2},
+        {FLYTEXT_DEBUFF_ADD, 246, 32, 3},
+        {FLYTEXT_DEBUFF_REMOVE, 246, 32}
+    )
+    local loot_texts = list(
+        {FLYTEXT_LOOT_MONEY, 123456789},
+        {FLYTEXT_LOOT_ITEM, 134414, "Hearthstone", 1, 999}
+    )
+
+    for args in combat_texts do
+        WoWXIV.FlyText.manager:AddText({args[1], "player",
+                                        select(2, unpack(args))})
+    end
+    for args in loot_texts do
+        WoWXIV.FlyText.manager:AddText({args[1], "player",
+                                        select(2, unpack(args))})
+    end
+
+    local nameplate = C_NamePlate.GetNamePlateForUnit("target")
+    if nameplate then
+        for args in combat_texts do
+            WoWXIV.FlyText.manager:AddText({args[1], "target",
+                                            select(2, unpack(args))})
+        end
+    end
+end
