@@ -31,15 +31,17 @@ local CURSOR_BLINK_PERIOD = 1.0
 
 local EditorFrame = class(Frame)
 Editor.EditorFrame = EditorFrame
-SLASH_XIVEDITOR1="/xe" SlashCmdList.XIVEDITOR=function() ZZe=EditorFrame("Test", "Text 56789 123456789 123456789 123456789 123456789 123456789 123456789 123456789") end --FIXME temp
+SLASH_XIVEDITOR1="/xe" SlashCmdList.XIVEDITOR=function() ZZe=EditorFrame("Test", nil, "Text 56789 123456789 123456789 123456789 123456789 123456789 123456789 123456789") end --FIXME temp
 
 function EditorFrame:__allocator(filename, text)
     return __super("Frame", nil, UIParent, "WoWXIV_EditorFrameTemplate")
 end
 
-function EditorFrame:__constructor(filename, text)
-    self.filename = filename
+function EditorFrame:__constructor(name, filepath, text)
+    self.name = name
+    self.filepath = filepath
     self.buffer = Editor.Buffer(text or "", self.TextView)
+    self.buffer:SetDirtyCallback(function() self:OnBufferStateChange() end)
     self.buffer:SetScrollCallback(function() self:OnBufferStateChange() end)
     WoWXIV.SetFont(self.CommandLine.Text, "EDITOR")
 
@@ -344,8 +346,9 @@ end
 
 function EditorFrame:UpdateTitle()
     local line, col = self.buffer:GetCursorPos()
+    local dirty = self.buffer:IsDirty() and "(*) " or ""
     local name_escaped = strgsub(self.filename or "(Untitled)", "|", "||")
-    local title = strformat("%s - L%d C%d", name_escaped, line, col)
+    local title = strformat("%s%s - L%d C%d", dirty, name_escaped, line, col)
     self.Border.Title:SetText(title)
 end
 
@@ -367,6 +370,30 @@ function EditorFrame:SetBorderActive(active)
     end
     self.CloseButton:SetAlpha(level)
     self.Divider:SetVertexColor(level, level, level)
+end
+
+
+-------- File access
+
+function EditorFrame:SaveFile(path)
+    path = path or self.filepath
+    if not path then
+        self:SetCommandText("No file to save to")
+        return
+    end
+    local FS = Dev.FS
+    local fd = FS.Open(path, FS.OPEN_TRUNCATE)
+    if not fd then
+        self:SetCommandText(strformat("Unable to open file: %s", path))
+    elseif not FS.Write(fd, self.buffer:GetText()) then
+        self:SetCommandText(strformat("Writing to %s failed", path))
+    else
+        self:SetCommandText(strformat("Wrote %s", path))
+        self.buffer:ClearDirty()
+        self.filepath = path
+        self.name = strmatch(path, "([^/]+)$") or path
+        self:UpdateTitle()
+    end
 end
 
 
@@ -832,6 +859,38 @@ function EditorFrame:HandleCommandInput_replace(input, arg)
 end
 
 
+function EditorFrame:save_to_CommandText()
+    local s = strformat("File to save in: %s", self.save_to_input)
+    return s, #s
+end
+
+function EditorFrame:StartCommand_save_to()
+    self.save_to_input = ""
+    self:SetCommandText(self:save_to_CommandText())
+    return true
+end
+
+function EditorFrame:HandleCommandInput_save_to(input, arg)
+    if input == "CHAR" then
+        local ch = arg
+        self.save_to_input = self.save_to_input .. ch
+        self:SetCommandText(self:save_to_CommandText())
+        return true
+    elseif input == "BACKSPACE" then
+        if #self.save_to_input > 0 then
+            self.save_to_input =
+                strsub(self.save_to_input, 1, #self.save_to_input-1)
+        end
+        self:SetCommandText(self:save_to_CommandText())
+        return true
+    elseif input == "ENTER" then
+        self:ClearCommand()
+        self:SaveFile(self.save_to_input)
+        return true
+    end
+end
+
+
 function EditorFrame:search_CommandText()
     local s = strformat(
         "%s: %s", self.search_regex and "RE search" or "Search",
@@ -902,6 +961,9 @@ function EditorFrame:GetDefaultKeymap()
             ["DELETE"] = EditorFrame.HandleDelete,
 
             ["F2"] = EditorFrame.HandleYank,
+            ["F7"] = EditorFrame.HandleFindFile,
+            ["F8"] = EditorFrame.HandleInsertFile,
+            ["F9"] = EditorFrame.HandleSaveFile,
 
             ["C-SPACE"] = EditorFrame.HandleSetMark,
 
@@ -921,6 +983,9 @@ function EditorFrame:GetDefaultKeymap()
             ["M-U"] = EditorFrame.HandleMakeUppercase,
             ["C-W"] = EditorFrame.HandleKill,
             ["C-X"] = {
+                ["C-F"] = EditorFrame.HandleFindFile,
+                ["I"] = EditorFrame.HandleInsertFile,
+                ["C-S"] = EditorFrame.HandleSaveFile,
                 ["C-X"] = EditorFrame.HandleSwapMark,
             },  -- C-X
             ["C-Y"] = EditorFrame.HandleYank,
@@ -986,8 +1051,18 @@ function EditorFrame:HandleEnter()
     end
 end
 
+function EditorFrame:HandleFindFile()
+    self:ClearCommand()
+    --FIXME notimp
+end
+
 function EditorFrame:HandleGoToLine()
     self:StartCommand("goto")
+end
+
+function EditorFrame:HandleInsertFile()
+    self:ClearCommand()
+    --FIXME notimp
 end
 
 function EditorFrame:HandleIsearch(forward, regex)
@@ -1065,6 +1140,16 @@ end
 
 function EditorFrame:HandleReplaceString()
     return self:HandleReplace(false)
+end
+
+function EditorFrame:HandleSaveFile()
+    if not self.buffer:IsDirty() then
+        self:SetCommandText("(No changes need to be saved)")
+    elseif not self.filepath then
+        self:StartCommand("save_to")
+    else
+        self:SaveFile()
+    end
 end
 
 function EditorFrame:HandleSearch(regex)

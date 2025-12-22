@@ -13,6 +13,7 @@ WoWXIV.startup_frame:RegisterEvent("ADDON_LOADED")
 WoWXIV.startup_frame:SetScript("OnEvent", function(self, event, arg1, ...)
     if event == "ADDON_LOADED" and arg1 == module_name then
         WoWXIV.Config.Create()
+        WoWXIV.Dev.FS.Init()
 
         WoWXIV.CombatLogManager.Create()
         WoWXIV.Gamepad.Init()

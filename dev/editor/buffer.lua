@@ -60,6 +60,7 @@ function Buffer:__constructor(text, view)
     -- other uses of the word; any better options?
     self.strings = list()       -- The buffer text, broken up into strings.
     self.line_map = list()      -- Map from physical line to string index.
+    self.dirty = false          -- Have any changes been made?
     self.cur_line = 1           -- Logical cursor position.
     self.cur_col = 0
     self.mark_line = nil        -- Second endpoint of selection, nil if none.
@@ -68,6 +69,7 @@ function Buffer:__constructor(text, view)
     self.top_string = 1         -- Index of the topmost displayed string.
     self.linepool_free = set()  -- Pool of created but unused FontStrings.
     self.linepool_used = set()  -- FontStrings which are currently in used.
+    self.on_dirty = nil         -- Callback for buffer-dirty events.
     self.on_scroll = nil        -- Callback for scroll events.
 
     self:InitScrollBar()
@@ -78,12 +80,6 @@ end
 
 
 -------- General utility methods
-
--- Set a function to be called whenever the text view is scrolled using the
--- scrollbar widget.  Pass nil to remove any previously set callback.
-function Buffer:SetScrollCallback(func)
-    self.on_scroll = func
-end
 
 -- Return the text content of the buffer as a string.
 function Buffer:GetText()
@@ -97,6 +93,29 @@ function Buffer:GetText()
         text = text .. self.strings[s]
     end
     return text
+end
+
+-- Return whether the buffer is dirty (has been modified since the last
+-- ClearDirty() call).
+function Buffer:IsDirty()
+    return self.dirty
+end
+
+-- Clear the buffer's dirty flag.
+function Buffer:ClearDirty()
+    self.dirty = false
+end
+
+-- Set a function to be called whenever the buffer's dirty flag is set.
+-- Pass nil to remove any previously set callback.
+function Buffer:SetDirtyCallback(func)
+    self.on_dirty = func
+end
+
+-- Set a function to be called whenever the text view is scrolled using the
+-- scrollbar widget.  Pass nil to remove any previously set callback.
+function Buffer:SetScrollCallback(func)
+    self.on_scroll = func
 end
 
 
@@ -288,6 +307,7 @@ function Buffer:InsertChar(ch)
         end
     end
     self:SetCursorPosInternal(self.cur_line, self.cur_col + 1)
+    self:SetDirty()
     self:RefreshView()
 end
 
@@ -305,6 +325,8 @@ function Buffer:InsertNewline()
     -- move the physical cursor position.
     if s > first and c == 0 then
         self.line_map:insert(cur_line+1, s)
+        self:SetDirty()
+        self:RefreshView()
         return
     end
 
@@ -352,6 +374,7 @@ function Buffer:InsertNewline()
         end
     end
 
+    self:SetDirty()
     self:RefreshView()
 end
 
@@ -412,6 +435,7 @@ function Buffer:InsertText(text)
     self:SetMarkPosInternal(nil, nil)
     self:ValidateStrings()
 
+    self:SetDirty()
     self:RefreshView()
 end
 
@@ -461,6 +485,7 @@ function Buffer:DeleteChar(forward)
     end
 
     self:SetMarkPosInternal(nil, nil)
+    self:SetDirty()
     self:RefreshView()
 end
 
@@ -526,6 +551,7 @@ function Buffer:DeleteRegion()
     self:ValidateStrings()
 
     self:SetMarkPosInternal(nil, nil)
+    self:SetDirty()
     self:RefreshView()
     return text
 end
@@ -609,6 +635,7 @@ function Buffer:Replace(from, to, as_pattern)
     local after_cursor = strsub(text, index)
     local new_after, n_repl = strgsub(after_cursor, from, to)
     if n_repl > 0 then
+        self:SetDirty()
         self:LayoutText(before_cursor .. new_after)
         self:RefreshView()
     end
@@ -617,6 +644,17 @@ end
 
 
 -------- The remaining methods are private.
+
+-- Mark the buffer dirty, and call the on-dirty callback if the dirty
+-- flag was not previously set.
+function Buffer:SetDirty()
+    if not self.dirty then
+        self.dirty = true
+        if self.on_dirty then
+            self.on_dirty()
+        end
+    end
+end
 
 -- Set the cursor position to the given (logical) line and column.
 -- Also deactivates the mark if it was active.
