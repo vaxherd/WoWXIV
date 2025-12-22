@@ -10,106 +10,85 @@ local FramePool = WoWXIV.FramePool
 local CLM = WoWXIV.CombatLogManager
 local GetItemInfo = C_Item.GetItemInfo
 local min = math.min
+local random = math.random
+local randrange = function(x) return x*(2*random()-1) end  -- random in [-x,+x)
 local strfind = string.find
 local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 local strsub = string.sub
 local tinsert = tinsert
-local random = math.random
 
 local typeof = type  -- Renamed so we can use "type" as an ordinary name.
 
 
--- Length of time a flying text string will be displayed (seconds).
-local FLYTEXT_TIME = 4.5
-local FLYTEXT_UP_TIME = 1.5
-local FLYTEXT_PASSIVE_TIME = 0.8
+-- Flying text behavior types.  Fields are:
+--     time: Length of time the text is displayed (seconds).
+--     dy: Movement per second on the Y axis.
+--     x: Initial X position.
+--     random: Maximum random adjustment to initial X and Y positions.
+-- All position values are offset from the unit's notional origin (the
+-- center of the screen for the player, the nameplate frame for other
+-- units) and are scaled relative to the screen size.
+local BEHAVIOR_DOWN = {time = 4.5, dy = -0.066, x = 0.05, random = 0}
+local BEHAVIOR_HEAL = {time = 4.5, dy = -0.066, x = -0.01, random = 0}
+local BEHAVIOR_UP   = {time = 1.5, dy = 0.066, x = 0.05, random = 0}
+local BEHAVIOR_CRIT = {time = 0.8, dy = 0, x = 0, random = 0.03}
+local BEHAVIOR_STAY = {time = 0.8, dy = 0, x = 0, random = 0.02}
 
-local FLYTEXT_NOTFLY_OFFSET_X_MIN = 20
-local FLYTEXT_NOTFLY_OFFSET_X_MAX = 40
-local FLYTEXT_NOTFLY_OFFSET_Y_MIN = 15
-local FLYTEXT_NOTFLY_OFFSET_Y_MAX = 30
-
-local FLYTEXT_CRIT_OFFSET_FACTOR = 1.5
-
--- Flytext move offset in Y direction.
-local FLYTEXT_DY_FACTOR = 0.3
-local FLYTEXT_DY_UP_FACTOR = 0.12
-
-local FLYTEXT_DY_ISUP = 1
-
--- Default scale factor for text.
-local FLYTEXT_FONT_SCALE = 1
--- Scale factor for critical hits.
-local FLYTEXT_CRIT_SCALE = FLYTEXT_FONT_SCALE * 1.4
--- Scale factor for "Miss" text.
-local FLYTEXT_MISS_SCALE = FLYTEXT_FONT_SCALE * 0.9
--- Scale factor for ffxiv style font since it's smaller than regular text.
-local FLYTEXT_VALUE_SCALE = FLYTEXT_FONT_SCALE * 1.5
-
--- Apply when pushing non-flying text.
-local FLYTEXT_FASTFORWARD_SHORT = 0.2
-local FLYTEXT_FASTFORWARD_MIDDLE = 0.4
-local FLYTEXT_FASTFORWARD_LONG = 0.6
+-- Text colors used in flying text.
+local COLOR_RED    = {1, 0.753, 0.761}
+local COLOR_GREEN  = {0.929, 1, 0.906}
+local COLOR_BLUE   = {0.790, 0.931, 0.970}
+local COLOR_ORANGE = {1, 0.882, 0.8}
+local COLOR_WHITE  = {1, 1, 1}
+local COLOR_GRAY   = {0.7, 0.7, 0.7}
 
 -- Damage types for type argument to constructor.
-local FLYTEXT_DAMAGE_DIRECT  = 1  -- direct damage, or DoT from channeling
-local FLYTEXT_DAMAGE_PASSIVE = 2  -- DoT from auras
-local FLYTEXT_HEAL_DIRECT    = 3
-local FLYTEXT_HEAL_PASSIVE   = 4
-local FLYTEXT_BUFF_ADD       = 5
-local FLYTEXT_BUFF_REMOVE    = 6
-local FLYTEXT_DEBUFF_ADD     = 7
-local FLYTEXT_DEBUFF_REMOVE  = 8
-local FLYTEXT_LOOT_MONEY     = 9
-local FLYTEXT_LOOT_ITEM      = 10
+local FLYTEXT_DAMAGE_DIRECT   = 1  -- direct damage, or DoT from channeling
+local FLYTEXT_DAMAGE_CRITICAL = 2  -- critical direct damage
+local FLYTEXT_DAMAGE_PASSIVE  = 3  -- DoT from auras
+local FLYTEXT_HEAL_DIRECT     = 4
+local FLYTEXT_HEAL_CRITICAL   = 5
+local FLYTEXT_HEAL_PASSIVE    = 6
+local FLYTEXT_BUFF_ADD        = 7
+local FLYTEXT_BUFF_REMOVE     = 8
+local FLYTEXT_DEBUFF_ADD      = 9
+local FLYTEXT_DEBUFF_REMOVE   = 10
+local FLYTEXT_LOOT_MONEY      = 11
+local FLYTEXT_LOOT_ITEM       = 12
 
--- Corresponding text colors.
-local COLOR_RED   = {1, 0.753, 0.761}
-local COLOR_GREEN = {0.929, 1, 0.906}
-local COLOR_BLUE  = {0.790, 0.931, 0.970}
-local COLOR_ORANGE = {1, 0.882, 0.8}
-local COLOR_WHITE = {1, 1, 1}
-local COLOR_GRAY  = {0.7, 0.7, 0.7}
-local FLYTEXT_COLORS_PLAYER = {
-    [FLYTEXT_DAMAGE_DIRECT]  = COLOR_RED,
-    [FLYTEXT_DAMAGE_PASSIVE] = COLOR_RED,
-    [FLYTEXT_HEAL_DIRECT]    = COLOR_GREEN,
-    [FLYTEXT_HEAL_PASSIVE]   = COLOR_GREEN,
-    [FLYTEXT_BUFF_ADD]       = COLOR_GREEN,
-    [FLYTEXT_BUFF_REMOVE]    = COLOR_GRAY,
-    [FLYTEXT_DEBUFF_ADD]     = COLOR_RED,
-    [FLYTEXT_DEBUFF_REMOVE]  = COLOR_GRAY,
-    [FLYTEXT_LOOT_MONEY]     = COLOR_WHITE,
-    [FLYTEXT_LOOT_ITEM]      = COLOR_WHITE,
+-- Color and behavior for each type, when attached to the player or to
+-- another unit.
+local FLYTEXT_INFO_PLAYER = {
+    [FLYTEXT_DAMAGE_DIRECT]   = {BEHAVIOR_DOWN, COLOR_RED},
+    [FLYTEXT_DAMAGE_CRITICAL] = {BEHAVIOR_DOWN, COLOR_RED},
+    [FLYTEXT_DAMAGE_PASSIVE]  = {BEHAVIOR_DOWN, COLOR_RED},
+    [FLYTEXT_HEAL_DIRECT]     = {BEHAVIOR_DOWN, COLOR_GREEN},
+    [FLYTEXT_HEAL_CRITICAL]   = {BEHAVIOR_DOWN, COLOR_GREEN},
+    [FLYTEXT_HEAL_PASSIVE]    = {BEHAVIOR_DOWN, COLOR_GREEN},
+    [FLYTEXT_BUFF_ADD]        = {BEHAVIOR_DOWN, COLOR_GREEN},
+    [FLYTEXT_BUFF_REMOVE]     = {BEHAVIOR_DOWN, COLOR_GRAY},
+    [FLYTEXT_DEBUFF_ADD]      = {BEHAVIOR_DOWN, COLOR_RED},
+    [FLYTEXT_DEBUFF_REMOVE]   = {BEHAVIOR_DOWN, COLOR_GRAY},
+    [FLYTEXT_LOOT_MONEY]      = {BEHAVIOR_DOWN, COLOR_WHITE},
+    [FLYTEXT_LOOT_ITEM]       = {BEHAVIOR_DOWN, COLOR_WHITE},
 }
-local FLYTEXT_COLORS_OTHER = {
-    [FLYTEXT_DAMAGE_DIRECT]  = COLOR_ORANGE,
-    [FLYTEXT_DAMAGE_PASSIVE] = COLOR_RED,
-    [FLYTEXT_HEAL_DIRECT]    = COLOR_GREEN,
-    [FLYTEXT_HEAL_PASSIVE]   = COLOR_GREEN,
-    [FLYTEXT_BUFF_ADD]       = COLOR_GREEN,
-    [FLYTEXT_BUFF_REMOVE]    = COLOR_GRAY,
-    [FLYTEXT_DEBUFF_ADD]     = COLOR_ORANGE,
-    [FLYTEXT_DEBUFF_REMOVE]  = COLOR_GRAY,
+local FLYTEXT_INFO_OTHER = {
+    [FLYTEXT_DAMAGE_DIRECT]   = {BEHAVIOR_UP,   COLOR_ORANGE},
+    [FLYTEXT_DAMAGE_CRITICAL] = {BEHAVIOR_CRIT, COLOR_ORANGE},
+    [FLYTEXT_DAMAGE_PASSIVE]  = {BEHAVIOR_STAY, COLOR_RED},
+    [FLYTEXT_HEAL_DIRECT]     = {BEHAVIOR_STAY, COLOR_GREEN},
+    [FLYTEXT_HEAL_CRITICAL]   = {BEHAVIOR_STAY, COLOR_GREEN},
+    [FLYTEXT_HEAL_PASSIVE]    = {BEHAVIOR_STAY, COLOR_GREEN},
+    [FLYTEXT_BUFF_ADD]        = {BEHAVIOR_STAY, COLOR_GREEN},
+    [FLYTEXT_BUFF_REMOVE]     = {BEHAVIOR_STAY, COLOR_GRAY},
+    [FLYTEXT_DEBUFF_ADD]      = {BEHAVIOR_UP,   COLOR_ORANGE},
+    [FLYTEXT_DEBUFF_REMOVE]   = {BEHAVIOR_STAY, COLOR_GRAY},
+    -- Loot types are not used for non-player units.
 }
 
 ------------------------------------------------------------------------
 
 local FlyText = class(Frame)
-
--- Static method: Return scroll offset per second for flying text.
--- FIXME: More elegant and reuseable implmentaion.
-function FlyText.GetDY(isUpDirection)
-    local factor = FLYTEXT_DY_FACTOR
-    local time = FLYTEXT_TIME
-
-    if isUpDirection == FLYTEXT_DY_ISUP then
-        factor = FLYTEXT_DY_UP_FACTOR
-        time = FLYTEXT_UP_TIME
-    end
-
-    return -(UIParent:GetHeight()* factor / time)
-end
 
 function FlyText:__allocator()
     return __super("Frame", nil, UIParent)
@@ -162,7 +141,7 @@ function FlyText:__constructor()
 end
 
 -- Invariants on acquisition: name/icon/value are shown; value font is
--- set to FLYTEXT_DEFAULT; other elements are hidden; contents of all
+-- set to FLYTEXT_DAMAGE; other elements are hidden; contents of all
 -- elements are unspecified.
 function FlyText:OnAcquire()
     self.name:Show()
@@ -206,8 +185,6 @@ end
 function FlyText:Init(type, unit, ...)
     self.type = type
     self.unit = unit
-    self.nameplate = C_NamePlate.GetNamePlateForUnit(unit)
-    self.isFly = select(2, FlyText.GetAddInfo(type, unit, ...))
     if type == FLYTEXT_DAMAGE_PASSIVE or type == FLYTEXT_HEAL_PASSIVE then
         self.amount = ...
     elseif type >= FLYTEXT_DAMAGE_DIRECT and type <= FLYTEXT_DEBUFF_REMOVE then
@@ -218,32 +195,20 @@ function FlyText:Init(type, unit, ...)
         self.item_icon, self.item_name, self.item_quality_or_color,
             self.amount = ...
     else
-        print("FlyText error: invalid type", type)
-        self.type = nil
-        return
+        error("Invalid type: "..tostring(type))
     end
 
-    -- We have different types of (non-)flying texts which has different behavior,
-    --     also with different display time.
-    -- For non-player, we handle damage/heal/auras applied by player.
-    -- And player's all damage/heal/auras applied by everyone.
-    -- 1)  Non-player damage/healing without critical and auras flies from bottom to top.
-    -- 2)  Non-player damage/healing with critical
-    --     has "bump" animation and does not fly, with a large random x/y offset.
-    -- 3)  Non-player dot/hot does not fly, with a random x/y offset.
-    -- 4)  Player's damage/heal/auras flies from top to bottom, whether being critical or not.
-    -- 5)  Player's dot/hot does not fly, with a random x/y offset.
-    if (not self.isFly) and self.crit_flag then
-        self.time = FLYTEXT_UP_TIME
-    elseif not self.isFly then
-        self.time = FLYTEXT_PASSIVE_TIME
-    elseif self.unit ~= "player" then
-        self.time = FLYTEXT_UP_TIME
-    else
-        self.time = FLYTEXT_TIME
-    end
+    local info_table = (self.unit == "player"
+                        and FLYTEXT_INFO_PLAYER or FLYTEXT_INFO_OTHER)
+    local colors, behavior = unpack(info_table[type])
+    self.time = behavior.time
+    self.dy = behavior.dy * UIParent:GetHeight()
+    self.x = (behavior.x + randrange(behavior.offset)) * UIParent:GetWidth()
+    self.y = randrange(behavior.offset) * UIParent:GetHeight()
 
     self.start = GetTime()
+    self.nameplate = C_NamePlate.GetNamePlateForUnit(self.unit)
+
     if unit == "player" and (type == FLYTEXT_HEAL_DIRECT or type == FLYTEXT_HEAL_PASSIVE) then
         self.x = -(UIParent:GetWidth()*0.01)
     elseif type == FLYTEXT_DAMAGE_PASSIVE then
@@ -266,7 +231,7 @@ function FlyText:Init(type, unit, ...)
     if not self.isFly then
         self.dy = 0
     elseif self.unit ~= "player" then
-        self.dy = FlyText:GetDY(FLYTEXT_DY_ISUP)
+        self.dy = FlyText:GetDY(true)
     else
         self.dy = FlyText:GetDY()
     end
@@ -279,10 +244,7 @@ function FlyText:Init(type, unit, ...)
     local name = self.name
     local icon = self.icon
     local value = self.value
-
-    local colors = (self.unit == "player"
-                    and FLYTEXT_COLORS_PLAYER or FLYTEXT_COLORS_OTHER)
-    local r, g, b = unpack(colors[type])
+    local r, g, b = unpack(colors)
     name:SetTextColor(r, g, b)
     value:SetTextColor(r, g, b)
 
@@ -400,11 +362,7 @@ function FlyText:FastForward(time)
     if not (time == self.time) then
         return
     end
-    if self.crit_flag then
-        self.start = self.start - FLYTEXT_FASTFORWARD_MIDDLE
-    else
-        self.start = self.start - FLYTEXT_FASTFORWARD_MIDDLE
-    end
+    self.start = self.start - 0.4
 end
 
 -- Returns true if text is still displayed, false if disappeared.
@@ -846,10 +804,10 @@ function FlyTextManager:AddText(args, direction)
 
             local dy = math.abs(FlyText:GetDY())
             if not is_player then
-                dy = math.abs(FlyText:GetDY(FLYTEXT_DY_ISUP))
+                dy = math.abs(FlyText:GetDY(true))
             end
 
-            local min_offset = 18 * FLYTEXT_FONT_SCALE
+            local min_offset = 18
 
             if dt_since_last*dy < min_offset then
 
