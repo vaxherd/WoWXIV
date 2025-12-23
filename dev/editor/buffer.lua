@@ -42,16 +42,13 @@ local REGION_COLOR = {0.25, 1, 0.25}
 local Buffer = class()
 Editor.Buffer = Buffer
 
-function Buffer:__constructor(text, view)
-    assert(type(text) == "string", "text must be a string")
+function Buffer:__constructor(view)
     assert(type(view) == "table" and type(view.Show) == "function",
            "view must be a Frame")
-
     self.view = view
     self.cursor = view:CreateTexture(nil, "OVERLAY")
     self.cursor:SetColorTexture(1, 1, 1)
     self.cursor:SetPoint("TOP", view, "TOPLEFT")
-    self.show_cursor = true
 
     -- We differentiate in naming between "lines" (logical lines of text
     -- as delimited by newline characters) and "strings" (fragments of a
@@ -74,8 +71,6 @@ function Buffer:__constructor(text, view)
 
     self:InitScrollBar()
     self:MeasureView()
-    self:LayoutText(text)
-    self:RefreshView()
 end
 
 
@@ -93,6 +88,23 @@ function Buffer:GetText()
         text = text .. self.strings[s]
     end
     return text
+end
+
+-- Replace the entire text of the buffer with the given string.  The
+-- cursor is set to the beginning of the buffer, the mark is cleared,
+-- and the buffer is marked not dirty.
+function Buffer:SetText(text)
+    self:LayoutText(text)
+    self.cur_line, self.cur_col = 1, 0
+    self.mark_line, self.mark_col, self.mark_active = nil, nil, false
+    self.dirty = false
+    self:RefreshView()
+end
+
+-- Return whether this buffer is empty (that is, whether GetText() would
+-- return an empty string).
+function Buffer:IsEmpty()
+    return #self.strings == 1 and #self.strings[1] == 0
 end
 
 -- Return whether the buffer is dirty (has been modified since the last
@@ -123,7 +135,7 @@ end
 
 -- Set whether the text cursor should be displayed.
 function Buffer:SetShowCursor(show)
-    self.show_cursor = not not show  -- Force to boolean.
+    show = not not show  -- Force to boolean.
     self.cursor:SetShown(show)
 end
 

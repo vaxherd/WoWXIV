@@ -315,12 +315,31 @@ FS.OPEN_WRITE    = OPEN_WRITE     -- Read and write.
 FS.OPEN_TRUNCATE = OPEN_TRUNCATE  -- Read and write; file truncated on open.
 FS.OPEN_APPEND   = OPEN_APPEND    -- Writes always append; reads will fail.
 
+
+-------- Core filesystem operations
+
 -- Initialize the filesystem.  Must be called before any other filesystem
 -- operations.  May be safely called multiple times (subsequent calls will
 -- have no effect).
 function FS.Init()
     if root then return end
     root = FS.MemFS(WoWXIV_rootfs)
+end
+
+
+-------- Standard file/directory operations
+
+-- Return information about the object at the given path.  The return value
+-- is a table with the following keys:
+--     is_dir: True if the object is a directory, false otherwise.
+--     size: Size of the object in bytes.  Unspecified for directories.
+-- Returns nil on error.
+function FS.Stat(path)
+    if strsub(path, 1, 1) ~= "/" then
+        return nil  -- Must be an absolute path.
+    end
+    local fs, ref = ResolvePath(path)
+    return ref and fs:Stat(ref)
 end
 
 -- Create a directory at the given path.  Returns true on success, nil on
@@ -453,4 +472,32 @@ function FS.Write(fd, data)
     -- WoW's Lua version (5.1) only supports byte-valued characters, so
     -- we don't have to explicitly check for string validity.
     return fh:Write(data)
+end
+
+
+-------- Utility routines
+
+-- Read and return the entire content of the given file, if it exists.
+-- Returns nil on error.
+function FS.ReadFile(path)
+    local fd = FS.Open(path, OPEN_READ)
+    local data
+    if fd then
+        data = FS.Read(fd)
+        FS.Close(fd)
+    end
+    return data
+end
+
+-- Write the given data to the given file.  If the file does not exist,
+-- it is created; if it does exist, it is truncated.  Returns true on
+-- success, nil on error.
+function FS.WriteFile(path, data)
+    local fd = FS.Write(path, OPEN_TRUNCATE)
+    local result
+    if fd then
+        result = FS.Write(fd, data)
+        FS.Close(fd)
+    end
+    return result
 end

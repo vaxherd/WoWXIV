@@ -3,6 +3,8 @@ WoWXIV.Dev = WoWXIV.Dev or {}
 local Dev = WoWXIV.Dev
 Dev.Editor = Dev.Editor or {}
 local Editor = Dev.Editor
+Dev.FS = Dev.FS or {}
+local FS = Dev.FS
 
 local class = WoWXIV.class
 local Frame = WoWXIV.Frame
@@ -13,6 +15,7 @@ local strfind = string.find
 local strformat = string.format
 local strgsub = string.gsub
 local strjoin = string.join
+local strmatch = string.match
 local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 local strsub = string.sub
 
@@ -31,20 +34,40 @@ local CURSOR_BLINK_PERIOD = 1.0
 
 local EditorFrame = class(Frame)
 Editor.EditorFrame = EditorFrame
-SLASH_XIVEDITOR1="/xe" SlashCmdList.XIVEDITOR=function() ZZe=EditorFrame("Test", nil, "Text 56789 123456789 123456789 123456789 123456789 123456789 123456789 123456789") end --FIXME temp
 
-function EditorFrame:__allocator(filename, text)
+function EditorFrame:__allocator()
     return __super("Frame", nil, UIParent, "WoWXIV_EditorFrameTemplate")
 end
 
-function EditorFrame:__constructor(name, filepath, text)
-    self.name = name
-    self.filepath = filepath
-    self.buffer = Editor.Buffer(text or "", self.TextView)
+function EditorFrame:__constructor()
+    self.buffer = Editor.Buffer(self.TextView)
     self.buffer:SetDirtyCallback(function() self:OnBufferStateChange() end)
     self.buffer:SetScrollCallback(function() self:OnBufferStateChange() end)
-    WoWXIV.SetFont(self.CommandLine.Text, "EDITOR")
 
+    WoWXIV.SetFont(self.CommandLine.Text, "EDITOR")
+    -- Size of a character cell in the command line font.  See notes in
+    -- Buffer:MeasureView().
+    do
+        local text = self.CommandLine.Text
+        text:SetText("X")
+        local w1 = text:GetStringWidth()
+        text:SetText("XXXXXXXXXXX")
+        local w11 = text:GetStringWidth()
+        self.command_cell_w = (w11 - w1) / 10
+        self.command_cell_h = text:GetStringHeight()
+        text:SetText("")
+    end
+    -- Texture instance for displaying the command line cursor.
+    self.command_cursor = self.CommandLine:CreateTexture(nil, "OVERLAY")
+    self.command_cursor:Hide()
+    self.command_cursor:SetSize(1, self.command_cell_h)
+    self.command_cursor:SetColorTexture(1, 1, 1)
+    self.command_cursor:SetPoint("TOP", self.CommandLine, "TOPLEFT")
+
+    self:OnAcquire()
+end
+
+function EditorFrame:OnAcquire()
     -- List of keys which are currently pressed, in press order.  Each
     -- element is a {key, ch} pair; if |ch| is not nil, it is the text
     -- equivalent of |key|.
@@ -79,24 +102,6 @@ function EditorFrame:__constructor(name, filepath, text)
     -- Character offset of the cursor in the command line.  If nil, the
     -- normal buffer cursor is displayed.
     self.command_cursor_pos = nil
-    -- Size of a character cell in the command line font.  See notes in
-    -- Buffer:MeasureView().
-    do
-        local text = self.CommandLine.Text
-        text:SetText("X")
-        local w1 = text:GetStringWidth()
-        text:SetText("XXXXXXXXXXX")
-        local w11 = text:GetStringWidth()
-        self.command_cell_w = (w11 - w1) / 10
-        self.command_cell_h = text:GetStringHeight()
-        text:SetText("")
-    end
-    -- Texture instance for displaying the command line cursor.
-    self.command_cursor = self.CommandLine:CreateTexture(nil, "OVERLAY")
-    self.command_cursor:Hide()
-    self.command_cursor:SetSize(1, self.command_cell_h)
-    self.command_cursor:SetColorTexture(1, 1, 1)
-    self.command_cursor:SetPoint("TOP", self.CommandLine, "TOPLEFT")
 
     -- Keymap for this frame.  Key names follow OnKeyDown argument values;
     -- modifiers follow Emacs style, and must be given in the order
@@ -110,8 +115,24 @@ function EditorFrame:__constructor(name, filepath, text)
     -- Timeout for displaying the current prefix in the command line.
     self.prefix_timeout = nil
 
+    self.name = "(Untitled)"
+    self.filepath = nil
+    self.buffer:SetText("")
     self:UpdateTitle()
     self:SetFocused(self:IsMouseOver())
+end
+
+function EditorFrame:OnRelease()
+    -- Allow sub-objects to be garbage-collected.
+    self.buffer:SetText("")
+    self.keys = nil
+    self.keymap = nil
+    self.prefix_keys = nil
+end
+
+-- Pass in the EditorManager reference.
+function EditorFrame:Init(manager)
+    self.manager = manager
 end
 
 
@@ -347,7 +368,7 @@ end
 function EditorFrame:UpdateTitle()
     local line, col = self.buffer:GetCursorPos()
     local dirty = self.buffer:IsDirty() and "(*) " or ""
-    local name_escaped = strgsub(self.filename or "(Untitled)", "|", "||")
+    local name_escaped = strgsub(self.name or "(Untitled)", "|", "||")
     local title = strformat("%s%s - L%d C%d", dirty, name_escaped, line, col)
     self.Border.Title:SetText(title)
 end
@@ -375,27 +396,51 @@ end
 
 -------- File access
 
+function EditorFrame:LoadFile(path)
+    local stat = FS.Stat(path)
+    local ok
+    if not stat then
+        self.buffer:SetText("")
+        self:SetCommandText("(New file)")
+        ok = true
+    elseif stat.is_dir then
+        self:SetCommandText("Pathname is a directory: %s", path)
+    else
+        local text = FS.ReadFile(path)
+        if not text then
+            self:SetCommandText(strformat("Unable to read file: %s", path))
+        else
+            self.buffer:SetText(text)
+            ok = true
+        end
+    end
+    if ok then
+        self:SetFilePath(path)
+    end
+end
+
+-- Returns true on success, false on error.
 function EditorFrame:SaveFile(path)
     path = path or self.filepath
     if not path then
         self:SetCommandText("No file to save to")
-        return
+        return false
     end
-    local FS = Dev.FS
     local fd = FS.Open(path, FS.OPEN_TRUNCATE)
     if not fd then
         self:SetCommandText(strformat("Unable to open file: %s", path))
+        return false
     else
         local ok = FS.Write(fd, self.buffer:GetText())
         FS.Close(fd)
         if not ok then
             self:SetCommandText(strformat("Writing to %s failed", path))
+            return false
         else
             self:SetCommandText(strformat("Wrote %s", path))
             self.buffer:ClearDirty()
-            self.filepath = path
-            self.name = strmatch(path, "([^/]+)$") or path
-            self:UpdateTitle()
+            self:SetFilePath(path)
+            return true
         end
     end
 end
@@ -407,6 +452,29 @@ end
 function EditorFrame:SetMark()
     self.buffer:SetMarkPos(self.buffer:GetCursorPos())
     self:SetCommandText("Mark set")
+end
+
+-- Set the file path for this frame, and update the frame name appropriately.
+function EditorFrame:SetFilePath(path)
+    self.filepath = path
+    self.name = strmatch(path, "([^/]+)$") or path
+    self:UpdateTitle()
+end
+
+-- Return the file path associated with this frame, or nil if none.
+function EditorFrame:GetFilePath()
+    return self.filepath
+end
+
+-- Focus this editor window until the next time the mouse enters and leaves
+-- it (or enters another editor window).
+function EditorFrame:Focus()
+    --FIXME notimp
+end
+
+-- Close this editor window.
+function EditorFrame:Close()
+    self.manager:CloseFrame(self)
 end
 
 
@@ -431,7 +499,7 @@ end
 --     StartCommand_|command|(...)  (performs initialization for the command)
 --     EndCommand_|command|()  (performs finalization, called when cleared)
 --     HandleCommandInput_|command|(...)  (implements HCI() for the command)
--- Note that the command's StartCommand handler must return true for the
+ -- Note that the command's StartCommand handler must return true for the
 -- command to be activated.  Any additional arguments to this method are
 -- passed directly to the handler.
 function EditorFrame:StartCommand(command, ...)
@@ -482,6 +550,107 @@ end
 -------- Command-specific implementations
 -------- (FIXME: yes, we should probably have a base class for these)
 
+function EditorFrame:close_CommandText()
+    local s
+    if self.close_error_timeout then
+        s = "Please enter y or n."
+        if GetTime() >= self.close_error_timeout then
+            self.close_error_timeout = nil
+        end
+    elseif self.close_state == "confirm-save" then
+        s = "Save changes? (y or n)"
+    else
+        assert(self.close_state == "confirm-quit")
+        s = "File is modified; close anyway? (y or n)"
+    end
+    return s, #s
+end
+
+function EditorFrame:StartCommand_close()
+    if self.buffer:IsDirty() then
+        self.close_state = "confirm-save"
+        self.close_error_timeout = nil
+        self:SetCommandText(self:close_CommandText())
+        return true
+    else
+        self:Close()
+        return false
+    end
+end
+
+function EditorFrame:HandleCommandInput_close(input, arg)
+    if input == "CHAR" and arg == "y" then
+        self:ClearCommand()
+        if self.close_state == "confirm-save" then
+            if self:SaveFile() then
+                self:Close()
+            end
+        else
+            assert(self.close_state == "confirm-quit")
+            self:Close()
+        end
+        return true
+    elseif input == "CHAR" and arg == "n" then
+        if self.close_state == "confirm-save" then
+            self.close_state = "confirm-quit"
+        else
+            assert(self.close_state == "confirm-quit")
+            self:ClearCommand()
+        end
+        return true
+    elseif input ~= "CANCEL" then
+        self.close_error_timeout = GetTime() + 1
+        self:SetCommandText(self:close_CommandText())
+        return true
+    end
+end
+
+
+function EditorFrame:find_file_CommandText()
+    local before, after = strmatch(self.find_file_input, "^(.*/)(/.*)$")
+    local s
+    if after then
+        s = strformat("Find file: {%s} %s", before, after)
+    else
+        s = strformat("Find file: %s", self.find_file_input)
+    end
+    return s, #s
+end
+
+function EditorFrame:StartCommand_find_file()
+    self.find_file_input =
+        self.filepath and strmatch(self.filepath, "^(.*/)") or ""
+    self:SetCommandText(self:find_file_CommandText())
+    return true
+end
+
+function EditorFrame:HandleCommandInput_find_file(input, arg)
+    if input == "CHAR" then
+        local ch = arg
+        self.find_file_input = self.find_file_input .. ch
+        self:SetCommandText(self:find_file_CommandText())
+        return true
+    elseif input == "BACKSPACE" then
+        if #self.find_file_input > 0 then
+            self.find_file_input =
+                strsub(self.find_file_input, 1, #self.find_file_input-1)
+        end
+        self:SetCommandText(self:find_file_CommandText())
+        return true
+    elseif input == "ENTER" then
+        self:ClearCommand()
+        local path = (strmatch(self.find_file_input, "^.*/(/.*)$")
+                      or self.find_file_input)
+        if self.buffer:IsEmpty() and not self.buffer:IsDirty() then
+            self:LoadFile(path)
+        else
+            Editor.Open(path)
+        end
+        return true
+    end
+end
+
+
 function EditorFrame:goto_CommandText()
     local s = "Goto line: " .. self.goto_input
     return s, #s
@@ -514,6 +683,52 @@ function EditorFrame:HandleCommandInput_goto(input, arg)
             self.buffer:SetCursorPos(line, 0)
         else
             self:SetCommandText("Line number must be a positive integer")
+        end
+        return true
+    end
+end
+
+
+function EditorFrame:insert_file_CommandText()
+    local before, after = strmatch(self.insert_file_input, "^(.*/)(/.*)$")
+    local s
+    if after then
+        s = strformat("Find file: {%s} %s", before, after)
+    else
+        s = strformat("Find file: %s", self.insert_file_input)
+    end
+    return s, #s
+end
+
+function EditorFrame:StartCommand_insert_file()
+    self.insert_file_input =
+        self.filepath and strmatch(self.filepath, "^(.*/)") or ""
+    self:SetCommandText(self:insert_file_CommandText())
+    return true
+end
+
+function EditorFrame:HandleCommandInput_insert_file(input, arg)
+    if input == "CHAR" then
+        local ch = arg
+        self.insert_file_input = self.insert_file_input .. ch
+        self:SetCommandText(self:insert_file_CommandText())
+        return true
+    elseif input == "BACKSPACE" then
+        if #self.insert_file_input > 0 then
+            self.insert_file_input =
+                strsub(self.insert_file_input, 1, #self.insert_file_input-1)
+        end
+        self:SetCommandText(self:insert_file_CommandText())
+        return true
+    elseif input == "ENTER" then
+        self:ClearCommand()
+        local path = (strmatch(self.insert_file_input, "^.*/(/.*)$")
+                      or self.insert_file_input)
+        local data = FS.ReadFile(path)
+        if data then
+            self.buffer:InsertText(data)
+        else
+            self:SetCommandText(strformat("Failed to read file: %s", path))
         end
         return true
     end
@@ -968,6 +1183,7 @@ function EditorFrame:GetDefaultKeymap()
             ["F7"] = EditorFrame.HandleFindFile,
             ["F8"] = EditorFrame.HandleInsertFile,
             ["F9"] = EditorFrame.HandleSaveFile,
+            ["F10"] = EditorFrame.HandleSaveAndClose,
 
             ["C-SPACE"] = EditorFrame.HandleSetMark,
 
@@ -987,6 +1203,7 @@ function EditorFrame:GetDefaultKeymap()
             ["M-U"] = EditorFrame.HandleMakeUppercase,
             ["C-W"] = EditorFrame.HandleKill,
             ["C-X"] = {
+                ["C-C"] = EditorFrame.HandleClose,
                 ["C-F"] = EditorFrame.HandleFindFile,
                 ["I"] = EditorFrame.HandleInsertFile,
                 ["C-S"] = EditorFrame.HandleSaveFile,
@@ -1041,6 +1258,10 @@ function EditorFrame:HandleCancel()
     end
 end
 
+function EditorFrame:HandleClose()
+    self:StartCommand("close")
+end
+
 function EditorFrame:HandleDelete()
     if not self:HandleCommandInput("DELETE") then
         self:ClearCommand()
@@ -1056,8 +1277,7 @@ function EditorFrame:HandleEnter()
 end
 
 function EditorFrame:HandleFindFile()
-    self:ClearCommand()
-    --FIXME notimp
+    self:StartCommand("find_file")
 end
 
 function EditorFrame:HandleGoToLine()
@@ -1065,8 +1285,7 @@ function EditorFrame:HandleGoToLine()
 end
 
 function EditorFrame:HandleInsertFile()
-    self:ClearCommand()
-    --FIXME notimp
+    self:StartCommand("insert_file")
 end
 
 function EditorFrame:HandleIsearch(forward, regex)
@@ -1154,6 +1373,15 @@ function EditorFrame:HandleSaveFile()
     else
         self:SaveFile()
     end
+end
+
+function EditorFrame:HandleSaveAndClose()
+    if self.buffer:IsDirty() and self.filepath then
+        if not self:SaveFile() then
+            return
+        end
+    end
+    self:Close()
 end
 
 function EditorFrame:HandleSearch(regex)

@@ -29,7 +29,9 @@ partylist.lua
 slashcmd.lua
 targetbar.lua
 
+dev/dev.lua
 dev/editor/buffer.lua
+dev/editor/editor.lua
 dev/editor/frame.lua
 dev/editor/frame.xml
 dev/fs/fs.lua

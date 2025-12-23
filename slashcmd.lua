@@ -270,6 +270,18 @@ function(arg)
     WoWXIV.Config.Open()
 end)
 
+---------------- /xivedit (/xe)
+
+DefineCommand("xivedit", {"xe"}, "["..Green("pathname").."]",
+              "Opens a new editor window. With a "..Green("pathname")..", opens the file at that pathname; relative pathnames are taken to be relative to the addon root.",
+function(arg)
+    if arg and arg ~= "" then
+        WoWXIV.Dev.Editor.Open(arg)
+    else
+        WoWXIV.Dev.Editor.New()
+    end
+end)
+
 ---------------- (debugging stuff)
 
 if WoWXIV_config["DEBUG"] then
