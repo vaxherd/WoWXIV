@@ -501,15 +501,10 @@ function FlyTextManager:OnCombatLogEvent(event)
     end
 
     local args = nil
-    local left_side = false
-    local fly_direction = "right"
     local is_aura = false
     if event.subtype == "DAMAGE" then
         args = {FLYTEXT_DAMAGE_DIRECT, unit, event.spell_id,
                 event.spell_school, event.amount, event.critical}
-        if unit ~= "player" then
-            fly_direction = "up"
-        end
     elseif event.subtype == "PERIODIC_DAMAGE" then
         self.dot = self.dot or {}
         self.dot[unit] = (self.dot[unit] or 0) + event.amount
@@ -520,7 +515,6 @@ function FlyTextManager:OnCombatLogEvent(event)
         args = {FLYTEXT_DAMAGE_DIRECT, unit, event.spell_id,
                 event.spell_school, event.amount and 0 or nil}
     elseif event.subtype == "HEAL" then
-        fly_direction = (unit == "player") and "left" or "up"
         args = {FLYTEXT_HEAL_DIRECT, unit, event.spell_id,
                 event.spell_school, event.amount, event.critical}
     elseif event.subtype == "PERIODIC_HEAL" then
@@ -544,12 +538,12 @@ function FlyTextManager:OnCombatLogEvent(event)
     end
     if not is_aura and self.last_aura_set then
         for aura_args in self.last_aura_set do
-            self:AddText(aura_args, false)
+            self:AddText(aura_args)
         end
         self.last_aura_set = nil
     end
     if args then
-        self:AddText(args, fly_direction)
+        self:AddText(args)
     end
 end
 
@@ -768,7 +762,7 @@ function FlyTextManager:OnPlayerMoney()
     end
 end
 
-function FlyTextManager:AddText(args, direction)
+function FlyTextManager:AddText(args)
     -- For scrolling text, if we have events in rapid sequence on the same
     -- target, push preceding events away to avoid overlap.
     local type, unit = unpack(args)
@@ -814,21 +808,21 @@ end
 function FlyTextManager:OnUpdate()
     if self.last_aura_set then
         for aura_args in self.last_aura_set do
-            self:AddText(aura_args, false)
+            self:AddText(aura_args)
         end
         self.last_aura_set = nil
     end
 
     if self.dot then
         for unit, amount in pairs(self.dot) do
-            self:AddText({FLYTEXT_DAMAGE_PASSIVE, unit, amount}, false)
+            self:AddText({FLYTEXT_DAMAGE_PASSIVE, unit, amount})
         end
         self.dot = nil
     end
 
     if self.hot then
         for unit, amount in pairs(self.hot) do
-            self:AddText({FLYTEXT_HEAL_PASSIVE, unit, amount}, true)
+            self:AddText({FLYTEXT_HEAL_PASSIVE, unit, amount})
         end
         self.hot = nil
     end
