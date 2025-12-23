@@ -476,9 +476,11 @@ function FlyTextManager:OnCombatLogEvent(event)
     end
 
     -- Determine which unit this event belongs to.
+    local source = event.source
+    local dest = event.dest
     local unit
-    if unit == UnitGUID("player") or (UnitInVehicle("player")
-                                      and unit == UnitGUID("vehicle")) then
+    if dest == UnitGUID("player") or (UnitInVehicle("player")
+                                      and dest == UnitGUID("vehicle")) then
         -- If the player is in a vehicle and the event targets the vehicle,
         -- we treat that as player text.  Note that this can cause
         -- surprising effects if the player is grabbed by a boss, because
@@ -490,8 +492,8 @@ function FlyTextManager:OnCombatLogEvent(event)
         -- For events affecting other units, we only draw text if the
         -- event was initiated by the player.  (FIXME: consider also
         -- "ally -> in-combat enemy" and "any -> ally")
-        if event.source == UnitGUID("player") then
-            unit = UnitTokenFromGUID(event.dest)
+        if source == UnitGUID("player") then
+            unit = UnitTokenFromGUID(dest)
         end
         if not unit then
             return  -- Filtered, or unit has no associated token.
