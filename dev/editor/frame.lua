@@ -385,14 +385,18 @@ function EditorFrame:SaveFile(path)
     local fd = FS.Open(path, FS.OPEN_TRUNCATE)
     if not fd then
         self:SetCommandText(strformat("Unable to open file: %s", path))
-    elseif not FS.Write(fd, self.buffer:GetText()) then
-        self:SetCommandText(strformat("Writing to %s failed", path))
     else
-        self:SetCommandText(strformat("Wrote %s", path))
-        self.buffer:ClearDirty()
-        self.filepath = path
-        self.name = strmatch(path, "([^/]+)$") or path
-        self:UpdateTitle()
+        local ok = FS.Write(fd, self.buffer:GetText())
+        FS.Close(fd)
+        if not ok then
+            self:SetCommandText(strformat("Writing to %s failed", path))
+        else
+            self:SetCommandText(strformat("Wrote %s", path))
+            self.buffer:ClearDirty()
+            self.filepath = path
+            self.name = strmatch(path, "([^/]+)$") or path
+            self:UpdateTitle()
+        end
     end
 end
 
