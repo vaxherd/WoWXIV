@@ -172,6 +172,9 @@ local FramePool = class()
 module.FramePool = FramePool
 
 function FramePool:__constructor(managed_class)
+    assert(managed_class ~= nil, "Managed class must be provided")
+    assert(type(managed_class) == "table", "Wrong type for managed_class")
+
     -- We don't localize this at file scope to avoid unnecessary
     -- load-order dependencies.
     local set = module.set
