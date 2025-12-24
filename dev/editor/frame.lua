@@ -655,10 +655,10 @@ function EditorFrame:close_CommandText()
             self.close_error_timeout = nil
         end
     elseif self.close_state == "confirm-save" then
-        s = "Save changes? (y or n)"
+        s = "Save changes? (y or n) "
     else
         assert(self.close_state == "confirm-quit")
-        s = "File is modified; close anyway? (y or n)"
+        s = "File is modified; close anyway? (y or n) "
     end
     return s, #s
 end
@@ -690,6 +690,7 @@ function EditorFrame:HandleCommandInput_close(input, arg)
     elseif input == "CHAR" and arg == "n" then
         if self.close_state == "confirm-save" then
             self.close_state = "confirm-quit"
+            self:SetCommandText(self:close_CommandText())
         else
             assert(self.close_state == "confirm-quit")
             self:ClearCommand()
