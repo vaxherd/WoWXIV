@@ -6,7 +6,7 @@
        and OnLeave handlers). -->
   <Frame name="WoWXIV_EditorFrameTemplate" virtual="true" frameStrata="HIGH" frameLevel="9000" parent="UIParent" enableMouse="true" enableKeyboard="false" propagateKeyboardInput="false" movable="true" dontSavePosition="true">
 
-    <size x="759" y="478"/>
+    <size x="759" y="473"/>
     <Anchors>
       <Anchor point="CENTER" y="100"/>
     </Anchors>
@@ -31,8 +31,8 @@
           <TextureSliceMode mode="Stretched"/>
           <Size y="16"/>
           <Anchors>
-            <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" x="5" y="37"/>
-            <Anchor point="TOPRIGHT" relativePoint="BOTTOMRIGHT" x="-2" y="37"/>
+            <Anchor point="TOPLEFT" relativePoint="BOTTOMLEFT" x="5" y="36"/>
+            <Anchor point="TOPRIGHT" relativePoint="BOTTOMRIGHT" x="-2" y="36"/>
           </Anchors>
         </Texture>
       </Layer>
@@ -82,7 +82,7 @@
       <Frame parentKey="TextView">
         <Anchors>
           <Anchor point="TOPLEFT" x="20" y="-26"/>
-          <Anchor point="BOTTOMRIGHT" x="-5" y="41"/>
+          <Anchor point="BOTTOMRIGHT" x="-5" y="36"/>
         </Anchors>
         <Frames>
           <EventFrame parentKey="ScrollBar" inherits="MinimalScrollBar">

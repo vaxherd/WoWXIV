@@ -1083,7 +1083,7 @@ function Buffer:InitScrollBar()
     scrollbar.Forward:Hide()
     scrollbar.Track:ClearAllPoints()
     scrollbar.Track:SetPoint("TOP")
-    scrollbar.Track:SetPoint("BOTTOM")
+    scrollbar.Track:SetPoint("BOTTOM", 0, -2)  -- Fill the space a bit better.
 
     -- Override default scroll bar behavior to always display the thumb
     -- widget even when it covers the entire track.
