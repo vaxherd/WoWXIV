@@ -1183,7 +1183,6 @@ function Buffer:RefreshView(recenter)
             local top_limit = #self.strings - bottom_ofs
             top_string = max(1, min(top_limit, focus_s - floor(bottom_ofs/2)))
             assert(top_string >= 1)
-            assert(top_string + bottom_ofs <= #self.strings)
             self.top_string = top_string
         end
     end
