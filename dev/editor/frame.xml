@@ -51,10 +51,10 @@
             </Anchors>
             <Scripts>
               <OnLoad>self:RegisterForDrag("LeftButton")</OnLoad>
-              <OnDragStart>self:GetParent():GetParent():OnTitleDragStart()</OnDragStart>
-              <OnDragStop>self:GetParent():GetParent():OnTitleDragStop()</OnDragStop>
               <OnEnter>self:GetParent():GetParent():OnEnter()</OnEnter>
               <OnLeave>self:GetParent():GetParent():OnLeave()</OnLeave>
+              <OnMouseDown>self:GetParent():GetParent():OnTitleMouseDown(button)</OnMouseDown>
+              <OnMouseUp>self:GetParent():GetParent():OnTitleMouseUp(button)</OnMouseUp>
             </Scripts>
           </Frame>
         </Frames>

@@ -118,6 +118,8 @@ function EditorFrame:OnAcquire()
     -- Timeout for displaying the current prefix in the command line.
     self.prefix_timeout = nil
 
+    -- Are we currently being dragged?
+    self.is_moving = false
     -- Are we currently in an OnUpdate() call?
     self.in_update = false
     -- Was Close() called during the current OnUpdate() call?
@@ -127,7 +129,6 @@ function EditorFrame:OnAcquire()
     self.filepath = nil
     self.buffer:SetText("")
     self:UpdateTitle()
-    self:SetFocused(self:IsMouseOver())
 end
 
 function EditorFrame:OnRelease()
@@ -141,6 +142,7 @@ end
 -- Pass in the EditorManager reference.
 function EditorFrame:Init(manager)
     self.manager = manager
+    self:SetFocused(self:IsMouseOver())
 end
 
 
@@ -152,7 +154,7 @@ end
 
 function EditorFrame:OnLeave()
     -- If the user is dragging, keep focus as long the mouse button is down.
-    if not self.drag_select then
+    if not (self.is_moving or self.drag_select) then
         self:SetFocused(false)
     end
 end
@@ -197,6 +199,9 @@ function EditorFrame:OnMouseDown(button)
             self:OnBufferStateChange()
             self.drag_select = true
         end
+        -- This raise call is properly the purview of the window manager,
+        -- but we're not worrying about those details for now.
+        self.manager:RaiseFrame(self)
     end
 end
 
@@ -219,12 +224,24 @@ function EditorFrame:OnMouseWheel(delta)
     self.TextView.ScrollBar:ScrollStepInDirection(-delta)
 end
 
-function EditorFrame:OnTitleDragStart()
-    self:StartMoving()
+function EditorFrame:OnTitleMouseDown(button)
+    if button == "LeftButton" then
+        self.manager:RaiseFrame(self)
+        -- We immediately start dragging on mouse-down because the
+        -- DragStart event is noticeably delayed.
+        self:StartMoving()
+        self.is_moving = true
+    end
 end
 
-function EditorFrame:OnTitleDragStop()
-    self:StopMovingOrSizing()
+function EditorFrame:OnTitleMouseUp(button)
+    if button == "LeftButton" and self.is_moving then
+        self:StopMovingOrSizing()
+        self.is_moving = false
+        if not self:IsMouseOver() then
+            self:SetFocused(false)
+        end
+    end
 end
 
 function EditorFrame:OnUpdate()
@@ -553,6 +570,7 @@ function EditorFrame:Close()
         self.pending_close = true
         return
     end
+    self:SetFocused(false)
     self.manager:CloseFrame(self)
 end
 

@@ -235,3 +235,15 @@ function FramePool:ReleaseAll()
     end
     self.used:clear()
 end
+
+-- Return the number of frames currently acquired.
+function FramePool:NumAcquired()
+    return #self.used
+end
+
+-- Return the number of frames currently available for reuse.
+-- NumAcquired() + NumAvailable() gives the total number of frames
+-- currently allocated in this frame pool.
+function FramePool:NumAvailable()
+    return #self.free
+end
