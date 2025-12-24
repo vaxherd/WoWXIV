@@ -398,6 +398,7 @@ function EditorFrame:SetFocused(focused)
         if not self.focused then
             if self.keys then  -- Check in case we were closed.
                 self.keys:clear()
+                self.repeat_delay = nil
             end
         end
     end)
