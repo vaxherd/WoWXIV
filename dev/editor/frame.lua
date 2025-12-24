@@ -385,10 +385,12 @@ function EditorFrame:SetFocused(focused)
     self.now = GetTime()
     if focused then
         self:SetScript("OnUpdate", self.OnUpdate)
+        self.cursor_timer = 0
     else
         self:SetScript("OnUpdate", nil)
         SetCursor(nil)
         self.buffer:SetShowCursor(false)
+        self.command_cursor:Hide()
     end
 
     -- We'll get paired leave/enter events if the cursor moves from one UI
