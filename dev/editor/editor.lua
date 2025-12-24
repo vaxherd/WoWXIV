@@ -17,6 +17,9 @@ local strsub = string.sub
 -- Editor frame manager
 ---------------------------------------------------------------------------
 
+-- Global editor manager instance.
+local manager
+
 local EditorManager = class()
 
 function EditorManager:__constructor()
@@ -24,9 +27,19 @@ function EditorManager:__constructor()
     self.framepool = FramePool(Editor.EditorFrame)
 end
 
--- Open a new frame for the given file path (nil to not associate a path
--- with the frame).  If the pathname is relative, it is taken to be
--- relative to the addon root.
+-- Create the global editor manager instance.
+function EditorManager.Init()
+    manager = EditorManager()
+end
+
+-- Return the global editor manager instance.
+function EditorManager.Get()
+    return manager
+end
+
+-- Open and return a new frame for the given file path (nil to not
+-- associate a path with the frame).  If the pathname is relative, it is
+-- taken to be relative to the addon root.
 function EditorManager:OpenFrame(path)
     assert(path == nil or type(path) == "string")
     local f = self.framepool:Acquire()
@@ -37,10 +50,12 @@ function EditorManager:OpenFrame(path)
         end
         f:LoadFile(path)
     end
+    return f
 end
 
 -- If a frame is already open for the given file path (which must not be
--- nil), focus that frame; otherwise, open a new frame for the path.
+-- nil), focus that frame and return it; otherwise, open and return a new
+-- frame for the path.
 function EditorManager:FindOrOpenFrame(path)
     assert(type(path) == "string")
     if strsub(path, 1, 1) ~= "/" then
@@ -49,7 +64,7 @@ function EditorManager:FindOrOpenFrame(path)
     for f in self.framepool do
         if f:GetFilePath() == path then
             f:Focus()
-            return
+            return f
         end
     end
     return self:OpenFrame(path)
@@ -67,12 +82,9 @@ end
 -- Top-level editor interface
 ---------------------------------------------------------------------------
 
--- Global editor manager instance.
-local manager
-
 -- Initialize the editor system.
 function Editor.Init()
-    manager = EditorManager()
+    EditorManager.Init()
 end
 
 -- Open a new, empty editor frame.
@@ -87,4 +99,9 @@ end
 function Editor.Open(path)
     assert(path, "path is required")
     manager:FindOrOpenFrame(path)
+end
+
+-- Open a new, empty editor frame for Lua interaction.
+function Editor.NewLuaInteraction()
+    Editor.LuaInt.InitFrame(manager:OpenFrame(nil))
 end

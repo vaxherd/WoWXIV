@@ -90,6 +90,40 @@ function Buffer:GetText()
     return text
 end
 
+-- Return the text content of the current region as a string.  Returns nil
+-- if there is no region.
+function Buffer:GetRegionText()
+    local s1, c1, s2, c2 = self:GetRegion()
+    if not s1 then
+        return nil
+    end
+    if s1 == s2 then
+        return strsub(self.strings[s1], c1+1, c2)
+    end
+    local text = strsub(self.strings[s1], c1+1)
+    local line = self:StringToLinePos(s1, c1)
+    for s = s1+1, s2 do
+        if line < #self.line_map and s == self.line_map[line+1] then
+            text = text .. "\n"
+            line = line+1
+        end
+        text = text .. strsub(self.strings[s], 1, s==s2 and c2 or nil)
+    end
+    return text
+end
+
+-- Return the text content of the specified line (the cursor's line if
+-- |line| is omitted).  The trailing newline, if any, is excluded from the
+-- returned text.
+function Buffer:GetLineText(line)
+    line = max(1, min(#self.line_map, line or self.cur_line))
+    local text = ""
+    for s = self.line_map[line], self:LastStringForLine(line) do
+        text = text .. self.strings[s]
+    end
+    return text
+end
+
 -- Replace the entire text of the buffer with the given string.  The
 -- cursor is set to the beginning of the buffer, the mark is cleared,
 -- and the buffer is marked not dirty.
@@ -266,6 +300,21 @@ function Buffer:MoveMark(dir)
     end
     self:SetMarkPosInternal(self:ApplyMovement(line, col, dir))
     self:RefreshView()
+end
+
+-- If there is a region and the cursor is at the beginning (rather than
+-- the end) of the region, swap the cursor and mark positions; otherwise,
+-- do nothing.
+function Buffer:MoveCursorToEndOfRegion()
+    if self.mark_line then
+        if self.mark_line > self.cur_line
+        or (self.mark_line == self.cur_line and self.mark_col > self.cur_col)
+        then
+            self.cur_line, self.mark_line = self.mark_line, self.cur_line
+            self.cur_col, self.mark_col = self.mark_col, self.cur_col
+            self:RefreshView()
+        end
+    end
 end
 
 

@@ -49,6 +49,11 @@ function EditorShortcutButton:OnClick()
     Dev.Editor.New()
 end
 
+local LuaIntShortcutButton = ShortcutButton.Subclass("LuaInteraction", "L")
+function LuaIntShortcutButton:OnClick()
+    Dev.Editor.NewLuaInteraction()
+end
+
 ---------------------------------------------------------------------------
 -- Top-level interface for the development environment
 ---------------------------------------------------------------------------
@@ -62,4 +67,5 @@ function Dev.Init()
     Dev.Editor.Init()
     Dev.FS.Init()
     shortcut_frames:add(EditorShortcutButton())
+    shortcut_frames:add(LuaIntShortcutButton())
 end

@@ -35,6 +35,9 @@ local CURSOR_BLINK_PERIOD = 1.0
 local EditorFrame = class(Frame)
 Editor.EditorFrame = EditorFrame
 
+
+-------- Constructor and related functions
+
 function EditorFrame:__allocator()
     return __super("Frame", nil, UIParent, "WoWXIV_EditorFrameTemplate")
 end
@@ -109,7 +112,7 @@ function EditorFrame:OnAcquire()
     -- pressed key (with modifiers), and translated character (nil if none)
     -- as arguments.  Keys with no bound handler but a translated character
     -- are inserted directly into the buffer.
-    self.keymap = self:GetDefaultKeymap()
+    self.keymap = WoWXIV.deepcopy(self:GetDefaultKeymap())
     -- List of prefix keys input so far in the current input sequence.
     self.prefix_keys = list()
     -- Timeout for displaying the current prefix in the command line.
@@ -396,6 +399,9 @@ end
 
 -------- File access
 
+-- Load the given file into the buffer.  If the path does not exist, assume
+-- it is a new file to be created and empty the buffer.
+-- On error, the pathname associated with the frame (if any) is not changed.
 function EditorFrame:LoadFile(path)
     local stat = FS.Stat(path)
     local ok
@@ -419,6 +425,9 @@ function EditorFrame:LoadFile(path)
     end
 end
 
+-- Save the buffer to the given pathname.  If |path| is omitted, the
+-- pathname associated with the frame is used; it is an error if the
+-- frame also has no associated pathname.
 -- Returns true on success, false on error.
 function EditorFrame:SaveFile(path)
     path = path or self.filepath
@@ -454,8 +463,38 @@ function EditorFrame:SetMark()
     self:SetCommandText("Mark set")
 end
 
+-- Set a key binding for the current editor frame.
+-- |keyseq| is either a single key (see the description of self.keymap) of
+-- list of keys for a multi-key sequence.  If a key previously assigned as
+-- a prefix (e.g. C-X in the default keymap) is bound directly, all
+-- bindings using that prefix are deleted; conversely, using a bound key
+-- in a sequence prefix deletes that existing binding.
+-- |func| is the function to call when the key sequence is pressed.  The
+-- function receives the EditorFrame instance, the name of the last key
+-- pressed (with any modifiers prepended), and the translated character
+-- (nil if the key has no text equivalent).
+function EditorFrame:BindKey(keyseq, func)
+    if type(keyseq) == "string" then
+        keyseq = {keyseq}
+    else
+        assert(type(keyseq) == "table", "keyseq must be a string or table")
+        assert(#keyseq > 0, "keyseq must not be an empty list")
+    end
+    assert(type(func) == "function", "func must be a function")
+    local parent = self.keymap
+    for i = 1, #keyseq-1 do
+        local key = keyseq[i]
+        if type(parent[key]) ~= "table" then
+            parent[key] = {}
+        end
+        parent = parent[key]
+    end
+    parent[keyseq[#keyseq]] = func
+end
+
 -- Set the file path for this frame, and update the frame name appropriately.
 function EditorFrame:SetFilePath(path)
+    assert(type(path) == "string", "path must be a string")
     self.filepath = path
     self.name = strmatch(path, "([^/]+)$") or path
     self:UpdateTitle()
@@ -464,6 +503,30 @@ end
 -- Return the file path associated with this frame, or nil if none.
 function EditorFrame:GetFilePath()
     return self.filepath
+end
+
+-- Set the name for this frame.  Overrides any name set from the file path.
+function EditorFrame:SetName(name)
+    assert(type(name) == "string", "name must be a string")
+    self.name = name
+end
+
+-- Set the buffer text for this frame.  If |move_to_end| is true, also
+-- move the cursor to the end of the text; otherwise, leave it at the
+-- beginning.  To avoid data loss, this function can only be used when
+-- the frame has no associated file and its buffer is clean (unedited).
+function EditorFrame:SetText(text, move_to_end)
+    assert(type(text) == "string", "text must be a string")
+    if self.filepath then
+        error("Cannot be used when frame has an associated file")
+    end
+    if self.buffer:IsDirty() then
+        error("Cannot be used when frame's buffer is dirty")
+    end
+    self.buffer:SetText(text)
+    if move_to_end then
+        self.buffer:MoveCursor("C-END")
+    end
 end
 
 -- Focus this editor window until the next time the mouse enters and leaves

@@ -752,6 +752,35 @@ function WoWXIV.maptn(func, range, ...)
     return result
 end
 
+-- Return a deep copy of the given table, i.e. a new table containing
+-- all keys and values in the original table, where any values of table
+-- type are likewise deep copies of the original values.  Keys are
+-- treated as opaque; table-valued keys will be shallow-copied to
+-- preserve key identity.
+-- The function raises an error if any circular references are detected.
+local _deepcopy
+function WoWXIV.deepcopy(t)
+    return _deepcopy(t, set(t))
+end
+--[[local]] function _deepcopy(t, cache)
+    local result = {}
+    for k, v in pairs(t) do
+        if cache:has(k) then
+            error("Recursive key reference to "..tostring(k))
+        end
+        if type(v) ~= "table" then
+            result[k] = v
+        else
+            if cache:has(v) then
+                error("Recursive value reference to "..tostring(v))
+            end
+            cache:add(v)
+            result[k] = _deepcopy(v, cache)
+        end
+    end
+    return result
+end
+
 ------------------------------------------------------------------------
 -- Function wrapping operations
 ------------------------------------------------------------------------
