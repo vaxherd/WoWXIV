@@ -63,6 +63,7 @@ function Buffer:__constructor(view)
     self.mark_line = nil        -- Second endpoint of selection, nil if none.
     self.mark_col = nil
     self.mark_active = false    -- True to highlight the region.
+    self.mark_active_on_move = false  -- See notes at SetMarkActive().
     self.top_string = 1         -- Index of the topmost displayed string.
     self.linepool_free = set()  -- Pool of created but unused FontStrings.
     self.linepool_used = set()  -- FontStrings which are currently in used.
@@ -200,20 +201,21 @@ function Buffer:SetMarkPos(line, col, active)
            "col must be nil or a nonnegative integer")
     local clamped_line = min(line, #self.line_map)
     local clamped_col = min(col, self:LineLength(clamped_line))
-    self:SetMarkPosInternal(clamped_line, clamped_col)
-    self.mark_active = not not active  -- Force to boolean.
+    self:SetMarkPosInternal(clamped_line, clamped_col, active, false)
     self:RefreshView()
 end
 
--- Activate or deactivate the mark without moving it.
-function Buffer:SetMarkActive(active)
+-- Activate or deactivate the mark without moving it.  If |active_on_move|
+-- is true, the mark will remain active even through cursor movement via
+-- MoveCursor() (but not other cursor movement).
+function Buffer:SetMarkActive(active, active_on_move)
     self.mark_active = not not active  -- Force to boolean.
+    self.mark_active_on_move = not not active_on_move
 end
 
 -- Clear the buffer's mark.
 function Buffer:ClearMark()
-    self:SetMarkPosInternal(nil, nil)
-    self.mark_active = false
+    self:SetMarkPosInternal(nil, nil, false, false)
 end
 
 -- Set the cursor position based on graphical coordinates (such as from a
@@ -250,8 +252,7 @@ function Buffer:SetMarkPosFromMouse(x, y, active)
     end
     if line ~= compare_line or col ~= compare_col or active ~= self.mark_active
     then
-        self:SetMarkPosInternal(line, col)
-        self.mark_active = active
+        self:SetMarkPosInternal(line, col, active, false)
         self:RefreshView()
     end
 end
@@ -284,8 +285,12 @@ end
 -- Move the cursor in the specified manner.  |dir| is a directional key
 -- name with optional Emacs-style modifier prefix.
 function Buffer:MoveCursor(dir)
+    local stay_active = self.mark_active and self.mark_active_on_move
     self:SetCursorPosInternal(
         self:ApplyMovement(self.cur_line, self.cur_col, dir))
+    if stay_active then
+        self:SetMarkActive(true, true)
+    end
     self:RefreshView()
 end
 
@@ -493,7 +498,7 @@ function Buffer:InsertText(text)
         end
     end
     self.cur_line = line
-    self:SetMarkPosInternal(nil, nil)
+    self:SetMarkPosInternal(nil, nil, false, false)
     self:ValidateStrings()
 
     self:SetDirty()
@@ -545,7 +550,7 @@ function Buffer:DeleteChar(forward)
         end
     end
 
-    self:SetMarkPosInternal(nil, nil)
+    self:SetMarkPosInternal(nil, nil, false, false)
     self:SetDirty()
     self:RefreshView()
 end
@@ -611,7 +616,7 @@ function Buffer:DeleteRegion()
     end
     self:ValidateStrings()
 
-    self:SetMarkPosInternal(nil, nil)
+    self:SetMarkPosInternal(nil, nil, false, false)
     self:SetDirty()
     self:RefreshView()
     return text
@@ -664,14 +669,13 @@ function Buffer:Search(str, as_pattern, match_case, forward, highlight)
         self:SetCursorPosInternal(self:IndexToLinePos(cursor_index))
         if highlight then
             local line, col = self:IndexToLinePos(mark_index)
-            self:SetMarkPosInternal(line, col)
-            self.mark_active = true
+            self:SetMarkPosInternal(line, col, true, false)
         end
         self:RefreshView()
         return true
     else
         if highlight then
-            self.mark_active = false
+            self:SetMarkActive(false, false)
             self:RefreshView()
         end
         return false
@@ -722,12 +726,20 @@ end
 function Buffer:SetCursorPosInternal(line, col)
     self.cur_line, self.cur_col = line, col
     self.mark_active = false
+    self.mark_active_on_move = false
 end
 
--- Set the mark position to the given (logical) line and column.
+-- Set the mark position to the given (logical) line and column, and
+-- optionally set the mark activation flags (only set if non-nil).
 -- Pass nil to clear the mark.
-function Buffer:SetMarkPosInternal(line, col)
+function Buffer:SetMarkPosInternal(line, col, active, active_on_move)
     self.mark_line, self.mark_col = line, col
+    if active ~= nil then
+        self.mark_active = not not active  -- Force to boolean.
+    end
+    if active_on_move ~= nil then
+        self.mark_active_on_move = not not active_on_move
+    end
 end
 
 -- Apply movement action |action| to position |line|,|col| and return the

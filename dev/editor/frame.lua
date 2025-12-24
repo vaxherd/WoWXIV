@@ -117,6 +117,9 @@ function EditorFrame:OnAcquire()
     self.prefix_keys = list()
     -- Timeout for displaying the current prefix in the command line.
     self.prefix_timeout = nil
+    -- Modified name of the previously pressed key.  Key handlers can use
+    -- this to detect repeated presses of a key.
+    self.prev_key = ""
 
     -- Are we currently being dragged?
     self.is_moving = false
@@ -376,6 +379,7 @@ function EditorFrame:HandleKey(key, ch)
             self.buffer:InsertChar(ch)
         end
     end
+    self.prev_key = keyname
 end
 
 function EditorFrame:SetFocused(focused)
@@ -1439,6 +1443,7 @@ end
 function EditorFrame:HandleCancel()
     if not self:HandleCommandInput("CANCEL") then
         self:ClearCommand()
+        self.buffer:SetMarkActive(false)
         self:SetCommandText("Quit")
     end
 end
@@ -1589,9 +1594,12 @@ function EditorFrame:HandleSelectionKey(key)
     self.buffer:MoveMark(strsub(key, 3))
 end
 
-function EditorFrame:HandleSetMark()
-    -- FIXME: handle mark activation
+function EditorFrame:HandleSetMark(key)
     self:SetMark()
+    if key == self.prev_key then
+        self.buffer:SetMarkActive(true, true)
+        self:SetCommandText("Mark activated")
+    end
 end
 
 function EditorFrame:HandleSwapMark()
