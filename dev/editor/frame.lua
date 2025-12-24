@@ -591,27 +591,60 @@ end
 
 
 -- Display the given text on the command line.  The text will be cleared
--- on the next key input.  If |cursor_pos| is not nil, the cursor will be
--- displayed at that position in the text (and hidden from the buffer).
-function EditorFrame:SetCommandText(text, cursor_pos)
-    self.CommandLine.Text:SetText(strgsub(text, "|", "||"))
+-- on the next key input.  The command line is formatted as follows:
+--
+-- - If |text| is not nil, it will be displayed after |prefix|, and the
+--   cursor will be displayed at its end.
+--
+-- - If |suffix| is not nil, it will be displayed after |text|.
+--
+-- If the combined text extends past the width of the frame, it is
+-- truncated according to the following priority:
+--
+-- - If |prefix| extends past the width of the frame, it will be truncated
+--   at the end and neither |text| nor |suffix| will be displayed (but the
+--   cursor will be displayed at the end of the line if |text| is not nil).
+--
+-- - Otherwise, if |suffix| is not nil and the combination of |prefix| and
+--   |suffix| extends past the width of the frame, |suffix| will be
+--   truncated at the end and |text| will not be displayed.
+--
+-- - Otherwise, |text| will be truncated if necessary at the beginning.
+function EditorFrame:SetCommandText(prefix, text, suffix)
+    local limit =
+        floor((self.CommandLine.Text:GetWidth() + 0.5) / self.command_cell_w)
+    suffix = suffix or ""
+    local str, cursor_pos
+    if #prefix > limit then
+        str = strsub(prefix, 1, limit-3) .. "..."
+        cursor_pos = text and #str
+    elseif #(prefix..suffix) > limit then
+        str = strsub(prefix..suffix, 1, limit-3) .. "..."
+        cursor_pos = text and (#prefix > limit-3 and limit or #prefix)
+    else
+        limit = limit - #prefix - #suffix
+        if text then
+            if limit <= 3 then
+                text = strsub("...", 1, limit)
+            elseif #text > limit then
+                text = "..." .. strsub(text, (#text+1) - (limit-3))
+            end
+            str = prefix..text..suffix
+            cursor_pos = #(prefix..text)
+        else
+            str = prefix..suffix
+        end
+    end
+    self.CommandLine.Text:SetText(strgsub(str, "|", "||"))
     self.command_cursor_pos = cursor_pos
 end
 
 -- Clear any currently active command, then start processing for the given
--- command.  |command| is a token used to identify command-specific
--- processing methods:
---     StartCommand_|command|(...)  (performs initialization for the command)
---     EndCommand_|command|()  (performs finalization, called when cleared)
---     HandleCommandInput_|command|(...)  (implements HCI() for the command)
- -- Note that the command's StartCommand handler must return true for the
--- command to be activated.  Any additional arguments to this method are
--- passed directly to the handler.
-function EditorFrame:StartCommand(command, ...)
+-- command.  |command| is an instance of CommandHandler (or a subclass).
+function EditorFrame:StartCommand(command)
     self:ClearCommand()
-    local start_method = self["StartCommand_"..command]
-    if start_method and start_method(self, ...) then
-        self.command_state = command
+    if command:Start() then
+        self.command = command
     end
 end
 
@@ -620,12 +653,11 @@ end
 -- handler is called after clearing the command line text (so it can
 -- display a final status message if appropriate).
 function EditorFrame:ClearCommand()
-    local end_method =
-        self.command_state and self["EndCommand_" .. self.command_state]
-    self.command_state = nil
+    local command = self.command
+    self.command = nil
     self:SetCommandText("")
-    if end_method then
-        end_method(self)
+    if command then
+        command:End()
     end
 end
 
@@ -642,207 +674,134 @@ end
 --         store the deleted text in the kill buffer
 --     "YANK": insert the kill buffer text (if any) at the cursor
 -- Individual command handlers can also define their own inputs (see the
--- isearch handler for an example).
+-- incremental search handler for an example).
 function EditorFrame:HandleCommandInput(input, arg)
     local handler
-    if self.command_state then
-        handler = self["HandleCommandInput_" .. self.command_state]
+    if self.command then
+        return self.command:HandleInput(input, arg)
     end
-    return handler and handler(self, input, arg)
+end
+
+
+-------- Base classes for command implementations
+
+local CommandHandler = class()
+
+-- The default constructor accepts the EditorFrame instance and saves it
+-- in self.frame for subsequent use.
+function CommandHandler:__constructor(frame)
+    self.frame = frame
+end
+
+-- Start processing for the command.  If this method does not return true,
+-- the command is aborted (End() is not called in this case).
+function CommandHandler:Start()
+    return true
+end
+
+-- Handle an input event.  |input| and |arg| are as for
+-- EditorFrame:HandleCommandInput().  The input is considered consumed
+-- if the method returns true.
+function CommandHandler:HandleInput(input, arg)
+end
+
+-- Clean up when the command is terminated.
+function CommandHandler:End()
+end
+
+
+-- This subclass implements standard input handling for commands that
+-- accept a simple string entered on the command line.  The string is
+-- stored in self.input.
+local InputCommandHandler = class(CommandHandler)
+
+-- The constructor accepts an additional optional argument which
+-- specifies the prompt prepended to the input text on the command line.
+function InputCommandHandler:__constructor(frame, prompt)
+    __super(self, frame)
+    self.prompt = prompt or ""
+end
+
+function InputCommandHandler:Start()
+    self.input = ""
+    self:SetCommandText()
+    return true
+end
+
+function InputCommandHandler:HandleInput(input, arg)
+    if input == "CHAR" then
+        local ch = arg
+        self.input = self.input .. ch
+        self:SetCommandText()
+        return true
+    elseif input == "BACKSPACE" then
+        if #self.input > 0 then
+            self.input = strsub(self.input, 1, #self.input-1)
+        end
+        self:SetCommandText()
+        return true
+    elseif input == "ENTER" then
+        self.frame:ClearCommand()
+        self:ConfirmInput(self.input)
+        return true
+    end
+end
+
+-- Called to update the command line text.  The base implementation
+-- simply displays the prompt from the constructor followed by the
+-- current input text.
+function InputCommandHandler:SetCommandText()
+    self.frame:SetCommandText(self.prompt, self.input)
+end
+
+-- Called when the input is confirmed with Enter.  The command has already
+-- been cleared.
+function InputCommandHandler:ConfirmInput(input)
+end
+
+
+-- Variant of InputCommandHandler which handles absolute path input,
+-- treating a double slash as the beginning of a new absolute path and
+-- stripping the preceding text.
+local PathInputCommandHandler = class(InputCommandHandler)
+
+-- The default for path input is the directory containing the current
+-- file path if the frame has an associated file.
+function PathInputCommandHandler:Start()
+    self.input =
+        self.frame.filepath and strmatch(self.frame.filepath, "^(.*/)") or ""
+    self:SetCommandText()
+    return true
+end
+
+function PathInputCommandHandler:HandleInput(input, arg)
+    if input == "ENTER" then
+        self.frame:ClearCommand()
+        local path = strmatch(self.input, "^.*/(/.*)$") or self.input
+        self:ConfirmInput(path)
+        return true
+    else
+        return __super(self, input, arg)
+    end
+end
+
+function PathInputCommandHandler:SetCommandText()
+    local before, after = strmatch(self.input, "^(.*/)(/.*)$")
+    local s
+    if after then
+        s = strformat("{%s} %s", before, after)
+    else
+        s = self.input
+    end
+    self.frame:SetCommandText(self.prompt, s)
 end
 
 
 -------- Command-specific implementations
--------- (FIXME: yes, we should probably have a base class for these)
-
-function EditorFrame:close_CommandText()
-    local s
-    if self.close_error_timeout then
-        s = "Please enter y or n."
-        if GetTime() >= self.close_error_timeout then
-            self.close_error_timeout = nil
-        end
-    elseif self.close_state == "confirm-save" then
-        s = "Save changes? (y or n) "
-    else
-        assert(self.close_state == "confirm-quit")
-        s = "File is modified; close anyway? (y or n) "
-    end
-    return s, #s
-end
-
-function EditorFrame:StartCommand_close()
-    if self.buffer:IsDirty() then
-        self.close_state = "confirm-save"
-        self.close_error_timeout = nil
-        self:SetCommandText(self:close_CommandText())
-        return true
-    else
-        self:Close()
-        return false
-    end
-end
-
-function EditorFrame:HandleCommandInput_close(input, arg)
-    if input == "CHAR" and arg == "y" then
-        self:ClearCommand()
-        if self.close_state == "confirm-save" then
-            if self:SaveFile() then
-                self:Close()
-            end
-        else
-            assert(self.close_state == "confirm-quit")
-            self:Close()
-        end
-        return true
-    elseif input == "CHAR" and arg == "n" then
-        if self.close_state == "confirm-save" then
-            self.close_state = "confirm-quit"
-            self:SetCommandText(self:close_CommandText())
-        else
-            assert(self.close_state == "confirm-quit")
-            self:ClearCommand()
-        end
-        return true
-    elseif input ~= "CANCEL" then
-        self.close_error_timeout = GetTime() + 1
-        self:SetCommandText(self:close_CommandText())
-        return true
-    end
-end
-
-
-function EditorFrame:find_file_CommandText()
-    local before, after = strmatch(self.find_file_input, "^(.*/)(/.*)$")
-    local s
-    if after then
-        s = strformat("Find file: {%s} %s", before, after)
-    else
-        s = strformat("Find file: %s", self.find_file_input)
-    end
-    return s, #s
-end
-
-function EditorFrame:StartCommand_find_file()
-    self.find_file_input =
-        self.filepath and strmatch(self.filepath, "^(.*/)") or ""
-    self:SetCommandText(self:find_file_CommandText())
-    return true
-end
-
-function EditorFrame:HandleCommandInput_find_file(input, arg)
-    if input == "CHAR" then
-        local ch = arg
-        self.find_file_input = self.find_file_input .. ch
-        self:SetCommandText(self:find_file_CommandText())
-        return true
-    elseif input == "BACKSPACE" then
-        if #self.find_file_input > 0 then
-            self.find_file_input =
-                strsub(self.find_file_input, 1, #self.find_file_input-1)
-        end
-        self:SetCommandText(self:find_file_CommandText())
-        return true
-    elseif input == "ENTER" then
-        self:ClearCommand()
-        local path = (strmatch(self.find_file_input, "^.*/(/.*)$")
-                      or self.find_file_input)
-        if self.buffer:IsEmpty() and not self.buffer:IsDirty() then
-            self:LoadFile(path)
-        else
-            Editor.Open(path)
-        end
-        return true
-    end
-end
-
-
-function EditorFrame:goto_CommandText()
-    local s = "Goto line: " .. self.goto_input
-    return s, #s
-end
-
-function EditorFrame:StartCommand_goto()
-    self.goto_input = ""
-    self:SetCommandText(self:goto_CommandText())
-    return true
-end
-
-function EditorFrame:HandleCommandInput_goto(input, arg)
-    if input == "CHAR" then
-        local ch = arg
-        self.goto_input = self.goto_input .. ch
-        self:SetCommandText(self:goto_CommandText())
-        return true
-    elseif input == "BACKSPACE" then
-        if #self.goto_input > 0 then
-            self.goto_input =
-                strsub(self.goto_input, 1, #self.goto_input-1)
-        end
-        self:SetCommandText(self:goto_CommandText())
-        return true
-    elseif input == "ENTER" then
-        self:ClearCommand()
-        local line = tonumber(self.goto_input)
-        if line and line > 0 and line == floor(line) then
-            self:SetMark()
-            self.buffer:SetCursorPos(line, 0)
-        else
-            self:SetCommandText("Line number must be a positive integer")
-        end
-        return true
-    end
-end
-
-
-function EditorFrame:insert_file_CommandText()
-    local before, after = strmatch(self.insert_file_input, "^(.*/)(/.*)$")
-    local s
-    if after then
-        s = strformat("Find file: {%s} %s", before, after)
-    else
-        s = strformat("Find file: %s", self.insert_file_input)
-    end
-    return s, #s
-end
-
-function EditorFrame:StartCommand_insert_file()
-    self.insert_file_input =
-        self.filepath and strmatch(self.filepath, "^(.*/)") or ""
-    self:SetCommandText(self:insert_file_CommandText())
-    return true
-end
-
-function EditorFrame:HandleCommandInput_insert_file(input, arg)
-    if input == "CHAR" then
-        local ch = arg
-        self.insert_file_input = self.insert_file_input .. ch
-        self:SetCommandText(self:insert_file_CommandText())
-        return true
-    elseif input == "BACKSPACE" then
-        if #self.insert_file_input > 0 then
-            self.insert_file_input =
-                strsub(self.insert_file_input, 1, #self.insert_file_input-1)
-        end
-        self:SetCommandText(self:insert_file_CommandText())
-        return true
-    elseif input == "ENTER" then
-        self:ClearCommand()
-        local path = (strmatch(self.insert_file_input, "^.*/(/.*)$")
-                      or self.insert_file_input)
-        local data = FS.ReadFile(path)
-        if data then
-            self.buffer:InsertText(data)
-        else
-            self:SetCommandText(strformat("Failed to read file: %s", path))
-        end
-        return true
-    end
-end
-
 
 -- Convert the given Emacs regular expression |re| to a Lua pattern.
 -- Returns nil if the string is not a valid regular expression.
+-- Helper for the various regular expression search commands.
 local function RegexToPattern(re)
     local BASE = 0
     local ESCAPE = 1
@@ -989,289 +948,346 @@ local function RegexToPattern(re)
     end
 end
 
--- Helper to return the command line text for the current isearch state.
-function EditorFrame:isearch_CommandText(info)
+local CloseCommand = class(CommandHandler)
+
+function CloseCommand:SetCommandText()
+    local s
+    if self.error_timeout then
+        s = "Please enter y or n."
+        if GetTime() >= self.error_timeout then
+            self.error_timeout = nil
+        end
+    elseif self.state == "confirm-save" then
+        s = "Save changes? (y or n) "
+    else
+        assert(self.state == "confirm-quit")
+        s = "Buffer is modified; close anyway? (y or n) "
+    end
+    self.frame:SetCommandText(s, "")
+end
+
+function CloseCommand:Start()
+    if self.frame.buffer:IsDirty() then
+        self.state = "confirm-save"
+        self.error_timeout = nil
+        self:SetCommandText()
+        return true
+    else
+        self.frame:Close()
+        return false
+    end
+end
+
+function CloseCommand:HandleInput(input, arg)
+    if input == "CHAR" and arg == "y" then
+        self.frame:ClearCommand()
+        if self.state == "confirm-save" then
+            if self.frame:SaveFile() then
+                self.frame:Close()
+            end
+        else
+            assert(self.state == "confirm-quit")
+            self.frame:Close()
+        end
+        return true
+    elseif input == "CHAR" and arg == "n" then
+        if self.state == "confirm-save" then
+            self.state = "confirm-quit"
+            self:SetCommandText()
+        else
+            assert(self.state == "confirm-quit")
+            self.frame:ClearCommand()
+        end
+        return true
+    elseif input ~= "CANCEL" then
+        self.error_timeout = GetTime() + 1
+        self:SetCommandText()
+        return true
+    end
+end
+
+
+local FindFileCommand = class(PathInputCommandHandler)
+
+function FindFileCommand:__constructor(frame)
+    __super(self, frame, "Find file: ")
+end
+
+function FindFileCommand:ConfirmInput(path)
+    if self.frame.buffer:IsEmpty() and not self.frame.buffer:IsDirty() then
+        self.frame:LoadFile(path)
+    else
+        Editor.Open(path)
+    end
+end
+
+
+local GoToLineCommand = class(InputCommandHandler)
+
+function GoToLineCommand:__constructor(frame)
+    __super(self, frame, "Goto line: ")
+end
+
+function GoToLineCommand:ConfirmInput(input)
+    local line = tonumber(self.input)
+    if line and line > 0 and line == floor(line) then
+        self.frame:SetMark()
+        self.frame.buffer:SetCursorPos(line, 0)
+    else
+        self.frame:SetCommandText("Line number must be a positive integer")
+    end
+end
+
+
+local InsertFileCommand = class(PathInputCommandHandler)
+
+function InsertFileCommand:__constructor(frame)
+    __super(self, frame, "Insert file: ")
+end
+
+function InsertFileCommand:ConfirmInput(path)
+    local data = FS.ReadFile(path)
+    if data then
+        self.frame.buffer:InsertText(data)
+    else
+        self.frame:SetCommandText(strformat("Failed to read file: %s", path))
+    end
+end
+
+
+local IsearchCommand = class(CommandHandler)
+
+function IsearchCommand:__constructor(frame, forward, regex)
+    __super(self, frame)
+    self.forward = forward
+    self.regex = regex
+end
+
+function IsearchCommand:SetCommandText(info)
     local prompt = strformat("%s%s%sI-search%s: ",
-                             self.isearch_failing and "failing " or "",
-                             self.isearch_wrapped and "wrapped " or "",
-                             self.isearch_regex and "regexp " or "",
-                             self.isearch_forward and "" or " backward")
+                             self.frame.isearch_failing and "failing " or "",
+                             self.frame.isearch_wrapped and "wrapped " or "",
+                             self.frame.isearch_regex and "regexp " or "",
+                             self.frame.isearch_forward and "" or " backward")
     prompt = strsub(prompt,1,1):upper() .. strsub(prompt,2)
-    local suffix = info and " ["..info.."]" or ""
-    -- FIXME: handle command line overflow
-    local pre_cursor = prompt .. self.isearch_text
-    return pre_cursor .. suffix, #pre_cursor
+    local suffix = info and " ["..info.."]"
+    self.frame:SetCommandText(prompt, self.text, suffix)
 end
 
 -- Helper to update search state and set the command line.
-function EditorFrame:isearch_Update()
-    if #self.isearch_text > 0 then
+function IsearchCommand:Update()
+    if #self.text > 0 then
         local str
-        if self.isearch_regex then
-            str = RegexToPattern(self.isearch_text)
+        if self.regex then
+            str = RegexToPattern(self.text)
             if not str then
-                self:SetCommandText(
-                    self:isearch_CommandText("incomplete input"))
+                self:SetCommandText("incomplete input")
                 return
             end
         else
-            str = self.isearch_text
+            str = self.text
         end
-        if self.buffer:IsMarkActive() then
+        if self.frame.buffer:IsMarkActive() then
             -- If the mark is active, it implies we just edited the search
             -- text (since we clear the mark on start and on a "next match"
             -- input), so move the cursor to the mark (which is set at the
             -- opposite side of the match) and search again from the
             -- current match position.
-            self.buffer:SetCursorPos(self.buffer:GetMarkPos())
-            self.buffer:ClearMark()
+            self.frame.buffer:SetCursorPos(self.frame.buffer:GetMarkPos())
+            self.frame.buffer:ClearMark()
         end
         local highlight = true
-        self.isearch_failing = not self.buffer:Search(
-            str, self.isearch_regex, self.isearch_case,
-            self.isearch_forward, highlight)
-        if not self.isearch_failing then
-            self.isearch_last_success = self.isearch_text
+        self.failing = not self.frame.buffer:Search(str, self.regex, self.case,
+                                                    self.forward, highlight)
+        if not self.failing then
+            self.last_success = self.text
         end
     else
-        self.buffer:SetCursorPos(unpack(self.isearch_initial_cursor))
+        self.frame.buffer:SetCursorPos(unpack(self.initial_cursor))
     end
-    self:SetCommandText(self:isearch_CommandText())
+    self:SetCommandText()
 end
 
-function EditorFrame:StartCommand_isearch(forward, regex)
-    self.isearch_forward = forward
-    self.isearch_regex = regex
-    self.isearch_case = false
-    self.isearch_initial_cursor = {self.buffer:GetCursorPos()}
-    self.isearch_initial_mark = {self.buffer:GetMarkPos()}
-    self.isearch_text = ""
-    self.isearch_last_success = ""  -- Last successfully matched string.
-    self.isearch_failing = false
-    self.isearch_wrapped = false
+function IsearchCommand:Start()
+    self.case = false
+    self.initial_cursor = {self.frame.buffer:GetCursorPos()}
+    self.initial_mark = {self.frame.buffer:GetMarkPos()}
+    self.text = ""
+    self.last_success = ""  -- Last successfully matched string.
+    self.failing = false
+    self.wrapped = false
 
-    self.buffer:ClearMark()
-    self:SetCommandText(self:isearch_CommandText())
+    self.frame.buffer:ClearMark()
+    self:SetCommandText()
     return true
 end
 
-function EditorFrame:EndCommand_isearch()
-    if self.isearch_initial_cursor then
-        self.buffer:SetMarkPos(unpack(self.isearch_initial_cursor))
-        self:SetCommandText("Mark saved where search started")
+function IsearchCommand:End()
+    if self.initial_cursor then
+        self.frame.buffer:SetMarkPos(unpack(self.initial_cursor))
+        self.frame:SetCommandText("Mark saved where search started")
     end
 end
 
-function EditorFrame:HandleCommandInput_isearch(input, arg)
+function IsearchCommand:HandleInput(input, arg)
     if input == "CHAR" then
         local ch = arg
-        self.isearch_text = self.isearch_text .. ch
-        self:isearch_Update()
+        self.text = self.text .. ch
+        self:Update()
         return true
     elseif input == "BACKSPACE" then
-        if #self.isearch_text > 0 then
-            self.isearch_text =
-                strsub(self.isearch_text, 1, #self.isearch_text-1)
+        if #self.text > 0 then
+            self.text = strsub(self.text, 1, #self.text-1)
         end
-        self:isearch_Update()
+        self:Update()
         return true
     elseif input == "CANCEL" then
-        if self.isearch_failing then
-            self.isearch_text = self.isearch_last_success
-            self:isearch_Update()
+        if self.failing then
+            self.text = self.last_success
+            self:Update()
         else
-            self.buffer:SetCursorPos(unpack(self.isearch_initial_cursor))
-            self.buffer:SetMarkPos(unpack(self.isearch_initial_mark))
-            self.isearch_initial_cursor = nil  -- Don't set mark on EndCommand.
-            self:ClearCommand()
-            self:SetCommandText("Quit")
+            self.frame.buffer:SetCursorPos(unpack(self.initial_cursor))
+            self.frame.buffer:SetMarkPos(unpack(self.initial_mark))
+            self.initial_cursor = nil  -- Don't set mark on EndCommand.
+            self.frame:ClearCommand()
+            self.frame:SetCommandText("Quit")
         end
         return true
     elseif input == "ENTER" then
-        self:ClearCommand()
-        if self.isearch_text == "" then
-            self:StartCommand("search")
+        self.frame:ClearCommand()
+        if self.text == "" then
+            self.frame:StartCommand("search")
         end
         return true
     elseif input == "ISEARCH" then
         local forward = arg
-        if forward ~= self.isearch_forward then
-            self.isearch_forward = forward
-        elseif self.isearch_failing then
-            self.isearch_wrapped = true
-            self.buffer:MoveCursor(self.isearch_forward and "C-HOME" or "C-END")
+        if forward ~= self.forward then
+            self.forward = forward
+        elseif self.failing then
+            self.wrapped = true
+            self.frame.buffer:MoveCursor(self.forward and "C-HOME" or "C-END")
         end
-        self.buffer:ClearMark()
-        self:isearch_Update()
+        self.frame.buffer:ClearMark()
+        self:Update()
         return true
     elseif input == "ISEARCH_CASE" then
-        self.isearch_case = not self.isearch_case
-        local info = (self.isearch_case
-                      and "case sensitive" or "case insensitive")
-        self:SetCommandText(self:isearch_CommandText(info))
+        self.case = not self.case
+        local info = self.case and "case sensitive" or "case insensitive"
+        self:SetCommandText(info)
         return true
     end
 end
 
 
-function EditorFrame:replace_CommandText()
-    local prefix = self.replace_regex and "Replace regexp" or "Replace string"
-    if self.replace_from then
-        s = strformat("%s %s with: %s",
-                      prefix, self.replace_from, self.replace_input)
+local ReplaceCommand = class(InputCommandHandler)
+
+function ReplaceCommand:__constructor(frame, regex)
+    __super(self, frame, regex and "Replace regexp" or "Replace string")
+    self.regex = regex
+end
+
+function ReplaceCommand:Start()
+    __super(self)
+    self.from = nil
+    return true
+end
+
+function ReplaceCommand:SetCommandText()
+    local prompt
+    if self.from then
+        prompt = strformat("%s %s with: ", self.prompt, self.from)
     else
-        s = strformat("%s: %s", prefix, self.replace_input)
+        prompt = self.prompt .. ": "
     end
-    return s, #s
+    self.frame:SetCommandText(prompt, self.input)
 end
 
-function EditorFrame:StartCommand_replace(regex)
-    self.replace_regex = regex
-    self.replace_input = ""
-    self.replace_from = nil
-    self:SetCommandText(self:replace_CommandText())
-    return true
-end
-
-function EditorFrame:HandleCommandInput_replace(input, arg)
-    if input == "CHAR" then
-        local ch = arg
-        self.replace_input = self.replace_input .. ch
-        self:SetCommandText(self:replace_CommandText())
-        return true
-    elseif input == "BACKSPACE" then
-        if #self.replace_input > 0 then
-            self.replace_input =
-                strsub(self.replace_input, 1, #self.replace_input-1)
-        end
-        self:SetCommandText(self:replace_CommandText())
-        return true
-    elseif input == "ENTER" then
-        if not self.replace_from then
-            if self.replace_input == "" then
-                self:ClearCommand()
-            else
-                self.replace_from = self.replace_input
-                self.replace_input = ""
-                self:SetCommandText(self:replace_CommandText())
-            end
-            return true
-        end
-        self:ClearCommand()
-        local from, to
-        if self.replace_regex then
-            from = RegexToPattern(self.replace_from)
-            if not str then
-                self:SetCommandText("Invalid regexp")
-            end
-            to = self.replace_input:gsub("%%", "%%%%")
-                                   :gsub(to, "\\([0-9])", "%%%1")
+function ReplaceCommand:HandleInput(input, arg)
+    if input == "ENTER" and not self.from then
+        if self.input == "" then
+            self.frame:ClearCommand()
         else
-            from = self.replace_from
-            to = self.replace_input
-        end
-        if from and from ~= "" then
-            local cur_line, cur_col = self.buffer:GetCursorPos()
-            -- Unintended deviation from Emacs behavior: replacing does not
-            -- move the cursor to the location of the last replacement
-            -- (because Lua provides no easy way to get this without
-            -- iterating on the replacements one at a time).
-            local n_repl = self.buffer:Replace(from, to, self.replace_regex)
-            self:SetCommandText(strformat("Replaced %d occurrences", n_repl))
+            self.from = self.input
+            self.input = ""
+            self:SetCommandText()
         end
         return true
+    else
+        return __super(self, input, arg)
+    end
+end
+
+function ReplaceCommand:ConfirmInput(input)
+    local from, to
+    if self.regex then
+        from = RegexToPattern(self.from)
+        if not str then
+            self.frame:SetCommandText("Invalid regexp")
+        end
+        to = input:gsub("%%", "%%%%")
+                  :gsub("\\([0-9])", "%%%1")
+    else
+        from = self.from
+        to = input
+    end
+    if from and from ~= "" then
+        local cur_line, cur_col = self.frame.buffer:GetCursorPos()
+        -- Unintended deviation from Emacs behavior: replacing does not
+        -- move the cursor to the location of the last replacement
+        -- (because Lua provides no easy way to get this without
+        -- iterating on the replacements one at a time).
+        local n_repl = self.frame.buffer:Replace(from, to, self.regex)
+        self.frame:SetCommandText(strformat("Replaced %d occurrences", n_repl))
     end
 end
 
 
-function EditorFrame:save_to_CommandText()
-    local s = strformat("File to save in: %s", self.save_to_input)
-    return s, #s
+local SaveToCommand = class(PathInputCommandHandler)
+
+function SaveToCommand:__constructor(frame)
+    __super(self, frame, "File to save in: ")
 end
 
-function EditorFrame:StartCommand_save_to()
-    self.save_to_input = ""
-    self:SetCommandText(self:save_to_CommandText())
-    return true
-end
-
-function EditorFrame:HandleCommandInput_save_to(input, arg)
-    if input == "CHAR" then
-        local ch = arg
-        self.save_to_input = self.save_to_input .. ch
-        self:SetCommandText(self:save_to_CommandText())
-        return true
-    elseif input == "BACKSPACE" then
-        if #self.save_to_input > 0 then
-            self.save_to_input =
-                strsub(self.save_to_input, 1, #self.save_to_input-1)
-        end
-        self:SetCommandText(self:save_to_CommandText())
-        return true
-    elseif input == "ENTER" then
-        self:ClearCommand()
-        self:SaveFile(self.save_to_input)
-        return true
+function SaveToCommand:ConfirmInput(path)
+    if path ~= "" then
+        self.frame:SaveFile(path)
     end
 end
 
 
-function EditorFrame:search_CommandText()
-    local s = strformat(
-        "%s: %s", self.search_regex and "RE search" or "Search",
-        self.search_input)
-    return s, #s
+local SearchCommand = class(InputCommandHandler)
+
+function SearchCommand:__constructor(frame, regex)
+    __super(self, frame, regex and "RE search: " or "Search: ")
+    self.regex = regex
 end
 
-function EditorFrame:StartCommand_search(regex)
-    self.search_regex = regex
-    self.search_input = ""
-    self:SetCommandText(self:search_CommandText())
-    return true
-end
-
-function EditorFrame:HandleCommandInput_search(input, arg)
-    if input == "CHAR" then
-        local ch = arg
-        self.search_input = self.search_input .. ch
-        self:SetCommandText(self:search_CommandText())
-        return true
-    elseif input == "BACKSPACE" then
-        if #self.search_input > 0 then
-            self.search_input =
-                strsub(self.search_input, 1, #self.search_input-1)
+function SearchCommand:ConfirmInput(input)
+    local str
+    if self.regex then
+        str = RegexToPattern(self.input)
+        if not str then
+            self.frame:SetCommandText("Invalid regexp")
         end
-        self:SetCommandText(self:search_CommandText())
-        return true
-    elseif input == "ENTER" then
-        self:ClearCommand()
-        local str
-        if self.search_regex then
-            str = RegexToPattern(self.search_input)
-            if not str then
-                self:SetCommandText("Invalid regexp")
-            end
+    else
+        str = self.input
+    end
+    if str and str ~= "" then
+        local cur_line, cur_col = self.frame.buffer:GetCursorPos()
+        local has_case = (strfind(self.input, "%u") ~= nil)
+        local forward = true
+        local highlight = false
+        local found = self.frame.buffer:Search(
+            str, self.regex, has_case, forward, highlight)
+        if found then
+            -- Deliberate deviation from Emacs behavior: Set the mark on
+            -- a non-incremental search, to match i-search behavior.
+            self.frame.buffer:SetMarkPos(cur_line, cur_col)
+            self.frame:SetCommandText("Mark saved where search started")
         else
-            str = self.search_input
+            self.frame:SetCommandText(
+                strformat("Search failed: \"%s\"", self.input))
         end
-        if str and str ~= "" then
-            local cur_line, cur_col = self.buffer:GetCursorPos()
-            local has_case = (strfind(self.search_input, "%u") ~= nil)
-            local forward = true
-            local highlight = false
-            local found = self.buffer:Search(
-                str, self.search_regex, has_case, forward, highlight)
-            if found then
-                -- Deliberate deviation from Emacs behavior: Set the mark on
-                -- a non-incremental search, to match i-search behavior.
-                self.buffer:SetMarkPos(cur_line, cur_col)
-                self:SetCommandText("Mark saved where search started")
-            else
-                self:SetCommandText(strformat("Search failed: \"%s\"",
-                                              self.search_input))
-            end
-        end
-        return true
     end
 end
 
@@ -1365,7 +1381,7 @@ function EditorFrame:HandleCancel()
 end
 
 function EditorFrame:HandleClose()
-    self:StartCommand("close")
+    self:StartCommand(CloseCommand(self))
 end
 
 function EditorFrame:HandleDelete()
@@ -1383,22 +1399,20 @@ function EditorFrame:HandleEnter()
 end
 
 function EditorFrame:HandleFindFile()
-    self:StartCommand("find_file")
+    self:StartCommand(FindFileCommand(self))
 end
 
 function EditorFrame:HandleGoToLine()
-    self:StartCommand("goto")
+    self:StartCommand(GoToLineCommand(self))
 end
 
 function EditorFrame:HandleInsertFile()
-    self:StartCommand("insert_file")
+    self:StartCommand(InsertFileCommand(self))
 end
 
 function EditorFrame:HandleIsearch(forward, regex)
-    if self.command_state == "isearch" then
-        assert(self:HandleCommandInput("ISEARCH", forward))
-    else
-        self:StartCommand("isearch", forward, regex)
+    if not self:HandleCommandInput("ISEARCH", forward) then
+        self:StartCommand(IsearchCommand(self, forward, regex))
     end
 end
 
@@ -1460,7 +1474,7 @@ function EditorFrame:HandleRegexIsearchForward()
 end
 
 function EditorFrame:HandleReplace(regex)
-    self:StartCommand("replace", regex)
+    self:StartCommand(ReplaceCommand(self, regex))
 end
 
 function EditorFrame:HandleReplaceRegex()
@@ -1475,7 +1489,7 @@ function EditorFrame:HandleSaveFile()
     if not self.buffer:IsDirty() then
         self:SetCommandText("(No changes need to be saved)")
     elseif not self.filepath then
-        self:StartCommand("save_to")
+        self:StartCommand(SaveToCommand(self))
     else
         self:SaveFile()
     end
@@ -1491,7 +1505,7 @@ function EditorFrame:HandleSaveAndClose()
 end
 
 function EditorFrame:HandleSearch(regex)
-    self:StartCommand("search", regex)
+    self:StartCommand(SearchCommand(self, regex))
 end
 
 function EditorFrame:HandleSearchRegex()
