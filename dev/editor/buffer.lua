@@ -1129,7 +1129,7 @@ function Buffer:LayoutText(text)
             strings[s] = strsub(text, pos, pos+(wrap-1))
             pos = pos + wrap
         else
-            strings[s] = strsub(text, pos, eol)
+            strings[s] = strsub(text, pos, eol-1)
             pos = eol+1
             if lf then
                 line_map:append(s+1)
