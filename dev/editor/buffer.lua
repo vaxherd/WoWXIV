@@ -307,6 +307,21 @@ function Buffer:MoveMark(dir)
     self:RefreshView()
 end
 
+-- If there is a region and the cursor is at the end (rather than the
+-- beginning) of the region, swap the cursor and mark positions; otherwise,
+-- do nothing.
+function Buffer:MoveCursorToBeginningOfRegion()
+    if self.mark_line then
+        if self.mark_line < self.cur_line
+        or (self.mark_line == self.cur_line and self.mark_col < self.cur_col)
+        then
+            self.cur_line, self.mark_line = self.mark_line, self.cur_line
+            self.cur_col, self.mark_col = self.mark_col, self.cur_col
+            self:RefreshView()
+        end
+    end
+end
+
 -- If there is a region and the cursor is at the beginning (rather than
 -- the end) of the region, swap the cursor and mark positions; otherwise,
 -- do nothing.
@@ -564,6 +579,10 @@ function Buffer:DeleteRegion()
     end
     local l1 = self:StringToLinePos(s1, c1)
     local l2 = self:StringToLinePos(s2, c2)
+
+    -- Make sure the cursor ends up at the beginning of the region,
+    -- not some arbitrary distance past the deletion point.
+    self:MoveCursorToBeginningOfRegion()
 
     local text
     if s1 == s2 then
