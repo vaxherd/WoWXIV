@@ -454,7 +454,7 @@ function EditorFrame:LoadFile(path)
         self:SetCommandText("(New file)")
         ok = true
     elseif stat.is_dir then
-        self:SetCommandText("Pathname is a directory: %s", path)
+        self:SetCommandText(strformat("Pathname is a directory: %s", path))
     else
         local text = FS.ReadFile(path)
         if not text then
@@ -767,6 +767,16 @@ end
 -- stripping the preceding text.
 local PathInputCommandHandler = class(InputCommandHandler)
 
+-- Helper to split the input string at a double slash.
+local function SplitPathInput(input)
+    local before, after = strmatch(input, "^(.*/)(/.*)$")
+    if after then
+        return before, after
+    else
+        return nil, input
+    end
+end
+
 -- The default for path input is the directory containing the current
 -- file path if the frame has an associated file.
 function PathInputCommandHandler:Start()
@@ -779,23 +789,73 @@ end
 function PathInputCommandHandler:HandleInput(input, arg)
     if input == "ENTER" then
         self.frame:ClearCommand()
-        local path = strmatch(self.input, "^.*/(/.*)$") or self.input
+        local _, path = SplitPathInput(self.input)
         self:ConfirmInput(path)
         return true
+    elseif input == "TAB" then
+        local before, path = SplitPathInput(self.input)
+        before = before or ""
+        if strsub(path, 1, 1) ~= "/" then
+            self:SetCommandText("Path is not absolute")
+        else
+            local dir, name = strmatch(path, "^(.*/)(.*)$")
+            assert(name)
+            local entries = FS.ListDirectory(dir)  -- Trailing slash is fine.
+            if not entries then
+                self:SetCommandText("Directory not found")
+            else
+                local matches = list()
+                for _, entry in ipairs(entries) do
+                    if strsub(entry, 1, #name) == name then
+                        matches:append(entry)
+                    end
+                end
+                if #matches == 0 then
+                    self:SetCommandText("No match")
+                elseif #matches == 1 then
+                    local new_path = dir .. matches[1]
+                    local stat = FS.Stat(new_path)
+                    if stat and stat.is_dir then
+                        new_path = new_path .. "/"
+                    end
+                    self.input = before .. new_path
+                    local info
+                    if new_path == dir .. name then
+                        info = "Sole completion"
+                    end
+                    self:SetCommandText(info)
+                else
+                    matches:sort()
+                    local first, last = matches[1], matches[#matches]
+                    assert(first ~= last)
+                    local common_len = #name
+                    while strsub(first, 1, common_len+1) == strsub(last, 1, common_len+1) do
+                        common_len = common_len + 1
+                    end
+                    self.input = before .. dir .. strsub(first, 1, common_len)
+                    local info
+                    if common_len == #name then
+                        info = "Multiple completions"
+                    end
+                    self:SetCommandText(info)
+                end
+            end
+        end
     else
         return __super(self, input, arg)
     end
 end
 
-function PathInputCommandHandler:SetCommandText()
-    local before, after = strmatch(self.input, "^(.*/)(/.*)$")
+function PathInputCommandHandler:SetCommandText(info)
+    local before, after = SplitPathInput(self.input)
     local s
-    if after then
+    if before then
         s = strformat("{%s} %s", before, after)
     else
-        s = self.input
+        s = after
     end
-    self.frame:SetCommandText(self.prompt, s)
+    self.frame:SetCommandText(self.prompt, s,
+                              info and strformat(" [%s]", info))
 end
 
 
@@ -1299,9 +1359,10 @@ end
 function EditorFrame:GetDefaultKeymap()
     if not EditorFrame.DEFAULT_KEYMAP then
         EditorFrame.DEFAULT_KEYMAP = {
-            ["ENTER"] = EditorFrame.HandleEnter,
             ["BACKSPACE"] = EditorFrame.HandleBackspace,
             ["DELETE"] = EditorFrame.HandleDelete,
+            ["ENTER"] = EditorFrame.HandleEnter,
+            ["TAB"] = EditorFrame.HandleTab,
 
             ["F2"] = EditorFrame.HandleYank,
             ["F7"] = EditorFrame.HandleFindFile,
@@ -1542,6 +1603,10 @@ function EditorFrame:HandleSwapMark()
         self.buffer:SetCursorPos(mark_line, mark_col)
         self.buffer:SetMarkPos(cur_line, cur_col)
     end
+end
+
+function EditorFrame:HandleTab()
+    self:HandleCommandInput("TAB")
 end
 
 function EditorFrame:HandleYank()
