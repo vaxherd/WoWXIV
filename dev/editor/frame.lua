@@ -129,6 +129,7 @@ function EditorFrame:OnAcquire()
     self.filepath = nil
     self.buffer:SetText("")
     self:UpdateTitle()
+    self:SetFocused(false)
 end
 
 function EditorFrame:OnRelease()
@@ -142,20 +143,19 @@ end
 -- Pass in the EditorManager reference.
 function EditorFrame:Init(manager)
     self.manager = manager
-    self:SetFocused(self:IsMouseOver())
 end
 
 
 -------- Event handlers and associated helper functions
 
 function EditorFrame:OnEnter()
-    self:SetFocused(true)
+    self.manager:FocusFrame(self)
 end
 
 function EditorFrame:OnLeave()
     -- If the user is dragging, keep focus as long the mouse button is down.
     if not (self.is_moving or self.drag_select) then
-        self:SetFocused(false)
+        self.manager:ReleaseFocus(self)
     end
 end
 
@@ -216,7 +216,7 @@ end
 function EditorFrame:OnMouseUp(button)
     self.drag_select = false
     if not self:IsMouseOver() then
-        self:SetFocused(false)
+        self.manager:ReleaseFocus(self)
     end
 end
 
@@ -239,9 +239,17 @@ function EditorFrame:OnTitleMouseUp(button)
         self:StopMovingOrSizing()
         self.is_moving = false
         if not self:IsMouseOver() then
-            self:SetFocused(false)
+            self.manager:ReleaseFocus(self)
         end
     end
+end
+
+function EditorFrame:OnFocus()
+    self:SetFocused(true)
+end
+
+function EditorFrame:OnUnfocus()
+    self:SetFocused(false)
 end
 
 function EditorFrame:OnUpdate()
@@ -556,12 +564,6 @@ function EditorFrame:SetText(text, move_to_end)
     end
 end
 
--- Focus this editor window until the next time the mouse enters and leaves
--- it (or enters another editor window).
-function EditorFrame:Focus()
-    --FIXME notimp
-end
-
 -- Close this editor window.
 function EditorFrame:Close()
     if self.in_update then
@@ -570,7 +572,6 @@ function EditorFrame:Close()
         self.pending_close = true
         return
     end
-    self:SetFocused(false)
     self.manager:CloseFrame(self)
 end
 

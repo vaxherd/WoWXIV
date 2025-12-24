@@ -27,6 +27,8 @@ local EditorManager = class()
 function EditorManager:__constructor()
     -- Pool of managed editor frames.
     self.framepool = FramePool(Editor.EditorFrame)
+    -- Frame which currently has input focus, nil if none.
+    self.focus = nil
 
     -- Base frame level for editor frames.  This is also defined in
     -- frame.xml, but there doesn't seem to be a way to retrieve that
@@ -93,8 +95,6 @@ function EditorManager:OpenFrame(path)
     self.next_frame_x = x + self.stack_offset_x
     self.next_frame_y = y - self.stack_offset_y
 
-    self:RaiseFrame(f)
-
     f:Init(self)
     if path then
         if strsub(path, 1, 1) ~= "/" then
@@ -102,6 +102,9 @@ function EditorManager:OpenFrame(path)
         end
         f:LoadFile(path)
     end
+
+    self:RaiseFrame(f)
+    self:FocusFrame(f)
 
     return f
 end
@@ -124,10 +127,34 @@ function EditorManager:FindOrOpenFrame(path)
 end
 
 -- Close the given editor frame.  Typically called back from the frame.
--- Note that this function does not check for unsaved changes in the
--- frame's buffer.
+-- If the frame currently has focus, its OnUnfocus() handler will be
+-- called before it is closed.  Note that this function does not check
+-- for unsaved changes in the frame's buffer.
 function EditorManager:CloseFrame(frame)
+    self:ReleaseFocus(frame)
     self.framepool:Release(frame)
+end
+
+-- Give input focus to the given editor frame.  If nil, any currently
+-- focused frame is unfocused and no editor frame will have focus.
+function EditorManager:FocusFrame(frame)
+    if self.focus ~= frame then
+        if self.focus then
+            self.focus:OnUnfocus()
+        end
+        self.focus = frame
+        if self.focus then
+            self.focus:OnFocus()
+        end
+    end
+end
+
+-- Remove input focus from the given editor frame if it is currently
+-- focused.  Does nothing if the frame is not focused.
+function EditorManager:ReleaseFocus(frame)
+    if self.focus == frame then
+        self:FocusFrame(nil)
+    end
 end
 
 -- Display the given frame on top of all others.
