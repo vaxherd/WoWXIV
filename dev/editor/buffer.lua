@@ -355,6 +355,7 @@ function Buffer:InsertChar(ch)
     assert(type(ch) == "string" and #ch == 1,
            "ch must be a one-character string")
     assert(ch ~= "\n", "ch must not be a newline")
+
     local s, c, first, last = self:GetStringPos()
     local str = self.strings[s]
     if s == last and #str < self.view_columns - 1 then
@@ -387,6 +388,8 @@ function Buffer:InsertChar(ch)
             s = s+1  -- Focus the cursor's new string, not the old one.
         end
     end
+    self:ValidateStrings()
+
     self:SetCursorPosInternal(self.cur_line, self.cur_col + 1)
     self:SetDirty()
     self:RefreshView()
@@ -454,6 +457,7 @@ function Buffer:InsertNewline()
             line_map[i] = line_map[i] + 1
         end
     end
+    self:ValidateStrings()
 
     self:SetDirty()
     self:RefreshView()
@@ -542,7 +546,13 @@ function Buffer:DeleteChar(forward)
         -- Deleting a newline.
         assert(s == last)
         assert(self.cur_line < #self.line_map)
-        last = self.line_map:pop(self.cur_line+1)
+        self.line_map:pop(self.cur_line+1)
+        last = self:LastStringForLine(self.cur_line)
+    elseif s > first and c == 0 and #str == 1 then
+        -- Deleting the only character on a final wrapped line.
+        self.strings[s] = ""
+        s = s-1
+        str = self.strings[s]
     else
         -- Deleting a character within a line.
         str = strsub(str, 1, c) .. strsub(str, c+2)
@@ -564,10 +574,72 @@ function Buffer:DeleteChar(forward)
             self.line_map[i] = self.line_map[i]-1
         end
     end
+    self:ValidateStrings()
 
     self:SetMarkPosInternal(nil, nil, false, false)
     self:SetDirty()
     self:RefreshView()
+end
+
+-- Delete all text to the end of the current line, and return the deleted
+-- text.  If the cursor is already at the end of the line, instead delete
+-- the line break and merge the next line into the current one.  Returns
+-- nil if the cursor is at the end of the buffer.
+function Buffer:DeleteToEndOfLine()
+    local s, c, first, last = self:GetStringPos()
+    if s == #self.strings and c == #self.strings[s] then
+        return nil  -- Already at the end of the buffer.
+    end
+
+    local deleted_text
+    local str = self.strings[s]
+    if c < #str then
+        -- Delete the remainder of the line.
+        self.strings[s] = strsub(str, 1, c)
+        deleted_text = strsub(str, c+1)
+        for i = s+1, last do
+            deleted_text = deleted_text .. self.strings:pop(s+1)
+        end
+        if s > first and c == 0 then
+            -- The line no longer wraps here.
+            self.strings:pop(s)
+            s = s-1
+        end
+    else
+        -- Delete the newline and merge with the next line.
+        assert(s == last)
+        assert(self.cur_line < #self.line_map)
+        deleted_text = "\n"
+        self.line_map:pop(self.cur_line+1)
+        last = self:LastStringForLine(self.cur_line)
+        for i = s+1, last do
+            str = str .. self.strings[i]
+        end
+        local width = self.view_columns
+        while #str >= width do
+            self.strings[s] = strsub(str, 1, width-1)
+            str = strsub(str, width)
+            s = s+1
+        end
+        self.strings[s] = str
+        if s < last then
+            assert(s == last-1)
+            self.strings:pop(s+1)
+        end
+    end
+    local delta = s - last
+    assert(delta <= 0)
+    if delta ~= 0 then
+        for i = self.cur_line+1, #self.line_map do
+            self.line_map[i] = self.line_map[i] + delta
+        end
+    end
+    self:ValidateStrings()
+
+    self:SetMarkPosInternal(nil, nil, false, false)
+    self:SetDirty()
+    self:RefreshView()
+    return deleted_text
 end
 
 -- Delete the current region, and return the deleted text.  Returns nil
@@ -584,21 +656,21 @@ function Buffer:DeleteRegion()
     -- not some arbitrary distance past the deletion point.
     self:MoveCursorToBeginningOfRegion()
 
-    local text
+    local deleted_text
     if s1 == s2 then
-        text = strsub(self.strings[s1], c1+1, c2)
+        deleted_text = strsub(self.strings[s1], c1+1, c2)
     else
         local line = l1
-        text = strsub(self.strings[s1], c1+1)
+        deleted_text = strsub(self.strings[s1], c1+1)
         for i = s1+1, s2 do
             if line < #self.line_map and i == self.line_map[line+1] then
-                text = text .. "\n"
+                deleted_text = deleted_text .. "\n"
                 line = line+1
             end
             if i < s2 then
-                text = text .. self.strings[i]
+                deleted_text = deleted_text .. self.strings[i]
             else
-                text = text .. strsub(self.strings[s2], 1, c2)
+                deleted_text = deleted_text .. strsub(self.strings[s2], 1, c2)
             end
         end
     end
@@ -638,7 +710,7 @@ function Buffer:DeleteRegion()
     self:SetMarkPosInternal(nil, nil, false, false)
     self:SetDirty()
     self:RefreshView()
-    return text
+    return deleted_text
 end
 
 
@@ -1181,6 +1253,7 @@ function Buffer:ValidateStrings()
     assert(#self.strings > 0)
     assert(self.line_map[1] == 1)
     local line = 1
+    local line_start = 1
     local line_end = self:LastStringForLine(line)
     local str_limit = self.view_columns - 1
     for i = 1, #self.strings do
@@ -1188,11 +1261,13 @@ function Buffer:ValidateStrings()
             assert(#self.strings[i] == str_limit)
         else
             assert(#self.strings[i] <= str_limit)
+            assert(i == line_start or #self.strings[i] > 0)
             if i == #self.strings then
                 assert(line == #self.line_map)
             else
                 assert(line < #self.line_map)
                 line = line+1
+                line_start = i+1
                 local new_end = self:LastStringForLine(line)
                 assert(new_end > i)
                 line_end = new_end

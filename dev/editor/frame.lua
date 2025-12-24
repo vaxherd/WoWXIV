@@ -1500,10 +1500,17 @@ function EditorFrame:HandleKill()
     end
 end
 
-function EditorFrame:HandleKillLine()
+function EditorFrame:HandleKillLine(key)
     if not self:HandleCommandInput("KILL-LINE") then
         self:ClearCommand()
-        --FIXME notimp
+        local text = self.buffer:DeleteToEndOfLine()
+        if text then
+            if key == self.prev_key then
+                self.yank_text = self.yank_text .. text
+            else
+                self.yank_text = text
+            end
+        end
     end
 end
 
