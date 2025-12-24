@@ -187,7 +187,7 @@ function FramePool:__constructor(managed_class)
     -- This doesn't violate encapsulation because we're just making
     -- the same call that generic "for" would make on the set.
     local mt = getmetatable(self)
-    mt.__call = function(s, _, i) return self.used(_, i) end
+    mt.__call = function(s, _, i) return s.used(_, i) end
 end
 
 -- Acquire an instance of the managed class.  If a free instance is
