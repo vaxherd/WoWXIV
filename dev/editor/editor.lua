@@ -87,6 +87,7 @@ function EditorManager:OpenFrame(path)
     if y - f:GetHeight()/UIParent:GetHeight() < self.stack_bound_bottom then
         y = self.stack_bound_top
     end
+    f:ClearAllPoints()
     f:SetPoint("TOPLEFT", UIParent, "TOPLEFT",
                x * UIParent:GetWidth(), (y-1) * UIParent:GetHeight())
     self.next_frame_x = x + self.stack_offset_x
