@@ -1310,8 +1310,8 @@ end
 
 local SaveToCommand = class(PathInputCommandHandler)
 
-function SaveToCommand:__constructor(frame)
-    __super(self, frame, "File to save in: ")
+function SaveToCommand:__constructor(frame, prompt)
+    __super(self, frame, prompt..": ")
 end
 
 function SaveToCommand:ConfirmInput(path)
@@ -1396,6 +1396,7 @@ function EditorFrame:GetDefaultKeymap()
                 ["C-F"] = EditorFrame.HandleFindFile,
                 ["I"] = EditorFrame.HandleInsertFile,
                 ["C-S"] = EditorFrame.HandleSaveFile,
+                ["C-W"] = EditorFrame.HandleWriteFile,
                 ["C-X"] = EditorFrame.HandleSwapMark,
             },  -- C-X
             ["C-Y"] = EditorFrame.HandleYank,
@@ -1564,7 +1565,7 @@ function EditorFrame:HandleSaveFile()
     if not self.buffer:IsDirty() then
         self:SetCommandText("(No changes need to be saved)")
     elseif not self.filepath then
-        self:StartCommand(SaveToCommand(self))
+        self:StartCommand(SaveToCommand(self, "File to save in"))
     else
         self:SaveFile()
     end
@@ -1622,6 +1623,10 @@ end
 
 function EditorFrame:HandleTab()
     self:HandleCommandInput("TAB")
+end
+
+function EditorFrame:HandleWriteFile()
+    self:StartCommand(SaveToCommand(self, "Write file"))
 end
 
 function EditorFrame:HandleYank()
