@@ -23,6 +23,7 @@ end
 function ShortcutButton:__constructor(name, key)
     name = self:GetName()
     key = "ALT-CTRL-"..key
+    self.key = key
     SetOverrideBindingClick(self, false, key, name)
     self:SetScript("OnClick", self.OnClick)
 end
@@ -58,8 +59,7 @@ end
 -- Top-level interface for the development environment
 ---------------------------------------------------------------------------
 
--- Shortcut frame instances.  Retained mostly on principle; we currently
--- have no need to access these after creation.
+-- Shortcut frame instances.
 local shortcut_frames = set()
 
 -- Initialize the development environment.  Should be called at startup time.
@@ -68,4 +68,17 @@ function Dev.Init()
     Dev.FS.Init()
     shortcut_frames:add(EditorShortcutButton())
     shortcut_frames:add(LuaIntShortcutButton())
+end
+
+-- Trigger a shortcut for the given key if one exists.  Returns true if a
+-- shortcut was triggered, false if not.  Provided for use by frames which
+-- consume keyboard input (like editor frames).
+function Dev.RunShortcut(key)
+    for shortcut in shortcut_frames do
+        if shortcut.key == key then
+            shortcut:Click()
+            return true
+        end
+    end
+    return false
 end

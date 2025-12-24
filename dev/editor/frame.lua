@@ -160,8 +160,14 @@ function EditorFrame:OnLeave()
 end
 
 function EditorFrame:OnKeyDown(key)
-    self.keys:append({key})
-    self.repeat_delay = 0
+    local shortcut_key = strformat("%s%s%s%s",
+                                   IsAltKeyDown() and "ALT-" or "",
+                                   IsControlKeyDown() and "CTRL-" or "",
+                                   IsShiftKeyDown() and "SHIFT-" or "", key)
+    if not Dev.RunShortcut(shortcut_key) then
+        self.keys:append({key})
+        self.repeat_delay = 0
+    end
 end
 
 function EditorFrame:OnChar(ch)
@@ -189,7 +195,7 @@ function EditorFrame:OnKeyUp(key)
             return
         end
     end
-    error("Received OnKeyUp for unpressed key "..tostring(key))
+    -- It must have been a key used as a shortcut trigger, so just ignore.
 end
 
 function EditorFrame:OnMouseDown(button)
