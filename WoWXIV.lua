@@ -12,6 +12,8 @@ WoWXIV.startup_frame = CreateFrame("Frame", "WoWXIV_StartupFrame")
 WoWXIV.startup_frame:RegisterEvent("ADDON_LOADED")
 WoWXIV.startup_frame:SetScript("OnEvent", function(self, event, arg1, ...)
     if event == "ADDON_LOADED" and arg1 == module_name then
+        WoWXIV.LogWindow.InitEarlyPrint()
+
         WoWXIV.Config.Create()
         WoWXIV.Dev.Init()
 

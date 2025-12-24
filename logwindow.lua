@@ -3,16 +3,19 @@ WoWXIV.LogWindow = {}
 
 local class = WoWXIV.class
 local Frame = WoWXIV.Frame
+local list = WoWXIV.list
 
 local CLM = WoWXIV.CombatLogManager
 local band = bit.band
 local bor = bit.bor
 local strfind = string.find
 local strgsub = string.gsub
+local strjoin = string.join
 local strlower = string.lower
 local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 local strsub = string.sub
 local tinsert = tinsert
+local tostringall = tostringall
 
 local AFFILIATION_MINE = CLM.UnitFlags.AFFILIATION_MINE
 local AFFILIATION_PARTY_OR_RAID = bor(CLM.UnitFlags.AFFILIATION_PARTY,
@@ -1307,9 +1310,35 @@ function LogWindow:RemoveMessagesByPredicate(func) end
 
 --------------------------------------------------------------------------
 
+-- Helper data for early print handler.
+local early_print_buffer
+local saved_print_handler
+local function early_print_handler(...)
+    tinsert(early_print_buffer, strjoin(" ", tostringall(...)))
+    return saved_print_handler(...)
+end
+
+-- Install a print() handler to catch log messages printed before the log
+-- window is ready.  These messages will be appended to the log at Create()
+-- time (or discarded if the log window is disabled).
+function WoWXIV.LogWindow.InitEarlyPrint()
+    early_print_buffer = {}
+    saved_print_handler = getprinthandler()
+    assert(saved_print_handler)
+    setprinthandler(early_print_handler)
+end
+
 -- Create the global log window object.
 function WoWXIV.LogWindow.Create()
-    if not WoWXIV_config["logwindow_enable"] then return end
+    assert(saved_print_handler)
+    assert(getprinthandler() == early_print_handler)
+    setprinthandler(saved_print_handler)
+    local early_print_list = early_print_buffer
+    early_print_buffer = nil
+
+    if not WoWXIV_config["logwindow_enable"] then
+        return
+    end
 
     WoWXIV_logwindow_history = WoWXIV_logwindow_history or {}
     WoWXIV_logwindow_hist_top = WoWXIV_logwindow_hist_top or 1
@@ -1328,6 +1357,10 @@ function WoWXIV.LogWindow.Create()
     hooksecurefunc(DEFAULT_CHAT_FRAME, "AddMessage", function(frame, ...)
                        WoWXIV.LogWindow.window:AddMessage(...)
                    end)
+
+    for _, line in ipairs(early_print_list) do
+        WoWXIV.LogWindow.window:AddMessage(line)
+    end
 end
 
 -- Discard any log window history entries older than the current limit.
