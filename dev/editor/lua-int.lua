@@ -26,6 +26,13 @@ function LuaInt.InitFrame(frame)
         "-- Select a text region and press Ctrl-Enter to execute that region.\n" ..
         "\n", true)
     frame:BindKey("C-ENTER", LuaInt.HandleEval)
+
+    -- Provide an enclosed environment for Lua evaluation in this frame,
+    -- so the user doesn't have to worry about dirtying the global
+    -- environment (but can still access it via _G if desired).
+    -- Also provide a reference to the frame itself for development
+    -- convenience.
+    frame.luaint_env = setmetatable({frame = frame}, {__index = _G})
 end
 
 -- Evaluate the line under the cursor, or the region if a region is active.
@@ -73,6 +80,7 @@ function LuaInt.HandleEval(frame)
         end
         local saved_printhandler = getprinthandler()
         setprinthandler(printhandler)
+        setfenv(code, frame.luaint_env)
         local result = {pcall(code)}
         setprinthandler(saved_printhandler)
         if result[1] then
