@@ -66,6 +66,18 @@ local shortcut_frames = set()
 function Dev.Init()
     Dev.Editor.Init()
     Dev.FS.Init()
+    Dev.FS.CreateDirectory("/wowxiv")  -- Assume success or already existing.
+local romfs_files = {  -- FIXME: temp for testing
+    dir = {
+        test1 = "test_one\n",
+        subdir = {
+            test2 = "Test\nTwo\n",
+        },
+    },
+    file = "I am a pen",
+}
+    assert(Dev.FS.Mount(Dev.FS.RomFS(romfs_files), "/wowxiv"))
+
     shortcut_frames:add(EditorShortcutButton())
     shortcut_frames:add(LuaIntShortcutButton())
 end

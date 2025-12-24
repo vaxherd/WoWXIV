@@ -121,10 +121,12 @@ function MemFS:Lookup(dir_ref, name)
     return dir[name]
 end
 
+-- Increment the reference count for the given fileref.
 function MemFS:Ref(ref)
     self.open_refs[ref] = (self.open_refs[ref] or 0) + 1
 end
 
+-- Decrement the reference count for the given fileref.
 function MemFS:Unref(ref)
     local refcount = self.open_refs[ref]
     assert(refcount)

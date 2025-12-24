@@ -176,7 +176,7 @@ local root = nil
 -- meaning "when looking up entry |name| in fileref |dir_ref| from filesystem
 -- |parent_fs|, the result is the root of |child_fs| rather than whatever
 -- might be at that name in the referenced directory".
-local mounts = {}
+local mounts = list()
 
 -- File descriptor table.  Maps numbers to Filehandle instances, to hide
 -- the Filehandle objects from callers.
@@ -186,7 +186,7 @@ local fd_table = {}
 -- Return the filesystem mounted at {fs, dir_ref, name}, or nil if none.
 local function GetMount(fs, dir_ref, name)
     -- Simple linear scan should be good enough for our purposes.
-    for _, mount in ipairs(mounts) do
+    for mount in mounts do
         if fs == mount[1] and dir_ref == mount[2] and name == mount[3] then
             return mount[4]
         end
@@ -324,6 +324,48 @@ FS.OPEN_APPEND   = OPEN_APPEND    -- Writes always append; reads will fail.
 function FS.Init()
     if root then return end
     root = FS.MemFS(WoWXIV_rootfs)
+end
+
+-- Mount a filesystem at a specified path.  |mountpoint| must correspond
+-- to an existing directory.  Returns true on success, nil on error.
+function FS.Mount(fs, mountpoint)
+    local parent, name = SplitPath(mountpoint)
+    if not name then
+        return nil
+    end
+    local parent_fs, ref = ResolvePath(parent)
+    if not ref then
+        return nil
+    end
+    if GetMount(parent_fs, ref, name) then
+        return nil  -- Something is already mounted here.
+    end
+    local stat = parent_fs:Stat(ref, name)
+    if not stat or not stat.is_dir then
+        return nil
+    end
+    tinsert(mounts, {parent_fs, ref, name, fs})
+    return true
+end
+
+-- Unmount the filesystem mounted at the given path.  Returns true on
+-- success, nil on error.
+function FS.Unmount(mountpoint)
+    local parent, name = SplitPath(mountpoint)
+    if not name then
+        return nil
+    end
+    local fs, ref = ResolvePath(parent)
+    if not ref then
+        return nil
+    end
+    for i, mount in ipairs(mounts) do
+        if fs == mount[1] and ref == mount[2] and name == mount[3] then
+            mounts.pop(i)
+            return true
+        end
+    end
+    return nil
 end
 
 
