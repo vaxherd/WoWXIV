@@ -48,6 +48,11 @@ from the AddOns tab of the WoW settings window, or directly with the
 `/wowxiv` (or just `/xiv`) text command.  The individual configuration
 settings should be self-explanatory.
 
+While not configurable from the GUI, some in-game fonts (notably the
+font used for flying text) can be changed by manually adding relevant
+entries to the addon's configuration data.  See the documentation for
+the `WoWXIV.SetFont()` function in `util.lua` for details.
+
 
 Caveats
 -------
