@@ -73,7 +73,7 @@
 
       <Button parentKey="CloseButton" inherits="UIPanelCloseButtonDefaultAnchors" frameLevel="9002">
         <Scripts>
-          <OnClick>self:GetParent():OnClose()</OnClick>
+          <OnClick>self:GetParent():Close()</OnClick>
           <OnEnter>self:GetParent():OnEnter()</OnEnter>
           <OnLeave>self:GetParent():OnLeave()</OnLeave>
         </Scripts>

@@ -118,6 +118,11 @@ function EditorFrame:OnAcquire()
     -- Timeout for displaying the current prefix in the command line.
     self.prefix_timeout = nil
 
+    -- Are we currently in an OnUpdate() call?
+    self.in_update = false
+    -- Was Close() called during the current OnUpdate() call?
+    self.pending_close = false
+
     self.name = "(Untitled)"
     self.filepath = nil
     self.buffer:SetText("")
@@ -140,10 +145,6 @@ end
 
 
 -------- Event handlers and associated helper functions
-
-function EditorFrame:OnClose()
-    self:Hide()
-end
 
 function EditorFrame:OnEnter()
     self:SetFocused(true)
@@ -229,6 +230,8 @@ end
 function EditorFrame:OnUpdate()
     assert(self.focused)
 
+    self.in_update = true
+
     local now = GetTime()
     local dt = now - self.now
     self.now = now
@@ -281,6 +284,11 @@ function EditorFrame:OnUpdate()
     if self.drag_select then
         local line, col = self:MouseToTextCoords()
         self.buffer:SetMarkPosFromMouse(line, col, true)
+    end
+
+    self.in_update = false
+    if self.pending_close then
+        self:Close()
     end
 end
 
@@ -357,7 +365,9 @@ function EditorFrame:SetFocused(focused)
     -- pressed keys unless we're still unfocused at the end of the frame.
     RunNextFrame(function()
         if not self.focused then
-            self.keys:clear()
+            if self.keys then  -- Check in case we were closed.
+                self.keys:clear()
+            end
         end
     end)
 end
@@ -537,6 +547,12 @@ end
 
 -- Close this editor window.
 function EditorFrame:Close()
+    if self.in_update then
+        -- Don't actually close until OnUpdate() returns, to avoid
+        -- worrying about use-after-free in that routine.
+        self.pending_close = true
+        return
+    end
     self.manager:CloseFrame(self)
 end
 
