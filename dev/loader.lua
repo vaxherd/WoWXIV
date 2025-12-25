@@ -17,21 +17,57 @@ local FS_DATA = {
 --@FS_DATA@--
 }
 
+-- File overlay data table.  This is a MemFS data store, but we access it
+-- directly to avoid external dependencies from the loader.  This will be
+-- persisted via WoW's SavedVariables mechanism.
+WoWXIV_initfs_overlay = WoWXIV_initfs_overlay or {}
+
+
+-- Reimplementation of ResolvePath() -> MemFS:Lookup().  Returns the inode
+-- of the object, or nil if the path does not exist.
+local function ResolvePathForMemFS(store, path)
+    local ROOT_INODE = 1  -- As in memfs.lua.
+    local inode = ROOT_INODE
+    if not store[inode] then
+        return nil  -- No data in the overlay filesystem.
+    end
+    local index = 1
+    while index <= #path do
+        local slash = strstr(path, "/", index) or #path+1
+        local name = strsub(path, index, slash-1)
+        local next = store[inode][name]
+        if not next then
+            return nil
+        end
+        inode = next
+        index = slash+1
+    end
+    return inode
+end
+
 -- Helper function to find a file in the filesystem.
 local function GetFile(path)
-    local dir = FS_DATA
-    path = strmatch(path, "^/*(.*)")
-    while strstr(path, "/") do
-        local parent
-        parent, path = strmatch(path, "^([^/]+)/(.*)")
-        local next = dir[parent]
-        assert(next)
-        dir = next
+    local file
+    local overlay_inode = ResolvePathForMemFS(WoWXIV_initfs_overlay, path)
+    if overlay_inode then
+        file = WoWXIV_initfs_overlay[overlay_inode]
+    else
+        local node = FS_DATA
+        local index = 1
+        while index <= #path do
+            local slash = strstr(path, "/", index) or #path+1
+            local name = strsub(path, index, slash-1)
+            local next = node[name]
+            assert(next)
+            node = next
+            index = slash+1
+        end
+        file = node
     end
-    local file = dir[path]
-    assert(file)
+    assert(type(file) == "string")
     return file
 end
+
 
 -- Load all scripts.
 for _, script in ipairs(LOAD_ORDER) do

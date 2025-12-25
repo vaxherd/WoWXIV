@@ -11,10 +11,7 @@ local strformat = string.format
 local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 local strsub = string.sub
 
--- Global config array, saved and restored by the API.
--- This is currently restored after parsing, so the value will always be
--- nil here, but we write it this way as future-proofing against values
--- being loaded sooner.
+-- Global config array, saved and restored via the WoW addon API.
 WoWXIV_config = WoWXIV_config or {}
 
 ------------------------------------------------------------------------

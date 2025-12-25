@@ -131,7 +131,7 @@ function RomFS:Read(file_ref, start, length)
     if type(file) ~= "string" then
         return nil
     end
-    return strsub(file, start, length)
+    return strsub(file, start or 1, length)
 end
 
 -- Write the given data to the given file at the given position.

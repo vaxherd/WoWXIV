@@ -4,8 +4,9 @@
 ## Version: 0.1+
 ## Category: User Interface
 ## IconTexture: Interface/AddOns/WoWXIV/textures/icon.png
-## SavedVariables: WoWXIV_config, WoWXIV_rootfs
+## SavedVariables: WoWXIV_config, WoWXIV_rootfs_data, WoWXIV_initfs_overlay
 ## SavedVariablesPerCharacter: WoWXIV_isearch_cache, WoWXIV_logwindow_history, WoWXIV_logwindow_hist_top
+## LoadSavedVariablesFirst: 1
 
 WoWXIV.lua
 _class.lua
@@ -37,6 +38,7 @@ dev/editor/frame.xml
 dev/editor/lua-int.lua
 dev/fs/fs.lua
 dev/fs/memfs.lua
+dev/fs/overlayfs.lua
 dev/fs/romfs.lua
 
 # Must precede gamepad/ to avoid declaration ordering issues

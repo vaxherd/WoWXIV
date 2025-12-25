@@ -77,10 +77,10 @@ end
 -- inconsistency is found.
 function MemFS:Fsck()
     local store = self.store
-    local inode_map = {}
+    local inode_map = {[ROOT_INODE] = "/"}
     local function ScanDir(dir, base_path)
         for name, inode in pairs(dir) do
-            local path = dir .. "/" .. base_path
+            local path = base_path .. "/" .. name
             local object = store[inode]
             if not object then
                 error(strformat("%s: references unused inode %d", path, inode))
@@ -102,7 +102,7 @@ function MemFS:Fsck()
     ScanDir(root, "")
     for inode in pairs(store) do
         if not inode_map[inode] then
-            error(strformat("Inode %d: in used but not referenced", inode))
+            error(strformat("Inode %d: in use but not referenced", inode))
         end
     end
 end
@@ -217,7 +217,7 @@ function MemFS:Read(file_ref, start, length)
     if type(file) ~= "string" then
         return nil
     end
-    return strsub(file, start, length)
+    return strsub(file, start or 1, length)
 end
 
 -- Write the given data to the given file at the given position.

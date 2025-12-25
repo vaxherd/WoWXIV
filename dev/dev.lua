@@ -65,20 +65,9 @@ local shortcut_frames = set()
 -- Initialize the development environment.  Should be called at startup time.
 function Dev.Init()
     Dev.Editor.Init()
+    Dev.FS.Init()
     shortcut_frames:add(EditorShortcutButton())
     shortcut_frames:add(LuaIntShortcutButton())
-
-    Dev.FS.Init()
-    local initfs = WoWXIV._loader_FS_DATA
-    if initfs then
-        local st = Dev.FS.Stat("/wowxiv")
-        if st then
-            assert(st.is_dir)
-        else
-            assert(Dev.FS.CreateDirectory("/wowxiv"))
-        end
-        assert(Dev.FS.Mount(Dev.FS.RomFS(initfs), "/wowxiv"))
-    end
 end
 
 -- Trigger a shortcut for the given key if one exists.  Returns true if a

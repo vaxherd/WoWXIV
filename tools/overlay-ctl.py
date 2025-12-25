@@ -49,6 +49,7 @@ def do_install(src, dest):
             m = re.match(r"^\s*([^#\s]+)", line)
             if m:
                 name = m.group(1)
+                name = re.sub(r"[/\\]+", "/", name)
                 if name.endswith(".lua"):
                     scripts.append(name)
                 else:
@@ -137,7 +138,69 @@ def do_pull(src, dest):
     |dest| should be the root path of the addon source tree (the parent
     directory of this script's directory).
     """
-    pass #FIXME notimp
+    with open(src, "r") as f:
+        lines = f.readlines()
+    fs = {}
+    ROOT_INODE = 1
+    inode = None
+    dir = None
+    for line in lines:
+        line = re.sub(r"\r?\n$", "", line)
+        if line == "WoWXIV_initfs_overlay = {":
+            inode = ROOT_INODE
+        elif not inode:
+            continue
+        elif line == "}":
+            assert dir is None
+            break
+        elif line == "},":
+            assert dir is not None
+            dir = None
+            inode += 1
+        else:
+            m = re.match(r'(?:\[(\d+|"(?:\\"|[^"])*")\] = )?(.+)', line)
+            assert m
+            k, v = m.groups()
+            if v == "{":
+                assert not dir
+                inode = int(k) if k else inode
+                fs[inode] = {}
+                dir = fs[inode]
+            elif dir is None:
+                assert v.startswith('"')
+                assert v.endswith('",')
+                escapes = {"n": "\n", "r": "\r", "t": "\t"}
+                v = re.sub(
+                    r"\\(.)", lambda m: escapes.get(m.group(1), m.group(1)),
+                    v[1:-2])
+                inode = int(k) if k else inode
+                fs[inode] = v
+                inode += 1
+            else:
+                assert k.startswith('"')
+                assert k.endswith('"')
+                assert v.endswith(',')
+                dir[k[1:-1]] = int(v[0:-1])
+    if not fs:
+        sys.stderr.write("No overlay data found\n")
+        sys.exit(1)
+    assert(isinstance(fs[ROOT_INODE], dict))
+
+    def traverse(dir, base_path):
+        for name, inode in dir.items():
+            path = os.path.join(base_path, name)
+            o = fs[inode]
+            if isinstance(o, dict):
+                try:
+                    os.mkdir(os.path.join(dest, path))
+                except FileExistsError:
+                    pass
+                traverse(o, path)
+            else:
+                print(path)
+                with open(os.path.join(dest, path), "w") as f:
+                    f.write(o)
+    traverse(fs[ROOT_INODE], "")
 # end def
 
 

@@ -167,10 +167,14 @@ local strsub = string.sub
 ---------------------------------------------------------------------------
 
 -- Root filesystem content (this is stored to SavedVariables).
-WoWXIV_rootfs = {}
+WoWXIV_rootfs_data = WoWXIV_rootfs_data or {}
 
 -- Root filesystem reference (created by FS.Init()).
-local root = nil
+local rootfs = nil
+
+-- Addon data overlay filesystem reference (created by FS.Init()).
+local overlayfs = nil
+
 
 -- Mount table.  Each entry is a 4-tuple: {parent_fs, dir_ref, name, child_fs}
 -- meaning "when looking up entry |name| in fileref |dir_ref| from filesystem
@@ -198,7 +202,7 @@ end
 -- {filesystem,fileref} pair, or nil if no object is found.
 local function ResolvePath(path)
     assert(strsub(path, 1, 1) == "/")
-    local fs = root
+    local fs = rootfs
     local ref = fs:Root()
     local parents = list()
     path = strsub(path, 2)
@@ -322,8 +326,30 @@ FS.OPEN_APPEND   = OPEN_APPEND    -- Writes always append; reads will fail.
 -- operations.  May be safely called multiple times (subsequent calls will
 -- have no effect).
 function FS.Init()
-    if root then return end
-    root = FS.MemFS(WoWXIV_rootfs)
+    if root then
+        return  -- Already initialized.
+    end
+
+    rootfs = FS.MemFS(WoWXIV_rootfs_data)
+    rootfs:Fsck()
+
+    local initfs_data = WoWXIV._loader_FS_DATA
+    WoWXIV._loader_FS_DATA = nil  -- Drop the table reference.
+    if initfs_data then
+        local st = Dev.FS.Stat("/wowxiv")
+        if st then
+            assert(st.is_dir)
+        else
+            assert(Dev.FS.CreateDirectory("/wowxiv"))
+        end
+        local init_romfs = Dev.FS.RomFS(initfs_data)
+        init_romfs:Fsck()
+        local overlay_memfs = Dev.FS.MemFS(WoWXIV_initfs_overlay)
+        overlay_memfs:Fsck()
+        overlayfs = Dev.FS.OverlayFS(overlay_memfs, init_romfs)
+        overlayfs:Fsck()
+        assert(Dev.FS.Mount(overlayfs, "/wowxiv"))
+    end
 end
 
 -- Mount a filesystem at a specified path.  |mountpoint| must correspond
