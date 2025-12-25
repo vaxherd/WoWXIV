@@ -72,7 +72,7 @@ In-game development environment
 The in-game text editor can be opened with the `/xivedit` (`/xe`) chat
 command or by pressing Ctrl-Alt-E; pass a filename (see below) after the
 command to load that file into the editor.  An empty editor frame in Lua
-interaction mode, allowing Lua commands to be executed within the editor
+interaction mode, allowing Lua code to be executed within the editor
 buffer, can be opened with `/xivlua` (`/xl`) or Ctrl-Alt-L.
 
 The editor is designed in the style of the Emacs text editor found on
