@@ -91,10 +91,7 @@ If installed with the addon code built in (see Installation above), the
 addon code is available under the `/wowxiv` path: `/wowxiv/WoWXIV.lua`
 and so forth.  Saving over any of these files will store the updated
 data in a persistent data store which will be read the next time the
-addon is loaded.  To avoid desynchronization between host-side and
-game-side files, the loader will throw a Lua error if it detects that
-any file modified in the data store has been changed differently on the
-host side.
+addon is loaded.
 
 Note that this was mostly a "fun project" to occupy my spare time and
 see what was possible within WoW's addon framework.  It was not intended
