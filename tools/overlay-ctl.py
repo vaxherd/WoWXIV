@@ -182,11 +182,12 @@ def do_pull(src, dest):
                 assert v.endswith(',')
                 dir[k[1:-1]] = int(v[0:-1])
     if not fs:
-        sys.stderr.write("No overlay data found\n")
+        sys.stderr.write("*** No overlay data found\n")
         sys.exit(1)
     assert(isinstance(fs[ROOT_INODE], dict))
 
     def traverse(dir, base_path):
+        found_any = False
         for name, inode in dir.items():
             path = os.path.join(base_path, name)
             o = fs[inode]
@@ -195,12 +196,17 @@ def do_pull(src, dest):
                     os.mkdir(os.path.join(dest, path))
                 except FileExistsError:
                     pass
-                traverse(o, path)
+                if traverse(o, path):
+                    found_any = True
             else:
+                found_any = True
                 print(path)
                 with open(os.path.join(dest, path), "w") as f:
                     f.write(o)
-    traverse(fs[ROOT_INODE], "")
+        return found_any
+    # end def
+    if not traverse(fs[ROOT_INODE], ""):
+        print("(no changes found)")
 # end def
 
 
