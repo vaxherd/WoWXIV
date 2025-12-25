@@ -131,6 +131,7 @@ function EditorFrame:OnAcquire()
     self.name = "(Untitled)"
     self.filepath = nil
     self.buffer:SetText("")
+    self.CommandLine.Text:SetText("")
     self:UpdateTitle()
     self:SetFocused(false)
 end
