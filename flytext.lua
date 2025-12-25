@@ -140,10 +140,11 @@ function FlyText:__constructor()
     stacks:Hide()
 end
 
--- Invariants on acquisition: name/icon/value are shown; value font is
--- set to FLYTEXT_DAMAGE; other elements are hidden; contents of all
--- elements are unspecified.
+-- Invariants on acquisition: critical-hit flag is clear; name/icon/value
+-- display elements are shown; value font is set to FLYTEXT_DAMAGE; other
+-- elements are hidden; contents of all elements are unspecified.
 function FlyText:OnAcquire()
+    self.is_crit = false
     self.name:Show()
     self.icon:Show()
     WoWXIV.SetFont(self.value, "FLYTEXT_DAMAGE")
