@@ -33,12 +33,25 @@ that of Final Fantasy XIV.  Specific features include:
 - Various improvements to gamepad support, including right-stick zoom
   and a menu cursor
 
+WoWXIV also includes a rudimentary development environment with a text
+editor and Lua interaction frame, which can be used to edit the addon's
+source code within the game.
+
 
 Installation
 ------------
 Just copy the source tree into a `WoWXIV` (or otherwise appropriately
 named) folder under `Interface/AddOns` in your World of Warcraft
 installation.  WoWXIV has no external dependencies.
+
+Alternatively, to make use of the in-game development environment to
+edit the addon inside WoW, place this source tree outside the World of
+Warcraft installation and run the Python script `tools/overlay-ctl.py`
+to install it to the AddOns folder.  This builds a copy of the addon
+source code into the addon itself so that the data is available in the
+game environment.  The same Python script can be used to extract changes
+made to that data back to the host PC.  See the documentation at the top
+of the script for details.
 
 
 Configuration
@@ -52,6 +65,43 @@ While not configurable from the GUI, some in-game fonts (notably the
 font used for flying text) can be changed by manually adding relevant
 entries to the addon's configuration data.  See the documentation for
 the `WoWXIV.SetFont()` function in `util.lua` for details.
+
+
+In-game development environment
+-------------------------------
+The in-game text editor can be opened with the `/xivedit` (`/xe`) chat
+command or by pressing Ctrl-Alt-E; pass a filename (see below) after the
+command to load that file into the editor.  An empty editor frame in Lua
+interaction mode, allowing Lua commands to be executed within the editor
+buffer, can be opened with `/xivlua` (`/xl`) or Ctrl-Alt-L.
+
+The editor is designed in the style of the Emacs text editor found on
+Unix systems; for example, text is cut ("killed") with Ctrl-W and pasted
+("yanked") with Ctrl-Y.  Each editor frame has its own independent text
+buffer.
+
+The environment also includes a persistent filesystem into which editor
+files can be saved (Ctrl-X Ctrl-S to save, Ctrl-X Ctrl-W "write file" to
+save under a new name) and from which they can be loaded (Ctrl-X Ctrl-F
+"find file" to load a new file, Ctrl-X I "insert file" to insert a file
+into the current buffer).  Pathnames follow the Unix style, starting
+with a slash (e.g. `/dir/file.lua`), and are case-sensitive.
+
+If installed with the addon code built in (see Installation above), the
+addon code is available under the `/wowxiv` path: `/wowxiv/WoWXIV.lua`
+and so forth.  Saving over any of these files will store the updated
+data in a persistent data store which will be read the next time the
+addon is loaded.  To avoid desynchronization between host-side and
+game-side files, the loader will throw a Lua error if it detects that
+any file modified in the data store has been changed differently on the
+host side.
+
+Note that this was mostly a "fun project" to occupy my spare time and
+see what was possible within WoW's addon framework.  It was not intended
+to be a serious attempt at creating an IDE within the game, and it
+should not be taken as such.
+
+See the source code under `dev/` for details.
 
 
 Caveats

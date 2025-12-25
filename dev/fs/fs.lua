@@ -340,8 +340,8 @@ function FS.Mount(fs, mountpoint)
     if GetMount(parent_fs, ref, name) then
         return nil  -- Something is already mounted here.
     end
-    local stat = parent_fs:Stat(ref, name)
-    if not stat or not stat.is_dir then
+    local st = parent_fs:Stat(ref, name)
+    if not st or not st.is_dir then
         return nil
     end
     tinsert(mounts, {parent_fs, ref, name, fs})
@@ -427,8 +427,8 @@ function FS.Open(path, mode)
     local fs, ref = ResolvePath(path)
     local fh
     if ref then
-        local stat = fs:Stat(ref)
-        if stat and not stat.is_dir then
+        local st = fs:Stat(ref)
+        if st and not st.is_dir then
             fh = Filehandle(fs, ref)
             if mode == OPEN_TRUNCATE then
                 fs:Truncate(ref, 0)
@@ -441,9 +441,9 @@ function FS.Open(path, mode)
         if ref and fs:Create(ref, name) then
             local file_ref = fs:Lookup(ref, name)
             assert(file_ref)
-            local stat = fs:Stat(file_ref)
-            assert(stat)
-            assert(not stat.is_dir)
+            local st = fs:Stat(file_ref)
+            assert(st)
+            assert(not st.is_dir)
             fh = Filehandle(fs, file_ref)
         end
     end

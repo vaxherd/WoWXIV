@@ -451,13 +451,13 @@ end
 -- it is a new file to be created and empty the buffer.
 -- On error, the pathname associated with the frame (if any) is not changed.
 function EditorFrame:LoadFile(path)
-    local stat = FS.Stat(path)
+    local st = FS.Stat(path)
     local ok
-    if not stat then
+    if not st then
         self.buffer:SetText("")
         self:SetCommandText("(New file)")
         ok = true
-    elseif stat.is_dir then
+    elseif st.is_dir then
         self:SetCommandText(strformat("Pathname is a directory: %s", path))
     else
         local text = FS.ReadFile(path)
@@ -818,8 +818,8 @@ function PathInputCommandHandler:HandleInput(input, arg)
                     self:SetCommandText("No match")
                 elseif #matches == 1 then
                     local new_path = dir .. matches[1]
-                    local stat = FS.Stat(new_path)
-                    if stat and stat.is_dir then
+                    local st = FS.Stat(new_path)
+                    if st and st.is_dir then
                         new_path = new_path .. "/"
                     end
                     self.input = before .. new_path
