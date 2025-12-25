@@ -1083,12 +1083,18 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
             self:AppendButton(self.menuitem_socket_keystone)
         end
 
-    elseif not C_Item.IsEquippableItem(guid) then
-        -- Don't show Use/etc for equippable items because the "item"
-        -- secure action executes "equip" for those instead.  Also don't
-        -- show them while at a special location because those locations
-        -- may cause the "default behavior" invoked by those commands to
-        -- do something different.
+    elseif C_Item.IsEquippableItem(guid) then
+        -- We don't want to show Use/etc for equippable items (like some
+        -- cosmetic items) because the "item" secure action executes
+        -- "equip" for those instead.  But we also don't want to leave
+        -- "Sort" at the top of the menu because then the user might
+        -- accidentally sort the bag while blindly clicking through a
+        -- series of items.  So we insert the "Use" menu item anyway and
+        -- set it to disabled.
+        self:AppendButton(self.menuitem_use)
+        self.menuitem_use:SetEnabled(false)
+
+    else
         if info.hasLoot then
             self:AppendButton(self.menuitem_open)
         elseif info.isReadable then
