@@ -5,9 +5,10 @@ local list = WoWXIV.list
 local set = WoWXIV.set
 
 local strfind = string.find
+local strgmatch = string.gmatch
+local strjoin = string.join
 local strstr = function(s1,s2,pos) return strfind(s1,s2,pos,true) end
 local strsub = string.sub
-local tinsert = tinsert
 
 local FCT = function(...)
     FCT = WoWXIV.FormatColoredText
@@ -99,7 +100,7 @@ function(arg)
     for table_key, func in deep_pairs(SlashCmdList) do
         local key = table_key[2]
         if func then
-            aliases[key] = {}
+            aliases[key] = list()
             -- Some core commands are defined multiple times (why?), so
             -- omit duplicates.
             local seen = set()
@@ -112,7 +113,7 @@ function(arg)
                 if not seen:has(cmd) then
                     seen:add(cmd)
                     cmds[cmd] = key
-                    tinsert(aliases[key], cmd)
+                    aliases[key]:append(cmd)
                 end
                 i = i+1
             end
@@ -174,7 +175,7 @@ function(arg)
             for key in found do
                 local alias_str = Yellow("/"..found_keys[key])
                 local first_alias = true
-                for _,cmd in ipairs(aliases[key]) do
+                for cmd in aliases[key] do
                     if cmd ~= found_keys[key] then
                         if first_alias then
                             alias_str = alias_str .. " ("
@@ -279,6 +280,202 @@ function(arg)
         WoWXIV.Dev.Editor.Open(arg)
     else
         WoWXIV.Dev.Editor.New()
+    end
+end)
+
+---------------- /xivfs (/xf)
+
+local XIVFS_COMMANDS = {
+    cat = function(args)
+        local FS = WoWXIV.Dev.FS
+        if #args ~= 1 then
+            print(Red("Wrong number of arguments."))
+            return
+        end
+        local path = args[1]
+        local st = FS.Stat(path)
+        if not st then
+            print(Red(path..": No such file or directory"))
+            return
+        end
+        if st.is_dir then
+            print(Red(path..": Is a directory"))
+            return
+        end
+        local data = FS.ReadFile(path)
+        if not data then
+            print(Red(path..": Read error"))
+            return
+        end
+        local i = 1
+        while i < #data do
+            local eol = strstr(data, "\n", i) or #data+1
+            local line = strsub(data, i, eol-1)
+            print(line)
+            i = eol+1
+        end
+    end,
+
+    cp = function(args)
+        local FS = WoWXIV.Dev.FS
+        if #args ~= 2 then
+            print(Red("Wrong number of arguments."))
+            return
+        end
+        local source, dest = unpack(args)
+        local st = FS.Stat(source)
+        if not st then
+            print(Red(source..": No such file or directory"))
+            return
+        end
+        if st.is_dir then
+            print(Red(source..": Is a directory"))
+            return
+        end
+        local data = FS.ReadFile(source)
+        if not data then
+            print(Red(source..": Read error"))
+            return
+        end
+        if not FS.WriteFile(dest, data) then
+            print(Red(dest..": Write error"))
+            return
+        end
+    end,
+
+    ls = function(args)
+        local FS = WoWXIV.Dev.FS
+        if #args ~= 1 then
+            print(Red("Wrong number of arguments."))
+            return
+        end
+        local path = args[1]
+        local st = FS.Stat(path)
+        if not st then
+            print(Red(path..": No such file or directory"))
+            return
+        end
+        if not st.is_dir then
+            print(Red(path..": Not a directory"))
+            return
+        end
+        local names = FS.ListDirectory(path)
+        if not names then
+            print(Red(path..": Read error"))
+            return
+        end
+        for _, name in ipairs(names) do
+            print(name)
+        end
+    end,
+
+    mkdir = function(args)
+        local FS = WoWXIV.Dev.FS
+        if #args ~= 1 then
+            print(Red("Wrong number of arguments."))
+            return
+        end
+        local path = args[1]
+        local st = FS.Stat(path)
+        if st then
+            print(Red(path..": File exists"))
+            return
+        end
+        if not FS.CreateDirectory(path) then
+            print(Red(path..": Failed to create directory"))
+            return
+        end
+    end,
+
+    rm = function(args)
+        local FS = WoWXIV.Dev.FS
+        if #args ~= 1 then
+            print(Red("Wrong number of arguments."))
+            return
+        end
+        local path = args[1]
+        local st = FS.Stat(path)
+        if not st then
+            print(Red(path..": No such file or directory"))
+            return
+        end
+        if st.is_dir then
+            print(Red(path..": Is a directory"))
+            return
+        end
+        if not FS.Remove(path) then
+            print(Red(path..": Failed to remove"))
+            return
+        end
+    end,
+
+    rmdir = function(args)
+        local FS = WoWXIV.Dev.FS
+        if #args ~= 1 then
+            print(Red("Wrong number of arguments."))
+            return
+        end
+        local path = args[1]
+        local st = FS.Stat(path)
+        if not st then
+            print(Red(path..": No such file or directory"))
+            return
+        end
+        if not st.is_dir then
+            print(Red(path..": Not a directory"))
+            return
+        end
+        local names = FS.ListDirectory(path)
+        if names and #names > 0 then
+            print(Red(path..": Directory not empty"))
+            return
+        end
+        if not FS.Remove(path) then
+            print(Red(path..": Failed to remove"))
+            return
+        end
+    end,
+}
+
+DefineCommand("xivfs", {"xf"}, Green("subcommand"),
+              {"Performs an action on the development environment filesystem.",
+               "",
+               "The "..Green("subcommand").." can be any of the following:",
+               "",
+               Yellow("cat "..Green("pathname")),
+               "Display the contents of the file "..Green("pathname").." in the chat log.",
+               "",
+               Yellow("cp "..Green("source").." "..Green("dest")),
+               "Copy the file "..Green("source").." to the pathname "..Green("dest")..".",
+               "",
+               Yellow("ls "..Green("pathname")),
+               "Display a list of files in the directory "..Green("pathname").." in the chat log.",
+               "",
+               Yellow("mkdir "..Green("pathname")),
+               "Create a new directory at "..Green("pathname")..".",
+               "",
+               Yellow("rm "..Green("pathname")),
+               "Remove the file "..Green("pathname")..".",
+               "",
+               Yellow("rmdir "..Green("pathname")),
+               "Remove the directory "..Green("pathname")..". The directory must be empty."},
+function(arg)
+    local words = list()
+    -- We don't support any sort of quoting because it should be
+    -- unnecessary for our purposes.
+    for word in strgmatch(arg, "%S+") do
+        words:append(word)
+    end
+    if #words == 0 then
+        print(Red("No subcommand given."))
+    end
+    print("[Command: " .. strjoin(" ", unpack(words)) .. "]")
+    local command = words:pop(1)
+    local func = XIVFS_COMMANDS[command]
+    if func then
+        func(words)
+    else
+        print(Red("Unknown subcommand."))
     end
 end)
 

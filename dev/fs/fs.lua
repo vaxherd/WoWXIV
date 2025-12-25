@@ -437,6 +437,21 @@ function FS.ListDirectory(path)
     return fs:Scan(ref)
 end
 
+-- Remove the object at the given path.  The object may be either a file
+-- or a directory; if a directory, it must be empty.  Returns true on
+-- success, nil on error.
+function FS.Remove(path)
+    local parent, name = SplitPath(path)
+    if not name then
+        return nil
+    end
+    local fs, ref = ResolvePath(parent)
+    if not ref then
+        return nil
+    end
+    return fs:Remove(ref, name) or nil
+end
+
 -- Open a file at the given path using the given mode (an OPEN_*
 -- constant), and return a file descriptor (an opaque value) for accessing
 -- the file.  If no object exists at the specified path and the mode is not
@@ -561,7 +576,7 @@ end
 -- it is created; if it does exist, it is truncated.  Returns true on
 -- success, nil on error.
 function FS.WriteFile(path, data)
-    local fd = FS.Write(path, OPEN_TRUNCATE)
+    local fd = FS.Open(path, OPEN_TRUNCATE)
     local result
     if fd then
         result = FS.Write(fd, data)

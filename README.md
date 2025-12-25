@@ -85,7 +85,10 @@ files can be saved (Ctrl-X Ctrl-S to save, Ctrl-X Ctrl-W "write file" to
 save under a new name) and from which they can be loaded (Ctrl-X Ctrl-F
 "find file" to load a new file, Ctrl-X I "insert file" to insert a file
 into the current buffer).  Pathnames follow the Unix style, starting
-with a slash (e.g. `/dir/file.lua`), and are case-sensitive.
+with a slash (e.g. `/dir/file.lua`), and are case-sensitive.  The
+command `/xivfs` (`/xf`) can be used to perform some basic filesystem
+operations; see the help (`/? xivfs`) for a list of supported
+subcommands.
 
 If installed with the addon code built in (see Installation above), the
 addon code is available under the `/wowxiv` path: `/wowxiv/WoWXIV.lua`
