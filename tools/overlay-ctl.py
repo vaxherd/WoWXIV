@@ -194,14 +194,15 @@ def do_pull(src, dest):
                 fs[inode] = {}
                 dir = fs[inode]
             elif dir is None:
-                assert v.startswith('"')
-                assert v.endswith('",')
-                escapes = {"n": "\n", "r": "\r", "t": "\t"}
-                v = re.sub(
-                    r"\\(.)", lambda m: escapes.get(m.group(1), m.group(1)),
-                    v[1:-2])
-                inode = int(k) if k else inode
-                fs[inode] = v
+                if v != "nil,":
+                    assert v.startswith('"')
+                    assert v.endswith('",')
+                    escapes = {"n": "\n", "r": "\r", "t": "\t"}
+                    v = re.sub(
+                        r"\\(.)", lambda m: escapes.get(m.group(1), m.group(1)),
+                        v[1:-2])
+                    inode = int(k) if k else inode
+                    fs[inode] = v
                 inode += 1
             else:
                 assert k.startswith('"')
