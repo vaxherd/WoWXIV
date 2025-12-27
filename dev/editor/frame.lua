@@ -1081,7 +1081,7 @@ function FindFileCommand:__constructor(frame)
 end
 
 function FindFileCommand:ConfirmInput(path)
-    if self.frame.buffer:IsEmpty() and not self.frame.buffer:IsDirty() then
+    if not self.filepath then
         self.frame:LoadFile(path)
     else
         Editor.Open(path)
