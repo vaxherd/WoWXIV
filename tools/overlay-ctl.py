@@ -199,10 +199,17 @@ def do_pull(src, dest):
                 if traverse(o, path):
                     found_any = True
             else:
-                found_any = True
-                print(path)
-                with open(os.path.join(dest, path), "w") as f:
-                    f.write(o)
+                dest_path = os.path.join(dest, path)
+                try:
+                    with open(dest_path, "r") as f:
+                        existing = f.read()
+                except FileNotFoundError:
+                    existing = ""
+                if o != existing:
+                    found_any = True
+                    print(path)
+                    with open(dest_path, "w") as f:
+                        f.write(o)
         return found_any
     # end def
     if not traverse(fs[ROOT_INODE], ""):
