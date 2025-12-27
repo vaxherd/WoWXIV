@@ -17,6 +17,10 @@ local FS_DATA = {
 --@FS_DATA@--
 }
 
+-- Flag indicating whether the filesystem data is compressed.  On
+-- installation, this is replaced with an appropriate initializer.
+local FS_COMPRESSED --@FS_COMPRESSED@--
+
 -- File overlay data table.  This is a MemFS data store, but we access it
 -- directly to avoid external dependencies from the loader.  This will be
 -- persisted via WoW's SavedVariables mechanism.
@@ -63,6 +67,17 @@ local function GetFile(path)
             index = slash+1
         end
         file = node
+        if FS_COMPRESSED then
+            assert(type(file) == "string")
+            local ok, result = pcall(C_EncodingUtil.DecompressString,
+                                     file, Enum.CompressionMethod.Zlib)
+            if ok then
+                file = result
+            else
+                print("Error decompressing "..path.." (size "..tostring(#file)..")")
+                error(result)
+            end
+        end
     end
     assert(type(file) == "string")
     return file
@@ -81,3 +96,4 @@ end
 -- Expose the filesystem data to the module for later mounting.
 local module = module_args[2]
 module._loader_FS_DATA = FS_DATA
+module._loader_FS_COMPRESSED = FS_COMPRESSED

@@ -9,6 +9,9 @@ in romfs_files corresponding to the entry's containing directory and
 the name is the entry name as a string, or nil for a fileref to the
 directory itself.
 
+Optionally, files can be compressed with zlib; pass compressed=true to
+the constructor to indicate that file data is compressed.
+
 ]]--
 
 local _, WoWXIV = ...
@@ -39,13 +42,23 @@ local tinsert = table.insert
 local RomFS = class()
 FS.RomFS = RomFS
 
--- Create a new instance of the filesystem.  Pass in the file tree to be
--- exposed through the filesystem.  |tree| should be a table whose keys
--- are the entries (names) in the root directory and whose values are
+-- Create a new instance of the filesystem.  |tree| should be a table whose
+-- keys are the entries (names) in the root directory and whose values are
 -- either strings (files) or tables (subdirectories constructed in the
 -- same way).
-function RomFS:__constructor(tree)
+--
+-- If |compressed| is true, file data is assumed to be compressed with
+-- zlib; in this case, the first time a file is read, it will be
+-- decompressed and cached in memory.  It is not possible to selectively
+-- compress files; either all or no files must be compressed.
+function RomFS:__constructor(tree, compressed)
     self.root = tree
+    self.compressed = compressed
+    -- Decompression cache for compresed filesystems, a table of tables
+    -- such that the decompressed data for file |name| in the directory
+    -- whose table in the file tree is |dir_table| can be found in
+    -- cache[dir_table][name].
+    self.cache = compressed and {} or nil
 end
 
 -- Validate the state of the filesystem.
@@ -130,6 +143,20 @@ function RomFS:Read(file_ref, start, length)
     local file = dir[name]
     if type(file) ~= "string" then
         return nil
+    end
+    if self.compressed then
+        if not self.cache[dir] or not self.cache[dir][name] then
+            local ok, result = pcall(C_EncodingUtil.DecompressString,
+                                     file, Enum.CompressionMethod.Zlib)
+            if not ok then
+                print(string.format("RomFS: failed to decompress %s (size %d)",
+                                    name, #file))
+                return nil
+            end
+            self.cache[dir] = self.cache[dir] or {}
+            self.cache[dir][name] = result
+        end
+        file = self.cache[dir][name]
     end
     return strsub(file, start or 1, length)
 end

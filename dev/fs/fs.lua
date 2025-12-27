@@ -335,6 +335,7 @@ function FS.Init()
 
     local initfs_data = WoWXIV._loader_FS_DATA
     WoWXIV._loader_FS_DATA = nil  -- Drop the table reference.
+    local initfs_compressed = WoWXIV._loader_FS_COMPRESSED
     if initfs_data then
         local st = Dev.FS.Stat("/wowxiv")
         if st then
@@ -342,7 +343,7 @@ function FS.Init()
         else
             assert(Dev.FS.CreateDirectory("/wowxiv"))
         end
-        local init_romfs = Dev.FS.RomFS(initfs_data)
+        local init_romfs = Dev.FS.RomFS(initfs_data, initfs_compressed)
         init_romfs:Fsck()
         local overlay_memfs = Dev.FS.MemFS(WoWXIV_initfs_overlay)
         overlay_memfs:Fsck()

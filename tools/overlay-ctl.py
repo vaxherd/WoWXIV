@@ -4,11 +4,16 @@
 #
 # Usage:
 #
-# overlay-ctl.py install TARGET-PATH
+# overlay-ctl.py install [-z] TARGET-PATH
 #     Installs the addon to the given TARGET-PATH. typically
 #     "Interface/AddOns/WoWXIV" under the WoW game directory, with the
 #     addon files (other than non-text data files) available in the
 #     in-game development environment.
+#
+#     If -z is given, the embedded files will be compressed.  This can
+#     reduce the installation size somewhat, though not as much as might
+#     normally be expected due to Lua encoding limitations; it does not
+#     appear to have any significant effect on load time.
 #
 # overlay-ctl.py pull SAVEDVARIABLES-PATH
 #     Reads data updated in-game from the given SavedVariables file,
@@ -20,9 +25,10 @@ import os
 import re
 import stat
 import sys
+import zlib
 
 
-def do_install(src, dest):
+def do_install(src, dest, compress):
     """Install the addon from |src| to |dest|.
 
     |src| should be the root path of the addon source tree (the parent
@@ -32,6 +38,8 @@ def do_install(src, dest):
     does not exist, it (but not any parents) will be created.  If the
     directory already exists, colliding files will be replaced, but any
     files which are not present in the source tree will not be removed.
+
+    If |compress| is true, the installed data will be compressed.
     """
     with open(os.path.join(src, "WoWXIV.toc"), "r") as f:
         toc_in = f.readlines()
@@ -71,17 +79,29 @@ def do_install(src, dest):
                 ext = m.group(1) if m else ""
                 if ext not in ("png", "xcf", "ttf"):
                     with open(os.path.join(src, path), "rb") as f:
-                        tree_out[name] = f.read()
+                        data = f.read()
+                    if compress:
+                        data = zlib.compress(data, 9)
+                    tree_out[name] = data
                 if not subdir.startswith("tools") and ext not in ("toc", "lua"):
                     copy_list.append(path)
     # end def
     scan("", fs_tree)
 
-    charmap = [chr(i) if 32<=i<=126 else f"\\{i:03d}" for i in range(256)]
+    charmap = [chr(i) for i in range(256)]
+    charmap[0] = "\\000"
     charmap[9] = "\\t"
     charmap[10] = "\\n"
+    charmap[13] = "\\r"  # Also treated as a newline by Lua.
     charmap[34] = '\\"'
     charmap[92] = '\\\\'
+    # WoW's Lua implementation tries to be clever about detecting the
+    # input file character set and converting to UTF-8, and if we
+    # explicitly insert a UTF-8 BOM at the beginning, it chokes on
+    # invalid UTF-8 sequences (which we can expect to get in compressed
+    # data), so we have to encode all bytes 128..255 as escapes.
+    for i in range(128, 256):
+        charmap[i] = f"\\{i:03d}"
     def write_tree(tree, out, indent=""):
         for name in sorted(tree.keys()):
             object = tree[name]
@@ -93,6 +113,10 @@ def do_install(src, dest):
                 assert isinstance(object, bytes)
                 data = "".join(charmap[c] for c in object)
                 out.append(f'{indent}["{name}"] = "{data}",\n')
+                if name=="WoWXIV.lua": #FIXME temp
+                    with open("/tmp/1","w") as f: f.buffer.write(object)
+                    with open("/tmp/2","w") as f: f.write(data)
+                #FIXME temp end
     # end def
     loader_out = []
     with open(os.path.join(src, "dev/loader.lua"), "r") as f:
@@ -103,6 +127,9 @@ def do_install(src, dest):
             elif line.startswith("--@FS_DATA@--"):
                 write_tree(fs_tree, loader_out)
             else:
+                if line.find("--@FS_COMPRESSED@--"):
+                    value = "true" if compress else "false"
+                    line = line.replace("--@FS_COMPRESSED@--", f"= {value}")
                 loader_out.append(line)
 
     try:
@@ -220,15 +247,20 @@ def do_pull(src, dest):
 def main(argv):
     """Program entry point."""
     command = argv[1] if len(argv) > 1 else None
-    path = argv[2] if len(argv) > 2 else None
+    if command == "install" and len(argv) > 2 and argv[2] == "-z":
+        compress = True
+        path = argv[3] if len(argv) > 3 else None
+    else:
+        compress = False
+        path = argv[2] if len(argv) > 2 else None
     if (command != "install" and command != "pull") or path is None:
-        sys.stderr.write(f"Usage: {argv[0]} install TARGET-PATH\n" +
+        sys.stderr.write(f"Usage: {argv[0]} install [-z] TARGET-PATH\n" +
                          f"       {argv[0]} pull SAVEDVARIABLES-PATH\n")
         sys.exit(2)
     root = os.path.dirname(os.path.dirname(os.path.abspath(argv[0])))
     assert os.stat(os.path.join(root, "tools/overlay-ctl.py"))
     if command == "install":
-        do_install(root, path)
+        do_install(root, path, compress)
     else:
         assert command == "pull"
         do_pull(path, root)
