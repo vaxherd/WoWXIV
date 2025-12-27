@@ -84,7 +84,7 @@ local FLYTEXT_INFO_OTHER = {
 
 -- Minimum spacing between consecutive instances of scrolling text
 -- (as a fraction of screen height).
-local FLYTEXT_MIN_SPACING = 0.015
+local FLYTEXT_MIN_SPACING = 0.012
 
 ------------------------------------------------------------------------
 
