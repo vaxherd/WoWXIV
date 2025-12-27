@@ -75,7 +75,7 @@ function OverlayFS:_FsckTree(path, upper_ref, lower_ref)
     local entries = self.upper:Scan(upper_ref)
     for _, name in ipairs(entries) do
         local lower_nameref = self.lower:Lookup(lower_ref, name)
-        if nameref_lower then
+        if lower_nameref then
             local st_lower = self.lower:Stat(lower_nameref)
             assert(st_lower)
             local upper_nameref = self.upper:Lookup(upper_ref, name)
@@ -87,6 +87,12 @@ function OverlayFS:_FsckTree(path, upper_ref, lower_ref)
             end
             if st_upper.is_dir then
                 self:_FsckTree(path..name.."/", upper_nameref, lower_nameref)
+            else
+                local lower_data = self.lower:Read(lower_nameref)
+                local upper_data = self.upper:Read(upper_nameref)
+                if upper_data and upper_data == lower_data then
+                    self.upper:Remove(upper_ref, name)
+                end
             end
         end
     end
