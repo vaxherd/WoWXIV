@@ -6,7 +6,7 @@
        and OnLeave handlers). -->
   <Frame name="WoWXIV_EditorFrameTemplate" virtual="true" frameStrata="HIGH" frameLevel="9000" parent="UIParent" enableMouse="true" enableKeyboard="false" propagateKeyboardInput="false" movable="true" dontSavePosition="true">
 
-    <size x="759" y="473"/>
+    <size x="759" y="502"/>
     <Anchors>
       <Anchor point="CENTER" y="100"/>
     </Anchors>

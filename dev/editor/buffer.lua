@@ -1205,8 +1205,10 @@ function Buffer:MeasureView()
     local w1 = line:GetStringWidth()
     line:SetText("XXXXXXXXXXX")
     local w11 = line:GetStringWidth()
+    -- FIXME: this sometimes returns the wrong size (50/6 instead of 55/6); why?
     self.cell_w = (w11 - w1) / 10
-    self.cell_h = line:GetStringHeight()
+    -- Add a bit of spacing so underlines don't overlap the line below.
+    self.cell_h = line:GetStringHeight() + 1
     self:ReleaseLine(line)
     self.view_columns = floor((self.view:GetWidth() + 0.5) / self.cell_w)
     self.view_lines = floor((self.view:GetHeight() + 0.5) / self.cell_h)
