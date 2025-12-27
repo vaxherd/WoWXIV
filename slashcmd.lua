@@ -364,6 +364,7 @@ local XIVFS_COMMANDS = {
             print(Red(path..": Read error"))
             return
         end
+        table.sort(names)
         for _, name in ipairs(names) do
             print(name)
         end
