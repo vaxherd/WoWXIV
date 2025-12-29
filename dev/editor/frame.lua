@@ -1034,7 +1034,7 @@ function CloseCommand:SetCommandText()
 end
 
 function CloseCommand:Start()
-    if self.filepath and self.frame.buffer:IsDirty() then
+    if self.frame.filepath and self.frame.buffer:IsDirty() then
         self.state = "confirm-save"
         self.error_timeout = nil
         self:SetCommandText()
@@ -1081,7 +1081,7 @@ function FindFileCommand:__constructor(frame)
 end
 
 function FindFileCommand:ConfirmInput(path)
-    if not self.filepath then
+    if not self.frame.filepath then
         self.frame:LoadFile(path)
     else
         Editor.Open(path)
