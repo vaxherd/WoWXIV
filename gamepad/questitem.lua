@@ -348,6 +348,7 @@ local ITEM_TARGET = {
     [238216] = "none",    -- Hemet's Soothin' Flute (88670: Soothing Serpents)
     [239074] = "none",    -- Void Lure (86786: The Void Hunter)
     [246808] = "skip",    -- Experiment Instructions (91061: Infinite Chaos)
+    [265822] = "skip",    -- Unstable Mechagon Re-Localizatron (92580: Spare A Chair)
 
     -- The following are scenario action spells:
     [-314955] = "none",   -- Sanity Restoration Orb (N'Zoth's Horrific Visions)
