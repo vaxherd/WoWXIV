@@ -98,10 +98,9 @@ function EditorFrame:OnAcquire()
     -- Text most recently deleted with a "kill" command (C-w), nil if none.
     self.yank_text = nil
 
-    -- Command input state: nil for normal editing, otherwise a token
-    -- indicating what is being entered on the command line (see
-    -- StartCommand() for details).
-    self.command_state = nil
+    -- Current editor command: nil for normal editing, otherwise a
+    -- CommandHandler (or subclass) instance managing command line input.
+    self.command = nil
     -- Character offset of the cursor in the command line.  If nil, the
     -- normal buffer cursor is displayed.
     self.command_cursor_pos = nil
@@ -139,6 +138,7 @@ end
 function EditorFrame:OnRelease()
     -- Allow sub-objects to be garbage-collected.
     self.buffer:SetText("")
+    self.command = nil
     self.keys = nil
     self.keymap = nil
     self.prefix_keys = nil
@@ -1517,9 +1517,7 @@ function EditorFrame:HandleKillLine(key)
 end
 
 function EditorFrame:HandleMakeCapital()
-    if self.command_state == "isearch" then
-        assert(self:HandleCommandInput("ISEARCH_CASE", forward))
-    else
+    if not self:HandleCommandInput("ISEARCH_CASE", forward) then
         self:ClearCommand()
         --FIXME notimp
     end
