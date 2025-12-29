@@ -1132,10 +1132,10 @@ end
 
 function IsearchCommand:SetCommandText(info)
     local prompt = strformat("%s%s%sI-search%s: ",
-                             self.frame.isearch_failing and "failing " or "",
-                             self.frame.isearch_wrapped and "wrapped " or "",
-                             self.frame.isearch_regex and "regexp " or "",
-                             self.frame.isearch_forward and "" or " backward")
+                             self.failing and "failing " or "",
+                             self.wrapped and "wrapped " or "",
+                             self.regex and "regexp " or "",
+                             self.forward and "" or " backward")
     prompt = strsub(prompt,1,1):upper() .. strsub(prompt,2)
     local suffix = info and " ["..info.."]"
     self.frame:SetCommandText(prompt, self.text, suffix)
