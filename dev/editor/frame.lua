@@ -1168,6 +1168,7 @@ function IsearchCommand:Update()
                                                     self.forward, highlight)
         if not self.failing then
             self.last_success = self.text
+            self.last_success_cast = self.text.case
         end
     else
         self.frame.buffer:SetCursorPos(unpack(self.initial_cursor))
@@ -1181,6 +1182,7 @@ function IsearchCommand:Start()
     self.initial_mark = {self.frame.buffer:GetMarkPos()}
     self.text = ""
     self.last_success = ""  -- Last successfully matched string.
+    self.last_success_case = false  -- Case sensitivity state at last_success.
     self.failing = false
     self.wrapped = false
 
@@ -1210,7 +1212,9 @@ function IsearchCommand:HandleInput(input, arg)
         return true
     elseif input == "CANCEL" then
         if self.failing then
+            self.failing = false
             self.text = self.last_success
+            self.case = self.last_success_case
             self:Update()
         else
             self.frame.buffer:SetCursorPos(unpack(self.initial_cursor))
