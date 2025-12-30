@@ -25,15 +25,19 @@ local typeof = type  -- Renamed so we can use "type" as an ordinary name.
 -- Flying text behavior types.  Fields are:
 --     time: Length of time the text is displayed (seconds).
 --     dy: Movement per second on the Y axis.
---     x: Initial X position.
+--     x, y: Initial X and Y positions.
 --     random: Maximum random adjustment to initial X and Y positions.
 -- All position values are offset from the unit's notional origin (the
 -- center of the screen for the player, the nameplate frame for other
 -- units) and are scaled relative to the screen size.
-local BEHAVIOR_DOWN = {time = 4.5, dy = -0.066, x = 0.05, random = 0}
-local BEHAVIOR_HEAL = {time = 4.5, dy = -0.066, x = -0.01, random = 0}
-local BEHAVIOR_UP   = {time = 2.0, dy = 0.066, x = 0.05, random = 0}
-local BEHAVIOR_STAY = {time = 1.6, dy = 0, x = 0, random = 0.02}
+local BEHAVIOR_DOWN = {time = 4.5, dy = -0.066, x = 0.05, y = 0, random = 0}
+local BEHAVIOR_HEAL = {time = 4.5, dy = -0.066, x = -0.01, y = 0, random = 0}
+local BEHAVIOR_UP   = {time = 2.0, dy = 0.066, x = 0.05, y = 0, random = 0}
+-- FIXME: Ideally this should be centered on the enemy, but since we have
+-- to draw the text nameplate-relative instead of model-relative, the
+-- nameplate will cover up the text if we set y=0.  Instead, we set the
+-- origin such that the random box is slightly below the nameplate.
+local BEHAVIOR_STAY = {time = 1.6, dy = 0, x = 0, y = -0.035, random = 0.015}
 
 -- Text colors used in flying text.
 local COLOR_RED      = {1.000, 0.753, 0.761}
@@ -186,7 +190,7 @@ function FlyText:Init(type, unit, ...)
     self.time = behavior.time
     self.dy = behavior.dy * UIParent:GetHeight()
     self.x = (behavior.x + randrange(behavior.random)) * UIParent:GetWidth()
-    self.y = randrange(behavior.random) * UIParent:GetHeight()
+    self.y = (behavior.y + randrange(behavior.random)) * UIParent:GetHeight()
 
     if self.unit == "player" then
         self.nameplate = nil
