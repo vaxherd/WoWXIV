@@ -501,9 +501,19 @@ function FlyTextManager:OnCombatLogEvent(event)
         end
     end
 
+    -- Special case: periodic damage from a player's channeled spell is
+    -- reported as PERIODIC_DAMAGE, but we want to display it as normal
+    -- (direct) damage, as for enemy spells channeled at the player.
+    local is_channel_dot
+    if event.subtype == "PERIODIC_DAMAGE" and unit ~= player then
+        local token = UnitTokenFromGUID(source)
+        local channel_spell = token and select(8, UnitChannelInfo(token))
+        is_channel_dot = channel_spell and event.spell_id == channel_spell
+    end
+
     local args = nil
     local is_aura = false
-    if event.subtype == "DAMAGE" then
+    if event.subtype == "DAMAGE" or is_channel_dot then
         args = {FLYTEXT_DAMAGE_DIRECT, unit, event.spell_id,
                 event.spell_school, event.amount, event.critical}
     elseif event.subtype == "PERIODIC_DAMAGE" then
