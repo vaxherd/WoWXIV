@@ -1044,6 +1044,7 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
     local bagslot = strformat("%d %d", bag, slot)
     local info = C_Container.GetContainerItemInfo(bag, slot)
     local equip_type, _, _, item_class = select(9, C_Item.GetItemInfo(guid))
+    local cosmetic_use_hack = false  -- See below.
 
     if SpellIsTargeting() and SpellCanTargetItem() then
         self:AppendButton(self.menuitem_target)
@@ -1086,13 +1087,17 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
     elseif C_Item.IsEquippableItem(guid) then
         -- We don't want to show Use/etc for equippable items (like some
         -- cosmetic items) because the "item" secure action executes
-        -- "equip" for those instead.  But we also don't want to leave
-        -- "Sort" at the top of the menu because then the user might
-        -- accidentally sort the bag while blindly clicking through a
-        -- series of items.  So we insert the "Use" menu item anyway and
-        -- set it to disabled.
-        self:AppendButton(self.menuitem_use)
-        self.menuitem_use:SetEnabled(false)
+        -- "equip" for those instead (caused by a missing IsCosmeticItem
+        -- check in SecureTemplates.lua:SECURE_ACTIONS.item(), line 417 in
+        -- build 11.2.7.64978, reported on 2025-07-30).  But we also don't
+        -- want to leave "Sort" at the top of the menu because then the
+        -- user might accidentally sort the bag while blindly clicking
+        -- through a series of items.  So for that case, we insert the
+        -- "Use" menu item anyway and set it to disabled.
+        if C_Item.IsCosmeticItem(guid) then
+            self:AppendButton(self.menuitem_use)
+            self.menuitem_use:SetEnabled(false)
+        end
 
     else
         if info.hasLoot then
@@ -1116,15 +1121,7 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
 
     if C_Item.IsEquippableItem(guid) then
         if C_Item.IsCosmeticItem(guid) then
-            -- FIXME: the standard "item" action tries to equip this,
-            -- which both isn't what we're looking for and doesn't
-            -- learn the appearance (caused by a missing IsCosmeticItem
-            -- check in SecureTemplates.lua:SECURE_ACTIONS.item, line
-            -- 417 in build 11.1.7.61967, reported on 2025-07-30).
-            -- These arguably shouldn't be marked as "equippable" in
-            -- the first place, but since they are, we have no way to
-            -- use them from insecure code and have to rely on mouse
-            -- activation.
+            -- Handled above.
         elseif equip_type == "INVTYPE_FINGER" then
             self:AppendButton(self.menuitem_equip_ring1)
             self:AppendButton(self.menuitem_equip_ring2)
