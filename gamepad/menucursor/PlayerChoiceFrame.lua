@@ -47,6 +47,9 @@ end
 function PlayerChoiceFrameHandler:PLAYER_CHOICE_UPDATE()
     if self.frame:IsShown() then
         self:ClearTarget()
+        -- Re-enable in case this is a refresh after previously
+        -- selecting an option (as for "contribution" type dialogs).
+        self:Enable()
         self:SetTarget(self:SetTargets(self.current_option))
     end
 end
