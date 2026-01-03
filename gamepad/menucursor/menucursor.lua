@@ -2526,9 +2526,8 @@ function NumberInput:__constructor(editbox, on_change, on_confirm)
     f:SetFrameStrata("TOOLTIP") -- Make sure it's visible above other elements.
     if self.is_StackSplitText then
         f:SetScale(UIParent:GetEffectiveScale()*0.64)
-        f:SetPoint("TOPRIGHT", editbox)
+        f:SetPoint("TOPLEFT", editbox)
         f:SetPoint("BOTTOMRIGHT", editbox)
-        f:SetWidth(72)
     else
         f:SetScale(editbox:GetEffectiveScale())
         -- Don't overlap the money icon in money input boxes (esp. silver).
@@ -2553,6 +2552,20 @@ function NumberInput:__constructor(editbox, on_change, on_confirm)
                            on_click = function() self:ConfirmEdit() end}}
 end
 
+-- Return the current value displayed in the edit box as a number.
+-- Encapsulated in a method to allow subclasses to deal with flavor text
+-- in the box (e.g. StackSplitFrame).
+function NumberInput:GetEditBoxValue()
+    return tonumber(self.editbox:GetText())
+end
+
+-- Modify the given number text as appropriate to display in the edit box.
+-- Encapsulated in a method to allow subclasses to deal with flavor text
+-- in the box (e.g. StackSplitFrame).
+function NumberInput:MakeLabelText(value_str)
+    return value_str
+end
+
 -- Set the rendering scale factor for the input text.  Useful when the
 -- default size doesn't match the size of the original InputBox text.
 function NumberInput:SetTextScale(scale)
@@ -2572,15 +2585,12 @@ function NumberInput:Edit(value_min, value_max)
 
     local editbox = self.editbox
     assert(editbox:IsShown())
-    local old_value = editbox:GetText()
-    assert(old_value)
-
     local r, g, b, a = editbox:GetTextColor()
     self.edittext_alpha = a
     editbox:SetTextColor(r, g, b, 0)
     self.label:SetFont(editbox:GetFont())
-    self.old_value = old_value
-    self.value = tonumber(old_value) or value_min
+    self.old_value = self:GetEditBoxValue() or value_min
+    self.value = self.old_value
     self.value_min = value_min
     self.value_max = value_max
     self.pos = 0
@@ -2596,7 +2606,7 @@ function NumberInput:ConfirmEdit()
         local editbox = self.editbox
         local r, g, b = editbox:GetTextColor()
         editbox:SetTextColor(r, g, b, self.edittext_alpha)
-        self:SetEditBoxText(tostring(self.value))
+        self:SetEditBoxText(self:MakeLabelText(tostring(self.value)))
         if self.on_confirm then self:on_confirm() end
     end
 end
@@ -2609,7 +2619,7 @@ function NumberInput:CancelEdit()
         local editbox = self.editbox
         local r, g, b = editbox:GetTextColor()
         editbox:SetTextColor(r, g, b, self.edittext_alpha)
-        self:SetEditBoxText(self.old_value)
+        self:SetEditBoxText(self:MakeLabelText(tostring(self.old_value)))
     end
 end
 
@@ -2664,7 +2674,7 @@ function NumberInput:UpdateLabel()
     text = (strsub(text, 1, digit-1)
             .. FormatColoredText(strsub(text, digit, digit), 1, 0.75, 0.3)
             .. strsub(text, digit+1))
-    self.label:SetText(text)
+    self.label:SetText(self:MakeLabelText(text))
 end
 
 -- Takes care of also calling the on-change callback, if any.
