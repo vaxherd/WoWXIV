@@ -48,18 +48,20 @@ function EditorFrame:__constructor()
     self.buffer:SetScrollCallback(function() self:OnBufferStateChange() end)
 
     WoWXIV.SetFont(self.CommandLine.Text, "EDITOR")
-    -- Size of a character cell in the command line font.  See notes in
-    -- Buffer:MeasureView().
-    do
+    -- Size of a character cell in the command line font.
+    self.command_cell_w, self.command_cell_h =
+        Editor.MeasureFont(self.CommandLine.Text)
+    -- FIXME: hack for mismeasurement (see note in util.lua:MeasureFont())
+    RunNextFrame(function()
         local text = self.CommandLine.Text
-        text:SetText("X")
-        local w1 = text:GetStringWidth()
-        text:SetText("XXXXXXXXXXX")
-        local w11 = text:GetStringWidth()
-        self.command_cell_w = (w11 - w1) / 10
-        self.command_cell_h = text:GetStringHeight()
-        text:SetText("")
-    end
+        local str = text:GetText()
+        local w, h = Editor.MeasureFont(text)
+        text:SetText(str)
+        if w ~= self.command_cell_w then
+            print("[WoWXIV.Dev.Editor] Applied FontString bug workaround")
+            self.command_cell_w, self.command_cell_h = w, h
+        end
+    end)
     -- Texture instance for displaying the command line cursor.
     self.command_cursor = self.CommandLine:CreateTexture(nil, "OVERLAY")
     self.command_cursor:Hide()

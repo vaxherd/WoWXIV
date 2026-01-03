@@ -72,6 +72,17 @@ function Buffer:__constructor(view)
 
     self:InitScrollBar()
     self:MeasureView()
+    -- FIXME: hack for mismeasurement (see note in util.lua:MeasureFont())
+    RunNextFrame(function()
+        local line = self:AcquireLine()
+        local w, h = Editor.MeasureFont(line)
+        self:ReleaseLine(line)
+        if w ~= self.cell_w then
+            print("[WoWXIV.Dev.Editor] Applied FontString bug workaround")
+            self:MeasureView()
+            self:SetText(self:GetText())
+        end
+    end)
 end
 
 
@@ -1199,16 +1210,7 @@ end
 
 function Buffer:MeasureView()
     local line = self:AcquireLine()
-    -- Measuring a single character doesn't seem to give us correct values,
-    -- so measure the difference between two widths instead.
-    line:SetText("X")
-    local w1 = line:GetStringWidth()
-    line:SetText("XXXXXXXXXXX")
-    local w11 = line:GetStringWidth()
-    -- FIXME: this sometimes returns the wrong size (50/6 instead of 55/6); why?
-    self.cell_w = (w11 - w1) / 10
-    -- Add a bit of spacing so underlines don't overlap the line below.
-    self.cell_h = line:GetStringHeight() + 1
+    self.cell_w, self.cell_h = Editor.MeasureFont(line)
     self:ReleaseLine(line)
     self.view_columns = floor((self.view:GetWidth() + 0.5) / self.cell_w)
     self.view_lines = floor((self.view:GetHeight() + 0.5) / self.cell_h)

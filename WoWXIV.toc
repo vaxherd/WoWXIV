@@ -36,6 +36,7 @@ dev/editor/editor.lua
 dev/editor/frame.lua
 dev/editor/frame.xml
 dev/editor/lua-int.lua
+dev/editor/util.lua
 dev/fs/fs.lua
 dev/fs/memfs.lua
 dev/fs/overlayfs.lua
