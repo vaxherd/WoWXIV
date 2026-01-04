@@ -112,7 +112,7 @@ The method should raise an error under any condition which would prevent
 it from creating a new instance.
 
 Any metatable set on the returned instance will be preserved.  If no
-metatable is set, a new one will be created.  Note that If the allocator
+metatable is set, a new one will be created.  Note that if the allocator
 sets an instance metatable which includes an __index field, the value of
 that field will replace the normal __index which redirects to the class
 definition; this will prevent ordinary use of the table as a class
