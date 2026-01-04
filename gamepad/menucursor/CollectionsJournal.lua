@@ -591,6 +591,7 @@ function PetContextMenu:Configure(button, pet_id)
     self.pet_id = pet_id
     PetJournal_ShowPetCardByID(pet_id)
 
+    local info = C_PetJournal.GetPetInfoTableByPetID(pet_id)
     local needs_unwrap = C_PetJournal.PetNeedsFanfare(pet_id)
     local is_locked = (C_PetJournal.PetIsRevoked(pet_id)
                        or C_PetJournal.PetIsLockedForConvert(pet_id))
@@ -612,12 +613,14 @@ function PetContextMenu:Configure(button, pet_id)
         return  -- No other options when pet is locked or not unwrapped.
     end
 
-    local first_slot_locked = select(5, C_PetJournal.GetPetLoadOutInfo(1))
-    local slots_readonly = (C_PetBattles.GetPVPMatchmakingInfo()
-                            or not C_PetJournal.IsJournalUnlocked())
-    self.menuitem_assign_slot:SetEnabled(
-        not (first_slot_locked or slots_readonly))
-    self:AppendButton(self.menuitem_assign_slot)
+    if info and info.canBattle then
+        local first_slot_locked = select(5, C_PetJournal.GetPetLoadOutInfo(1))
+        local slots_readonly = (C_PetBattles.GetPVPMatchmakingInfo()
+                                or not C_PetJournal.IsJournalUnlocked())
+        self.menuitem_assign_slot:SetEnabled(
+            not (first_slot_locked or slots_readonly))
+        self:AppendButton(self.menuitem_assign_slot)
+    end
 
     self:AppendButton(self.menuitem_rename)
 
