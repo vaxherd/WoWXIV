@@ -15,10 +15,10 @@ Define a class using the following syntax:
     MyClass = class()
     MyClass.CLASS_CONSTANT = 42
     function MyClass.StaticMethod(arg1, arg2, ...)
-        -- ...
+        ...
     end
     function MyClass:InstanceMethod(arg1, arg2, ...)
-        -- ...
+        ...
     end
 
 
@@ -86,7 +86,7 @@ method named "__constructor":
 If the class has a parent class and the subclass does not define a
 constructor, it inherits the parent's constructor (if any).  If the
 subclass does define a constructor, it is responsible for calling the
-parent class's constructor, typically with "__super(self, [args])".
+parent class's constructor, typically with "__super(self [, args])".
 
 
 Additionally, classes may provide a class method named "__allocator"
@@ -94,12 +94,12 @@ which creates the initial table for an instance:
 
     MyClass = class()
     MyClass.singleton = {}
-    function MyClass.__allocator(class)
-        return class.singleton
+    function MyClass.__allocator(thisclass)
+        return thisclass.singleton
     end
 
     instance = MyClass()
-    print(instance == MyClass.singleton)  -- prints "true"
+    assert(instance == MyClass.singleton)
 
 This can be useful for wrapping external objects in classes where the
 instance must use an externally provided table, such as Frame objects
