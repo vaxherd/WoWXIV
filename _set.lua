@@ -105,9 +105,9 @@ Sets also support set-to-set operations using standard binary operators:
     s1 <= s2  -- s1:issubset(s2)
     s1 < s2  -- s1:issubset(s2) and not s1:isequal(s2) ("proper subset")
 
-Note that unlike Python, we do not override the == operator, because Lua
-doesn't provide any other way to test whether two object references
-refer to the same object.
+Note that unlike Python, we do not override the == operator, for
+consistency with the default Lua behavior of testing for equality of
+reference rather than equality of value.
 
 
 All set methods which do not return an explicit value (specifically:
