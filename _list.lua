@@ -157,7 +157,7 @@ Some methods which take one argument can also take multiple arguments:
 
 or no arguments:
 
-    l:add()  -- No-op
+    l:append()  -- No-op
     l:count()  -- No-op, returns zero (nothing to count)
     l:discard()  -- No-op
     l:extend()  -- No-op
