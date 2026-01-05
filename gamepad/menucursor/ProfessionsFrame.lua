@@ -675,7 +675,7 @@ function ItemFlyoutHandler:RefreshTargets(initial_item)
                       end},
     }
 
-    local function Filter(element, index)
+    local function Filter(data, index)
         local attrib = {send_enter_leave = true,
                         on_click = function(target) self:ClickItem(target) end}
         return attrib, initial_item and data.item:GetItemID() == initial_item
