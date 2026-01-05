@@ -110,13 +110,13 @@ function StackSplitFrameHandler:OnQuantityChanged()
         f.split = split * self.unit
         f:UpdateStackText()
         -- StackSplitMixin.UpdateStackSplitFrame is obsolete logic which
-        -- hasn't been updated to support isMultiStack , and the parts of
+        -- hasn't been updated to support isMultiStack, and the parts of
         -- it which handled updating left/right button state based on the
         -- input value have now been copy-pasted into the individual input
         -- handlers (?!) so we have to reimplement that behavior ourselves.
         --f:UpdateStackSplitFrame(f.maxStack)
-        f.LeftButton:SetEnabled(f.split > StackSplitFrame.minSplit)
-        f.RightButton:SetEnabled(f.split < StackSplitFrame.maxStack)
+        f.LeftButton:SetEnabled(split > 1)
+        f.RightButton:SetEnabled(split < StackSplitFrame.maxStack)
     end
 end
 
