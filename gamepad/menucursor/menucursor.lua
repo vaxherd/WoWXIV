@@ -2526,8 +2526,9 @@ function NumberInput:__constructor(editbox, on_change, on_confirm)
     f:SetFrameStrata("TOOLTIP") -- Make sure it's visible above other elements.
     if self.is_StackSplitText then
         f:SetScale(UIParent:GetEffectiveScale()*0.64)
-        f:SetPoint("TOPLEFT", editbox)
-        f:SetPoint("BOTTOMRIGHT", editbox)
+        -- Label is repositioned on open to match the editbox itself
+        -- (which moves depending on the stacking mode).
+        f:SetHeight(10)  -- Arbitrary, but required for label to be rendered.
     else
         f:SetScale(editbox:GetEffectiveScale())
         -- Don't overlap the money icon in money input boxes (esp. silver).
@@ -2585,6 +2586,22 @@ function NumberInput:Edit(value_min, value_max)
 
     local editbox = self.editbox
     assert(editbox:IsShown())
+    if self.is_StackSplitText then
+        local f = self.frame
+        f:ClearAllPoints()
+        assert(editbox:GetNumPoints() == 1)
+        local point = {editbox:GetPoint(1)}
+        f:SetPoint(unpack(point))
+        local parent_width = editbox:GetParent():GetWidth()
+        if point[1] == "CENTER" then
+            f:SetWidth(parent_width)
+            self.label:SetJustifyH("CENTER")
+        else
+            assert(point[1] == "RIGHT")
+            f:SetWidth(parent_width - 2*abs(point[4] or 0))
+            self.label:SetJustifyH("RIGHT")
+        end
+    end
     local r, g, b, a = editbox:GetTextColor()
     self.edittext_alpha = a
     editbox:SetTextColor(r, g, b, 0)
