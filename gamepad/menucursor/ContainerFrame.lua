@@ -1022,6 +1022,11 @@ function InventoryItemSubmenu:__constructor()
     self.menuitem_disenchant = self:CreateSecureButton("Disenchant",
         {type="spell", spell=WoWXIV.SPELL_DISENCHANT})
 
+    self.menuitem_search = self:CreateButton("Search inventory",
+        function(bag, slot, info)
+            WoWXIV.isearch(info.itemName, true)
+        end)
+
     self.menuitem_splitstack = self:CreateButton("Split stack",
         function(bag, slot, info, item)
             self:DoSplitStack(bag, slot, info, item)
@@ -1153,6 +1158,8 @@ function InventoryItemSubmenu:ConfigureForItem(bag, slot)
             self:AppendButton(self.menuitem_disenchant)
         end
     end
+
+    self:AppendButton(self.menuitem_search)
 
     if info.stackCount > 1 then
         self:AppendButton(self.menuitem_splitstack)

@@ -241,8 +241,12 @@ local EQUIPS = list(
     EQUIPDEF("FISHINGGEAR1SLOT", "Fishing Accessory 2")
 )
 
-local function NameIsMatch(name, search_key)
-    return name and strstr(name:lower(), search_key)
+local function NameIsMatch(name, search_key, exact)
+    if exact then
+        return name == search_key
+    else
+        return name and strstr(name:lower(), search_key)
+    end
 end
 
 local function SlotString(slot_count)
@@ -376,17 +380,18 @@ function isearch_event_frame:ADDON_LOADED(name)
 end
 
 --------------------------------------------------------------------------
--- /itemsearch implementation
+-- Item search implementation
 --------------------------------------------------------------------------
 
-function WoWXIV.isearch(arg)
-    if not arg or arg == "" then
-        print(Red("No item name given. Try \"/? itemsearch\" for help."))
-        return
+-- Run an item search, printing the results to the chat log.  If |exact|
+-- is true, the item name must match the given string exactly (useful for
+-- executing item searches from an item context menu, for example).
+function WoWXIV.isearch(search_key, exact)
+    assert(type(search_key) == "string")
+    print("Searching for " .. Yellow(search_key))
+    if not exact then
+        search_key = search_key:lower()
     end
-
-    print("Searching for " .. Yellow(arg))
-    search_key = arg:lower()
 
     local results = list()
     local used_cache = false
@@ -402,7 +407,7 @@ function WoWXIV.isearch(arg)
                     local loc = ItemLocation:CreateFromBagAndSlot(bag.id, slot)
                     if loc and loc:IsValid() then
                         local name = C_Item.GetItemName(loc)
-                        if NameIsMatch(name, search_key) then
+                        if NameIsMatch(name, search_key, exact) then
                             local link = C_Item.GetItemLink(loc)
                             local count = GetItemCountOrCharges(loc)
                             found_slots[link] = found_slots[link] or {}
@@ -466,7 +471,7 @@ function WoWXIV.isearch(arg)
                     if data then
                         local item, count, link = unpack(data)
                         local name = item and C_Item.GetItemInfo(item)
-                        if NameIsMatch(name, search_key) then
+                        if NameIsMatch(name, search_key, exact) then
                             found_slots[link] = found_slots[link] or {}
                             tinsert(found_slots[link], {slot, count})
                             used_cache = used_cache or is_cached
@@ -489,7 +494,7 @@ function WoWXIV.isearch(arg)
         local loc = ItemLocation:CreateFromEquipmentSlot(slot_info)
         if loc and loc:IsValid() then
             local name = C_Item.GetItemName(loc)
-            if NameIsMatch(name, search_key) then
+            if NameIsMatch(name, search_key, exact) then
                 local link = C_Item.GetItemLink(loc)
                 results:append({link, " equipped on " .. Blue(slot.name)})
             end

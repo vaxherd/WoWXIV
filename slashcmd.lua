@@ -221,7 +221,13 @@ DefineCommand("itemsearch", {"isearch", "is"}, Green("ItemName"),
                "     → Shows where your Heart of Azeroth is stored or equipped.",
                "    "..Yellow("/itemsearch wildercloth"),
                "     → Finds all items with \"Wildercloth\" in the name, excluding any Wildercloth Bags equipped as inventory bags."},
-              WoWXIV.isearch)
+function(arg)
+    if not arg or arg == "" then
+        print(Red("No item name given. Try \"/? itemsearch\" for help."))
+        return
+    end
+    return WoWXIV.isearch(arg)
+end)
 
 ---------------- /itemsort (/isort)
 
