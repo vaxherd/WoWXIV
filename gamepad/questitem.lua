@@ -254,6 +254,7 @@ local ITEM_TARGET = {
     [210016] = "none",    -- Somnowl's Shroud (76329: In and Out Scout)
     [210227] = "target",  -- Q'onzu's Faerie Feather (76992: Fickle Judgment)
     [210454] = "skip",    -- Spare Hologem (78068: An Artificer's Appeal / 78070: Pressing Deadlines / 78075: Moving Past / 78081: Pain Recedes)
+    [210498] = "none",    -- Fused Essence (78429: The Power of Dreams, Awoken)
     [211073] = "none",    -- Sentry Flare (78657: The Midnight Sentry)
     [211302] = "target",  -- Slumberfruit (76993: Turtle Power)
     [211435] = "none",    -- Explosive Sticks (78747: The Great Collapse)
