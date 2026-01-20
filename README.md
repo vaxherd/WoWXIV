@@ -6,6 +6,15 @@ Source: https://github.com/vaxherd/WoWXIV
 License: Public domain (with exceptions, see below)
 
 
+End-of-life notice
+------------------
+WoWXIV is no longer being developed due to restrictions introduced in
+WoW patch 12.0 (Midnight) which prevent most features of the addon from
+working.  Blizzard has explicitly stated an intent to prevent addons
+from adding features not in the base UI, and I have no desire to try and
+see what pieces of it might still function in that environment.
+
+
 Overview
 --------
 WoWXIV is a World of Warcraft addon which applies various tweaks to the
@@ -40,9 +49,9 @@ source code within the game.
 
 Installation
 ------------
-Just copy the source tree into a `WoWXIV` (or otherwise appropriately
-named) folder under `Interface/AddOns` in your World of Warcraft
-installation.  WoWXIV has no external dependencies.
+Just copy the source tree into a `WoWXIV` folder under `Interface/AddOns`
+in your World of Warcraft installation.  WoWXIV has no external
+dependencies.
 
 Alternatively, to make use of the in-game development environment to
 edit the addon inside WoW, place this source tree outside the World of
@@ -111,16 +120,7 @@ put it online in case anyone else finds it useful, but many things I
 would not consider changing are hardcoded (as mentioned above), and in
 particular, UI element layout and sizing is designed around my specific
 windowing setup (2560x1440 with default UI scaling), so the layout will
-probably break at different resolutions or UI scale factors.  I'll try
-to respond to feature requests or bug reports as time permits, but if
-you're interested in significantly expanding this addon, you'll probably
-have more luck forking it and improving it yourself.
-
-WoWXIV is not and will not be compatible with Midnight (WoW patch 12.0).
-Blizzard has explicitly stated an intent to prevent addons from adding
-features not in the base UI, which encompasses most of what this addon
-does, and I have no desire to try and see what pieces of it might still
-function in that environment.
+probably break at different resolutions or UI scale factors.
 
 
 License details
