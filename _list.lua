@@ -4,10 +4,10 @@ Implementation of a list type in Lua.
 
 This file declares the symbol "list" in the module table provided as the
 second argument when loading the file (as is done by the WoW API).  If
-no second argument is provided, one is created locally and returned from
-the module, for use with Lua require().  Module sources using this
-syntax are assumed to import the "list" identifier locally with
-"local list = module.list" or similar.
+no second argument is provided, a module table is created locally and
+returned from the module, for use with Lua require().  Module sources
+using this syntax are assumed to import the "list" identifier locally
+with "local list = module.list" or similar.
 
 
 A list is an ordered collection of values.  Lua already provides basic
@@ -89,8 +89,8 @@ List instances also support a number of convenience operations:
     l:sort(compare)  -- Sort l, optionally with a comparator function
     l1 + l2  -- Create a new list containing l1's and l2's elements
              -- (equivalent to "l1:copy():extend(l2)")
-    l * n  -- Create a new list containing max(0,n) copies of l's elements
-           -- (operands can also be reversed: "n * l")
+    l * n  -- Create a new list containing max(0,floor(n)) copies of l's
+           -- elements (operands can also be reversed: "n * l")
 
 Unlike Python, index() does not raise an error if its argument is not
 found in the list, instead returning nil.  This is done as a convenience
@@ -127,12 +127,12 @@ For replace() and slice():
      to [0,#l].  i=#l+1 or j=0 (after clamping) will always result in an
      empty slice.
    - replace() with k > 1 requires the replacement list l2 to have the
-     same length as the number of replaced elements, also as in Python.
+     same length as the number of replaced elements, as in Python.
      Note that this is the number of replaced _elements_, not _indices_!
      Passing j > #l may result in fewer replaced elements than a simple
      calculation of floor((j-i)/k)+1 would suggest.
-   - Reverse stepping (k < 0) is not supported.  If a reverse slice is
-     needed, use l:reverse():slice(...).
+   - Reverse stepping (k < 0) is not supported.  To get a reverse slice,
+     use l:slice(...):reverse() or l:copy():reverse():slice(...).
 
 The comparator for sort() should be defined as for table.sort(),
 returning true if its first argument is strictly less than its second.
@@ -142,7 +142,9 @@ desired, it is the caller's responsibility to ensure that no two
 elements compare equal (perhaps by replacing each element with an
 {index,element} pair which can always be ordered).
 
-To non-destructively sort a list, call sort() on a copy of the list:
+To non-destructively reverse or sort a list, call reverse() or sort() on
+a copy of the list:
+    reversed_l = l:copy():reverse()
     sorted_l = l:copy():sort(...)
 
 

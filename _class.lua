@@ -4,10 +4,10 @@ Syntactic sugar for class declarations in Lua.
 
 This file declares the symbol "class" in the module table provided as
 the second argument when loading the file (as is done by the WoW API).
-If no second argument is provided, one is created locally and returned
-from the module, for use with Lua require().  Module sources using
-this syntax are assumed to import the "class" identifier locally with
-"local class = module.class" or similar.
+If no second argument is provided, a module table is created locally and
+returned from the module, for use with Lua require().  Module sources
+using this syntax are assumed to import the "class" identifier locally
+with "local class = module.class" or similar.
 
 
 Define a class using the following syntax:
