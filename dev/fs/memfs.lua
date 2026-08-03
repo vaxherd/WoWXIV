@@ -40,7 +40,7 @@ FS.MemFS = MemFS
 -- Allocate and return an inode for a new object.  Always succeeds.
 function MemFS:GetInode()
     -- Lua defines the "#" operator on a table to return an index N
-    -- such that table[N] exists (is not nil) but table[N] does not exist
+    -- such that table[N] exists (is not nil) but table[N+1] does not exist
     -- (is nil).  While problematic for some patterns, this behavior is
     -- convenient for us because it means we can get a guaranteed unused
     -- table index for "free" (i.e., only the cost of the # operator).
